@@ -18,6 +18,8 @@ build/
 
 # Prisma
 prisma/migrations/dev.db*
+src/generated/
+*.tmp*
 
 # IDE
 .vscode/
