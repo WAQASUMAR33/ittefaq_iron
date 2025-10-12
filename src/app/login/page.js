@@ -74,18 +74,6 @@ export default function LoginPage() {
       </div>
 
       <div className="relative w-full max-w-md z-10">
-        {/* Enhanced Logo and Brand */}
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-2xl mb-4 shadow-xl transform hover:scale-105 transition-transform duration-300 animate-float">
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent mb-1">
-            Itefaq Builders
-          </h1>
-          <p className="text-gray-600 font-medium">Point of Sale System</p>
-        </div>
 
         {/* Enhanced Login Form */}
         <div className="bg-white/90 backdrop-blur-lg rounded-3xl shadow-2xl border border-white/30 p-6 transform hover:scale-[1.01] transition-all duration-300">
