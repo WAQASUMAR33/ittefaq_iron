@@ -42,7 +42,7 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { cus_cat_title } = body;
+    const { cus_cat_title, updated_by } = body;
 
     if (!cus_cat_title || cus_cat_title.trim() === '')
       return errorResponse('Customer category title is required');
@@ -60,7 +60,10 @@ export async function POST(request) {
       return errorResponse('Customer category already exists', 409);
 
     const newCategory = await prisma.customerCategory.create({
-      data: { cus_cat_title: cus_cat_title.trim() },
+      data: { 
+        cus_cat_title: cus_cat_title.trim(),
+        updated_by: updated_by || null
+      },
     });
 
     return NextResponse.json(newCategory, { status: 201 });
@@ -76,7 +79,7 @@ export async function POST(request) {
 export async function PUT(request) {
   try {
     const body = await request.json();
-    const { id, cus_cat_title } = body;
+    const { id, cus_cat_title, updated_by } = body;
 
     if (!id) return errorResponse('Customer category ID is required');
     if (!cus_cat_title || cus_cat_title.trim() === '')
@@ -103,7 +106,10 @@ export async function PUT(request) {
 
     const updated = await prisma.customerCategory.update({
       where: { cus_cat_id: id },
-      data: { cus_cat_title: cus_cat_title.trim() },
+      data: { 
+        cus_cat_title: cus_cat_title.trim(),
+        updated_by: updated_by || existing.updated_by
+      },
     });
 
     return NextResponse.json(updated);

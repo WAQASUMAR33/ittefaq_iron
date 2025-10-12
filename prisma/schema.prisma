@@ -84,11 +84,11 @@ model CustomerCategory {
   cus_cat_title String
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
-  updated_by   String
+  updated_by   String?
 
   // Relations
   customers    Customer[]
-  updated_by_user Users @relation(fields: [updated_by], references: [user_id])
+  updated_by_user Users? @relation(fields: [updated_by], references: [user_id])
 
   @@map("customer_categories")
 }
@@ -107,7 +107,7 @@ model Customer {
   cus_balance      Decimal        @default(0)
   created_at       DateTime       @default(now())
   updated_at       DateTime       @updatedAt
-  updated_by       String
+  updated_by       String?
 
   // Relations
   customer_category CustomerCategory @relation(fields: [cus_category], references: [cus_cat_id])
@@ -116,7 +116,7 @@ model Customer {
   sale_details     SaleDetail[]
   purchases        Purchase[]
   purchase_details PurchaseDetail[]
-  updated_by_user  Users @relation(fields: [updated_by], references: [user_id])
+  updated_by_user  Users? @relation(fields: [updated_by], references: [user_id])
 
   @@map("customers")
 }
@@ -127,12 +127,12 @@ model Categories {
   cat_code   String   @unique
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
-  updated_by String
+  updated_by String?
 
   // Relations
   sub_categories SubCategory[]
   products       Product[]
-  updated_by_user Users @relation(fields: [updated_by], references: [user_id])
+  updated_by_user Users? @relation(fields: [updated_by], references: [user_id])
 
   @@map("categories")
 }
@@ -144,12 +144,12 @@ model SubCategory {
   sub_cat_code String    @unique
   created_at   DateTime  @default(now())
   updated_at   DateTime  @updatedAt
-  updated_by   String
+  updated_by   String?
 
   // Relations
   category     Categories @relation(fields: [cat_id], references: [cat_id], onDelete: Cascade)
   products     Product[]
-  updated_by_user Users @relation(fields: [updated_by], references: [user_id])
+  updated_by_user Users? @relation(fields: [updated_by], references: [user_id])
 
   @@map("sub_categories")
 }
@@ -168,12 +168,12 @@ model Product {
   pro_packing      String?
   created_at       DateTime  @default(now())
   updated_at       DateTime  @updatedAt
-  updated_by       String
+  updated_by       String?
 
   // Relations
   category         Categories  @relation(fields: [cat_id], references: [cat_id])
   sub_category     SubCategory @relation(fields: [sub_cat_id], references: [sub_cat_id])
-  updated_by_user  Users       @relation(fields: [updated_by], references: [user_id])
+  updated_by_user  Users?       @relation(fields: [updated_by], references: [user_id])
   sale_details     SaleDetail[]
   purchase_details PurchaseDetail[]
 
@@ -191,13 +191,13 @@ model Ledger {
   trnx_type        TransactionType
   details          String?
   payments         Decimal         @default(0)
-  updated_by       String
+  updated_by       String?
   created_at       DateTime        @default(now())
   updated_at       DateTime        @updatedAt
 
   // Relations
   customer         Customer @relation(fields: [cus_id], references: [cus_id])
-  updated_by_user  Users    @relation(fields: [updated_by], references: [user_id])
+  updated_by_user  Users?    @relation(fields: [updated_by], references: [user_id])
 
   @@map("ledger")
 }
@@ -222,11 +222,11 @@ model Expense {
   exp_amount Decimal
   created_at DateTime  @default(now())
   updated_at DateTime  @updatedAt
-  updated_by String
+  updated_by String?
 
   // Relations
   expense_title ExpenseTitle @relation(fields: [exp_type], references: [id])
-  updated_by_user Users      @relation(fields: [updated_by], references: [user_id])
+  updated_by_user Users?      @relation(fields: [updated_by], references: [user_id])
 
   @@map("expenses")
 }
@@ -239,13 +239,13 @@ model Sale {
   payment      Decimal
   payment_type PaymentType
   bill_type    BillType
-  updated_by   String
+  updated_by   String?
   created_at   DateTime    @default(now())
   updated_at   DateTime    @updatedAt
 
   // Relations
   customer     Customer    @relation(fields: [cus_id], references: [cus_id])
-  updated_by_user Users    @relation(fields: [updated_by], references: [user_id])
+  updated_by_user Users?    @relation(fields: [updated_by], references: [user_id])
   sale_details SaleDetail[]
 
   @@map("sales")
@@ -265,13 +265,13 @@ model SaleDetail {
   cus_id         String
   created_at     DateTime  @default(now())
   updated_at     DateTime  @updatedAt
-  updated_by     String
+  updated_by     String?
 
   // Relations
   sale           Sale      @relation(fields: [sale_id], references: [sale_id], onDelete: Cascade)
   product        Product   @relation(fields: [pro_id], references: [pro_id])
   customer       Customer  @relation(fields: [cus_id], references: [cus_id])
-  updated_by_user Users    @relation(fields: [updated_by], references: [user_id])
+  updated_by_user Users?    @relation(fields: [updated_by], references: [user_id])
 
   @@map("sale_details")
 }
@@ -287,11 +287,11 @@ model Purchase {
   vehicle_no    String?
   created_at    DateTime    @default(now())
   updated_at    DateTime    @updatedAt
-  updated_by    String
+  updated_by    String?
 
   // Relations
   customer      Customer    @relation(fields: [cus_id], references: [cus_id])
-  updated_by_user Users     @relation(fields: [updated_by], references: [user_id])
+  updated_by_user Users?     @relation(fields: [updated_by], references: [user_id])
   purchase_details PurchaseDetail[]
 
   @@map("purchases")
@@ -311,13 +311,13 @@ model PurchaseDetail {
   net_total     Decimal
   created_at    DateTime  @default(now())
   updated_at    DateTime  @updatedAt
-  updated_by    String
+  updated_by    String?
 
   // Relations
   purchase      Purchase  @relation(fields: [pur_id], references: [pur_id], onDelete: Cascade)
   customer      Customer  @relation(fields: [cus_id], references: [cus_id])
   product       Product   @relation(fields: [pro_id], references: [pro_id])
-  updated_by_user Users   @relation(fields: [updated_by], references: [user_id])
+  updated_by_user Users?   @relation(fields: [updated_by], references: [user_id])
 
   @@map("purchase_details")
 }
@@ -335,10 +335,10 @@ model Cargo {
   others             Decimal? @default(0)
   created_at         DateTime @default(now())
   updated_at         DateTime @updatedAt
-  updated_by         String
+  updated_by         String?
 
   // Relations
-  updated_by_user    Users    @relation(fields: [updated_by], references: [user_id])
+  updated_by_user    Users?    @relation(fields: [updated_by], references: [user_id])
 
   @@map("cargo")
 }
