@@ -460,7 +460,7 @@ const config = {
       "value": "prisma-client-js"
     },
     "output": {
-      "value": "D:\\RapidTechPro\\POS System\\pos-system\\src\\generated\\prisma",
+      "value": "D:\\itefaq builders\\src\\generated\\prisma",
       "fromEnvVar": null
     },
     "config": {
@@ -474,7 +474,7 @@ const config = {
       }
     ],
     "previewFeatures": [],
-    "sourceFilePath": "D:\\RapidTechPro\\POS System\\pos-system\\prisma\\schema.prisma",
+    "sourceFilePath": "D:\\itefaq builders\\prisma\\schema.prisma",
     "isCustomOutput": true
   },
   "relativeEnvPaths": {
