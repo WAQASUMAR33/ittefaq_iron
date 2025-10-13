@@ -52,6 +52,10 @@ export default function DashboardLayout({ children }) {
           setActiveTab('sub-categories');
         } else if (currentPath.startsWith('/dashboard/finance')) {
           setActiveTab('ledger');
+        } else if (currentPath.startsWith('/dashboard/sales')) {
+          setActiveTab('sales');
+        } else if (currentPath.startsWith('/dashboard/purchases')) {
+          setActiveTab('purchases');
         } else if (currentPath === '/dashboard') {
           setActiveTab('dashboard');
         }

@@ -92,6 +92,8 @@ export default function Sidebar({
       router.push('/dashboard/purchases');
     } else if (itemId === 'ledger') {
       router.push('/dashboard/finance');
+    } else if (itemId === 'sales') {
+      router.push('/dashboard/sales');
     } else if (itemId === 'dashboard') {
       router.push('/dashboard');
     }
