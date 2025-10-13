@@ -363,12 +363,7 @@ export default function CustomerCategoryPage() {
                     #{category.sequentialId}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg flex items-center justify-center mr-3">
-                        <Tag className="w-4 h-4 text-white" />
-                      </div>
-                      <span className="text-sm font-medium text-gray-900">{category.cus_cat_title}</span>
-                    </div>
+                    <span className="text-sm font-medium text-gray-900">{category.cus_cat_title}</span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(category.created_at).toLocaleDateString()}
