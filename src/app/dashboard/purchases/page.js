@@ -767,9 +767,6 @@ export default function PurchasesPage() {
                       onClick={() => addProductToPurchase(product)}
                     >
                       <div className="flex items-center flex-1">
-                        <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center mr-3">
-                          <Package className="w-4 h-4 text-white" />
-                        </div>
                         <div className="flex-1">
                           <div className="font-medium text-gray-900 text-sm group-hover:text-green-600 transition-colors">
                             {product.pro_title}
@@ -795,9 +792,6 @@ export default function PurchasesPage() {
                           <div className="text-xs text-gray-500">
                             Stock
                           </div>
-                        </div>
-                        <div className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded">
-                          Click to Add
                         </div>
                       </div>
                     </div>
