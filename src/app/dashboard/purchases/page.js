@@ -767,142 +767,20 @@ export default function PurchasesPage() {
               {/* Form Content */}
               <div className="flex-1 overflow-y-auto p-6">
                 <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Customer */}
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Customer *
-                      </label>
-                      <select
-                        name="cus_id"
-                        value={formData.cus_id}
-                        onChange={handleInputChange}
-                        required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-black"
-                      >
-                        <option value="">Select Customer</option>
-                        {customers.map((customer) => (
-                          <option key={customer.cus_id} value={customer.cus_id}>
-                            {customer.cus_name} - {customer.cus_phone_no}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Vehicle Number */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Vehicle Number
-                      </label>
-                      <input
-                        type="text"
-                        name="vehicle_no"
-                        value={formData.vehicle_no}
-                        onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-black"
-                        placeholder="Enter vehicle number"
-                      />
-                    </div>
-
-                    {/* Payment Type */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Payment Type *
-                      </label>
-                      <select
-                        name="payment_type"
-                        value={formData.payment_type}
-                        onChange={handleInputChange}
-                        required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-black"
-                      >
-                        <option value="CASH">Cash</option>
-                        <option value="CHEQUE">Cheque</option>
-                        <option value="BANK_TRANSFER">Bank Transfer</option>
-                      </select>
-                    </div>
-
-                    {/* Unloading Amount */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Unloading Amount
-                      </label>
-                      <input
-                        type="number"
-                        name="unloading_amount"
-                        value={formData.unloading_amount}
-                        onChange={handleInputChange}
-                        step="0.01"
-                        min="0"
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-black"
-                        placeholder="0.00"
-                      />
-                    </div>
-
-                    {/* Fare Amount */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Fare Amount
-                      </label>
-                      <input
-                        type="number"
-                        name="fare_amount"
-                        value={formData.fare_amount}
-                        onChange={handleInputChange}
-                        step="0.01"
-                        min="0"
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-black"
-                        placeholder="0.00"
-                      />
-                    </div>
-
-                    {/* Discount */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Discount
-                      </label>
-                      <input
-                        type="number"
-                        name="discount"
-                        value={formData.discount}
-                        onChange={handleInputChange}
-                        step="0.01"
-                        min="0"
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-black"
-                        placeholder="0.00"
-                      />
-                    </div>
-
-                    {/* Payment */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Payment Amount *
-                      </label>
-                      <input
-                        type="number"
-                        name="payment"
-                        value={formData.payment}
-                        onChange={handleInputChange}
-                        required
-                        step="0.01"
-                        min="0"
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-black"
-                        placeholder="0.00"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Purchase Details List */}
+                  {/* Selected Products Section - At the Top */}
                   {formData.purchase_details.length > 0 && (
-                    <div className="border-t border-gray-200 pt-6">
-                      <h4 className="text-lg font-semibold text-gray-900 mb-4">Selected Products</h4>
+                    <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+                      <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <Package className="w-5 h-5 mr-2 text-blue-600" />
+                        Selected Products ({formData.purchase_details.length})
+                      </h4>
                       <div className="space-y-2">
                         {formData.purchase_details.map((detail, index) => {
                           const product = products.find(p => p.pro_id === detail.pro_id);
                           return (
-                            <div key={index} className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors duration-200">
+                            <div key={index} className="flex items-center justify-between p-3 bg-white border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors duration-200">
                               <div className="flex items-center flex-1">
-                                <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center mr-3">
+                                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center mr-3">
                                   <Package className="w-4 h-4 text-white" />
                                 </div>
                                 <div className="flex-1">
@@ -966,7 +844,7 @@ export default function PurchasesPage() {
                                   </div>
                                 </div>
                                 <div className="text-right">
-                                  <div className="text-sm font-semibold text-green-600">
+                                  <div className="text-sm font-semibold text-blue-600">
                                     {parseFloat(detail.total_amount).toFixed(2)}
                                   </div>
                                   <div className="text-xs text-gray-500">
@@ -989,32 +867,166 @@ export default function PurchasesPage() {
                     </div>
                   )}
 
+                  {/* Form Fields Section - At the Bottom */}
+                  <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                    <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                      <Receipt className="w-5 h-5 mr-2 text-gray-600" />
+                      Purchase Information
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Customer */}
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Customer *
+                        </label>
+                        <select
+                          name="cus_id"
+                          value={formData.cus_id}
+                          onChange={handleInputChange}
+                          required
+                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-black"
+                        >
+                          <option value="">Select Customer</option>
+                          {customers.map((customer) => (
+                            <option key={customer.cus_id} value={customer.cus_id}>
+                              {customer.cus_name} - {customer.cus_phone_no}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Vehicle Number */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Vehicle Number
+                        </label>
+                        <input
+                          type="text"
+                          name="vehicle_no"
+                          value={formData.vehicle_no}
+                          onChange={handleInputChange}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-black"
+                          placeholder="Enter vehicle number"
+                        />
+                      </div>
+
+                      {/* Payment Type */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Payment Type *
+                        </label>
+                        <select
+                          name="payment_type"
+                          value={formData.payment_type}
+                          onChange={handleInputChange}
+                          required
+                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-black"
+                        >
+                          <option value="CASH">Cash</option>
+                          <option value="CHEQUE">Cheque</option>
+                          <option value="BANK_TRANSFER">Bank Transfer</option>
+                        </select>
+                      </div>
+
+                      {/* Unloading Amount */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Unloading Amount
+                        </label>
+                        <input
+                          type="number"
+                          name="unloading_amount"
+                          value={formData.unloading_amount}
+                          onChange={handleInputChange}
+                          step="0.01"
+                          min="0"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-black"
+                          placeholder="0.00"
+                        />
+                      </div>
+
+                      {/* Fare Amount */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Fare Amount
+                        </label>
+                        <input
+                          type="number"
+                          name="fare_amount"
+                          value={formData.fare_amount}
+                          onChange={handleInputChange}
+                          step="0.01"
+                          min="0"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-black"
+                          placeholder="0.00"
+                        />
+                      </div>
+
+                      {/* Discount */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Discount
+                        </label>
+                        <input
+                          type="number"
+                          name="discount"
+                          value={formData.discount}
+                          onChange={handleInputChange}
+                          step="0.01"
+                          min="0"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-black"
+                          placeholder="0.00"
+                        />
+                      </div>
+
+                      {/* Payment */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Payment Amount *
+                        </label>
+                        <input
+                          type="number"
+                          name="payment"
+                          value={formData.payment}
+                          onChange={handleInputChange}
+                          required
+                          step="0.01"
+                          min="0"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-black"
+                          placeholder="0.00"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Total Calculations */}
-                  <div className="border-t border-gray-200 pt-6">
-                    <div className="bg-green-50 rounded-xl p-4">
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <span className="text-gray-600">Items Total:</span>
-                          <span className="font-semibold ml-2">{calculateTotalAmount().toFixed(2)}</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Unloading + Fare:</span>
-                          <span className="font-semibold ml-2">
-                            {(parseFloat(formData.unloading_amount || 0) + parseFloat(formData.fare_amount || 0)).toFixed(2)}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Discount:</span>
-                          <span className="font-semibold ml-2 text-red-600">
-                            -{parseFloat(formData.discount || 0).toFixed(2)}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Net Total:</span>
-                          <span className="font-semibold ml-2 text-green-600 text-lg">
-                            {calculateNetTotal().toFixed(2)}
-                          </span>
-                        </div>
+                  <div className="bg-green-50 rounded-xl p-4 border border-green-200">
+                    <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                      <DollarSign className="w-5 h-5 mr-2 text-green-600" />
+                      Total Summary
+                    </h4>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-600">Items Total:</span>
+                        <span className="font-semibold ml-2">{calculateTotalAmount().toFixed(2)}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Unloading + Fare:</span>
+                        <span className="font-semibold ml-2">
+                          {(parseFloat(formData.unloading_amount || 0) + parseFloat(formData.fare_amount || 0)).toFixed(2)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Discount:</span>
+                        <span className="font-semibold ml-2 text-red-600">
+                          -{parseFloat(formData.discount || 0).toFixed(2)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Net Total:</span>
+                        <span className="font-semibold ml-2 text-green-600 text-lg">
+                          {calculateNetTotal().toFixed(2)}
+                        </span>
                       </div>
                     </div>
                   </div>
