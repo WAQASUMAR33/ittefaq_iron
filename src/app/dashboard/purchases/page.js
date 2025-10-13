@@ -51,6 +51,10 @@ export default function PurchasesPage() {
   const [selectedSubcategory, setSelectedSubcategory] = useState('');
   const [categories, setCategories] = useState([]);
   const [subcategories, setSubcategories] = useState([]);
+  
+  // Customer dropdown filter states
+  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
 
   // Form data
   const [formData, setFormData] = useState({
@@ -69,6 +73,20 @@ export default function PurchasesPage() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showCustomerDropdown && !event.target.closest('.customer-dropdown')) {
+        setShowCustomerDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showCustomerDropdown]);
 
   const fetchData = async () => {
     try {
@@ -130,6 +148,14 @@ export default function PurchasesPage() {
     const matchesSubcategory = !selectedSubcategory || product.sub_cat_id === selectedSubcategory;
     
     return matchesSearch && matchesCategory && matchesSubcategory;
+  });
+
+  // Customer filtering logic
+  const filteredCustomers = customers.filter(customer => {
+    const matchesSearch = customer.cus_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
+                         customer.cus_phone_no?.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
+                         customer.cus_email?.toLowerCase().includes(customerSearchTerm.toLowerCase());
+    return matchesSearch;
   });
 
   const sortedPurchases = filteredPurchases.sort((a, b) => {
@@ -203,6 +229,16 @@ export default function PurchasesPage() {
         purchase_details: [...prev.purchase_details, newDetail]
       }));
     }
+  };
+
+  const selectCustomer = (customer) => {
+    setFormData(prev => ({ ...prev, cus_id: customer.cus_id }));
+    setCustomerSearchTerm(customer.cus_name);
+    setShowCustomerDropdown(false);
+  };
+
+  const getSelectedCustomer = () => {
+    return customers.find(customer => customer.cus_id === formData.cus_id);
   };
 
   const removePurchaseDetail = (index) => {
@@ -875,24 +911,75 @@ export default function PurchasesPage() {
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {/* Customer */}
-                      <div className="md:col-span-2">
+                      <div className="md:col-span-2 relative customer-dropdown">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Customer *
                         </label>
-                        <select
-                          name="cus_id"
-                          value={formData.cus_id}
-                          onChange={handleInputChange}
-                          required
-                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-black"
-                        >
-                          <option value="">Select Customer</option>
-                          {customers.map((customer) => (
-                            <option key={customer.cus_id} value={customer.cus_id}>
-                              {customer.cus_name} - {customer.cus_phone_no}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={customerSearchTerm}
+                            onChange={(e) => {
+                              setCustomerSearchTerm(e.target.value);
+                              setShowCustomerDropdown(true);
+                              if (!e.target.value) {
+                                setFormData(prev => ({ ...prev, cus_id: '' }));
+                              }
+                            }}
+                            onFocus={() => setShowCustomerDropdown(true)}
+                            placeholder="Search customers..."
+                            className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-black"
+                          />
+                          <Search className="w-4 h-4 text-gray-400 absolute right-3 top-4" />
+                          
+                          {/* Dropdown */}
+                          {showCustomerDropdown && (
+                            <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                              {filteredCustomers.length > 0 ? (
+                                filteredCustomers.map((customer) => (
+                                  <div
+                                    key={customer.cus_id}
+                                    onClick={() => selectCustomer(customer)}
+                                    className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                                  >
+                                    <div className="font-medium text-gray-900">{customer.cus_name}</div>
+                                    <div className="text-sm text-gray-500">
+                                      {customer.cus_phone_no} {customer.cus_email && `• ${customer.cus_email}`}
+                                    </div>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="px-4 py-3 text-gray-500 text-center">
+                                  No customers found
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Selected Customer Display */}
+                        {formData.cus_id && getSelectedCustomer() && (
+                          <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <div className="font-medium text-green-800">{getSelectedCustomer().cus_name}</div>
+                                <div className="text-sm text-green-600">
+                                  {getSelectedCustomer().cus_phone_no} {getSelectedCustomer().cus_email && `• ${getSelectedCustomer().cus_email}`}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFormData(prev => ({ ...prev, cus_id: '' }));
+                                  setCustomerSearchTerm('');
+                                }}
+                                className="text-red-600 hover:text-red-800"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* Vehicle Number */}
