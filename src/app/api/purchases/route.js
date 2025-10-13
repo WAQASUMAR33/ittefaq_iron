@@ -130,8 +130,16 @@ export async function POST(request) {
       return errorResponse('Customer not found', 404);
     }
 
-    // Create purchase with details in a transaction
+    // Create purchase with details and ledger entries in a transaction
     const result = await prisma.$transaction(async (tx) => {
+      // Get customer's current balance
+      const customerData = await tx.customer.findUnique({
+        where: { cus_id },
+        select: { cus_balance: true }
+      });
+
+      const currentBalance = parseFloat(customerData?.cus_balance || 0);
+
       // Create the purchase
       const newPurchase = await tx.purchase.create({
         data: {
@@ -165,6 +173,54 @@ export async function POST(request) {
 
         await tx.purchaseDetail.createMany({
           data: detailsData
+        });
+      }
+
+      // Create ledger entry for purchase (debit - customer owes money)
+      const purchaseBalance = currentBalance + net_total;
+      await tx.ledger.create({
+        data: {
+          cus_id,
+          opening_balance: currentBalance,
+          debit_amount: net_total,
+          credit_amount: 0,
+          closing_balance: purchaseBalance,
+          bill_no: newPurchase.pur_id,
+          trnx_type: payment_type,
+          details: `Purchase - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
+          payments: 0,
+          updated_by: updated_by || null
+        }
+      });
+
+      // Create ledger entry for payment (credit - customer paid money)
+      if (parseFloat(payment) > 0) {
+        const paymentBalance = purchaseBalance - parseFloat(payment);
+        await tx.ledger.create({
+          data: {
+            cus_id,
+            opening_balance: purchaseBalance,
+            debit_amount: 0,
+            credit_amount: parseFloat(payment),
+            closing_balance: paymentBalance,
+            bill_no: newPurchase.pur_id,
+            trnx_type: payment_type,
+            details: `Payment - ${payment_type}`,
+            payments: parseFloat(payment),
+            updated_by: updated_by || null
+          }
+        });
+
+        // Update customer balance
+        await tx.customer.update({
+          where: { cus_id },
+          data: { cus_balance: paymentBalance }
+        });
+      } else {
+        // Update customer balance with purchase amount only
+        await tx.customer.update({
+          where: { cus_id },
+          data: { cus_balance: purchaseBalance }
         });
       }
 
@@ -253,8 +309,16 @@ export async function PUT(request) {
       return errorResponse('Customer not found', 404);
     }
 
-    // Update purchase with details in a transaction
+    // Update purchase with details and ledger entries in a transaction
     const result = await prisma.$transaction(async (tx) => {
+      // Get customer's current balance
+      const customerData = await tx.customer.findUnique({
+        where: { cus_id },
+        select: { cus_balance: true }
+      });
+
+      const currentBalance = parseFloat(customerData?.cus_balance || 0);
+
       // Update the purchase
       const updatedPurchase = await tx.purchase.update({
         where: { pur_id: id },
@@ -294,6 +358,59 @@ export async function PUT(request) {
 
         await tx.purchaseDetail.createMany({
           data: detailsData
+        });
+      }
+
+      // Delete existing ledger entries for this purchase
+      await tx.ledger.deleteMany({
+        where: { bill_no: id }
+      });
+
+      // Create ledger entry for purchase (debit - customer owes money)
+      const purchaseBalance = currentBalance + net_total;
+      await tx.ledger.create({
+        data: {
+          cus_id,
+          opening_balance: currentBalance,
+          debit_amount: net_total,
+          credit_amount: 0,
+          closing_balance: purchaseBalance,
+          bill_no: id,
+          trnx_type: payment_type,
+          details: `Purchase Update - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
+          payments: 0,
+          updated_by: updated_by || existingPurchase.updated_by
+        }
+      });
+
+      // Create ledger entry for payment (credit - customer paid money)
+      if (parseFloat(payment) > 0) {
+        const paymentBalance = purchaseBalance - parseFloat(payment);
+        await tx.ledger.create({
+          data: {
+            cus_id,
+            opening_balance: purchaseBalance,
+            debit_amount: 0,
+            credit_amount: parseFloat(payment),
+            closing_balance: paymentBalance,
+            bill_no: id,
+            trnx_type: payment_type,
+            details: `Payment Update - ${payment_type}`,
+            payments: parseFloat(payment),
+            updated_by: updated_by || existingPurchase.updated_by
+          }
+        });
+
+        // Update customer balance
+        await tx.customer.update({
+          where: { cus_id },
+          data: { cus_balance: paymentBalance }
+        });
+      } else {
+        // Update customer balance with purchase amount only
+        await tx.customer.update({
+          where: { cus_id },
+          data: { cus_balance: purchaseBalance }
         });
       }
 
