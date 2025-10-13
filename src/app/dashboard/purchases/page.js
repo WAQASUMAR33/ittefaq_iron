@@ -559,9 +559,6 @@ export default function PurchasesPage() {
                         <div key={purchase.pur_id} className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-gray-50 transition-colors duration-200">
                           {/* Purchase */}
                           <div className="col-span-2 flex items-center">
-                            <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center mr-3">
-                              <ShoppingCart className="w-5 h-5 text-white" />
-                            </div>
                             <div>
                               <div className="text-sm font-medium text-gray-900">Purchase #{purchase.sequentialId}</div>
                               <div className="text-xs text-gray-500">ID: {purchase.pur_id.slice(-8)}</div>
