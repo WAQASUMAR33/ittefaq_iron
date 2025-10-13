@@ -144,10 +144,8 @@ export default function PurchasesPage() {
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.pro_title.toLowerCase().includes(productSearchTerm.toLowerCase()) ||
                          product.pro_description?.toLowerCase().includes(productSearchTerm.toLowerCase());
-    const matchesCategory = !selectedCategory || product.cat_id === selectedCategory;
-    const matchesSubcategory = !selectedSubcategory || product.sub_cat_id === selectedSubcategory;
     
-    return matchesSearch && matchesCategory && matchesSubcategory;
+    return matchesSearch;
   });
 
   // Customer filtering logic
@@ -695,64 +693,24 @@ export default function PurchasesPage() {
         {/* Main Content */}
         <div className="flex-1 min-h-0 flex gap-6">
           {/* Left Side - Product Grid */}
-          <div className="w-1/2 flex flex-col">
+          <div className="w-1/3 flex flex-col">
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 h-full flex flex-col">
               {/* Product Grid Header */}
               <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Product Selection</h3>
                 
-                {/* Product Filters */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {/* Search */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Search Products</label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        placeholder="Search products..."
-                        value={productSearchTerm}
-                        onChange={(e) => setProductSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black"
-                      />
-                      <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
-                    </div>
-                  </div>
-
-                  {/* Category Filter */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
-                    <select
-                      value={selectedCategory}
-                      onChange={(e) => {
-                        setSelectedCategory(e.target.value);
-                        setSelectedSubcategory('');
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black"
-                    >
-                      <option value="">All Categories</option>
-                      {categories.map((category) => (
-                        <option key={category.cat_id} value={category.cat_id}>
-                          {category.cat_name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Subcategory Filter */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Subcategory</label>
-                    <select
-                      value={selectedSubcategory}
-                      onChange={(e) => setSelectedSubcategory(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black"
-                    >
-                      <option value="">All Subcategories</option>
-                      {getFilteredSubcategories().map((subcategory) => (
-                        <option key={subcategory.sub_cat_id} value={subcategory.sub_cat_id}>
-                          {subcategory.sub_cat_name}
-                        </option>
-                      ))}
-                    </select>
+                {/* Product Search */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Search Products</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search products..."
+                      value={productSearchTerm}
+                      onChange={(e) => setProductSearchTerm(e.target.value)}
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black"
+                    />
+                    <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
                   </div>
                 </div>
               </div>
@@ -811,7 +769,7 @@ export default function PurchasesPage() {
           </div>
 
           {/* Right Side - Purchase Form */}
-          <div className="w-1/2 flex flex-col">
+          <div className="w-2/3 flex flex-col">
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 h-full flex flex-col">
               {/* Form Header */}
               <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200">
