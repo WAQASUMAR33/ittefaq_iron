@@ -277,21 +277,23 @@ model SaleDetail {
 }
 
 model Purchase {
-  pur_id        String      @id @default(cuid())
-  cus_id        String
-  total_amount  Decimal
-  discount      Decimal     @default(0)
-  net_total     Decimal
-  payment       Decimal
-  payment_type  PaymentType
-  vehicle_no    String?
-  created_at    DateTime    @default(now())
-  updated_at    DateTime    @updatedAt
-  updated_by    String?
+  pur_id          String      @id @default(cuid())
+  cus_id          String
+  total_amount    Decimal
+  unloading_amount Decimal     @default(0)
+  fare_amount     Decimal      @default(0)
+  discount        Decimal      @default(0)
+  net_total       Decimal
+  payment         Decimal
+  payment_type    PaymentType
+  vehicle_no      String?
+  created_at      DateTime     @default(now())
+  updated_at      DateTime     @updatedAt
+  updated_by      String?
 
   // Relations
-  customer      Customer    @relation(fields: [cus_id], references: [cus_id])
-  updated_by_user Users?     @relation(fields: [updated_by], references: [user_id])
+  customer        Customer     @relation(fields: [cus_id], references: [cus_id])
+  updated_by_user Users?       @relation(fields: [updated_by], references: [user_id])
   purchase_details PurchaseDetail[]
 
   @@map("purchases")

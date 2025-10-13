@@ -423,7 +423,7 @@ export default function ProductsPage() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-600">Total Value</p>
-                  <p className="text-2xl font-bold text-gray-900">${totalValue.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-gray-900">{totalValue.toLocaleString()}</p>
                 </div>
               </div>
             </div>
@@ -508,8 +508,8 @@ export default function ProductsPage() {
 
                           {/* Pricing */}
                           <div className="col-span-1">
-                            <div className="text-sm font-semibold text-green-600">${parseFloat(product.pro_sale_price).toFixed(2)}</div>
-                            <div className="text-xs text-gray-500">Cost: ${parseFloat(product.pro_cost_price).toFixed(2)}</div>
+                            <div className="text-sm font-semibold text-green-600">{parseFloat(product.pro_sale_price).toFixed(2)}</div>
+                            <div className="text-xs text-gray-500">Cost: {parseFloat(product.pro_cost_price).toFixed(2)}</div>
                           </div>
 
                           {/* Stock */}
