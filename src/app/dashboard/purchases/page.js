@@ -842,9 +842,6 @@ export default function PurchasesPage() {
                                 Quantity
                               </th>
                               <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">
-                                Unit
-                              </th>
-                              <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">
                                 Unit Rate
                               </th>
                               <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">
@@ -893,13 +890,6 @@ export default function PurchasesPage() {
                                       min="1"
                                       className="w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-black"
                                     />
-                                  </td>
-                                  
-                                  {/* Unit Column */}
-                                  <td className="px-4 py-3 text-center">
-                                    <span className="text-sm font-medium text-gray-900">
-                                      {detail.unit}
-                                    </span>
                                   </td>
                                   
                                   {/* Unit Rate Column */}
