@@ -36,7 +36,7 @@ export default function DashboardContent({ activeTab }) {
   const kpiData = [
     {
       title: 'Total Sales',
-      value: '$45,231',
+      value: '45,231',
       change: '+20.1%',
       changeType: 'positive',
       icon: DollarSign,
@@ -69,10 +69,10 @@ export default function DashboardContent({ activeTab }) {
   ];
 
   const recentActivity = [
-    { id: 1, action: 'New order #1234', customer: 'John Doe', amount: '$125.00', time: '2 min ago', status: 'success' },
+    { id: 1, action: 'New order #1234', customer: 'John Doe', amount: '125.00', time: '2 min ago', status: 'success' },
     { id: 2, action: 'Product updated', product: 'iPhone 14', time: '5 min ago', status: 'info' },
     { id: 3, action: 'Customer registered', customer: 'Jane Smith', time: '10 min ago', status: 'success' },
-    { id: 4, action: 'Payment received', order: '#1233', amount: '$89.50', time: '15 min ago', status: 'success' },
+    { id: 4, action: 'Payment received', order: '#1233', amount: '89.50', time: '15 min ago', status: 'success' },
     { id: 5, action: 'Low stock alert', product: 'MacBook Air', time: '20 min ago', status: 'warning' }
   ];
 

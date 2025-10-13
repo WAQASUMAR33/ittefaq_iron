@@ -506,7 +506,7 @@ export default function CustomersPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`text-sm font-medium ${getBalanceColor(customer.cus_balance)}`}>
-                        ${parseFloat(customer.cus_balance).toFixed(2)}
+                        {parseFloat(customer.cus_balance).toFixed(2)}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
