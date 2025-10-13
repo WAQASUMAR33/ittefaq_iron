@@ -56,6 +56,8 @@ export default function DashboardLayout({ children }) {
           setActiveTab('sales');
         } else if (currentPath.startsWith('/dashboard/purchases')) {
           setActiveTab('purchases');
+        } else if (currentPath.startsWith('/dashboard/expense-titles')) {
+          setActiveTab('expense-titles');
         } else if (currentPath === '/dashboard') {
           setActiveTab('dashboard');
         }

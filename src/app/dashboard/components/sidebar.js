@@ -94,6 +94,8 @@ export default function Sidebar({
       router.push('/dashboard/finance');
     } else if (itemId === 'sales') {
       router.push('/dashboard/sales');
+    } else if (itemId === 'expense-titles') {
+      router.push('/dashboard/expense-titles');
     } else if (itemId === 'dashboard') {
       router.push('/dashboard');
     }
