@@ -834,9 +834,6 @@ export default function PurchasesPage() {
                           return (
                             <div key={index} className="flex items-center justify-between p-3 bg-white border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors duration-200">
                               <div className="flex items-center flex-1">
-                                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center mr-3">
-                                  <Package className="w-4 h-4 text-white" />
-                                </div>
                                 <div className="flex-1">
                                   <div className="font-medium text-gray-900 text-sm">{product?.pro_title || 'Unknown Product'}</div>
                                   <div className="text-xs text-gray-500">
@@ -845,48 +842,27 @@ export default function PurchasesPage() {
                                 </div>
                               </div>
                               <div className="flex items-center space-x-4">
-                                {/* Quantity Controls */}
-                                <div className="flex items-center space-x-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const updatedDetails = formData.purchase_details.map((d, i) => 
-                                        i === index && parseInt(d.qnty) > 1
-                                          ? {
-                                              ...d,
-                                              qnty: (parseInt(d.qnty) - 1).toString(),
-                                              total_amount: ((parseInt(d.qnty) - 1) * parseFloat(d.unit_rate)).toString()
-                                            }
-                                          : d
-                                      );
-                                      setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
-                                    }}
-                                    className="w-6 h-6 bg-gray-200 hover:bg-gray-300 rounded flex items-center justify-center text-gray-600 hover:text-gray-800 transition-colors duration-200"
-                                    disabled={parseInt(detail.qnty) <= 1}
-                                  >
-                                    <span className="text-xs font-bold">-</span>
-                                  </button>
-                                  <span className="text-sm font-medium text-gray-900 min-w-[30px] text-center">
-                                    {detail.qnty}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
+                                {/* Quantity Input */}
+                                <div className="flex items-center">
+                                  <input
+                                    type="number"
+                                    value={detail.qnty}
+                                    onChange={(e) => {
+                                      const newQuantity = e.target.value;
                                       const updatedDetails = formData.purchase_details.map((d, i) => 
                                         i === index
                                           ? {
                                               ...d,
-                                              qnty: (parseInt(d.qnty) + 1).toString(),
-                                              total_amount: ((parseInt(d.qnty) + 1) * parseFloat(d.unit_rate)).toString()
+                                              qnty: newQuantity,
+                                              total_amount: (parseInt(newQuantity) * parseFloat(d.unit_rate)).toString()
                                             }
                                           : d
                                       );
                                       setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
                                     }}
-                                    className="w-6 h-6 bg-gray-200 hover:bg-gray-300 rounded flex items-center justify-center text-gray-600 hover:text-gray-800 transition-colors duration-200"
-                                  >
-                                    <span className="text-xs font-bold">+</span>
-                                  </button>
+                                    min="1"
+                                    className="w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-black"
+                                  />
                                 </div>
                                 
                                 <div className="text-right">
