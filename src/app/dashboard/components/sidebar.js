@@ -18,6 +18,7 @@ import {
   CreditCard,
   FileSpreadsheet,
   ChevronDown,
+  Plus,
   X,
   LogOut
 } from 'lucide-react';
