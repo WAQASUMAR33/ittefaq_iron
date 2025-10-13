@@ -60,6 +60,8 @@ export default function DashboardLayout({ children }) {
           setActiveTab('expense-titles');
         } else if (currentPath.startsWith('/dashboard/expenses')) {
           setActiveTab('expenses');
+        } else if (currentPath.startsWith('/dashboard/cargo')) {
+          setActiveTab('cargo');
         } else if (currentPath === '/dashboard') {
           setActiveTab('dashboard');
         }

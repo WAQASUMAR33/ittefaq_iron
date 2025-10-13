@@ -98,6 +98,8 @@ export default function Sidebar({
       router.push('/dashboard/expense-titles');
     } else if (itemId === 'expenses') {
       router.push('/dashboard/expenses');
+    } else if (itemId === 'cargo') {
+      router.push('/dashboard/cargo');
     } else if (itemId === 'dashboard') {
       router.push('/dashboard');
     }
