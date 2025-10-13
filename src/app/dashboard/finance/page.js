@@ -39,6 +39,8 @@ export default function FinancePage() {
   // Customer dropdown filter states
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [accountSearchTerm, setAccountSearchTerm] = useState('');
+  const [showAccountDropdown, setShowAccountDropdown] = useState(false);
 
   // Form data
   const [formData, setFormData] = useState({
@@ -62,13 +64,16 @@ export default function FinancePage() {
       if (showCustomerDropdown && !event.target.closest('.customer-dropdown')) {
         setShowCustomerDropdown(false);
       }
+      if (showAccountDropdown && !event.target.closest('.account-dropdown')) {
+        setShowAccountDropdown(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showCustomerDropdown]);
+  }, [showCustomerDropdown, showAccountDropdown]);
 
   const fetchData = async () => {
     try {
@@ -108,6 +113,14 @@ export default function FinancePage() {
     const matchesSearch = customer.cus_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
                          customer.cus_phone_no?.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
                          customer.cus_email?.toLowerCase().includes(customerSearchTerm.toLowerCase());
+    return matchesSearch;
+  });
+
+  // Account filtering logic for filter dropdown
+  const filteredAccounts = customers.filter(customer => {
+    const matchesSearch = customer.cus_name.toLowerCase().includes(accountSearchTerm.toLowerCase()) ||
+                         customer.cus_phone_no?.toLowerCase().includes(accountSearchTerm.toLowerCase()) ||
+                         customer.cus_email?.toLowerCase().includes(accountSearchTerm.toLowerCase());
     return matchesSearch;
   });
 
@@ -319,42 +332,45 @@ export default function FinancePage() {
               </div>
 
               {/* Account Filter */}
-              <div className="relative customer-dropdown">
+              <div className="relative account-dropdown">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Account</label>
                 <div className="relative">
                   <input
                     type="text"
-                    value={selectedCustomer ? customers.find(c => c.cus_id === selectedCustomer)?.cus_name || '' : ''}
+                    value={accountSearchTerm}
                     onChange={(e) => {
-                      const searchTerm = e.target.value;
-                      if (!searchTerm) {
+                      setAccountSearchTerm(e.target.value);
+                      setShowAccountDropdown(true);
+                      if (!e.target.value) {
                         setSelectedCustomer('');
                       }
                     }}
-                    onFocus={() => setShowCustomerDropdown(true)}
+                    onFocus={() => setShowAccountDropdown(true)}
                     placeholder="Search accounts..."
                     className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
                   />
                   <Search className="w-4 h-4 text-gray-400 absolute right-3 top-3" />
                   
                   {/* Dropdown */}
-                  {showCustomerDropdown && (
+                  {showAccountDropdown && (
                     <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                       <div
                         onClick={() => {
                           setSelectedCustomer('');
-                          setShowCustomerDropdown(false);
+                          setAccountSearchTerm('');
+                          setShowAccountDropdown(false);
                         }}
                         className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100"
                       >
                         <div className="font-medium text-gray-900">All Accounts</div>
                       </div>
-                      {customers.map((customer) => (
+                      {filteredAccounts.map((customer) => (
                         <div
                           key={customer.cus_id}
                           onClick={() => {
                             setSelectedCustomer(customer.cus_id);
-                            setShowCustomerDropdown(false);
+                            setAccountSearchTerm(customer.cus_name);
+                            setShowAccountDropdown(false);
                           }}
                           className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
                         >
@@ -364,6 +380,11 @@ export default function FinancePage() {
                           </div>
                         </div>
                       ))}
+                      {filteredAccounts.length === 0 && (
+                        <div className="px-4 py-3 text-gray-500 text-center">
+                          No accounts found
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
