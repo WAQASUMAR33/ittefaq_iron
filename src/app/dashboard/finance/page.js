@@ -118,6 +118,7 @@ export default function FinancePage() {
 
   // Account filtering logic for filter dropdown
   const filteredAccounts = customers.filter(customer => {
+    if (!accountSearchTerm) return true; // Show all when no search term
     const matchesSearch = customer.cus_name.toLowerCase().includes(accountSearchTerm.toLowerCase()) ||
                          customer.cus_phone_no?.toLowerCase().includes(accountSearchTerm.toLowerCase()) ||
                          customer.cus_email?.toLowerCase().includes(accountSearchTerm.toLowerCase());
@@ -346,9 +347,23 @@ export default function FinancePage() {
                       }
                     }}
                     onFocus={() => setShowAccountDropdown(true)}
+                    onClick={() => setShowAccountDropdown(true)}
                     placeholder="Search accounts..."
                     className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
                   />
+                  {accountSearchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAccountSearchTerm('');
+                        setSelectedCustomer('');
+                        setShowAccountDropdown(false);
+                      }}
+                      className="absolute right-8 top-3 text-gray-400 hover:text-gray-600"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
                   <Search className="w-4 h-4 text-gray-400 absolute right-3 top-3" />
                   
                   {/* Dropdown */}
