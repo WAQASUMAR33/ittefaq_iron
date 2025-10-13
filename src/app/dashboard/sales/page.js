@@ -399,7 +399,7 @@ export default function SalesPage() {
               </button>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               {/* Search */}
               <div className="lg:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
@@ -542,7 +542,7 @@ export default function SalesPage() {
 
         {/* Fixed Stats Cards Section */}
         <div className="flex-shrink-0 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6">
               <div className="flex items-center">
                 <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center mr-4">
@@ -620,7 +620,7 @@ export default function SalesPage() {
               <div className="flex-1 flex flex-col min-h-0">
                 {/* Fixed Column Headers */}
                 <div className="flex-shrink-0 bg-gray-50 border-b border-gray-200">
-                  <div className="grid grid-cols-12 gap-4 px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <div className="hidden lg:grid grid-cols-12 gap-4 px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                     <div className="col-span-2">Sale</div>
                     <div className="col-span-2">Customer</div>
                     <div className="col-span-2">Amounts</div>
@@ -630,6 +630,10 @@ export default function SalesPage() {
                     <div className="col-span-2">Updated By</div>
                     <div className="col-span-1">Actions</div>
                   </div>
+                  {/* Mobile headers */}
+                  <div className="lg:hidden px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Sales List
+                  </div>
                 </div>
                 
                 {/* Scrollable Table Body */}
@@ -637,7 +641,9 @@ export default function SalesPage() {
                   <div className="divide-y divide-gray-200">
                     {finalSales.map((sale) => {
                       return (
-                        <div key={sale.sale_id} className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-gray-50 transition-colors duration-200">
+                        <div key={sale.sale_id}>
+                          {/* Desktop Table Row */}
+                          <div className="hidden lg:grid grid-cols-12 gap-4 px-6 py-4 hover:bg-gray-50 transition-colors duration-200">
                           {/* Sale */}
                           <div className="col-span-2 flex items-center">
                             <div>
@@ -728,6 +734,63 @@ export default function SalesPage() {
                               </button>
                             </div>
                           </div>
+                          </div>
+
+                          {/* Mobile Card Layout */}
+                          <div className="lg:hidden p-4 border-b border-gray-200 hover:bg-gray-50 transition-colors duration-200">
+                            <div className="space-y-3">
+                              {/* Header */}
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <div className="text-sm font-medium text-gray-900">Sale #{sale.sequentialId}</div>
+                                  <div className="text-xs text-gray-500">ID: {sale.sale_id.slice(-8)}</div>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <button
+                                    onClick={() => handleEdit(sale)}
+                                    className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-colors duration-200"
+                                    title="Edit Sale"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDelete(sale.sale_id)}
+                                    className="p-2 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-colors duration-200"
+                                    title="Delete Sale"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Customer */}
+                              <div>
+                                <div className="text-sm font-medium text-gray-900">{sale.customer?.cus_name || 'N/A'}</div>
+                                <div className="text-xs text-gray-500">{sale.customer?.cus_phone_no || 'N/A'}</div>
+                              </div>
+
+                              {/* Amounts */}
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <div className="text-sm font-semibold text-green-600">{parseFloat(sale.total_amount).toFixed(2)}</div>
+                                  <div className="text-xs text-gray-500">
+                                    Items: {sale.sale_details?.length || 0} | 
+                                    Discount: {parseFloat(sale.discount).toFixed(2)}
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-sm font-medium text-gray-900">{sale.payment_type}</div>
+                                  <div className="text-xs text-gray-500">{parseFloat(sale.payment).toFixed(2)}</div>
+                                </div>
+                              </div>
+
+                              {/* Footer */}
+                              <div className="flex items-center justify-between text-xs text-gray-500">
+                                <div>{sale.bill_type}</div>
+                                <div>{new Date(sale.created_at).toLocaleDateString()}</div>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       );
                     })}
@@ -768,9 +831,9 @@ export default function SalesPage() {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 min-h-0 flex gap-6">
+        <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-4 lg:gap-6">
           {/* Left Side - Product Grid */}
-          <div className="w-1/3 flex flex-col">
+          <div className="w-full lg:w-1/3 flex flex-col">
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 h-full flex flex-col">
               {/* Product Grid Header */}
               <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200">
@@ -846,7 +909,7 @@ export default function SalesPage() {
           </div>
 
           {/* Right Side - Sale Form */}
-          <div className="w-2/3 flex flex-col">
+          <div className="w-full lg:w-2/3 flex flex-col">
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 h-full flex flex-col">
               {/* Form Header */}
               <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200">
@@ -979,9 +1042,9 @@ export default function SalesPage() {
                       <Receipt className="w-5 h-5 mr-2 text-gray-600" />
                       Sale Information
                     </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                       {/* Customer */}
-                      <div className="md:col-span-2 relative customer-dropdown">
+                      <div className="sm:col-span-2 relative customer-dropdown">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Customer *
                         </label>
@@ -1131,7 +1194,7 @@ export default function SalesPage() {
                       <DollarSign className="w-5 h-5 mr-2 text-green-600" />
                       Total Summary
                     </h4>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-sm">
                       <div>
                         <span className="text-gray-600">Items Total:</span>
                         <span className="font-semibold ml-2">{calculateTotalAmount().toFixed(2)}</span>
@@ -1142,7 +1205,7 @@ export default function SalesPage() {
                           -{parseFloat(formData.discount || 0).toFixed(2)}
                         </span>
                       </div>
-                      <div className="col-span-2">
+                      <div className="sm:col-span-2">
                         <span className="text-gray-600">Net Total:</span>
                         <span className="font-semibold ml-2 text-green-600 text-lg">
                           {calculateNetTotal().toFixed(2)}
@@ -1152,17 +1215,17 @@ export default function SalesPage() {
                   </div>
 
                   {/* Form Actions */}
-                  <div className="flex items-center justify-end space-x-4 pt-6 border-t border-gray-200">
+                  <div className="flex flex-col sm:flex-row items-center justify-end space-y-3 sm:space-y-0 sm:space-x-4 pt-6 border-t border-gray-200">
                     <button
                       type="button"
                       onClick={() => setCurrentView('list')}
-                      className="px-6 py-3 text-gray-600 hover:text-gray-800 font-medium transition-colors duration-200"
+                      className="w-full sm:w-auto px-6 py-3 text-gray-600 hover:text-gray-800 font-medium transition-colors duration-200"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="px-8 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-medium rounded-xl hover:from-blue-600 hover:to-cyan-600 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105"
+                      className="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-medium rounded-xl hover:from-blue-600 hover:to-cyan-600 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105"
                     >
                       {editingSale ? 'Update Sale' : 'Create Sale'}
                     </button>
