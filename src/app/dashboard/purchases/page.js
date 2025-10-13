@@ -697,45 +697,47 @@ export default function PurchasesPage() {
                 </div>
               </div>
               
-              {/* Product Grid */}
+              {/* Product List */}
               <div className="flex-1 overflow-y-auto p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="space-y-2">
                   {filteredProducts.map((product) => (
                     <div
                       key={product.pro_id}
-                      className="bg-gray-50 rounded-xl p-4 border border-gray-200 hover:border-green-300 hover:shadow-md transition-all duration-200 cursor-pointer group"
+                      className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg hover:border-green-300 hover:bg-green-50 transition-all duration-200 cursor-pointer group"
                       onClick={() => addProductToPurchase(product)}
                     >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
+                      <div className="flex items-center flex-1">
+                        <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center mr-3">
                           <Package className="w-4 h-4 text-white" />
                         </div>
-                        <span className="text-xs text-gray-500">Click to Add</span>
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-900 text-sm group-hover:text-green-600 transition-colors">
+                            {product.pro_title}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {product.category?.cat_name || 'N/A'} - {product.sub_category?.sub_cat_name || 'N/A'}
+                          </div>
+                        </div>
                       </div>
-                      
-                      <h4 className="font-semibold text-gray-900 text-sm mb-1 group-hover:text-green-600 transition-colors">
-                        {product.pro_title}
-                      </h4>
-                      
-                      {product.pro_description && (
-                        <p className="text-xs text-gray-600 mb-2 line-clamp-2">
-                          {product.pro_description}
-                        </p>
-                      )}
-                      
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-gray-500">Cost: {parseFloat(product.pro_cost_price).toFixed(2)}</span>
-                        <span className="text-gray-500">Stock: {product.pro_stock_qnty}</span>
-                      </div>
-                      
-                      <div className="mt-2 pt-2 border-t border-gray-200">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-gray-500">
-                            {product.category?.cat_name || 'N/A'}
-                          </span>
-                          <span className="text-gray-500">
-                            {product.sub_category?.sub_cat_name || 'N/A'}
-                          </span>
+                      <div className="flex items-center space-x-4">
+                        <div className="text-right">
+                          <div className="text-sm font-medium text-gray-900">
+                            {parseFloat(product.pro_cost_price).toFixed(2)}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            Cost Price
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-medium text-gray-900">
+                            {product.pro_stock_qnty}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            Stock
+                          </div>
+                        </div>
+                        <div className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded">
+                          Click to Add
                         </div>
                       </div>
                     </div>
