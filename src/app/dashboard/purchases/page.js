@@ -24,7 +24,9 @@ import {
   BarChart3,
   Truck,
   Package,
-  Receipt
+  Receipt,
+  ArrowLeft,
+  ArrowRight
 } from 'lucide-react';
 import DashboardLayout from '../components/dashboard-layout';
 
@@ -34,14 +36,21 @@ export default function PurchasesPage() {
   const [customers, setCustomers] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showPurchaseForm, setShowPurchaseForm] = useState(false);
   const [editingPurchase, setEditingPurchase] = useState(null);
+  const [currentView, setCurrentView] = useState('list'); // 'list' or 'create'
   
   // Filter states
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState('');
   const [sortBy, setSortBy] = useState('created_at');
   const [sortOrder, setSortOrder] = useState('desc');
+  
+  // Product grid filter states
+  const [productSearchTerm, setProductSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedSubcategory, setSelectedSubcategory] = useState('');
+  const [categories, setCategories] = useState([]);
+  const [subcategories, setSubcategories] = useState([]);
 
   // Form data
   const [formData, setFormData] = useState({
@@ -56,15 +65,6 @@ export default function PurchasesPage() {
     purchase_details: []
   });
 
-  // Purchase detail form
-  const [purchaseDetailForm, setPurchaseDetailForm] = useState({
-    pro_id: '',
-    qnty: '',
-    unit: '',
-    unit_rate: '',
-    total_amount: ''
-  });
-
   // Fetch data
   useEffect(() => {
     fetchData();
@@ -73,10 +73,12 @@ export default function PurchasesPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [purchasesRes, customersRes, productsRes] = await Promise.all([
+      const [purchasesRes, customersRes, productsRes, categoriesRes, subcategoriesRes] = await Promise.all([
         fetch('/api/purchases'),
         fetch('/api/customers'),
-        fetch('/api/products')
+        fetch('/api/products'),
+        fetch('/api/categories'),
+        fetch('/api/subcategories')
       ]);
 
       if (purchasesRes.ok) {
@@ -90,6 +92,14 @@ export default function PurchasesPage() {
       if (productsRes.ok) {
         const productsData = await productsRes.json();
         setProducts(productsData);
+      }
+      if (categoriesRes.ok) {
+        const categoriesData = await categoriesRes.json();
+        setCategories(categoriesData);
+      }
+      if (subcategoriesRes.ok) {
+        const subcategoriesData = await subcategoriesRes.json();
+        setSubcategories(subcategoriesData);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -105,6 +115,21 @@ export default function PurchasesPage() {
     const matchesCustomer = !selectedCustomer || purchase.cus_id === selectedCustomer;
     
     return matchesSearch && matchesCustomer;
+  });
+
+  // Product filtering logic
+  const getFilteredSubcategories = () => {
+    if (!selectedCategory) return subcategories;
+    return subcategories.filter(sub => sub.cat_id === selectedCategory);
+  };
+
+  const filteredProducts = products.filter(product => {
+    const matchesSearch = product.pro_title.toLowerCase().includes(productSearchTerm.toLowerCase()) ||
+                         product.pro_description?.toLowerCase().includes(productSearchTerm.toLowerCase());
+    const matchesCategory = !selectedCategory || product.cat_id === selectedCategory;
+    const matchesSubcategory = !selectedSubcategory || product.sub_cat_id === selectedSubcategory;
+    
+    return matchesSearch && matchesCategory && matchesSubcategory;
   });
 
   const sortedPurchases = filteredPurchases.sort((a, b) => {
@@ -148,31 +173,35 @@ export default function PurchasesPage() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handlePurchaseDetailChange = (e) => {
-    const { name, value } = e.target;
-    setPurchaseDetailForm(prev => ({ ...prev, [name]: value }));
-  };
-
-  const addPurchaseDetail = () => {
-    if (purchaseDetailForm.pro_id && purchaseDetailForm.qnty && purchaseDetailForm.unit_rate) {
-      const totalAmount = parseFloat(purchaseDetailForm.qnty) * parseFloat(purchaseDetailForm.unit_rate);
+  const addProductToPurchase = (product) => {
+    const existingDetail = formData.purchase_details.find(detail => detail.pro_id === product.pro_id);
+    
+    if (existingDetail) {
+      // Update quantity if product already exists
+      const updatedDetails = formData.purchase_details.map(detail => 
+        detail.pro_id === product.pro_id 
+          ? {
+              ...detail,
+              qnty: (parseInt(detail.qnty) + 1).toString(),
+              total_amount: ((parseInt(detail.qnty) + 1) * parseFloat(detail.unit_rate)).toString()
+            }
+          : detail
+      );
+      setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
+    } else {
+      // Add new product
       const newDetail = {
-        ...purchaseDetailForm,
-        total_amount: totalAmount.toString()
+        pro_id: product.pro_id,
+        qnty: '1',
+        unit: product.pro_unit,
+        unit_rate: product.pro_cost_price.toString(),
+        total_amount: product.pro_cost_price.toString()
       };
       
       setFormData(prev => ({
         ...prev,
         purchase_details: [...prev.purchase_details, newDetail]
       }));
-      
-      setPurchaseDetailForm({
-        pro_id: '',
-        qnty: '',
-        unit: '',
-        unit_rate: '',
-        total_amount: ''
-      });
     }
   };
 
@@ -211,7 +240,7 @@ export default function PurchasesPage() {
 
       if (response.ok) {
         await fetchData();
-        setShowPurchaseForm(false);
+        setCurrentView('list');
         setEditingPurchase(null);
         setFormData({
           cus_id: '',
@@ -243,7 +272,7 @@ export default function PurchasesPage() {
       vehicle_no: purchase.vehicle_no || '',
       purchase_details: purchase.purchase_details || []
     });
-    setShowPurchaseForm(true);
+    setCurrentView('create');
   };
 
   const handleDelete = async (purchaseId) => {
@@ -278,7 +307,8 @@ export default function PurchasesPage() {
     );
   }
 
-  return (
+  // Render Purchase List View
+  const renderPurchaseListView = () => (
     <DashboardLayout>
       {/* Fixed Height Container with Overflow Hidden */}
       <div className="h-full flex flex-col overflow-hidden">
@@ -290,7 +320,7 @@ export default function PurchasesPage() {
               <p className="text-gray-600 mt-1">Manage your purchase orders, suppliers, and inventory</p>
             </div>
             <button
-              onClick={() => setShowPurchaseForm(true)}
+              onClick={() => setCurrentView('create')}
               className="group bg-gradient-to-r from-green-500 to-emerald-500 text-white px-6 py-3 rounded-lg hover:from-green-600 hover:to-emerald-600 transition-all duration-200 font-medium shadow-md hover:shadow-lg transform hover:scale-105"
             >
               <span className="flex items-center">
@@ -573,48 +603,167 @@ export default function PurchasesPage() {
           </div>
         </div>
       </div>
+    </DashboardLayout>
+  );
 
-      {/* Purchase Form Modal */}
-      {showPurchaseForm && (
-        <div className="fixed inset-0 z-[9999] overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-            {/* Background Overlay */}
-            <div 
-              className="fixed inset-0 bg-gradient-to-br from-gray-900/80 via-green-900/60 to-emerald-900/80 backdrop-blur-md transition-all duration-500 ease-out animate-fade-in" 
-              onClick={() => setShowPurchaseForm(false)}
-            ></div>
-            
-            {/* Modal Container */}
-            <div className="relative inline-block w-full max-w-4xl p-0 my-8 overflow-hidden text-left align-middle transition-all duration-500 ease-out transform bg-white/95 backdrop-blur-xl shadow-2xl rounded-3xl border border-white/20 animate-slide-in-up">
-              
-              {/* Header */}
-              <div className="relative bg-gradient-to-r from-green-600 to-emerald-600 p-6 text-white">
-                <div className="absolute inset-0 bg-black/10"></div>
-                <div className="relative flex items-center justify-between">
-                  <div className="flex items-center">
-                    <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mr-4">
-                      <ShoppingCart className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold">
-                        {editingPurchase ? 'Edit Purchase' : 'Add New Purchase'}
-                      </h3>
-                      <p className="text-green-100 text-sm">
-                        {editingPurchase ? 'Update purchase information' : 'Fill in the purchase details below'}
-                      </p>
+  // Render Purchase Create View
+  const renderPurchaseCreateView = () => (
+    <DashboardLayout>
+      <div className="h-full flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="flex-shrink-0 mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <button
+                onClick={() => setCurrentView('list')}
+                className="mr-4 p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors duration-200"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">
+                  {editingPurchase ? 'Edit Purchase' : 'Create New Purchase'}
+                </h2>
+                <p className="text-gray-600 mt-1">
+                  {editingPurchase ? 'Update purchase information' : 'Select products and create purchase order'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="flex-1 min-h-0 flex gap-6">
+          {/* Left Side - Product Grid */}
+          <div className="w-1/2 flex flex-col">
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 h-full flex flex-col">
+              {/* Product Grid Header */}
+              <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Product Selection</h3>
+                
+                {/* Product Filters */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Search */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Search Products</label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Search products..."
+                        value={productSearchTerm}
+                        onChange={(e) => setProductSearchTerm(e.target.value)}
+                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black"
+                      />
+                      <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
                     </div>
                   </div>
-                  <button
-                    onClick={() => setShowPurchaseForm(false)}
-                    className="p-2 hover:bg-white/20 rounded-xl transition-all duration-200"
-                  >
-                    <X className="w-6 h-6" />
-                  </button>
+
+                  {/* Category Filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                    <select
+                      value={selectedCategory}
+                      onChange={(e) => {
+                        setSelectedCategory(e.target.value);
+                        setSelectedSubcategory('');
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black"
+                    >
+                      <option value="">All Categories</option>
+                      {categories.map((category) => (
+                        <option key={category.cat_id} value={category.cat_id}>
+                          {category.cat_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Subcategory Filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Subcategory</label>
+                    <select
+                      value={selectedSubcategory}
+                      onChange={(e) => setSelectedSubcategory(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black"
+                    >
+                      <option value="">All Subcategories</option>
+                      {getFilteredSubcategories().map((subcategory) => (
+                        <option key={subcategory.sub_cat_id} value={subcategory.sub_cat_id}>
+                          {subcategory.sub_cat_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
+              
+              {/* Product Grid */}
+              <div className="flex-1 overflow-y-auto p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredProducts.map((product) => (
+                    <div
+                      key={product.pro_id}
+                      className="bg-gray-50 rounded-xl p-4 border border-gray-200 hover:border-green-300 hover:shadow-md transition-all duration-200 cursor-pointer group"
+                      onClick={() => addProductToPurchase(product)}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
+                          <Package className="w-4 h-4 text-white" />
+                        </div>
+                        <span className="text-xs text-gray-500">Click to Add</span>
+                      </div>
+                      
+                      <h4 className="font-semibold text-gray-900 text-sm mb-1 group-hover:text-green-600 transition-colors">
+                        {product.pro_title}
+                      </h4>
+                      
+                      {product.pro_description && (
+                        <p className="text-xs text-gray-600 mb-2 line-clamp-2">
+                          {product.pro_description}
+                        </p>
+                      )}
+                      
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-500">Cost: {parseFloat(product.pro_cost_price).toFixed(2)}</span>
+                        <span className="text-gray-500">Stock: {product.pro_stock_qnty}</span>
+                      </div>
+                      
+                      <div className="mt-2 pt-2 border-t border-gray-200">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-gray-500">
+                            {product.category?.cat_name || 'N/A'}
+                          </span>
+                          <span className="text-gray-500">
+                            {product.sub_category?.sub_cat_name || 'N/A'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                {filteredProducts.length === 0 && (
+                  <div className="flex items-center justify-center h-32">
+                    <div className="text-center">
+                      <Package className="mx-auto h-8 w-8 text-gray-400" />
+                      <p className="text-sm text-gray-500 mt-2">No products found</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
 
+          {/* Right Side - Purchase Form */}
+          <div className="w-1/2 flex flex-col">
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 h-full flex flex-col">
+              {/* Form Header */}
+              <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900">Purchase Details</h3>
+              </div>
+              
               {/* Form Content */}
-              <div className="p-6">
+              <div className="flex-1 overflow-y-auto p-6">
                 <form onSubmit={handleSubmit} className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Customer */}
@@ -741,97 +890,27 @@ export default function PurchasesPage() {
                     </div>
                   </div>
 
-                  {/* Purchase Details Section */}
-                  <div className="border-t border-gray-200 pt-6">
-                    <h4 className="text-lg font-semibold text-gray-900 mb-4">Purchase Details</h4>
-                    
-                    {/* Add Purchase Detail Form */}
-                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4 p-4 bg-gray-50 rounded-xl">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Product</label>
-                        <select
-                          name="pro_id"
-                          value={purchaseDetailForm.pro_id}
-                          onChange={handlePurchaseDetailChange}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black text-sm"
-                        >
-                          <option value="">Select Product</option>
-                          {products.map((product) => (
-                            <option key={product.pro_id} value={product.pro_id}>
-                              {product.pro_title}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
-                        <input
-                          type="number"
-                          name="qnty"
-                          value={purchaseDetailForm.qnty}
-                          onChange={handlePurchaseDetailChange}
-                          min="1"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black text-sm"
-                          placeholder="Qty"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
-                        <input
-                          type="text"
-                          name="unit"
-                          value={purchaseDetailForm.unit}
-                          onChange={handlePurchaseDetailChange}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black text-sm"
-                          placeholder="Unit"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Unit Rate</label>
-                        <input
-                          type="number"
-                          name="unit_rate"
-                          value={purchaseDetailForm.unit_rate}
-                          onChange={handlePurchaseDetailChange}
-                          step="0.01"
-                          min="0"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black text-sm"
-                          placeholder="Rate"
-                        />
-                      </div>
-                      
-                      <div className="flex items-end">
-                        <button
-                          type="button"
-                          onClick={addPurchaseDetail}
-                          className="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors duration-200 text-sm font-medium"
-                        >
-                          Add Item
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Purchase Details List */}
-                    {formData.purchase_details.length > 0 && (
-                      <div className="space-y-2">
-                        <h5 className="text-sm font-medium text-gray-700">Added Items:</h5>
+                  {/* Purchase Details List */}
+                  {formData.purchase_details.length > 0 && (
+                    <div className="border-t border-gray-200 pt-6">
+                      <h4 className="text-lg font-semibold text-gray-900 mb-4">Selected Products</h4>
+                      <div className="space-y-3">
                         {formData.purchase_details.map((detail, index) => {
                           const product = products.find(p => p.pro_id === detail.pro_id);
                           return (
-                            <div key={index} className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg">
+                            <div key={index} className="flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-lg">
                               <div className="flex-1">
-                                <span className="font-medium">{product?.pro_title || 'Unknown Product'}</span>
-                                <span className="text-gray-500 ml-2">
-                                  {detail.qnty} {detail.unit} × {parseFloat(detail.unit_rate).toFixed(2)} = {parseFloat(detail.total_amount).toFixed(2)}
-                                </span>
+                                <div className="flex items-center justify-between">
+                                  <span className="font-medium text-gray-900">{product?.pro_title || 'Unknown Product'}</span>
+                                  <span className="text-sm text-gray-600">
+                                    {detail.qnty} {detail.unit} × {parseFloat(detail.unit_rate).toFixed(2)} = {parseFloat(detail.total_amount).toFixed(2)}
+                                  </span>
+                                </div>
                               </div>
                               <button
                                 type="button"
                                 onClick={() => removePurchaseDetail(index)}
-                                className="p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors duration-200"
+                                className="ml-4 p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors duration-200"
                               >
                                 <X className="w-4 h-4" />
                               </button>
@@ -839,10 +918,12 @@ export default function PurchasesPage() {
                           );
                         })}
                       </div>
-                    )}
+                    </div>
+                  )}
 
-                    {/* Total Calculations */}
-                    <div className="mt-4 p-4 bg-blue-50 rounded-xl">
+                  {/* Total Calculations */}
+                  <div className="border-t border-gray-200 pt-6">
+                    <div className="bg-green-50 rounded-xl p-4">
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
                           <span className="text-gray-600">Items Total:</span>
@@ -874,7 +955,7 @@ export default function PurchasesPage() {
                   <div className="flex items-center justify-end space-x-4 pt-6 border-t border-gray-200">
                     <button
                       type="button"
-                      onClick={() => setShowPurchaseForm(false)}
+                      onClick={() => setCurrentView('list')}
                       className="px-6 py-3 text-gray-600 hover:text-gray-800 font-medium transition-colors duration-200"
                     >
                       Cancel
@@ -891,7 +972,13 @@ export default function PurchasesPage() {
             </div>
           </div>
         </div>
-      )}
+      </div>
     </DashboardLayout>
+  );
+
+  return (
+    <>
+      {currentView === 'list' ? renderPurchaseListView() : renderPurchaseCreateView()}
+    </>
   );
 }
