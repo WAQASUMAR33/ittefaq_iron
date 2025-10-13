@@ -828,49 +828,83 @@ export default function PurchasesPage() {
                         <Package className="w-5 h-5 mr-2 text-blue-600" />
                         Selected Products ({formData.purchase_details.length})
                       </h4>
-                      <div className="space-y-2">
-                        {formData.purchase_details.map((detail, index) => {
-                          const product = products.find(p => p.pro_id === detail.pro_id);
-                          return (
-                            <div key={index} className="flex items-center justify-between p-3 bg-white border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors duration-200">
-                              <div className="flex items-center flex-1">
-                                <div className="flex-1">
-                                  <div className="font-medium text-gray-900 text-sm">{product?.pro_title || 'Unknown Product'}</div>
-                                  <div className="text-xs text-gray-500">
-                                    {product?.pro_description || 'No description'}
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="flex items-center space-x-4">
-                                {/* Quantity Input */}
-                                <div className="flex items-center">
-                                  <input
-                                    type="number"
-                                    value={detail.qnty}
-                                    onChange={(e) => {
-                                      const newQuantity = e.target.value;
-                                      const updatedDetails = formData.purchase_details.map((d, i) => 
-                                        i === index
-                                          ? {
-                                              ...d,
-                                              qnty: newQuantity,
-                                              total_amount: (parseInt(newQuantity) * parseFloat(d.unit_rate)).toString()
-                                            }
-                                          : d
-                                      );
-                                      setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
-                                    }}
-                                    min="1"
-                                    className="w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-black"
-                                  />
-                                </div>
-                                
-                                <div className="text-right">
-                                  <div className="text-sm font-medium text-gray-900">
-                                    {detail.unit}
-                                  </div>
-                                  <div className="text-xs text-gray-500">
-                                    @ <input
+                      
+                      {/* Table */}
+                      <div className="overflow-x-auto">
+                        <table className="w-full bg-white border border-blue-200 rounded-lg">
+                          {/* Table Header */}
+                          <thead className="bg-blue-100">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                                Product
+                              </th>
+                              <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">
+                                Quantity
+                              </th>
+                              <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">
+                                Unit
+                              </th>
+                              <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">
+                                Unit Rate
+                              </th>
+                              <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">
+                                Total
+                              </th>
+                              <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">
+                                Action
+                              </th>
+                            </tr>
+                          </thead>
+                          
+                          {/* Table Body */}
+                          <tbody className="divide-y divide-blue-200">
+                            {formData.purchase_details.map((detail, index) => {
+                              const product = products.find(p => p.pro_id === detail.pro_id);
+                              return (
+                                <tr key={index} className="hover:bg-blue-50 transition-colors duration-200">
+                                  {/* Product Column */}
+                                  <td className="px-4 py-3">
+                                    <div>
+                                      <div className="font-medium text-gray-900 text-sm">{product?.pro_title || 'Unknown Product'}</div>
+                                      <div className="text-xs text-gray-500">
+                                        {product?.pro_description || 'No description'}
+                                      </div>
+                                    </div>
+                                  </td>
+                                  
+                                  {/* Quantity Column */}
+                                  <td className="px-4 py-3 text-center">
+                                    <input
+                                      type="number"
+                                      value={detail.qnty}
+                                      onChange={(e) => {
+                                        const newQuantity = e.target.value;
+                                        const updatedDetails = formData.purchase_details.map((d, i) => 
+                                          i === index
+                                            ? {
+                                                ...d,
+                                                qnty: newQuantity,
+                                                total_amount: (parseInt(newQuantity) * parseFloat(d.unit_rate)).toString()
+                                              }
+                                            : d
+                                        );
+                                        setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
+                                      }}
+                                      min="1"
+                                      className="w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-black"
+                                    />
+                                  </td>
+                                  
+                                  {/* Unit Column */}
+                                  <td className="px-4 py-3 text-center">
+                                    <span className="text-sm font-medium text-gray-900">
+                                      {detail.unit}
+                                    </span>
+                                  </td>
+                                  
+                                  {/* Unit Rate Column */}
+                                  <td className="px-4 py-3 text-center">
+                                    <input
                                       type="number"
                                       value={detail.unit_rate}
                                       onChange={(e) => {
@@ -888,30 +922,33 @@ export default function PurchasesPage() {
                                       }}
                                       step="0.01"
                                       min="0"
-                                      className="w-16 px-1 py-0.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-black"
+                                      className="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-black"
                                     />
-                                  </div>
-                                </div>
-                                <div className="text-right">
-                                  <div className="text-sm font-semibold text-blue-600">
-                                    {parseFloat(detail.total_amount).toFixed(2)}
-                                  </div>
-                                  <div className="text-xs text-gray-500">
-                                    Total
-                                  </div>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => removePurchaseDetail(index)}
-                                  className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors duration-200"
-                                  title="Remove Product"
-                                >
-                                  <X className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
+                                  </td>
+                                  
+                                  {/* Total Column */}
+                                  <td className="px-4 py-3 text-center">
+                                    <span className="text-sm font-semibold text-blue-600">
+                                      {parseFloat(detail.total_amount).toFixed(2)}
+                                    </span>
+                                  </td>
+                                  
+                                  {/* Action Column */}
+                                  <td className="px-4 py-3 text-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => removePurchaseDetail(index)}
+                                      className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors duration-200"
+                                      title="Remove Product"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
                       </div>
                     </div>
                   )}
