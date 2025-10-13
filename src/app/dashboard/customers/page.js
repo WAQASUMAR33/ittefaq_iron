@@ -260,6 +260,18 @@ export default function CustomersPage() {
         return 'bg-green-100 text-green-800';
       case 'CORPORATE':
         return 'bg-purple-100 text-purple-800';
+      case 'CASH_ACCOUNT':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'ACCOUNT_PAYABLE':
+        return 'bg-red-100 text-red-800';
+      case 'ACCOUNT_RECEIVABLE':
+        return 'bg-emerald-100 text-emerald-800';
+      case 'EXPENSE_ACCOUNT':
+        return 'bg-orange-100 text-orange-800';
+      case 'ASSET_ACCOUNT':
+        return 'bg-indigo-100 text-indigo-800';
+      case 'LIABILITY_ACCOUNT':
+        return 'bg-pink-100 text-pink-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -342,6 +354,12 @@ export default function CustomersPage() {
                 <option value="RETAIL">Retail</option>
                 <option value="WHOLESALE">Wholesale</option>
                 <option value="CORPORATE">Corporate</option>
+                <option value="CASH_ACCOUNT">Cash Account</option>
+                <option value="ACCOUNT_PAYABLE">Account Payable</option>
+                <option value="ACCOUNT_RECEIVABLE">Account Receivable</option>
+                <option value="EXPENSE_ACCOUNT">Expense Account</option>
+                <option value="ASSET_ACCOUNT">Asset Account</option>
+                <option value="LIABILITY_ACCOUNT">Liability Account</option>
               </select>
             </div>
 
@@ -397,9 +415,9 @@ export default function CustomersPage() {
                 <Building className="w-6 h-6 text-white" />
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-600">Corporate</p>
+                <p className="text-sm font-medium text-gray-600">Account Types</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {customers.filter(c => c.cus_type === 'CORPORATE').length}
+                  {customers.filter(c => ['CASH_ACCOUNT', 'ACCOUNT_PAYABLE', 'ACCOUNT_RECEIVABLE', 'EXPENSE_ACCOUNT', 'ASSET_ACCOUNT', 'LIABILITY_ACCOUNT'].includes(c.cus_type)).length}
                 </p>
               </div>
             </div>
@@ -666,6 +684,12 @@ export default function CustomersPage() {
                           <option value="RETAIL">Retail</option>
                           <option value="WHOLESALE">Wholesale</option>
                           <option value="CORPORATE">Corporate</option>
+                          <option value="CASH_ACCOUNT">Cash Account</option>
+                          <option value="ACCOUNT_PAYABLE">Account Payable</option>
+                          <option value="ACCOUNT_RECEIVABLE">Account Receivable</option>
+                          <option value="EXPENSE_ACCOUNT">Expense Account</option>
+                          <option value="ASSET_ACCOUNT">Asset Account</option>
+                          <option value="LIABILITY_ACCOUNT">Liability Account</option>
                         </select>
                       </div>
 
