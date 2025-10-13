@@ -448,9 +448,8 @@ export default function FinancePage() {
                     <div className="col-span-1">Credit</div>
                     <div className="col-span-1">Balance</div>
                     <div className="col-span-1">Type</div>
-                    <div className="col-span-1">Bill No</div>
                     <div className="col-span-1">Created</div>
-                    <div className="col-span-1">Actions</div>
+                    <div className="col-span-2">Actions</div>
                   </div>
                 </div>
                 
@@ -509,11 +508,6 @@ export default function FinancePage() {
                             <div className="text-sm text-gray-900">{entry.trnx_type}</div>
                           </div>
 
-                          {/* Bill No */}
-                          <div className="col-span-1 flex items-center">
-                            <div className="text-sm text-gray-900">{entry.bill_no || 'N/A'}</div>
-                          </div>
-
                           {/* Created */}
                           <div className="col-span-1 flex items-center">
                             <div className="text-sm text-gray-900">
@@ -522,7 +516,7 @@ export default function FinancePage() {
                           </div>
 
                           {/* Actions */}
-                          <div className="col-span-1 flex items-center">
+                          <div className="col-span-2 flex items-center">
                             <div className="flex items-center space-x-2">
                               <button
                                 onClick={() => handleEdit(entry)}
