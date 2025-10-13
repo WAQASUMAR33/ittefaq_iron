@@ -894,26 +894,92 @@ export default function PurchasesPage() {
                   {formData.purchase_details.length > 0 && (
                     <div className="border-t border-gray-200 pt-6">
                       <h4 className="text-lg font-semibold text-gray-900 mb-4">Selected Products</h4>
-                      <div className="space-y-3">
+                      <div className="space-y-2">
                         {formData.purchase_details.map((detail, index) => {
                           const product = products.find(p => p.pro_id === detail.pro_id);
                           return (
-                            <div key={index} className="flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                              <div className="flex-1">
-                                <div className="flex items-center justify-between">
-                                  <span className="font-medium text-gray-900">{product?.pro_title || 'Unknown Product'}</span>
-                                  <span className="text-sm text-gray-600">
-                                    {detail.qnty} {detail.unit} × {parseFloat(detail.unit_rate).toFixed(2)} = {parseFloat(detail.total_amount).toFixed(2)}
-                                  </span>
+                            <div key={index} className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors duration-200">
+                              <div className="flex items-center flex-1">
+                                <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center mr-3">
+                                  <Package className="w-4 h-4 text-white" />
+                                </div>
+                                <div className="flex-1">
+                                  <div className="font-medium text-gray-900 text-sm">{product?.pro_title || 'Unknown Product'}</div>
+                                  <div className="text-xs text-gray-500">
+                                    {product?.pro_description || 'No description'}
+                                  </div>
                                 </div>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => removePurchaseDetail(index)}
-                                className="ml-4 p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors duration-200"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
+                              <div className="flex items-center space-x-4">
+                                {/* Quantity Controls */}
+                                <div className="flex items-center space-x-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const updatedDetails = formData.purchase_details.map((d, i) => 
+                                        i === index && parseInt(d.qnty) > 1
+                                          ? {
+                                              ...d,
+                                              qnty: (parseInt(d.qnty) - 1).toString(),
+                                              total_amount: ((parseInt(d.qnty) - 1) * parseFloat(d.unit_rate)).toString()
+                                            }
+                                          : d
+                                      );
+                                      setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
+                                    }}
+                                    className="w-6 h-6 bg-gray-200 hover:bg-gray-300 rounded flex items-center justify-center text-gray-600 hover:text-gray-800 transition-colors duration-200"
+                                    disabled={parseInt(detail.qnty) <= 1}
+                                  >
+                                    <span className="text-xs font-bold">-</span>
+                                  </button>
+                                  <span className="text-sm font-medium text-gray-900 min-w-[30px] text-center">
+                                    {detail.qnty}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const updatedDetails = formData.purchase_details.map((d, i) => 
+                                        i === index
+                                          ? {
+                                              ...d,
+                                              qnty: (parseInt(d.qnty) + 1).toString(),
+                                              total_amount: ((parseInt(d.qnty) + 1) * parseFloat(d.unit_rate)).toString()
+                                            }
+                                          : d
+                                      );
+                                      setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
+                                    }}
+                                    className="w-6 h-6 bg-gray-200 hover:bg-gray-300 rounded flex items-center justify-center text-gray-600 hover:text-gray-800 transition-colors duration-200"
+                                  >
+                                    <span className="text-xs font-bold">+</span>
+                                  </button>
+                                </div>
+                                
+                                <div className="text-right">
+                                  <div className="text-sm font-medium text-gray-900">
+                                    {detail.unit}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    @ {parseFloat(detail.unit_rate).toFixed(2)}
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-sm font-semibold text-green-600">
+                                    {parseFloat(detail.total_amount).toFixed(2)}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    Total
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => removePurchaseDetail(index)}
+                                  className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors duration-200"
+                                  title="Remove Product"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
                             </div>
                           );
                         })}
