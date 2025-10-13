@@ -53,6 +53,10 @@ export default function SalesPage() {
   // Customer dropdown filter states
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  
+  // Customer filter dropdown states
+  const [customerFilterSearchTerm, setCustomerFilterSearchTerm] = useState('');
+  const [showCustomerFilterDropdown, setShowCustomerFilterDropdown] = useState(false);
 
   // Form data
   const [formData, setFormData] = useState({
@@ -76,13 +80,16 @@ export default function SalesPage() {
       if (showCustomerDropdown && !event.target.closest('.customer-dropdown')) {
         setShowCustomerDropdown(false);
       }
+      if (showCustomerFilterDropdown && !event.target.closest('.customer-filter-dropdown')) {
+        setShowCustomerFilterDropdown(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showCustomerDropdown]);
+  }, [showCustomerDropdown, showCustomerFilterDropdown]);
 
   const fetchData = async () => {
     try {
@@ -134,6 +141,14 @@ export default function SalesPage() {
     const matchesSearch = customer.cus_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
                          customer.cus_phone_no?.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
                          customer.cus_email?.toLowerCase().includes(customerSearchTerm.toLowerCase());
+    return matchesSearch;
+  });
+
+  // Customer filter dropdown logic
+  const filteredCustomersForFilter = customers.filter(customer => {
+    const matchesSearch = customer.cus_name.toLowerCase().includes(customerFilterSearchTerm.toLowerCase()) ||
+                         customer.cus_phone_no?.toLowerCase().includes(customerFilterSearchTerm.toLowerCase()) ||
+                         customer.cus_email?.toLowerCase().includes(customerFilterSearchTerm.toLowerCase());
     return matchesSearch;
   });
 
@@ -215,6 +230,12 @@ export default function SalesPage() {
     setFormData(prev => ({ ...prev, cus_id: customer.cus_id }));
     setCustomerSearchTerm(customer.cus_name);
     setShowCustomerDropdown(false);
+  };
+
+  const selectCustomerForFilter = (customer) => {
+    setSelectedCustomer(customer.cus_id);
+    setCustomerFilterSearchTerm(customer.cus_name);
+    setShowCustomerFilterDropdown(false);
   };
 
   const getSelectedCustomer = () => {
@@ -395,20 +416,104 @@ export default function SalesPage() {
               </div>
 
               {/* Customer Filter */}
-              <div>
+              <div className="relative customer-filter-dropdown">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Customer</label>
-                <select
-                  value={selectedCustomer}
-                  onChange={(e) => setSelectedCustomer(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
-                >
-                  <option value="">All Customers</option>
-                  {customers.map((customer) => (
-                    <option key={customer.cus_id} value={customer.cus_id}>
-                      {customer.cus_name}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={customerFilterSearchTerm}
+                    onChange={(e) => {
+                      setCustomerFilterSearchTerm(e.target.value);
+                      setShowCustomerFilterDropdown(true);
+                      if (!e.target.value) {
+                        setSelectedCustomer('');
+                      }
+                    }}
+                    onFocus={() => setShowCustomerFilterDropdown(true)}
+                    onClick={() => setShowCustomerFilterDropdown(true)}
+                    placeholder="Search customers..."
+                    className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
+                  />
+                  <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+                  
+                  {/* Clear button */}
+                  {customerFilterSearchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomerFilterSearchTerm('');
+                        setSelectedCustomer('');
+                        setShowCustomerFilterDropdown(false);
+                      }}
+                      className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                  
+                  {/* Dropdown */}
+                  {showCustomerFilterDropdown && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      {/* All Customers option */}
+                      <div
+                        onClick={() => {
+                          setSelectedCustomer('');
+                          setCustomerFilterSearchTerm('');
+                          setShowCustomerFilterDropdown(false);
+                        }}
+                        className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100"
+                      >
+                        <div className="font-medium text-gray-900">All Customers</div>
+                      </div>
+                      
+                      {/* Filtered customers */}
+                      {filteredCustomersForFilter.length > 0 ? (
+                        filteredCustomersForFilter.map((customer) => (
+                          <div
+                            key={customer.cus_id}
+                            onClick={() => selectCustomerForFilter(customer)}
+                            className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                          >
+                            <div className="font-medium text-gray-900">{customer.cus_name}</div>
+                            <div className="text-sm text-gray-500">
+                              {customer.cus_phone_no} {customer.cus_email && `• ${customer.cus_email}`}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="px-4 py-3 text-gray-500 text-center">
+                          No customers found
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                
+                {/* Selected Customer Display */}
+                {selectedCustomer && (
+                  <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium text-blue-800">
+                          {customers.find(c => c.cus_id === selectedCustomer)?.cus_name}
+                        </div>
+                        <div className="text-sm text-blue-600">
+                          {customers.find(c => c.cus_id === selectedCustomer)?.cus_phone_no}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedCustomer('');
+                          setCustomerFilterSearchTerm('');
+                        }}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Sort */}
