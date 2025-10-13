@@ -51,8 +51,10 @@ export default function Sidebar({
     { id: 'expenses', name: 'Expense Management', icon: DollarSign, category: 'financial', parent: 'Finance' },
     
     // Sales Operations
-    { id: 'sales', name: 'Sales Management', icon: ShoppingCart, category: 'sales-operations', parent: 'Sales' },
-    { id: 'sale-details', name: 'Sale Details', icon: Receipt, category: 'sales-operations', parent: 'Sales' },
+    { id: 'new-sale', name: 'New Sale', icon: Plus, category: 'sales-operations', parent: 'Sales' },
+    { id: 'sales', name: 'Sales', icon: ShoppingCart, category: 'sales-operations', parent: 'Sales' },
+    { id: 'orders', name: 'Orders', icon: FileText, category: 'sales-operations', parent: 'Sales' },
+    { id: 'quotations', name: 'Quotations', icon: Receipt, category: 'sales-operations', parent: 'Sales' },
     
     // Purchase Operations
     { id: 'purchases', name: 'Purchase Management', icon: ShoppingBag, category: 'purchase-operations', parent: 'Purchase' },
@@ -60,6 +62,9 @@ export default function Sidebar({
     
     // Cargo Operations
     { id: 'cargo', name: 'Cargo Management', icon: Truck, category: 'cargo-operations', parent: 'Cargo' },
+    
+    // Reports
+    { id: 'reports', name: 'Reports', icon: BarChart3, category: 'reports', parent: 'Reports' },
     
     // System Management
     { id: 'usermanagement', name: 'User Management', icon: User, category: 'system', parent: 'System' }
@@ -100,6 +105,14 @@ export default function Sidebar({
       router.push('/dashboard/expenses');
     } else if (itemId === 'cargo') {
       router.push('/dashboard/cargo');
+    } else if (itemId === 'new-sale') {
+      router.push('/dashboard/new-sale');
+    } else if (itemId === 'orders') {
+      router.push('/dashboard/orders');
+    } else if (itemId === 'quotations') {
+      router.push('/dashboard/quotations');
+    } else if (itemId === 'reports') {
+      router.push('/dashboard/reports');
     } else if (itemId === 'dashboard') {
       router.push('/dashboard');
     }
@@ -409,6 +422,25 @@ export default function Sidebar({
                   ))}
                 </div>
               </div>
+            </li>
+
+            {/* Reports Section */}
+            <li>
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-2">Reports</h3>
+              {menuItems.filter(item => item.category === 'reports').map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => handleNavigation(item.id)}
+                  className={`w-full flex items-center px-3 py-2.5 text-left rounded-lg transition-all duration-200 group mb-1 ${
+                    activeTab === item.id
+                      ? 'bg-gray-100 text-gray-900'
+                      : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  <item.icon className="w-5 h-5 mr-3 text-gray-500" />
+                  <span className="font-medium text-sm">{item.name}</span>
+                </button>
+              ))}
             </li>
 
             {/* System Section */}

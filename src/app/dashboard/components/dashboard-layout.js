@@ -62,6 +62,14 @@ export default function DashboardLayout({ children }) {
           setActiveTab('expenses');
         } else if (currentPath.startsWith('/dashboard/cargo')) {
           setActiveTab('cargo');
+        } else if (currentPath.startsWith('/dashboard/new-sale')) {
+          setActiveTab('new-sale');
+        } else if (currentPath.startsWith('/dashboard/orders')) {
+          setActiveTab('orders');
+        } else if (currentPath.startsWith('/dashboard/quotations')) {
+          setActiveTab('quotations');
+        } else if (currentPath.startsWith('/dashboard/reports')) {
+          setActiveTab('reports');
         } else if (currentPath === '/dashboard') {
           setActiveTab('dashboard');
         }
