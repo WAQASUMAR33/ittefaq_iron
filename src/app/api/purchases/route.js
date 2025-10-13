@@ -159,6 +159,7 @@ export async function POST(request) {
           unit: detail.unit,
           unit_rate: parseFloat(detail.unit_rate),
           total_amount: parseFloat(detail.total_amount),
+          net_total: parseFloat(detail.total_amount), // Use total_amount as net_total for now
           updated_by: updated_by || null
         }));
 
@@ -287,6 +288,7 @@ export async function PUT(request) {
           unit: detail.unit,
           unit_rate: parseFloat(detail.unit_rate),
           total_amount: parseFloat(detail.total_amount),
+          net_total: parseFloat(detail.total_amount), // Use total_amount as net_total for now
           updated_by: updated_by || existingPurchase.updated_by
         }));
 

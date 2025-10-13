@@ -264,9 +264,33 @@ export default function PurchasesPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      // Validation
+      if (!formData.cus_id) {
+        alert('Please select a customer');
+        return;
+      }
+      
+      if (formData.purchase_details.length === 0) {
+        alert('Please add at least one product to the purchase');
+        return;
+      }
+      
       const url = editingPurchase ? '/api/purchases' : '/api/purchases';
       const method = editingPurchase ? 'PUT' : 'POST';
-      const body = editingPurchase ? { id: editingPurchase.pur_id, ...formData } : formData;
+      
+      // Calculate total amount from purchase details
+      const calculatedTotalAmount = calculateTotalAmount();
+      
+      const body = editingPurchase 
+        ? { 
+            id: editingPurchase.pur_id, 
+            ...formData, 
+            total_amount: calculatedTotalAmount.toString()
+          } 
+        : { 
+            ...formData, 
+            total_amount: calculatedTotalAmount.toString()
+          };
 
       const response = await fetch(url, {
         method,
