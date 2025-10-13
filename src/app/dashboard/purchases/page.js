@@ -900,7 +900,26 @@ export default function PurchasesPage() {
                                     {detail.unit}
                                   </div>
                                   <div className="text-xs text-gray-500">
-                                    @ {parseFloat(detail.unit_rate).toFixed(2)}
+                                    @ <input
+                                      type="number"
+                                      value={detail.unit_rate}
+                                      onChange={(e) => {
+                                        const newUnitRate = e.target.value;
+                                        const updatedDetails = formData.purchase_details.map((d, i) => 
+                                          i === index
+                                            ? {
+                                                ...d,
+                                                unit_rate: newUnitRate,
+                                                total_amount: (parseInt(d.qnty) * parseFloat(newUnitRate)).toString()
+                                              }
+                                            : d
+                                        );
+                                        setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
+                                      }}
+                                      step="0.01"
+                                      min="0"
+                                      className="w-16 px-1 py-0.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-black"
+                                    />
                                   </div>
                                 </div>
                                 <div className="text-right">
