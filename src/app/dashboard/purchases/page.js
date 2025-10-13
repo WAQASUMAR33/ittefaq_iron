@@ -819,12 +819,7 @@ export default function PurchasesPage() {
                                 <tr key={index} className="hover:bg-blue-50 transition-colors duration-200">
                                   {/* Product Column */}
                                   <td className="px-4 py-3">
-                                    <div>
-                                      <div className="font-medium text-gray-900 text-sm">{product?.pro_title || 'Unknown Product'}</div>
-                                      <div className="text-xs text-gray-500">
-                                        {product?.pro_description || 'No description'}
-                                      </div>
-                                    </div>
+                                    <div className="font-medium text-gray-900 text-sm">{product?.pro_title || 'Unknown Product'}</div>
                                   </td>
                                   
                                   {/* Quantity Column */}
