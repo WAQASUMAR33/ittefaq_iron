@@ -226,7 +226,7 @@ export default function CustomersPage() {
                            customer.cus_reference?.toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchesType = typeFilter === 'all' || customer.cus_type === typeFilter;
-      const matchesCategory = categoryFilter === 'all' || (customer.customer_category?.cus_cat_title || customer.cus_category) === categoryFilter;
+      const matchesCategory = categoryFilter === 'all' || customer.customer_category?.cus_cat_title === categoryFilter;
       
       let matchesBalance = true;
       if (balanceFilter === 'positive') {
@@ -354,8 +354,8 @@ export default function CustomersPage() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
               >
                 <option value="all">All Categories</option>
-                {categories.map(category => (
-                  <option key={category} value={category}>{category}</option>
+                {customerCategories.map(category => (
+                  <option key={category.cus_cat_id} value={category.cus_cat_title}>{category.cus_cat_title}</option>
                 ))}
               </select>
             </div>
