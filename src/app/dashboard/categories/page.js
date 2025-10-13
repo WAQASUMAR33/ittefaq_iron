@@ -441,14 +441,9 @@ export default function CategoriesPage() {
                 {filteredAndSortedCategories.map((category) => (
                   <tr key={category.cat_id} className="hover:bg-gray-50 transition-colors duration-200">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center mr-3">
-                          <span className="text-white text-lg">{getCategoryIcon(category.cat_name)}</span>
-                        </div>
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">{category.cat_name}</div>
-                          <div className="text-sm text-gray-500">ID: #{category.sequentialId}</div>
-                        </div>
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">{category.cat_name}</div>
+                        <div className="text-sm text-gray-500">ID: #{category.sequentialId}</div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
