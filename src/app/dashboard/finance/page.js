@@ -443,13 +443,14 @@ export default function FinancePage() {
                   <div className="grid grid-cols-12 gap-4 px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                     <div className="col-span-2">Entry</div>
                     <div className="col-span-2">Customer</div>
+                    <div className="col-span-1">Pre Balance</div>
                     <div className="col-span-1">Debit</div>
                     <div className="col-span-1">Credit</div>
                     <div className="col-span-1">Balance</div>
                     <div className="col-span-1">Type</div>
                     <div className="col-span-1">Bill No</div>
                     <div className="col-span-1">Created</div>
-                    <div className="col-span-2">Actions</div>
+                    <div className="col-span-1">Actions</div>
                   </div>
                 </div>
                 
@@ -472,6 +473,13 @@ export default function FinancePage() {
                             <div>
                               <div className="text-sm font-medium text-gray-900">{entry.customer?.cus_name || 'N/A'}</div>
                               <div className="text-xs text-gray-500">{entry.customer?.cus_phone_no || 'N/A'}</div>
+                            </div>
+                          </div>
+
+                          {/* Pre Balance */}
+                          <div className="col-span-1 flex items-center">
+                            <div className="text-sm font-medium text-gray-700">
+                              {parseFloat(entry.opening_balance).toFixed(2)}
                             </div>
                           </div>
 
@@ -514,7 +522,7 @@ export default function FinancePage() {
                           </div>
 
                           {/* Actions */}
-                          <div className="col-span-2 flex items-center">
+                          <div className="col-span-1 flex items-center">
                             <div className="flex items-center space-x-2">
                               <button
                                 onClick={() => handleEdit(entry)}
