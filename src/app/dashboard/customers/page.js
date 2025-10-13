@@ -19,7 +19,7 @@ export default function CustomersPage() {
     cus_reference: '',
     cus_account_info: '',
     other: '',
-    cus_type: 'RETAIL',
+    cus_type: 'CASH_ACCOUNT',
     cus_category: 'Regular Customers',
     cus_balance: 0
   });
@@ -83,7 +83,7 @@ export default function CustomersPage() {
           cus_reference: '',
           cus_account_info: '',
           other: '',
-          cus_type: 'RETAIL',
+          cus_type: 'CASH_ACCOUNT',
           cus_category: '',
           cus_balance: 0
         });
@@ -108,7 +108,7 @@ export default function CustomersPage() {
       cus_reference: customer.cus_reference || '',
       cus_account_info: customer.cus_account_info || '',
       other: customer.other || '',
-      cus_type: customer.cus_type || 'RETAIL',
+      cus_type: customer.cus_type || 'CASH_ACCOUNT',
       cus_category: customer.cus_category || '',
       cus_balance: customer.cus_balance || 0
     });
@@ -145,7 +145,7 @@ export default function CustomersPage() {
           cus_reference: '',
           cus_account_info: '',
           other: '',
-          cus_type: 'RETAIL',
+          cus_type: 'CASH_ACCOUNT',
           cus_category: '',
           cus_balance: 0
         });
@@ -254,12 +254,6 @@ export default function CustomersPage() {
 
   const getTypeColor = (type) => {
     switch (type) {
-      case 'RETAIL':
-        return 'bg-blue-100 text-blue-800';
-      case 'WHOLESALE':
-        return 'bg-green-100 text-green-800';
-      case 'CORPORATE':
-        return 'bg-purple-100 text-purple-800';
       case 'CASH_ACCOUNT':
         return 'bg-yellow-100 text-yellow-800';
       case 'ACCOUNT_PAYABLE':
@@ -351,9 +345,6 @@ export default function CustomersPage() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
               >
                 <option value="all">All Types</option>
-                <option value="RETAIL">Retail</option>
-                <option value="WHOLESALE">Wholesale</option>
-                <option value="CORPORATE">Corporate</option>
                 <option value="CASH_ACCOUNT">Cash Account</option>
                 <option value="ACCOUNT_PAYABLE">Account Payable</option>
                 <option value="ACCOUNT_RECEIVABLE">Account Receivable</option>
@@ -681,9 +672,6 @@ export default function CustomersPage() {
                           required
                           className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 bg-white hover:bg-gray-50 text-black"
                         >
-                          <option value="RETAIL">Retail</option>
-                          <option value="WHOLESALE">Wholesale</option>
-                          <option value="CORPORATE">Corporate</option>
                           <option value="CASH_ACCOUNT">Cash Account</option>
                           <option value="ACCOUNT_PAYABLE">Account Payable</option>
                           <option value="ACCOUNT_RECEIVABLE">Account Receivable</option>
