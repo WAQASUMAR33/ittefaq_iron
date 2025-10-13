@@ -173,7 +173,7 @@ export default function FinancePage() {
     try {
       // Validation
       if (!formData.cus_id) {
-        alert('Please select a customer');
+        alert('Please select an account');
         return;
       }
       
@@ -318,21 +318,55 @@ export default function FinancePage() {
                 </div>
               </div>
 
-              {/* Customer Filter */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Customer</label>
-                <select
-                  value={selectedCustomer}
-                  onChange={(e) => setSelectedCustomer(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
-                >
-                  <option value="">All Customers</option>
-                  {customers.map((customer) => (
-                    <option key={customer.cus_id} value={customer.cus_id}>
-                      {customer.cus_name}
-                    </option>
-                  ))}
-                </select>
+              {/* Account Filter */}
+              <div className="relative customer-dropdown">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Account</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={selectedCustomer ? customers.find(c => c.cus_id === selectedCustomer)?.cus_name || '' : ''}
+                    onChange={(e) => {
+                      const searchTerm = e.target.value;
+                      if (!searchTerm) {
+                        setSelectedCustomer('');
+                      }
+                    }}
+                    onFocus={() => setShowCustomerDropdown(true)}
+                    placeholder="Search accounts..."
+                    className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
+                  />
+                  <Search className="w-4 h-4 text-gray-400 absolute right-3 top-3" />
+                  
+                  {/* Dropdown */}
+                  {showCustomerDropdown && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      <div
+                        onClick={() => {
+                          setSelectedCustomer('');
+                          setShowCustomerDropdown(false);
+                        }}
+                        className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100"
+                      >
+                        <div className="font-medium text-gray-900">All Accounts</div>
+                      </div>
+                      {customers.map((customer) => (
+                        <div
+                          key={customer.cus_id}
+                          onClick={() => {
+                            setSelectedCustomer(customer.cus_id);
+                            setShowCustomerDropdown(false);
+                          }}
+                          className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                        >
+                          <div className="font-medium text-gray-900">{customer.cus_name}</div>
+                          <div className="text-sm text-gray-500">
+                            {customer.cus_phone_no} {customer.cus_email && `• ${customer.cus_email}`}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Sort */}
@@ -576,10 +610,10 @@ export default function FinancePage() {
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Customer Selection */}
+                {/* Account Selection */}
                 <div className="relative customer-dropdown">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Customer *
+                    Account *
                   </label>
                   <div className="relative">
                     <input
@@ -593,7 +627,7 @@ export default function FinancePage() {
                         }
                       }}
                       onFocus={() => setShowCustomerDropdown(true)}
-                      placeholder="Search customers..."
+                      placeholder="Search accounts..."
                       className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-black"
                     />
                     <Search className="w-4 h-4 text-gray-400 absolute right-3 top-4" />
@@ -616,7 +650,7 @@ export default function FinancePage() {
                           ))
                         ) : (
                           <div className="px-4 py-3 text-gray-500 text-center">
-                            No customers found
+                            No accounts found
                           </div>
                         )}
                       </div>
