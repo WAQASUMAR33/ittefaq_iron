@@ -359,7 +359,7 @@ export default function ExpenseTitlesPage() {
                           <div className="col-span-2 flex items-center">
                             <div>
                               <div className="text-sm font-medium text-gray-900">#{title.sequentialId}</div>
-                              <div className="text-xs text-gray-500">ID: {title.id.slice(-8)}</div>
+                              <div className="text-xs text-gray-500">ID: {title.id.toString().slice(-8)}</div>
                             </div>
                           </div>
 

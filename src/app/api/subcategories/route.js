@@ -11,13 +11,13 @@ function errorResponse(message, status = 400) {
 // ========================================
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id'); // optional: ?id=1
-  const categoryId = searchParams.get('categoryId'); // optional: ?categoryId=1
+  const id = searchParams.get('id') ? parseInt(searchParams.get('id')) : null; // optional: ?id=1
+  const categoryId = searchParams.get('categoryId') ? parseInt(searchParams.get('categoryId')) : null; // optional: ?categoryId=1
 
   try {
     if (id) {
       // Get single subcategory with category details
-      const subcategory = await prisma.subCategory.findUnique({
+      const subcategory = await prisma.SubCategory.findUnique({
         where: { sub_cat_id: id },
         include: {
           category: {
@@ -48,7 +48,7 @@ export async function GET(request) {
     }
 
     // Get all subcategories with category details
-    const subcategories = await prisma.subCategory.findMany({
+    const subcategories = await prisma.SubCategory.findMany({
       where: whereClause,
       include: {
         category: {
@@ -83,40 +83,57 @@ export async function POST(request) {
     const { cat_id, sub_cat_name, sub_cat_code } = body;
 
     // Validation for required fields
-    if (!cat_id || cat_id.trim() === '')
+    if (!cat_id || (typeof cat_id === 'string' && parseInt(cat_id) === ''))
       return errorResponse('Category ID is required');
     
     if (!sub_cat_name || sub_cat_name.trim() === '')
       return errorResponse('Subcategory name is required');
     
-    if (!sub_cat_code || sub_cat_code.trim() === '')
-      return errorResponse('Subcategory code is required');
-
-    // Validate subcategory code format (alphanumeric, no spaces)
-    const codeRegex = /^[A-Za-z0-9_-]+$/;
-    if (!codeRegex.test(sub_cat_code.trim()))
-      return errorResponse('Subcategory code must contain only letters, numbers, hyphens, and underscores');
+    // Auto-generate subcategory code if not provided
+    let finalSubCatCode = sub_cat_code;
+    if (!finalSubCatCode || finalSubCatCode.trim() === '') {
+      // Generate code from subcategory name (remove spaces, special chars, convert to uppercase)
+      finalSubCatCode = sub_cat_name.trim().replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+      
+      // If still empty, use a default
+      if (!finalSubCatCode) {
+        finalSubCatCode = 'SUB' + Date.now().toString().slice(-6);
+      }
+    } else {
+      // Validate subcategory code format if provided (alphanumeric, no spaces)
+      const codeRegex = /^[A-Za-z0-9_-]+$/;
+      if (!codeRegex.test(finalSubCatCode.trim()))
+        return errorResponse('Subcategory code must contain only letters, numbers, hyphens, and underscores');
+    }
 
     // Check if parent category exists
     const parentCategory = await prisma.categories.findUnique({
-      where: { cat_id: cat_id.trim() }
+      where: { cat_id: parseInt(cat_id) }
     });
 
     if (!parentCategory)
       return errorResponse('Parent category not found', 404);
 
     // Check for duplicate subcategory code (globally unique)
-    const existingCode = await prisma.subCategory.findUnique({
-      where: { sub_cat_code: sub_cat_code.trim().toUpperCase() },
+    const existingCode = await prisma.SubCategory.findUnique({
+      where: { sub_cat_code: finalSubCatCode.trim().toUpperCase() },
     });
 
-    if (existingCode)
-      return errorResponse('Subcategory with this code already exists', 409);
+    if (existingCode) {
+      // If auto-generated code exists, append a number
+      let counter = 1;
+      let newCode = finalSubCatCode.trim().toUpperCase();
+      while (await prisma.SubCategory.findUnique({ where: { sub_cat_code: newCode } })) {
+        newCode = finalSubCatCode.trim().toUpperCase() + counter;
+        counter++;
+      }
+      finalSubCatCode = newCode;
+    }
 
     // Check for duplicate subcategory name within the same category
-    const existingName = await prisma.subCategory.findFirst({
+    const existingName = await prisma.SubCategory.findFirst({
       where: {
-        cat_id: cat_id.trim(),
+        cat_id: parseInt(cat_id),
         sub_cat_name: {
           equals: sub_cat_name.trim(),
         },
@@ -127,11 +144,11 @@ export async function POST(request) {
       return errorResponse('Subcategory with this name already exists in this category', 409);
 
     // Create new subcategory
-    const newSubcategory = await prisma.subCategory.create({
+    const newSubcategory = await prisma.SubCategory.create({
       data: {
-        cat_id: cat_id.trim(),
+        cat_id: parseInt(cat_id),
         sub_cat_name: sub_cat_name.trim(),
-        sub_cat_code: sub_cat_code.trim().toUpperCase(),
+        sub_cat_code: finalSubCatCode.trim().toUpperCase(),
       },
       include: {
         category: {
@@ -167,22 +184,31 @@ export async function PUT(request) {
     if (!id) return errorResponse('Subcategory ID is required');
 
     // Validation for required fields
-    if (!cat_id || cat_id.trim() === '')
+    if (!cat_id || (typeof cat_id === 'string' && cat_id.trim() === ''))
       return errorResponse('Category ID is required');
     
     if (!sub_cat_name || sub_cat_name.trim() === '')
       return errorResponse('Subcategory name is required');
     
-    if (!sub_cat_code || sub_cat_code.trim() === '')
-      return errorResponse('Subcategory code is required');
-
-    // Validate subcategory code format (alphanumeric, no spaces)
-    const codeRegex = /^[A-Za-z0-9_-]+$/;
-    if (!codeRegex.test(sub_cat_code.trim()))
-      return errorResponse('Subcategory code must contain only letters, numbers, hyphens, and underscores');
+    // Auto-generate subcategory code if not provided
+    let finalSubCatCode = sub_cat_code;
+    if (!finalSubCatCode || finalSubCatCode.trim() === '') {
+      // Generate code from subcategory name (remove spaces, special chars, convert to uppercase)
+      finalSubCatCode = sub_cat_name.trim().replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+      
+      // If still empty, use a default
+      if (!finalSubCatCode) {
+        finalSubCatCode = 'SUB' + Date.now().toString().slice(-6);
+      }
+    } else {
+      // Validate subcategory code format if provided (alphanumeric, no spaces)
+      const codeRegex = /^[A-Za-z0-9_-]+$/;
+      if (!codeRegex.test(finalSubCatCode.trim()))
+        return errorResponse('Subcategory code must contain only letters, numbers, hyphens, and underscores');
+    }
 
     // Check if subcategory exists
-    const existing = await prisma.subCategory.findUnique({
+    const existing = await prisma.SubCategory.findUnique({
       where: { sub_cat_id: id },
     });
 
@@ -191,27 +217,40 @@ export async function PUT(request) {
 
     // Check if parent category exists
     const parentCategory = await prisma.categories.findUnique({
-      where: { cat_id: cat_id.trim() }
+      where: { cat_id: parseInt(cat_id) }
     });
 
     if (!parentCategory)
       return errorResponse('Parent category not found', 404);
 
     // Check for duplicate subcategory code (excluding current subcategory)
-    const duplicateCode = await prisma.subCategory.findFirst({
+    const duplicateCode = await prisma.SubCategory.findFirst({
       where: {
-        sub_cat_code: sub_cat_code.trim().toUpperCase(),
+        sub_cat_code: finalSubCatCode.trim().toUpperCase(),
         NOT: { sub_cat_id: id },
       },
     });
 
-    if (duplicateCode)
-      return errorResponse('Subcategory with this code already exists', 409);
+    if (duplicateCode) {
+      // If auto-generated code exists, append a number
+      let counter = 1;
+      let newCode = finalSubCatCode.trim().toUpperCase();
+      while (await prisma.SubCategory.findFirst({ 
+        where: { 
+          sub_cat_code: newCode,
+          NOT: { sub_cat_id: id }
+        } 
+      })) {
+        newCode = finalSubCatCode.trim().toUpperCase() + counter;
+        counter++;
+      }
+      finalSubCatCode = newCode;
+    }
 
     // Check for duplicate subcategory name within the same category (excluding current subcategory)
-    const duplicateName = await prisma.subCategory.findFirst({
+    const duplicateName = await prisma.SubCategory.findFirst({
       where: {
-        cat_id: cat_id.trim(),
+        cat_id: parseInt(cat_id),
         sub_cat_name: {
           equals: sub_cat_name.trim(),
         },
@@ -223,12 +262,12 @@ export async function PUT(request) {
       return errorResponse('Subcategory with this name already exists in this category', 409);
 
     // Update subcategory
-    const updated = await prisma.subCategory.update({
+    const updated = await prisma.SubCategory.update({
       where: { sub_cat_id: id },
       data: {
-        cat_id: cat_id.trim(),
+        cat_id: parseInt(cat_id),
         sub_cat_name: sub_cat_name.trim(),
-        sub_cat_code: sub_cat_code.trim().toUpperCase(),
+        sub_cat_code: finalSubCatCode.trim().toUpperCase(),
       },
       include: {
         category: {
@@ -258,14 +297,14 @@ export async function PUT(request) {
 // ========================================
 export async function DELETE(request) {
   const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id'); // /api/subcategories?id=1
+  const id = searchParams.get('id') ? parseInt(searchParams.get('id')) : null; // /api/subcategories?id=1
 
   if (!id)
     return errorResponse('Subcategory ID is required');
 
   try {
     // Check if subcategory exists
-    const existing = await prisma.subCategory.findUnique({
+    const existing = await prisma.SubCategory.findUnique({
       where: { sub_cat_id: id },
       include: {
         _count: {
@@ -284,7 +323,7 @@ export async function DELETE(request) {
       return errorResponse('Cannot delete subcategory with existing products. Please reassign or delete products first.', 409);
 
     // Delete subcategory
-    await prisma.subCategory.delete({
+    await prisma.SubCategory.delete({
       where: { sub_cat_id: id },
     });
 

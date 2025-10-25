@@ -13,7 +13,7 @@ function errorResponse(message, status = 400) {
 // ========================================
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id'); // optional: ?id=user_id
+  const id = searchParams.get('id') ? parseInt(searchParams.get('id')) : null; // optional: ?id=user_id
 
   try {
     if (id) {
@@ -235,7 +235,7 @@ export async function PUT(request) {
 // ========================================
 export async function DELETE(request) {
   const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id'); // /api/users?id=user_id
+  const id = searchParams.get('id') ? parseInt(searchParams.get('id')) : null; // /api/users?id=user_id
 
   if (!id) {
     return errorResponse('User ID is required');

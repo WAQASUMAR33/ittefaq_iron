@@ -11,7 +11,7 @@ function errorResponse(message, status = 400) {
 // ========================================
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id'); // optional: ?id=1
+  const id = searchParams.get('id') ? parseInt(searchParams.get('id')) : null; // optional: ?id=1
 
   try {
     if (id) {
@@ -94,21 +94,38 @@ export async function POST(request) {
     if (!cat_name || cat_name.trim() === '')
       return errorResponse('Category name is required');
     
-    if (!cat_code || cat_code.trim() === '')
-      return errorResponse('Category code is required');
-
-    // Validate category code format (alphanumeric, no spaces)
-    const codeRegex = /^[A-Za-z0-9_-]+$/;
-    if (!codeRegex.test(cat_code.trim()))
-      return errorResponse('Category code must contain only letters, numbers, hyphens, and underscores');
+    // Auto-generate category code if not provided
+    let finalCatCode = cat_code;
+    if (!finalCatCode || finalCatCode.trim() === '') {
+      // Generate code from category name (remove spaces, special chars, convert to uppercase)
+      finalCatCode = cat_name.trim().replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+      
+      // If still empty, use a default
+      if (!finalCatCode) {
+        finalCatCode = 'CAT' + Date.now().toString().slice(-6);
+      }
+    } else {
+      // Validate category code format if provided (alphanumeric, no spaces)
+      const codeRegex = /^[A-Za-z0-9_-]+$/;
+      if (!codeRegex.test(finalCatCode.trim()))
+        return errorResponse('Category code must contain only letters, numbers, hyphens, and underscores');
+    }
 
     // Check for duplicate category code
     const existingCode = await prisma.categories.findUnique({
-      where: { cat_code: cat_code.trim().toUpperCase() },
+      where: { cat_code: finalCatCode.trim().toUpperCase() },
     });
 
-    if (existingCode)
-      return errorResponse('Category with this code already exists', 409);
+    if (existingCode) {
+      // If auto-generated code exists, append a number
+      let counter = 1;
+      let newCode = finalCatCode.trim().toUpperCase();
+      while (await prisma.categories.findUnique({ where: { cat_code: newCode } })) {
+        newCode = finalCatCode.trim().toUpperCase() + counter;
+        counter++;
+      }
+      finalCatCode = newCode;
+    }
 
     // Check for duplicate category name (case-insensitive)
     const existingName = await prisma.categories.findFirst({
@@ -126,7 +143,7 @@ export async function POST(request) {
     const newCategory = await prisma.categories.create({
       data: {
         cat_name: cat_name.trim(),
-        cat_code: cat_code.trim().toUpperCase(),
+        cat_code: finalCatCode.trim().toUpperCase(),
       },
       include: {
         sub_categories: {
@@ -173,13 +190,22 @@ export async function PUT(request) {
     if (!cat_name || cat_name.trim() === '')
       return errorResponse('Category name is required');
     
-    if (!cat_code || cat_code.trim() === '')
-      return errorResponse('Category code is required');
-
-    // Validate category code format (alphanumeric, no spaces)
-    const codeRegex = /^[A-Za-z0-9_-]+$/;
-    if (!codeRegex.test(cat_code.trim()))
-      return errorResponse('Category code must contain only letters, numbers, hyphens, and underscores');
+    // Auto-generate category code if not provided
+    let finalCatCode = cat_code;
+    if (!finalCatCode || finalCatCode.trim() === '') {
+      // Generate code from category name (remove spaces, special chars, convert to uppercase)
+      finalCatCode = cat_name.trim().replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+      
+      // If still empty, use a default
+      if (!finalCatCode) {
+        finalCatCode = 'CAT' + Date.now().toString().slice(-6);
+      }
+    } else {
+      // Validate category code format if provided (alphanumeric, no spaces)
+      const codeRegex = /^[A-Za-z0-9_-]+$/;
+      if (!codeRegex.test(finalCatCode.trim()))
+        return errorResponse('Category code must contain only letters, numbers, hyphens, and underscores');
+    }
 
     // Check if category exists
     const existing = await prisma.categories.findUnique({
@@ -192,13 +218,26 @@ export async function PUT(request) {
     // Check for duplicate category code (excluding current category)
     const duplicateCode = await prisma.categories.findFirst({
       where: {
-        cat_code: cat_code.trim().toUpperCase(),
+        cat_code: finalCatCode.trim().toUpperCase(),
         NOT: { cat_id: id },
       },
     });
 
-    if (duplicateCode)
-      return errorResponse('Category with this code already exists', 409);
+    if (duplicateCode) {
+      // If auto-generated code exists, append a number
+      let counter = 1;
+      let newCode = finalCatCode.trim().toUpperCase();
+      while (await prisma.categories.findFirst({ 
+        where: { 
+          cat_code: newCode,
+          NOT: { cat_id: id }
+        } 
+      })) {
+        newCode = finalCatCode.trim().toUpperCase() + counter;
+        counter++;
+      }
+      finalCatCode = newCode;
+    }
 
     // Check for duplicate category name (excluding current category)
     const duplicateName = await prisma.categories.findFirst({
@@ -218,7 +257,7 @@ export async function PUT(request) {
       where: { cat_id: id },
       data: {
         cat_name: cat_name.trim(),
-        cat_code: cat_code.trim().toUpperCase(),
+        cat_code: finalCatCode.trim().toUpperCase(),
       },
       include: {
         sub_categories: {
@@ -256,7 +295,7 @@ export async function PUT(request) {
 // ========================================
 export async function DELETE(request) {
   const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id'); // /api/categories?id=1
+  const id = searchParams.get('id') ? parseInt(searchParams.get('id')) : null; // /api/categories?id=1
 
   if (!id)
     return errorResponse('Category ID is required');

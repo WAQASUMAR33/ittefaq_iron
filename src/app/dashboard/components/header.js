@@ -1,8 +1,19 @@
 'use client';
 
 import { Menu } from 'lucide-react';
+import { useState, useEffect } from 'react';
 
 export default function Header({ sidebarOpen, setSidebarOpen, activeTab, user }) {
+  const [currentDate, setCurrentDate] = useState('');
+
+  useEffect(() => {
+    setCurrentDate(new Date().toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    }));
+  }, []);
   return (
     <header className="bg-white/80 backdrop-blur-sm shadow-sm border-b border-gray-200/50 sticky top-0 z-30">
       <div className="flex items-center justify-between px-6 py-4">
@@ -18,12 +29,7 @@ export default function Header({ sidebarOpen, setSidebarOpen, activeTab, user })
               {activeTab.replace('-', ' ')}
             </h2>
             <p className="text-sm text-gray-500 font-medium">
-              {new Date().toLocaleDateString('en-US', { 
-                weekday: 'long', 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-              })}
+              {currentDate || 'Loading...'}
             </p>
           </div>
         </div>

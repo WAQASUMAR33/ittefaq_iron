@@ -11,12 +11,12 @@ function errorResponse(message, status = 400) {
 // ========================================
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id'); // optional: ?id=1
+  const id = searchParams.get('id') ? parseInt(searchParams.get('id')) : null; // optional: ?id=1
 
   try {
     if (id) {
       const category = await prisma.customerCategory.findUnique({
-        where: { cus_cat_id: Number(id) },
+        where: { cus_cat_id: id },
       });
 
       if (!category)
@@ -124,7 +124,7 @@ export async function PUT(request) {
 // ========================================
 export async function DELETE(request) {
   const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id'); // /api/customer-category?id=1
+  const id = searchParams.get('id') ? parseInt(searchParams.get('id')) : null; // /api/customer-category?id=1
 
   if (!id)
     return errorResponse('Customer category ID is required');

@@ -28,18 +28,23 @@ import {
   ArrowLeft,
   ArrowRight,
   CreditCard,
-  TrendingDown
+  TrendingDown,
+  Printer
 } from 'lucide-react';
 import DashboardLayout from '../components/dashboard-layout';
+import SplitPaymentModal from './SplitPaymentModal';
 
 export default function SalesPage() {
   // State management
   const [sales, setSales] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [products, setProducts] = useState([]);
+  const [loaders, setLoaders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingSale, setEditingSale] = useState(null);
   const [currentView, setCurrentView] = useState('list'); // 'list' or 'create'
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
   
   // Filter states
   const [searchTerm, setSearchTerm] = useState('');
@@ -50,6 +55,14 @@ export default function SalesPage() {
   // Product grid filter states
   const [productSearchTerm, setProductSearchTerm] = useState('');
   
+  // Selected product for preview
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [productFormData, setProductFormData] = useState({
+    qnty: '1',
+    unit_rate: '',
+    discount: '0'
+  });
+  
   // Customer dropdown filter states
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
@@ -58,6 +71,10 @@ export default function SalesPage() {
   const [customerFilterSearchTerm, setCustomerFilterSearchTerm] = useState('');
   const [showCustomerFilterDropdown, setShowCustomerFilterDropdown] = useState(false);
 
+  // Receipt modal states
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [selectedSaleForReceipt, setSelectedSaleForReceipt] = useState(null);
+
   // Form data
   const [formData, setFormData] = useState({
     cus_id: '',
@@ -65,14 +82,63 @@ export default function SalesPage() {
     discount: '',
     payment: '',
     payment_type: 'CASH',
+    debit_account_id: '',
+    credit_account_id: '',
+    loader_id: '',
+    shipping_amount: '',
     bill_type: 'BILL',
+    reference: '',
+    notes: '',
     sale_details: []
   });
+
+  // Hold bill mode
+  const [isHoldBillMode, setIsHoldBillMode] = useState(false);
+
+  // Account search states
+  const [debitAccountSearchTerm, setDebitAccountSearchTerm] = useState('');
+  const [creditAccountSearchTerm, setCreditAccountSearchTerm] = useState('');
+  const [showDebitAccountDropdown, setShowDebitAccountDropdown] = useState(false);
+  const [showCreditAccountDropdown, setShowCreditAccountDropdown] = useState(false);
+  
+  // Split payment modal
+  const [showSplitPaymentModal, setShowSplitPaymentModal] = useState(false);
+
+  // Split payment states
+  const [splitPayments, setSplitPayments] = useState([]);
+  const [useSplitPayment, setUseSplitPayment] = useState(false);
 
   // Fetch data
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Helper functions to filter accounts by type
+  const getCustomerAccounts = () => {
+    return customers.filter(c => c.customer_type?.cus_type_title === 'Customer');
+  };
+
+  const getCashAccounts = () => {
+    return customers.filter(c => c.customer_type?.cus_type_title === 'Cash Account');
+  };
+
+  const getFilteredCustomerAccounts = () => {
+    const accounts = getCustomerAccounts();
+    if (!debitAccountSearchTerm) return accounts;
+    return accounts.filter(c => 
+      c.cus_name.toLowerCase().includes(debitAccountSearchTerm.toLowerCase()) ||
+      c.cus_phone_no?.toLowerCase().includes(debitAccountSearchTerm.toLowerCase())
+    );
+  };
+
+  const getFilteredCashAccounts = () => {
+    const accounts = getCashAccounts();
+    if (!creditAccountSearchTerm) return accounts;
+    return accounts.filter(c => 
+      c.cus_name.toLowerCase().includes(creditAccountSearchTerm.toLowerCase()) ||
+      c.cus_phone_no?.toLowerCase().includes(creditAccountSearchTerm.toLowerCase())
+    );
+  };
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -83,21 +149,28 @@ export default function SalesPage() {
       if (showCustomerFilterDropdown && !event.target.closest('.customer-filter-dropdown')) {
         setShowCustomerFilterDropdown(false);
       }
+      if (showDebitAccountDropdown && !event.target.closest('.debit-account-dropdown')) {
+        setShowDebitAccountDropdown(false);
+      }
+      if (showCreditAccountDropdown && !event.target.closest('.credit-account-dropdown')) {
+        setShowCreditAccountDropdown(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showCustomerDropdown, showCustomerFilterDropdown]);
+  }, [showCustomerDropdown, showCustomerFilterDropdown, showDebitAccountDropdown, showCreditAccountDropdown]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [salesRes, customersRes, productsRes] = await Promise.all([
+      const [salesRes, customersRes, productsRes, loadersRes] = await Promise.all([
         fetch('/api/sales'),
         fetch('/api/customers'),
-        fetch('/api/products')
+        fetch('/api/products'),
+        fetch('/api/loaders')
       ]);
 
       if (salesRes.ok) {
@@ -111,6 +184,10 @@ export default function SalesPage() {
       if (productsRes.ok) {
         const productsData = await productsRes.json();
         setProducts(productsData);
+      }
+      if (loadersRes.ok) {
+        const loadersData = await loadersRes.json();
+        setLoaders(loadersData);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -183,9 +260,10 @@ export default function SalesPage() {
 
   // Stats calculations
   const totalSales = sales.length;
-  const totalSalesValue = sales.reduce((sum, s) => sum + parseFloat(s.total_amount), 0);
+  const totalSalesValue = sales.reduce((sum, s) => sum + parseFloat(s.total_amount) - parseFloat(s.discount) + parseFloat(s.shipping_amount || 0), 0);
   const totalDiscount = sales.reduce((sum, s) => sum + parseFloat(s.discount), 0);
   const totalPayment = sales.reduce((sum, s) => sum + parseFloat(s.payment), 0);
+  const totalShipping = sales.reduce((sum, s) => sum + parseFloat(s.shipping_amount || 0), 0);
 
   // Form handlers
   const handleInputChange = (e) => {
@@ -193,37 +271,50 @@ export default function SalesPage() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const addProductToSale = (product) => {
-    const existingDetail = formData.sale_details.find(detail => detail.pro_id === product.pro_id);
+  // Handle product selection (show in preview section)
+  const handleProductSelect = (product) => {
+    setSelectedProduct(product);
+    setProductFormData({
+      qnty: '1',
+      unit_rate: product.pro_sale_price.toString(),
+      discount: '0'
+    });
+  };
+
+  // Add product to sale list
+  const addProductToSale = () => {
+    if (!selectedProduct) return;
+    
+    const existingDetail = formData.sale_details.find(detail => detail.pro_id === selectedProduct.pro_id);
     
     if (existingDetail) {
-      // Update quantity if product already exists
-      const updatedDetails = formData.sale_details.map(detail => 
-        detail.pro_id === product.pro_id 
-          ? {
-              ...detail,
-              qnty: (parseInt(detail.qnty) + 1).toString(),
-              total_amount: ((parseInt(detail.qnty) + 1) * parseFloat(detail.unit_rate)).toString()
-            }
-          : detail
-      );
-      setFormData(prev => ({ ...prev, sale_details: updatedDetails }));
-    } else {
-      // Add new product
-      const newDetail = {
-        pro_id: product.pro_id,
-        qnty: '1',
-        unit: product.pro_unit,
-        unit_rate: product.pro_sale_price.toString(),
-        total_amount: product.pro_sale_price.toString(),
-        discount: '0'
-      };
-      
-      setFormData(prev => ({
-        ...prev,
-        sale_details: [...prev.sale_details, newDetail]
-      }));
+      alert('Product already exists in the sale list');
+      return;
     }
+    
+    const totalAmount = (parseFloat(productFormData.qnty) * parseFloat(productFormData.unit_rate)) - parseFloat(productFormData.discount || 0);
+    
+    const newDetail = {
+      pro_id: selectedProduct.pro_id,
+      qnty: productFormData.qnty,
+      unit: selectedProduct.pro_unit,
+      unit_rate: productFormData.unit_rate,
+      total_amount: totalAmount.toString(),
+      discount: productFormData.discount
+    };
+    
+    setFormData(prev => ({
+      ...prev,
+      sale_details: [...prev.sale_details, newDetail]
+    }));
+    
+    // Reset selection
+    setSelectedProduct(null);
+    setProductFormData({
+      qnty: '1',
+      unit_rate: '',
+      discount: '0'
+    });
   };
 
   const selectCustomer = (customer) => {
@@ -242,6 +333,26 @@ export default function SalesPage() {
     return customers.find(customer => customer.cus_id === formData.cus_id);
   };
 
+  const selectDebitAccount = (account) => {
+    setFormData(prev => ({ ...prev, debit_account_id: account.cus_id }));
+    setDebitAccountSearchTerm(account.cus_name);
+    setShowDebitAccountDropdown(false);
+  };
+
+  const selectCreditAccount = (account) => {
+    setFormData(prev => ({ ...prev, credit_account_id: account.cus_id }));
+    setCreditAccountSearchTerm(account.cus_name);
+    setShowCreditAccountDropdown(false);
+  };
+
+  const getSelectedDebitAccount = () => {
+    return customers.find(c => c.cus_id === formData.debit_account_id);
+  };
+
+  const getSelectedCreditAccount = () => {
+    return customers.find(c => c.cus_id === formData.credit_account_id);
+  };
+
   const removeSaleDetail = (index) => {
     setFormData(prev => ({
       ...prev,
@@ -256,12 +367,22 @@ export default function SalesPage() {
   const calculateNetTotal = () => {
     const totalAmount = calculateTotalAmount();
     const discount = parseFloat(formData.discount || 0);
+    const shippingAmount = parseFloat(formData.shipping_amount || 0);
     
-    return totalAmount - discount;
+    return totalAmount - discount + shippingAmount;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Prevent multiple submissions
+    if (isSubmitting) {
+      console.log('Already submitting, please wait...');
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
     try {
       // Validation
       if (!formData.cus_id) {
@@ -273,22 +394,44 @@ export default function SalesPage() {
         alert('Please add at least one product to the sale');
         return;
       }
+
+      // Validate split payments if enabled (only for regular sales, not hold bills)
+      if (useSplitPayment && !isHoldBillMode) {
+        if (splitPayments.length === 0) {
+          alert('Please add at least one split payment');
+          return;
+        }
+        
+        const splitTotal = calculateSplitTotal();
+        const netTotal = calculatedTotalAmount - parseFloat(formData.discount || 0);
+        
+        if (Math.abs(splitTotal - netTotal) > 0.01) {
+          alert(`Split payment total (${splitTotal.toFixed(2)}) must equal the net total (${netTotal.toFixed(2)})`);
+          return;
+        }
+      }
       
-      const url = '/api/sales';
+      const url = isHoldBillMode ? '/api/hold-bills' : '/api/sales';
       const method = editingSale ? 'PUT' : 'POST';
       
-      // Calculate total amount from sale details
+      // Calculate total amount from sale details (items only, shipping will be added separately in API)
       const calculatedTotalAmount = calculateTotalAmount();
       
       const body = editingSale 
         ? { 
-            id: editingSale.sale_id, 
+            id: editingSale.sale_id || editingSale.hold_bill_id, 
             ...formData, 
-            total_amount: calculatedTotalAmount.toString()
+            total_amount: calculatedTotalAmount.toString(),
+            split_payments: useSplitPayment ? splitPayments : [],
+            hold_bill_details: isHoldBillMode ? formData.sale_details : undefined,
+            status: isHoldBillMode ? 'DRAFT' : undefined
           } 
         : { 
             ...formData, 
-            total_amount: calculatedTotalAmount.toString()
+            total_amount: calculatedTotalAmount.toString(),
+            split_payments: useSplitPayment ? splitPayments : [],
+            hold_bill_details: isHoldBillMode ? formData.sale_details : undefined,
+            status: isHoldBillMode ? 'DRAFT' : undefined
           };
 
       const response = await fetch(url, {
@@ -307,12 +450,29 @@ export default function SalesPage() {
           discount: '',
           payment: '',
           payment_type: 'CASH',
+          debit_account_id: '',
+          credit_account_id: '',
+          loader_id: '',
+          shipping_amount: '',
           bill_type: 'BILL',
+          reference: '',
+          notes: '',
           sale_details: []
         });
+        setSplitPayments([]);
+        setUseSplitPayment(false);
+        setDebitAccountSearchTerm('');
+        setCreditAccountSearchTerm('');
+        setIsHoldBillMode(false);
+        
+        const action = isHoldBillMode ? 'Hold Bill' : 'Sale';
+        alert(`${action} ${editingSale ? 'updated' : 'created'} successfully!`);
       }
     } catch (error) {
       console.error('Error saving sale:', error);
+      alert(`Error saving sale: ${error.message || 'Please try again'}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -324,9 +484,25 @@ export default function SalesPage() {
       discount: sale.discount.toString(),
       payment: sale.payment.toString(),
       payment_type: sale.payment_type,
+      debit_account_id: sale.debit_account_id || '',
+      credit_account_id: sale.credit_account_id || '',
+      loader_id: sale.loader_id || '',
+      shipping_amount: sale.shipping_amount?.toString() || '',
       bill_type: sale.bill_type,
+      reference: sale.reference || '',
       sale_details: sale.sale_details || []
     });
+    setSplitPayments(sale.split_payments || []);
+    setUseSplitPayment((sale.split_payments && sale.split_payments.length > 0) || false);
+    
+    // Set account search terms
+    if (sale.debit_account) {
+      setDebitAccountSearchTerm(sale.debit_account.cus_name);
+    }
+    if (sale.credit_account) {
+      setCreditAccountSearchTerm(sale.credit_account.cus_name);
+    }
+    
     setCurrentView('create');
   };
 
@@ -343,6 +519,20 @@ export default function SalesPage() {
         console.error('Error deleting sale:', error);
       }
     }
+  };
+
+  const handleViewReceipt = (sale) => {
+    setSelectedSaleForReceipt(sale);
+    setShowReceiptModal(true);
+  };
+
+  const handlePrintReceipt = () => {
+    window.print();
+  };
+
+  const handleCloseReceiptModal = () => {
+    setShowReceiptModal(false);
+    setSelectedSaleForReceipt(null);
   };
 
   const clearFilters = () => {
@@ -374,15 +564,56 @@ export default function SalesPage() {
               <h2 className="text-2xl font-bold text-gray-900">Sales Management</h2>
               <p className="text-gray-600 mt-1">Manage your sales orders, customers, and revenue</p>
             </div>
-            <button
-              onClick={() => setCurrentView('create')}
-              className="group bg-gradient-to-r from-blue-500 to-cyan-500 text-white px-6 py-3 rounded-lg hover:from-blue-600 hover:to-cyan-600 transition-all duration-200 font-medium shadow-md hover:shadow-lg transform hover:scale-105"
-            >
-              <span className="flex items-center">
-                <Plus className="w-5 h-5 mr-2 group-hover:rotate-90 transition-transform duration-200" />
-                Add New Sale
-              </span>
-            </button>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={() => {
+                  setIsHoldBillMode(true);
+                  setCurrentView('create');
+                }}
+                className="group bg-gradient-to-r from-orange-500 to-red-500 text-white px-6 py-3 rounded-lg hover:from-orange-600 hover:to-red-600 transition-all duration-200 font-medium shadow-md hover:shadow-lg transform hover:scale-105"
+              >
+                <span className="flex items-center">
+                  <Package className="w-5 h-5 mr-2 group-hover:rotate-12 transition-transform duration-200" />
+                  Hold Bill
+                </span>
+              </button>
+              <button
+                onClick={() => {
+                  console.log('Add New Sale button clicked');
+                  setIsCreating(true);
+                  try {
+                    setIsHoldBillMode(false);
+                    setCurrentView('create');
+                    console.log('Current view set to:', 'create');
+                  } catch (error) {
+                    console.error('Error switching to create view:', error);
+                    alert('Error opening create form. Please try again.');
+                  } finally {
+                    setIsCreating(false);
+                  }
+                }}
+                disabled={isCreating || isSubmitting}
+                className={`group bg-gradient-to-r from-blue-500 to-cyan-500 text-white px-6 py-3 rounded-lg transition-all duration-200 font-medium shadow-md hover:shadow-lg transform hover:scale-105 ${
+                  isCreating || isSubmitting 
+                    ? 'opacity-50 cursor-not-allowed' 
+                    : 'hover:from-blue-600 hover:to-cyan-600'
+                }`}
+              >
+                <span className="flex items-center">
+                  {isCreating ? (
+                    <>
+                      <div className="w-5 h-5 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Opening...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-5 h-5 mr-2 group-hover:rotate-90 transition-transform duration-200" />
+                      Add New Sale
+                    </>
+                  )}
+                </span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -648,7 +879,7 @@ export default function SalesPage() {
                           <div className="col-span-2 flex items-center">
                             <div>
                               <div className="text-sm font-medium text-gray-900">Sale #{sale.sequentialId}</div>
-                              <div className="text-xs text-gray-500">ID: {sale.sale_id.slice(-8)}</div>
+                              <div className="text-xs text-gray-500">ID: {sale.sale_id.toString().slice(-8)}</div>
                             </div>
                           </div>
 
@@ -666,9 +897,10 @@ export default function SalesPage() {
                             <div className="text-xs text-gray-500">
                               Items: {sale.sale_details?.length || 0} | 
                               Discount: {parseFloat(sale.discount).toFixed(2)}
+                              {parseFloat(sale.shipping_amount || 0) > 0 && ` | Shipping: ${parseFloat(sale.shipping_amount).toFixed(2)}`}
                             </div>
                             <div className="text-xs text-blue-600">
-                              Net: {(parseFloat(sale.total_amount) - parseFloat(sale.discount)).toFixed(2)}
+                              Net: {(parseFloat(sale.total_amount) - parseFloat(sale.discount) + parseFloat(sale.shipping_amount || 0)).toFixed(2)}
                             </div>
                           </div>
 
@@ -719,6 +951,20 @@ export default function SalesPage() {
                           <div className="col-span-1 flex items-center">
                             <div className="flex items-center space-x-2">
                               <button
+                                onClick={() => handleViewReceipt(sale)}
+                                className="p-2 text-green-600 hover:text-green-900 hover:bg-green-50 rounded-lg transition-colors duration-200"
+                                title="View Receipt"
+                              >
+                                <Receipt className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleViewReceipt(sale)}
+                                className="p-2 text-purple-600 hover:text-purple-900 hover:bg-purple-50 rounded-lg transition-colors duration-200"
+                                title="Reprint Receipt"
+                              >
+                                <Printer className="w-4 h-4" />
+                              </button>
+                              <button
                                 onClick={() => handleEdit(sale)}
                                 className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-colors duration-200"
                                 title="Edit Sale"
@@ -743,9 +989,23 @@ export default function SalesPage() {
                               <div className="flex items-center justify-between">
                                 <div>
                                   <div className="text-sm font-medium text-gray-900">Sale #{sale.sequentialId}</div>
-                                  <div className="text-xs text-gray-500">ID: {sale.sale_id.slice(-8)}</div>
+                                  <div className="text-xs text-gray-500">ID: {sale.sale_id.toString().slice(-8)}</div>
                                 </div>
                                 <div className="flex items-center space-x-2">
+                                  <button
+                                    onClick={() => handleViewReceipt(sale)}
+                                    className="p-2 text-green-600 hover:text-green-900 hover:bg-green-50 rounded-lg transition-colors duration-200"
+                                    title="View Receipt"
+                                  >
+                                    <Receipt className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleViewReceipt(sale)}
+                                    className="p-2 text-purple-600 hover:text-purple-900 hover:bg-purple-50 rounded-lg transition-colors duration-200"
+                                    title="Reprint Receipt"
+                                  >
+                                    <Printer className="w-4 h-4" />
+                                  </button>
                                   <button
                                     onClick={() => handleEdit(sale)}
                                     className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-colors duration-200"
@@ -776,6 +1036,10 @@ export default function SalesPage() {
                                   <div className="text-xs text-gray-500">
                                     Items: {sale.sale_details?.length || 0} | 
                                     Discount: {parseFloat(sale.discount).toFixed(2)}
+                                    {parseFloat(sale.shipping_amount || 0) > 0 && ` | Ship: ${parseFloat(sale.shipping_amount).toFixed(2)}`}
+                                  </div>
+                                  <div className="text-xs text-blue-600">
+                                    Net: {(parseFloat(sale.total_amount) - parseFloat(sale.discount) + parseFloat(sale.shipping_amount || 0)).toFixed(2)}
                                   </div>
                                 </div>
                                 <div className="text-right">
@@ -820,11 +1084,19 @@ export default function SalesPage() {
               </button>
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">
-                  {editingSale ? 'Edit Sale' : 'Create New Sale'}
+                  {editingSale ? `Edit ${isHoldBillMode ? 'Hold Bill' : 'Sale'}` : `Create New ${isHoldBillMode ? 'Hold Bill' : 'Sale'}`}
                 </h2>
                 <p className="text-gray-600 mt-1">
-                  {editingSale ? 'Update sale information' : 'Select products and create sale order'}
+                  {editingSale 
+                    ? `Update ${isHoldBillMode ? 'hold bill' : 'sale'} information` 
+                    : `Select products and create ${isHoldBillMode ? 'hold bill order' : 'sale order'}`
+                  }
                 </p>
+                {isHoldBillMode && (
+                  <div className="mt-2 px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm font-medium inline-block">
+                    Hold Bill Mode - Items will be reserved but not processed
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -856,17 +1128,21 @@ export default function SalesPage() {
               </div>
               
               {/* Product List */}
-              <div className="flex-1 overflow-y-auto p-6">
+              <div className="flex-1 overflow-y-auto p-4">
                 <div className="space-y-2">
                   {filteredProducts.map((product) => (
                     <div
                       key={product.pro_id}
-                      className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-all duration-200 cursor-pointer group"
-                      onClick={() => addProductToSale(product)}
+                      className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all duration-200 ${
+                        selectedProduct?.pro_id === product.pro_id
+                          ? 'border-2 border-blue-500 bg-blue-50'
+                          : 'border border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50'
+                      }`}
+                      onClick={() => handleProductSelect(product)}
                     >
                       <div className="flex items-center flex-1">
                         <div className="flex-1">
-                          <div className="font-medium text-gray-900 text-sm group-hover:text-blue-600 transition-colors">
+                          <div className="font-medium text-gray-900 text-sm">
                             {product.pro_title}
                           </div>
                           <div className="text-xs text-gray-500">
@@ -919,6 +1195,101 @@ export default function SalesPage() {
               {/* Form Content */}
               <div className="flex-1 overflow-y-auto p-6">
                 <form onSubmit={handleSubmit} className="space-y-6">
+                  {/* Product Preview Section */}
+                  {selectedProduct && (
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border-2 border-blue-300">
+                      <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <Eye className="w-5 h-5 mr-2 text-blue-600" />
+                        Selected Product Details
+                      </h4>
+                      
+                      {/* First Row - Product Info (Read-only) */}
+                      <div className="grid grid-cols-3 gap-4 mb-4">
+                        <div className="bg-white rounded-lg p-4">
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Product ID</label>
+                          <div className="text-sm font-semibold text-gray-900">{selectedProduct.pro_id}</div>
+                        </div>
+                        
+                        <div className="bg-white rounded-lg p-4">
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Product Title</label>
+                          <div className="text-sm font-semibold text-gray-900">{selectedProduct.pro_title}</div>
+                        </div>
+                        
+                        <div className="bg-white rounded-lg p-4">
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Stock</label>
+                          <div className="text-sm font-semibold text-gray-900">{selectedProduct.pro_stock_qnty} {selectedProduct.pro_unit}</div>
+                        </div>
+                      </div>
+                      
+                      {/* Second Row - Input Fields */}
+                      <div className="grid grid-cols-4 gap-4 mb-4">
+                        <div className="bg-white rounded-lg p-4">
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Quantity *</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={productFormData.qnty}
+                            onChange={(e) => setProductFormData(prev => ({ ...prev, qnty: e.target.value }))}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black mt-1"
+                            placeholder="Qty"
+                          />
+                        </div>
+                        
+                        <div className="bg-white rounded-lg p-4">
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Rate/Unit *</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={productFormData.unit_rate}
+                            onChange={(e) => setProductFormData(prev => ({ ...prev, unit_rate: e.target.value }))}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black mt-1"
+                            placeholder="Rate"
+                          />
+                        </div>
+                        
+                        <div className="bg-white rounded-lg p-4">
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Discount</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={productFormData.discount}
+                            onChange={(e) => setProductFormData(prev => ({ ...prev, discount: e.target.value }))}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black mt-1"
+                            placeholder="Discount"
+                          />
+                        </div>
+                        
+                        <div className="bg-white rounded-lg p-4">
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Total Amount</label>
+                          <div className="text-2xl font-bold text-blue-600 mt-1">
+                            {((parseFloat(productFormData.qnty || 0) * parseFloat(productFormData.unit_rate || 0)) - parseFloat(productFormData.discount || 0)).toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          onClick={addProductToSale}
+                          disabled={!productFormData.qnty || !productFormData.unit_rate}
+                          className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-3 rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all duration-200 font-semibold shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                        >
+                          <Plus className="w-5 h-5 mr-2" />
+                          Add to Sale List
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedProduct(null)}
+                          className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-all duration-200 font-semibold"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  
                   {/* Selected Products Section - At the Top */}
                   {formData.sale_details.length > 0 && (
                     <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
@@ -1133,6 +1504,38 @@ export default function SalesPage() {
                         </select>
                       </div>
 
+                      {/* Reference */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Reference
+                        </label>
+                        <input
+                          type="text"
+                          name="reference"
+                          value={formData.reference}
+                          onChange={handleInputChange}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-black"
+                          placeholder="Enter reference number or notes"
+                        />
+                      </div>
+
+                      {/* Notes (for hold bills) */}
+                      {isHoldBillMode && (
+                        <div className="sm:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Notes
+                          </label>
+                          <textarea
+                            name="notes"
+                            value={formData.notes}
+                            onChange={handleInputChange}
+                            rows={3}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-black"
+                            placeholder="Enter any additional notes for this hold bill..."
+                          />
+                        </div>
+                      )}
+
                       {/* Payment Type */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1143,13 +1546,150 @@ export default function SalesPage() {
                           value={formData.payment_type}
                           onChange={handleInputChange}
                           required
-                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-black"
+                          disabled={useSplitPayment}
+                          className={`w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-black ${useSplitPayment ? 'bg-gray-100' : ''}`}
                         >
                           <option value="CASH">Cash</option>
                           <option value="CHEQUE">Cheque</option>
                           <option value="BANK_TRANSFER">Bank Transfer</option>
                         </select>
                       </div>
+
+                      {/* From Account (Debit) - Customer Type */}
+                      {!useSplitPayment && (
+                        <div className="sm:col-span-2 relative debit-account-dropdown">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            From Account (Debit) *
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={debitAccountSearchTerm}
+                              onChange={(e) => {
+                                setDebitAccountSearchTerm(e.target.value);
+                                setShowDebitAccountDropdown(true);
+                                if (!e.target.value) {
+                                  setFormData(prev => ({ ...prev, debit_account_id: '' }));
+                                }
+                              }}
+                              onFocus={() => setShowDebitAccountDropdown(true)}
+                              placeholder="Search customer accounts..."
+                              className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-black"
+                            />
+                            <Search className="w-4 h-4 text-gray-400 absolute right-3 top-4" />
+                            
+                            {showDebitAccountDropdown && (
+                              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                                {getFilteredCustomerAccounts().length > 0 ? (
+                                  getFilteredCustomerAccounts().map((account) => (
+                                    <div
+                                      key={account.cus_id}
+                                      onClick={() => selectDebitAccount(account)}
+                                      className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                                    >
+                                      <div className="font-medium text-gray-900">{account.cus_name}</div>
+                                      <div className="text-sm text-gray-500">{account.cus_phone_no}</div>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div className="px-4 py-3 text-gray-500 text-center">
+                                    No customer accounts found
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          
+                          {formData.debit_account_id && getSelectedDebitAccount() && (
+                            <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <div className="font-medium text-green-800">{getSelectedDebitAccount().cus_name}</div>
+                                  <div className="text-sm text-green-600">{getSelectedDebitAccount().cus_phone_no}</div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setFormData(prev => ({ ...prev, debit_account_id: '' }));
+                                    setDebitAccountSearchTerm('');
+                                  }}
+                                  className="text-red-600 hover:text-red-800"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* To Account (Credit) - Cash Account Type */}
+                      {!useSplitPayment && (
+                        <div className="sm:col-span-2 relative credit-account-dropdown">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            To Account (Credit) *
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={creditAccountSearchTerm}
+                              onChange={(e) => {
+                                setCreditAccountSearchTerm(e.target.value);
+                                setShowCreditAccountDropdown(true);
+                                if (!e.target.value) {
+                                  setFormData(prev => ({ ...prev, credit_account_id: '' }));
+                                }
+                              }}
+                              onFocus={() => setShowCreditAccountDropdown(true)}
+                              placeholder="Search cash accounts..."
+                              className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-black"
+                            />
+                            <Search className="w-4 h-4 text-gray-400 absolute right-3 top-4" />
+                            
+                            {showCreditAccountDropdown && (
+                              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                                {getFilteredCashAccounts().length > 0 ? (
+                                  getFilteredCashAccounts().map((account) => (
+                                    <div
+                                      key={account.cus_id}
+                                      onClick={() => selectCreditAccount(account)}
+                                      className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                                    >
+                                      <div className="font-medium text-gray-900">{account.cus_name}</div>
+                                      <div className="text-sm text-gray-500">{account.cus_phone_no}</div>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div className="px-4 py-3 text-gray-500 text-center">
+                                    No cash accounts found
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          
+                          {formData.credit_account_id && getSelectedCreditAccount() && (
+                            <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <div className="font-medium text-green-800">{getSelectedCreditAccount().cus_name}</div>
+                                  <div className="text-sm text-green-600">{getSelectedCreditAccount().cus_phone_no}</div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setFormData(prev => ({ ...prev, credit_account_id: '' }));
+                                    setCreditAccountSearchTerm('');
+                                  }}
+                                  className="text-red-600 hover:text-red-800"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {/* Discount */}
                       <div>
@@ -1178,7 +1718,45 @@ export default function SalesPage() {
                           name="payment"
                           value={formData.payment}
                           onChange={handleInputChange}
-                          required
+                          required={!useSplitPayment}
+                          step="0.01"
+                          min="0"
+                          disabled={useSplitPayment}
+                          className={`w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-black ${useSplitPayment ? 'bg-gray-100' : ''}`}
+                          placeholder="0.00"
+                        />
+                      </div>
+
+                      {/* Loader/Transport */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Loader/Transport
+                        </label>
+                        <select
+                          name="loader_id"
+                          value={formData.loader_id}
+                          onChange={handleInputChange}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-black"
+                        >
+                          <option value="">Select Loader (Optional)</option>
+                          {loaders.map((loader) => (
+                            <option key={loader.loader_id} value={loader.loader_id}>
+                              {loader.loader_name} - {loader.loader_number}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Shipping Amount */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Shipping/Transport Amount
+                        </label>
+                        <input
+                          type="number"
+                          name="shipping_amount"
+                          value={formData.shipping_amount}
+                          onChange={handleInputChange}
                           step="0.01"
                           min="0"
                           className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-black"
@@ -1186,6 +1764,70 @@ export default function SalesPage() {
                         />
                       </div>
                     </div>
+
+                    {/* Split Payment Toggle - Disabled for hold bills */}
+                    {!isHoldBillMode && (
+                      <div className="bg-blue-50 rounded-xl p-4 border border-blue-200 mt-6">
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="text-lg font-semibold text-gray-900 flex items-center">
+                            <CreditCard className="w-5 h-5 mr-2 text-blue-600" />
+                            Split Payment
+                          </h4>
+                          <label className="flex items-center">
+                            <input
+                              type="checkbox"
+                              checked={useSplitPayment}
+                              onChange={(e) => {
+                                setUseSplitPayment(e.target.checked);
+                                if (e.target.checked && splitPayments.length === 0) {
+                                  setShowSplitPaymentModal(true);
+                                }
+                              }}
+                              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                            />
+                            <span className="ml-2 text-sm font-medium text-gray-700">Use Split Payment</span>
+                          </label>
+                        </div>
+
+                      {useSplitPayment && (
+                        <div className="space-y-4">
+                          {splitPayments.length > 0 ? (
+                            <>
+                              <div className="bg-white rounded-lg p-4 border border-gray-200">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-700">
+                                      {splitPayments.length} payment(s) configured
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                      Total: {splitPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0).toFixed(2)}
+                                    </p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowSplitPaymentModal(true)}
+                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 flex items-center"
+                                  >
+                                    <Edit className="w-4 h-4 mr-2" />
+                                    Edit Payments
+                                  </button>
+                                </div>
+                              </div>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setShowSplitPaymentModal(true)}
+                              className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-4 rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all duration-200 flex items-center justify-center font-medium shadow-md hover:shadow-lg"
+                            >
+                              <Plus className="w-5 h-5 mr-2" />
+                              Configure Split Payments
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Total Calculations */}
@@ -1205,9 +1847,21 @@ export default function SalesPage() {
                           -{parseFloat(formData.discount || 0).toFixed(2)}
                         </span>
                       </div>
-                      <div className="sm:col-span-2">
-                        <span className="text-gray-600">Net Total:</span>
-                        <span className="font-semibold ml-2 text-green-600 text-lg">
+                      <div>
+                        <span className="text-gray-600">Shipping/Loader:</span>
+                        <span className="font-semibold ml-2 text-blue-600">
+                          +{parseFloat(formData.shipping_amount || 0).toFixed(2)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Subtotal:</span>
+                        <span className="font-semibold ml-2">
+                          {(calculateTotalAmount() - parseFloat(formData.discount || 0) + parseFloat(formData.shipping_amount || 0)).toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="sm:col-span-2 pt-2 border-t border-green-300">
+                        <span className="text-gray-900 font-semibold">Grand Total:</span>
+                        <span className="font-bold ml-2 text-green-600 text-xl">
                           {calculateNetTotal().toFixed(2)}
                         </span>
                       </div>
@@ -1225,9 +1879,25 @@ export default function SalesPage() {
                     </button>
                     <button
                       type="submit"
-                      className="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-medium rounded-xl hover:from-blue-600 hover:to-cyan-600 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105"
+                      disabled={isSubmitting}
+                      className={`w-full sm:w-auto px-8 py-3 font-medium rounded-xl transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 ${
+                        isSubmitting
+                          ? 'opacity-50 cursor-not-allowed bg-gray-400'
+                          : isHoldBillMode 
+                            ? 'bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white'
+                            : 'bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white'
+                      }`}
                     >
-                      {editingSale ? 'Update Sale' : 'Create Sale'}
+                      {isSubmitting ? (
+                        <span className="flex items-center">
+                          <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          {editingSale ? 'Updating...' : 'Creating...'}
+                        </span>
+                      ) : (
+                        editingSale 
+                          ? `Update ${isHoldBillMode ? 'Hold Bill' : 'Sale'}` 
+                          : `Create ${isHoldBillMode ? 'Hold Bill' : 'Sale'}`
+                      )}
                     </button>
                   </div>
                 </form>
@@ -1239,9 +1909,195 @@ export default function SalesPage() {
     </DashboardLayout>
   );
 
+  console.log('Current view:', currentView);
+  
   return (
     <>
       {currentView === 'list' ? renderSalesListView() : renderSalesCreateView()}
+      
+      {/* Split Payment Modal */}
+      <SplitPaymentModal
+        isOpen={showSplitPaymentModal}
+        onClose={() => setShowSplitPaymentModal(false)}
+        splitPayments={splitPayments}
+        setSplitPayments={setSplitPayments}
+        netTotal={calculateNetTotal()}
+        customers={customers}
+      />
+
+      {/* Receipt Modal */}
+      {showReceiptModal && selectedSaleForReceipt && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div className="flex items-center">
+                <Receipt className="w-6 h-6 text-green-600 mr-3" />
+                <h2 className="text-xl font-bold text-gray-900">Sale Receipt</h2>
+              </div>
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={handlePrintReceipt}
+                  className="flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors duration-200"
+                >
+                  <Printer className="w-4 h-4 mr-2" />
+                  Print
+                </button>
+                <button
+                  onClick={handleCloseReceiptModal}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors duration-200"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Receipt Content */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+              <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+                {/* Company Header */}
+                <div className="text-center mb-6 border-b border-gray-200 pb-4">
+                  <h1 className="text-2xl font-bold text-gray-900 mb-2">Itefaq Builders</h1>
+                  <p className="text-gray-600">Construction Materials & Hardware</p>
+                  <p className="text-sm text-gray-500">Your Trusted Building Partner</p>
+                </div>
+
+                {/* Sale Information */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-3">Sale Information</h3>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Receipt No:</span>
+                        <span className="font-medium">#{selectedSaleForReceipt.sequentialId}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Date:</span>
+                        <span className="font-medium">{new Date(selectedSaleForReceipt.created_at).toLocaleDateString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Time:</span>
+                        <span className="font-medium">{new Date(selectedSaleForReceipt.created_at).toLocaleTimeString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Bill Type:</span>
+                        <span className="font-medium">{selectedSaleForReceipt.bill_type}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-3">Customer Information</h3>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Name:</span>
+                        <span className="font-medium">{selectedSaleForReceipt.customer?.cus_name || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Phone:</span>
+                        <span className="font-medium">{selectedSaleForReceipt.customer?.cus_phone_no || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Address:</span>
+                        <span className="font-medium text-right max-w-48">{selectedSaleForReceipt.customer?.cus_address || 'N/A'}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Items Table */}
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Items</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse border border-gray-300">
+                      <thead>
+                        <tr className="bg-gray-50">
+                          <th className="border border-gray-300 px-4 py-2 text-left text-sm font-medium text-gray-700">Item</th>
+                          <th className="border border-gray-300 px-4 py-2 text-center text-sm font-medium text-gray-700">Qty</th>
+                          <th className="border border-gray-300 px-4 py-2 text-right text-sm font-medium text-gray-700">Rate</th>
+                          <th className="border border-gray-300 px-4 py-2 text-right text-sm font-medium text-gray-700">Discount</th>
+                          <th className="border border-gray-300 px-4 py-2 text-right text-sm font-medium text-gray-700">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedSaleForReceipt.sale_details?.map((detail, index) => (
+                          <tr key={index} className="hover:bg-gray-50">
+                            <td className="border border-gray-300 px-4 py-2 text-sm">
+                              <div>
+                                <div className="font-medium">{detail.product?.pro_name || 'N/A'}</div>
+                                <div className="text-gray-500 text-xs">{detail.product?.pro_description || ''}</div>
+                              </div>
+                            </td>
+                            <td className="border border-gray-300 px-4 py-2 text-center text-sm">{detail.qnty}</td>
+                            <td className="border border-gray-300 px-4 py-2 text-right text-sm">{parseFloat(detail.unit_rate).toFixed(2)}</td>
+                            <td className="border border-gray-300 px-4 py-2 text-right text-sm">{parseFloat(detail.discount || 0).toFixed(2)}</td>
+                            <td className="border border-gray-300 px-4 py-2 text-right text-sm font-medium">
+                              {(parseFloat(detail.qnty) * parseFloat(detail.unit_rate) - parseFloat(detail.discount || 0)).toFixed(2)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Totals */}
+                <div className="border-t border-gray-200 pt-4">
+                  <div className="flex justify-end">
+                    <div className="w-64 space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Subtotal:</span>
+                        <span className="font-medium">{parseFloat(selectedSaleForReceipt.total_amount).toFixed(2)}</span>
+                      </div>
+                      {parseFloat(selectedSaleForReceipt.discount || 0) > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Discount:</span>
+                          <span className="font-medium text-red-600">-{parseFloat(selectedSaleForReceipt.discount).toFixed(2)}</span>
+                        </div>
+                      )}
+                      {parseFloat(selectedSaleForReceipt.shipping_amount || 0) > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Shipping:</span>
+                          <span className="font-medium">{parseFloat(selectedSaleForReceipt.shipping_amount).toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="border-t border-gray-300 pt-2">
+                        <div className="flex justify-between text-lg font-bold">
+                          <span>Total:</span>
+                          <span className="text-green-600">
+                            {(parseFloat(selectedSaleForReceipt.total_amount) - parseFloat(selectedSaleForReceipt.discount || 0) + parseFloat(selectedSaleForReceipt.shipping_amount || 0)).toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Payment Information */}
+                <div className="mt-6 pt-4 border-t border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Payment Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Payment Type:</span>
+                      <span className="font-medium">{selectedSaleForReceipt.payment_type}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Amount Paid:</span>
+                      <span className="font-medium">{parseFloat(selectedSaleForReceipt.payment).toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="mt-8 pt-4 border-t border-gray-200 text-center">
+                  <p className="text-sm text-gray-500 mb-2">Thank you for your business!</p>
+                  <p className="text-xs text-gray-400">For any queries, please contact us at your convenience.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

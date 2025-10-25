@@ -4,9 +4,62 @@ import { useState, useEffect } from 'react';
 import { Plus, Tag, Edit, Trash2, Check, Calendar, Users, X } from 'lucide-react';
 import DashboardLayout from '../components/dashboard-layout';
 
+// Material-UI imports
+import {
+  Box,
+  Container,
+  Typography,
+  Button,
+  TextField,
+  Card,
+  CardContent,
+  Grid,
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Chip,
+  Avatar,
+  CircularProgress,
+  Fab,
+  Tooltip,
+  InputAdornment,
+  Divider,
+  Stack,
+  Alert,
+  Snackbar,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem
+} from '@mui/material';
+
+// Material Icons
+import {
+  Add as AddIcon,
+  Search as SearchIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  Tag as TagIcon,
+  CheckCircle as CheckIcon,
+  CalendarToday as CalendarIcon,
+  People as PeopleIcon,
+  Close as CloseIcon,
+  Save as SaveIcon
+} from '@mui/icons-material';
+
 export default function CustomerCategoryPage() {
   const [customerCategories, setCustomerCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
@@ -18,6 +71,13 @@ export default function CustomerCategoryPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('created_at');
   const [sortOrder, setSortOrder] = useState('desc');
+
+  // Snackbar state
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'success'
+  });
 
   // Load customer categories from API
   useEffect(() => {
@@ -32,10 +92,19 @@ export default function CustomerCategoryPage() {
         const data = await response.json();
         setCustomerCategories(data);
       } else {
-        console.error('Failed to fetch customer categories');
+        setSnackbar({
+          open: true,
+          message: 'Failed to fetch customer categories',
+          severity: 'error'
+        });
       }
     } catch (error) {
       console.error('Error fetching customer categories:', error);
+      setSnackbar({
+        open: true,
+        message: 'Error fetching customer categories',
+        severity: 'error'
+      });
     } finally {
       setLoading(false);
     }
@@ -43,6 +112,7 @@ export default function CustomerCategoryPage() {
 
   const handleAddCategory = async (e) => {
     e.preventDefault();
+    setIsSubmitting(true);
     
     try {
       const response = await fetch('/api/customer-category', {
@@ -58,14 +128,28 @@ export default function CustomerCategoryPage() {
         setCustomerCategories(prev => [...prev, newCategory]);
         setShowCategoryForm(false);
         setCategoryForm({ cus_cat_title: '' });
-        alert('Customer category added successfully!');
+        setSnackbar({
+          open: true,
+          message: 'Customer category added successfully!',
+          severity: 'success'
+        });
       } else {
         const error = await response.json();
-        alert(error.error || 'Failed to create customer category');
+        setSnackbar({
+          open: true,
+          message: error.error || 'Failed to create customer category',
+          severity: 'error'
+        });
       }
     } catch (error) {
       console.error('Error creating customer category:', error);
-      alert('Failed to create customer category');
+      setSnackbar({
+        open: true,
+        message: 'Failed to create customer category',
+        severity: 'error'
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -79,6 +163,7 @@ export default function CustomerCategoryPage() {
 
   const handleUpdateCategory = async (e) => {
     e.preventDefault();
+    setIsSubmitting(true);
     
     try {
       const response = await fetch('/api/customer-category', {
@@ -100,14 +185,28 @@ export default function CustomerCategoryPage() {
         setShowCategoryForm(false);
         setEditingCategory(null);
         setCategoryForm({ cus_cat_title: '' });
-        alert('Customer category updated successfully!');
+        setSnackbar({
+          open: true,
+          message: 'Customer category updated successfully!',
+          severity: 'success'
+        });
       } else {
         const error = await response.json();
-        alert(error.error || 'Failed to update customer category');
+        setSnackbar({
+          open: true,
+          message: error.error || 'Failed to update customer category',
+          severity: 'error'
+        });
       }
     } catch (error) {
       console.error('Error updating customer category:', error);
-      alert('Failed to update customer category');
+      setSnackbar({
+        open: true,
+        message: 'Failed to update customer category',
+        severity: 'error'
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -120,14 +219,26 @@ export default function CustomerCategoryPage() {
 
         if (response.ok) {
           setCustomerCategories(prev => prev.filter(category => category.cus_cat_id !== categoryId));
-          alert('Customer category deleted successfully!');
+          setSnackbar({
+            open: true,
+            message: 'Customer category deleted successfully!',
+            severity: 'success'
+          });
         } else {
           const error = await response.json();
-          alert(error.error || 'Failed to delete customer category');
+          setSnackbar({
+            open: true,
+            message: error.error || 'Failed to delete customer category',
+            severity: 'error'
+          });
         }
       } catch (error) {
         console.error('Error deleting customer category:', error);
-        alert('Failed to delete customer category');
+        setSnackbar({
+          open: true,
+          message: 'Failed to delete customer category',
+          severity: 'error'
+        });
       }
     }
   };
@@ -145,7 +256,11 @@ export default function CustomerCategoryPage() {
     
     // Validation
     if (!categoryForm.cus_cat_title.trim()) {
-      alert('Category title is required');
+      setSnackbar({
+        open: true,
+        message: 'Category title is required',
+        severity: 'error'
+      });
       return;
     }
     
@@ -156,6 +271,16 @@ export default function CustomerCategoryPage() {
     } else {
       await handleAddCategory(e);
     }
+  };
+
+  const handleCloseDialog = () => {
+    setShowCategoryForm(false);
+    setEditingCategory(null);
+    setCategoryForm({ cus_cat_title: '' });
+  };
+
+  const handleSnackbarClose = () => {
+    setSnackbar(prev => ({ ...prev, open: false }));
   };
 
   // Filter and sort categories
@@ -204,284 +329,425 @@ export default function CustomerCategoryPage() {
   if (loading) {
     return (
       <DashboardLayout>
-        <div className="min-h-screen flex items-center justify-center bg-white">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-        </div>
+        <Box
+          sx={{
+            minHeight: '100vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            bgcolor: 'background.default'
+          }}
+        >
+          <CircularProgress size={80} />
+        </Box>
       </DashboardLayout>
     );
   }
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 max-w-7xl mx-auto">
+      <Container maxWidth="xl" sx={{ py: 4 }}>
+        <Stack spacing={4}>
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Customer Categories</h2>
-          <p className="text-gray-600 mt-1">Manage customer categories for better organization</p>
-        </div>
-        <button
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Box>
+              <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
+                Customer Categories
+              </Typography>
+              <Typography variant="body1" sx={{ color: 'text.secondary', mt: 1 }}>
+                Manage customer categories for better organization
+              </Typography>
+            </Box>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
           onClick={() => setShowCategoryForm(true)}
-          className="group bg-gradient-to-r from-blue-500 to-purple-500 text-white px-6 py-3 rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all duration-200 font-medium shadow-md hover:shadow-lg transform hover:scale-105"
-        >
-          <span className="flex items-center">
-            <Plus className="w-5 h-5 mr-2 group-hover:rotate-90 transition-transform duration-200" />
+              sx={{
+                background: 'linear-gradient(45deg, #2196F3 30%, #9C27B0 90%)',
+                boxShadow: '0 3px 5px 2px rgba(33, 203, 243, .3)',
+                '&:hover': {
+                  background: 'linear-gradient(45deg, #1976D2 30%, #7B1FA2 90%)',
+                  transform: 'scale(1.05)',
+                },
+                transition: 'all 0.2s ease-in-out'
+              }}
+            >
             Add New Category
-          </span>
-        </button>
-      </div>
+            </Button>
+          </Box>
 
       {/* Filters */}
-      <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Filters & Sorting</h3>
-          <button
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+                <Typography variant="h6" component="h3" sx={{ fontWeight: 'semibold' }}>
+                  Filters & Sorting
+                </Typography>
+                <Button
+                  variant="text"
+                  size="small"
             onClick={clearFilters}
-            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                  sx={{ color: 'primary.main' }}
           >
             Clear All Filters
-          </button>
-        </div>
+                </Button>
+              </Box>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Grid container spacing={3}>
           {/* Search */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
-            <input
-              type="text"
+                <Grid item xs={12} md={4}>
+                  <TextField
+                    fullWidth
+                    label="Search"
               placeholder="Search categories..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
-            />
-          </div>
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                </Grid>
 
           {/* Sort By */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
-            <select
+                <Grid item xs={12} md={4}>
+                  <FormControl fullWidth>
+                    <InputLabel>Sort By</InputLabel>
+                    <Select
               value={sortBy}
+                      label="Sort By"
               onChange={(e) => setSortBy(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
-            >
-              <option value="cus_cat_title">Category Title</option>
-              <option value="created_at">Created Date</option>
-              <option value="updated_at">Updated Date</option>
-            </select>
-          </div>
+                    >
+                      <MenuItem value="cus_cat_title">Category Title</MenuItem>
+                      <MenuItem value="created_at">Created Date</MenuItem>
+                      <MenuItem value="updated_at">Updated Date</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
 
           {/* Sort Order */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Order</label>
-            <select
+                <Grid item xs={12} md={4}>
+                  <FormControl fullWidth>
+                    <InputLabel>Order</InputLabel>
+                    <Select
               value={sortOrder}
+                      label="Order"
               onChange={(e) => setSortOrder(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
-            >
-              <option value="asc">Ascending</option>
-              <option value="desc">Descending</option>
-            </select>
-          </div>
-        </div>
-      </div>
+                    >
+                      <MenuItem value="asc">Ascending</MenuItem>
+                      <MenuItem value="desc">Descending</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6">
-          <div className="flex items-center">
-            <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center mr-4">
-              <Tag className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Categories</p>
-              <p className="text-2xl font-bold text-gray-900">{totalCategories}</p>
-            </div>
-          </div>
-        </div>
+          <Grid container spacing={3}>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Avatar
+                      sx={{
+                        width: 48,
+                        height: 48,
+                        mr: 2,
+                        background: 'linear-gradient(45deg, #2196F3 30%, #00BCD4 90%)'
+                      }}
+                    >
+                      <TagIcon />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">
+                        Total Categories
+                      </Typography>
+                      <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
+                        {totalCategories}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
 
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6">
-          <div className="flex items-center">
-            <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl flex items-center justify-center mr-4">
-              <Check className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-600">Active Categories</p>
-              <p className="text-2xl font-bold text-gray-900">{activeCategories}</p>
-            </div>
-          </div>
-        </div>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Avatar
+                      sx={{
+                        width: 48,
+                        height: 48,
+                        mr: 2,
+                        background: 'linear-gradient(45deg, #4CAF50 30%, #8BC34A 90%)'
+                      }}
+                    >
+                      <CheckIcon />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">
+                        Active Categories
+                      </Typography>
+                      <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
+                        {activeCategories}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
 
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6">
-          <div className="flex items-center">
-            <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center mr-4">
-              <Calendar className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-600">Recent Additions</p>
-              <p className="text-2xl font-bold text-gray-900">{recentAdditions}</p>
-            </div>
-          </div>
-        </div>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Avatar
+                      sx={{
+                        width: 48,
+                        height: 48,
+                        mr: 2,
+                        background: 'linear-gradient(45deg, #9C27B0 30%, #E91E63 90%)'
+                      }}
+                    >
+                      <CalendarIcon />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">
+                        Recent Additions
+                      </Typography>
+                      <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
+                        {recentAdditions}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
 
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6">
-          <div className="flex items-center">
-            <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-red-500 rounded-xl flex items-center justify-center mr-4">
-              <Users className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-600">Categories Used</p>
-              <p className="text-2xl font-bold text-gray-900">{totalCategories}</p>
-            </div>
-          </div>
-        </div>
-      </div>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Avatar
+                      sx={{
+                        width: 48,
+                        height: 48,
+                        mr: 2,
+                        background: 'linear-gradient(45deg, #FF9800 30%, #F44336 90%)'
+                      }}
+                    >
+                      <PeopleIcon />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">
+                        Categories Used
+                      </Typography>
+                      <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
+                        {totalCategories}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
 
       {/* Categories Table */}
-      <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 flex flex-col h-[600px]">
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
-          <h3 className="text-lg font-semibold text-gray-900">Customer Categories</h3>
-          <span className="text-sm text-gray-500">
+          <Card sx={{ height: 600, display: 'flex', flexDirection: 'column' }}>
+            <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Typography variant="h6" component="h3" sx={{ fontWeight: 'semibold' }}>
+                Customer Categories
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
             Showing {filteredAndSortedCategories.length} of {customerCategories.length} categories
-          </span>
-        </div>
-        <div className="flex-1 overflow-hidden">
-          <div className="h-full overflow-y-auto">
-            <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category Title</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Updated At</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+              </Typography>
+            </Box>
+            <TableContainer component={Paper} sx={{ flex: 1, overflow: 'auto' }}>
+              <Table stickyHeader>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>ID</TableCell>
+                    <TableCell>Category Title</TableCell>
+                    <TableCell>Created At</TableCell>
+                    <TableCell>Updated At</TableCell>
+                    <TableCell align="center">Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
               {filteredAndSortedCategories.map((category) => (
-                <tr key={category.cus_cat_id} className="hover:bg-gray-50 transition-colors duration-200">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    #{category.sequentialId}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm font-medium text-gray-900">{category.cus_cat_title}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <TableRow key={category.cus_cat_id} hover>
+                      <TableCell>
+                        <Chip label={`#${category.sequentialId}`} size="small" variant="outlined" />
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                          {category.cus_cat_title}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" color="text.secondary">
                     {new Date(category.created_at).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" color="text.secondary">
                     {new Date(category.updated_at).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex items-center space-x-2">
-                      <button
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+                          <Tooltip title="Edit Category">
+                            <IconButton
+                              size="small"
+                              color="primary"
                         onClick={() => handleEditCategory(category)}
-                        className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50 transition-colors duration-200"
-                        title="Edit Category"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
+                            >
+                              <EditIcon />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Delete Category">
+                            <IconButton
+                              size="small"
+                              color="error"
                         onClick={() => handleDeleteCategory(category.cus_cat_id)}
-                        className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50 transition-colors duration-200"
-                        title="Delete Category"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+                            >
+                              <DeleteIcon />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Card>
 
-      {/* Category Modal */}
-      {showCategoryForm && (
-        <div className="fixed inset-0 z-[9999] overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-            {/* Background Overlay */}
-            <div 
-              className="fixed inset-0 bg-gradient-to-br from-gray-900/80 via-blue-900/60 to-purple-900/80 backdrop-blur-md transition-all duration-500 ease-out animate-fade-in" 
-              onClick={() => setShowCategoryForm(false)}
-            ></div>
-            
-            {/* Modal Container */}
-            <div className="relative inline-block w-full max-w-md p-0 my-8 overflow-hidden text-left align-middle transition-all duration-500 ease-out transform bg-white/95 backdrop-blur-xl shadow-2xl rounded-3xl border border-white/20 animate-slide-in-up">
-              
-              {/* Header */}
-              <div className="relative bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white">
-                <div className="absolute inset-0 bg-black/10"></div>
-                <div className="relative flex items-center justify-between">
-                  <div className="flex items-center">
-                    <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mr-4">
-                      <Tag className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold">
+          {/* Category Dialog */}
+          <Dialog
+            open={showCategoryForm}
+            onClose={handleCloseDialog}
+            maxWidth="sm"
+            fullWidth
+            PaperProps={{
+              sx: {
+                borderRadius: 3,
+                background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.9) 100%)',
+                backdropFilter: 'blur(20px)',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+              }
+            }}
+          >
+            <DialogTitle
+              sx={{
+                background: 'linear-gradient(45deg, #2196F3 30%, #9C27B0 90%)',
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                p: 3
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Avatar
+                  sx={{
+                    width: 48,
+                    height: 48,
+                    mr: 2,
+                    bgcolor: 'rgba(255,255,255,0.2)',
+                    backdropFilter: 'blur(10px)'
+                  }}
+                >
+                  <TagIcon />
+                </Avatar>
+                <Box>
+                  <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
                         {editingCategory ? 'Edit Category' : 'Add New Category'}
-                      </h3>
-                      <p className="text-blue-100 text-sm">
+                  </Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
                         {editingCategory ? 'Update category information' : 'Create a new customer category'}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setShowCategoryForm(false)}
-                    className="w-10 h-10 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
+                  </Typography>
+                </Box>
+              </Box>
+              <IconButton
+                onClick={handleCloseDialog}
+                sx={{
+                  color: 'white',
+                  bgcolor: 'rgba(255,255,255,0.2)',
+                  '&:hover': {
+                    bgcolor: 'rgba(255,255,255,0.3)',
+                    transform: 'scale(1.1)'
+                  },
+                  transition: 'all 0.2s ease-in-out'
+                }}
+              >
+                <CloseIcon />
+              </IconButton>
+            </DialogTitle>
 
-              {/* Form Content */}
-              <div className="p-6">
-                <form onSubmit={handleSubmitCategory} className="space-y-6">
-                  
-                  {/* Category Title Field */}
-                  <div className="group">
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Category Title <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
+            <DialogContent sx={{ p: 3 }}>
+              <Box component="form" onSubmit={handleSubmitCategory} sx={{ mt: 2 }}>
+                <TextField
+                  fullWidth
+                  required
+                  label="Category Title"
                       name="cus_cat_title"
                       value={categoryForm.cus_cat_title}
                       onChange={handleCategoryFormChange}
-                      required
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 bg-white hover:bg-gray-50 text-black"
                       placeholder="Enter category title (e.g., VIP Customers)"
-                    />
-                  </div>
+                  sx={{ mb: 3 }}
+                />
+              </Box>
+            </DialogContent>
 
-                  {/* Action Buttons */}
-                  <div className="flex items-center justify-end space-x-4 pt-4 border-t border-gray-200">
-                    <button
-                      type="button"
-                      onClick={() => setShowCategoryForm(false)}
-                      className="px-6 py-2.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-all duration-200"
+            <DialogActions sx={{ p: 3, pt: 0 }}>
+              <Button
+                onClick={handleCloseDialog}
+                variant="outlined"
+                sx={{ mr: 2 }}
                     >
                       Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="group px-8 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all duration-200 shadow-md hover:shadow-lg"
-                    >
-                      <span className="flex items-center">
-                        {editingCategory ? 'Update Category' : 'Create Category'}
-                        <Check className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform duration-200" />
-                      </span>
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      </div>
+              </Button>
+              <Button
+                onClick={handleSubmitCategory}
+                variant="contained"
+                disabled={isSubmitting}
+                startIcon={isSubmitting ? <CircularProgress size={20} /> : <SaveIcon />}
+                sx={{
+                  background: 'linear-gradient(45deg, #2196F3 30%, #9C27B0 90%)',
+                  boxShadow: '0 3px 5px 2px rgba(33, 203, 243, .3)',
+                  '&:hover': {
+                    background: 'linear-gradient(45deg, #1976D2 30%, #7B1FA2 90%)',
+                  }
+                }}
+              >
+                {isSubmitting ? 'Saving...' : editingCategory ? 'Update Category' : 'Create Category'}
+              </Button>
+            </DialogActions>
+          </Dialog>
+
+          {/* Snackbar for notifications */}
+          <Snackbar
+            open={snackbar.open}
+            autoHideDuration={6000}
+            onClose={handleSnackbarClose}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          >
+            <Alert
+              onClose={handleSnackbarClose}
+              severity={snackbar.severity}
+              sx={{ width: '100%' }}
+            >
+              {snackbar.message}
+            </Alert>
+          </Snackbar>
+        </Stack>
+      </Container>
     </DashboardLayout>
   );
 }

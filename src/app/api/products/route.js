@@ -14,9 +14,9 @@ function errorResponse(message, status = 400) {
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-    const categoryId = searchParams.get('categoryId');
-    const subCategoryId = searchParams.get('subCategoryId');
+    const id = searchParams.get('id') ? parseInt(searchParams.get('id')) : null;
+    const categoryId = searchParams.get('categoryId') ? parseInt(searchParams.get('categoryId')) : null;
+    const subCategoryId = searchParams.get('subCategoryId') ? parseInt(searchParams.get('subCategoryId')) : null;
 
     if (id) {
       // Get single product
@@ -135,28 +135,29 @@ export async function POST(request) {
     // Validation for required fields
     if (!body.cat_id) return errorResponse('Category is required');
     if (!body.sub_cat_id) return errorResponse('Subcategory is required');
+    if (!body.pro_title || !body.pro_title.trim()) return errorResponse('Product title is required');
 
     // Verify category and subcategory exist
     const category = await prisma.categories.findUnique({
-      where: { cat_id: body.cat_id }
+      where: { cat_id: parseInt(body.cat_id) }
     });
     if (!category) return errorResponse('Invalid category selected');
 
     const subcategory = await prisma.subCategory.findUnique({
-      where: { sub_cat_id: body.sub_cat_id }
+      where: { sub_cat_id: parseInt(body.sub_cat_id) }
     });
     if (!subcategory) return errorResponse('Invalid subcategory selected');
 
     // Verify subcategory belongs to the selected category
-    if (subcategory.cat_id !== body.cat_id) {
+    if (subcategory.cat_id !== parseInt(body.cat_id)) {
       return errorResponse('Selected subcategory does not belong to the selected category');
     }
 
     // Create new product with provided data
     const newProduct = await prisma.product.create({
       data: {
-        cat_id: body.cat_id,
-        sub_cat_id: body.sub_cat_id,
+        cat_id: parseInt(body.cat_id),
+        sub_cat_id: parseInt(body.sub_cat_id),
         pro_title: body.pro_title.trim(),
         pro_description: body.pro_description?.trim() || '',
         pro_cost_price: parseFloat(body.pro_cost_price) || 0,
@@ -218,22 +219,22 @@ export async function PUT(request) {
     if (body.cat_id && body.sub_cat_id) {
       // Verify category and subcategory exist
       const category = await prisma.categories.findUnique({
-        where: { cat_id: body.cat_id }
+        where: { cat_id: parseInt(body.cat_id) }
       });
       if (!category) return errorResponse('Invalid category selected');
 
       const subcategory = await prisma.subCategory.findUnique({
-        where: { sub_cat_id: body.sub_cat_id }
+        where: { sub_cat_id: parseInt(body.sub_cat_id) }
       });
       if (!subcategory) return errorResponse('Invalid subcategory selected');
 
       // Verify subcategory belongs to the selected category
-      if (subcategory.cat_id !== body.cat_id) {
+      if (subcategory.cat_id !== parseInt(body.cat_id)) {
         return errorResponse('Selected subcategory does not belong to the selected category');
       }
 
-      updateData.cat_id = body.cat_id;
-      updateData.sub_cat_id = body.sub_cat_id;
+      updateData.cat_id = parseInt(body.cat_id);
+      updateData.sub_cat_id = parseInt(body.sub_cat_id);
     }
 
     const updatedProduct = await prisma.product.update({
@@ -277,7 +278,7 @@ export async function PUT(request) {
 // ========================================
 export async function DELETE(request) {
   const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id');
+  const id = searchParams.get('id') ? parseInt(searchParams.get('id')) : null;
 
   if (!id) return errorResponse('Product ID is required');
 

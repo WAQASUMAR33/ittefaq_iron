@@ -11,8 +11,8 @@ function errorResponse(message, status = 400) {
 // ========================================
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id'); // optional: ?id=1
-  const customerId = searchParams.get('customerId'); // optional: ?customerId=1
+  const id = searchParams.get('id') ? parseInt(searchParams.get('id')) : null; // optional: ?id=1
+  const customerId = searchParams.get('customerId') ? parseInt(searchParams.get('customerId')) : null; // optional: ?customerId=1
 
   try {
     if (id) {
@@ -299,7 +299,7 @@ export async function PUT(request) {
 // ========================================
 export async function DELETE(request) {
   const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id'); // /api/ledger?id=1
+  const id = searchParams.get('id') ? parseInt(searchParams.get('id')) : null; // /api/ledger?id=1
 
   if (!id) {
     return errorResponse('Ledger ID is required');

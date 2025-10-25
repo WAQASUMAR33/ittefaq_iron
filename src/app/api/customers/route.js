@@ -11,7 +11,7 @@ function errorResponse(message, status = 400) {
 // ========================================
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id'); // optional: ?id=1
+  const id = searchParams.get('id') ? parseInt(searchParams.get('id')) : null; // optional: ?id=1
 
   try {
     if (id) {
@@ -23,6 +23,18 @@ export async function GET(request) {
             select: {
               cus_cat_id: true,
               cus_cat_title: true
+            }
+          },
+          customer_type: {
+            select: {
+              cus_type_id: true,
+              cus_type_title: true
+            }
+          },
+          city: {
+            select: {
+              city_id: true,
+              city_name: true
             }
           }
         },
@@ -41,6 +53,18 @@ export async function GET(request) {
           select: {
             cus_cat_id: true,
             cus_cat_title: true
+          }
+        },
+        customer_type: {
+          select: {
+            cus_type_id: true,
+            cus_type_title: true
+          }
+        },
+        city: {
+          select: {
+            city_id: true,
+            city_name: true
           }
         }
       },
@@ -70,11 +94,15 @@ export async function POST(request) {
       cus_reference,
       cus_account_info,
       other,
-      cus_balance
+      cus_balance,
+      CNIC,
+      NTN_NO,
+      name_urdu,
+      city_id
     } = body;
 
     // Validation for required fields
-    if (!cus_category || cus_category.trim() === '')
+    if (!cus_category)
       return errorResponse('Customer category is required');
     
     if (!cus_type)
@@ -89,14 +117,27 @@ export async function POST(request) {
     if (!cus_address || cus_address.trim() === '')
       return errorResponse('Customer address is required');
 
-    // Validate customer type enum
-    const validTypes = ['RETAIL', 'WHOLESALE', 'CORPORATE'];
-    if (!validTypes.includes(cus_type))
-      return errorResponse('Invalid customer type. Must be RETAIL, WHOLESALE, or CORPORATE');
+    // Check if customer type exists
+    if (cus_type) {
+      const typeExists = await prisma.customerType.findUnique({
+        where: { cus_type_id: parseInt(cus_type) }
+      });
+      if (!typeExists)
+        return errorResponse('Customer type not found', 404);
+    }
+
+    // Check if city exists
+    if (city_id) {
+      const cityExists = await prisma.city.findUnique({
+        where: { city_id: parseInt(city_id) }
+      });
+      if (!cityExists)
+        return errorResponse('City not found', 404);
+    }
 
     // Check if customer category exists
     const categoryExists = await prisma.customerCategory.findUnique({
-      where: { cus_cat_id: cus_category }
+      where: { cus_cat_id: parseInt(cus_category) }
     });
 
     if (!categoryExists)
@@ -115,8 +156,8 @@ export async function POST(request) {
     // Create new customer
     const newCustomer = await prisma.customer.create({
       data: {
-        cus_category: cus_category.trim(),
-        cus_type: cus_type,
+        cus_category: parseInt(cus_category) || null,
+        cus_type: parseInt(cus_type) || null,
         cus_name: cus_name.trim(),
         cus_phone_no: cus_phone_no.trim(),
         cus_phone_no2: cus_phone_no2?.trim() || null,
@@ -125,12 +166,28 @@ export async function POST(request) {
         cus_account_info: cus_account_info?.trim() || null,
         other: other?.trim() || null,
         cus_balance: cus_balance ? parseFloat(cus_balance) : 0,
+        CNIC: CNIC?.trim() || null,
+        NTN_NO: NTN_NO?.trim() || null,
+        name_urdu: name_urdu?.trim() || null,
+        city_id: parseInt(city_id) || null,
       },
       include: {
         customer_category: {
           select: {
             cus_cat_id: true,
             cus_cat_title: true
+          }
+        },
+        customer_type: {
+          select: {
+            cus_type_id: true,
+            cus_type_title: true
+          }
+        },
+        city: {
+          select: {
+            city_id: true,
+            city_name: true
           }
         }
       }
@@ -160,13 +217,17 @@ export async function PUT(request) {
       cus_reference,
       cus_account_info,
       other,
-      cus_balance
+      cus_balance,
+      CNIC,
+      NTN_NO,
+      name_urdu,
+      city_id
     } = body;
 
     if (!id) return errorResponse('Customer ID is required');
 
     // Validation for required fields
-    if (!cus_category || cus_category.trim() === '')
+    if (!cus_category)
       return errorResponse('Customer category is required');
     
     if (!cus_type)
@@ -181,10 +242,23 @@ export async function PUT(request) {
     if (!cus_address || cus_address.trim() === '')
       return errorResponse('Customer address is required');
 
-    // Validate customer type enum
-    const validTypes = ['RETAIL', 'WHOLESALE', 'CORPORATE'];
-    if (!validTypes.includes(cus_type))
-      return errorResponse('Invalid customer type. Must be RETAIL, WHOLESALE, or CORPORATE');
+    // Check if customer type exists
+    if (cus_type) {
+      const typeExists = await prisma.customerType.findUnique({
+        where: { cus_type_id: parseInt(cus_type) }
+      });
+      if (!typeExists)
+        return errorResponse('Customer type not found', 404);
+    }
+
+    // Check if city exists
+    if (city_id) {
+      const cityExists = await prisma.city.findUnique({
+        where: { city_id: parseInt(city_id) }
+      });
+      if (!cityExists)
+        return errorResponse('City not found', 404);
+    }
 
     // Check if customer exists
     const existing = await prisma.customer.findUnique({
@@ -196,7 +270,7 @@ export async function PUT(request) {
 
     // Check if customer category exists
     const categoryExists = await prisma.customerCategory.findUnique({
-      where: { cus_cat_id: cus_category }
+      where: { cus_cat_id: parseInt(cus_category) }
     });
 
     if (!categoryExists)
@@ -217,8 +291,8 @@ export async function PUT(request) {
     const updated = await prisma.customer.update({
       where: { cus_id: id },
       data: {
-        cus_category: cus_category.trim(),
-        cus_type: cus_type,
+        cus_category: parseInt(cus_category) || null,
+        cus_type: parseInt(cus_type) || null,
         cus_name: cus_name.trim(),
         cus_phone_no: cus_phone_no.trim(),
         cus_phone_no2: cus_phone_no2?.trim() || null,
@@ -227,12 +301,28 @@ export async function PUT(request) {
         cus_account_info: cus_account_info?.trim() || null,
         other: other?.trim() || null,
         cus_balance: cus_balance ? parseFloat(cus_balance) : existing.cus_balance,
+        CNIC: CNIC?.trim() || null,
+        NTN_NO: NTN_NO?.trim() || null,
+        name_urdu: name_urdu?.trim() || null,
+        city_id: parseInt(city_id) || null,
       },
       include: {
         customer_category: {
           select: {
             cus_cat_id: true,
             cus_cat_title: true
+          }
+        },
+        customer_type: {
+          select: {
+            cus_type_id: true,
+            cus_type_title: true
+          }
+        },
+        city: {
+          select: {
+            city_id: true,
+            city_name: true
           }
         }
       }
@@ -250,7 +340,7 @@ export async function PUT(request) {
 // ========================================
 export async function DELETE(request) {
   const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id'); // /api/customers?id=1
+  const id = searchParams.get('id') ? parseInt(searchParams.get('id')) : null; // /api/customers?id=1
 
   if (!id)
     return errorResponse('Customer ID is required');

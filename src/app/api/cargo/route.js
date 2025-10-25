@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    const id = searchParams.get('id') ? parseInt(searchParams.get('id')) : null;
 
     if (id) {
       // Get single cargo by ID
@@ -188,7 +188,7 @@ export async function PUT(request) {
 export async function DELETE(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    const id = searchParams.get('id') ? parseInt(searchParams.get('id')) : null;
 
     if (!id) {
       return NextResponse.json({ error: 'Cargo ID is required' }, { status: 400 });

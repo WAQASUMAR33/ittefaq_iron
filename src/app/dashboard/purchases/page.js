@@ -1,43 +1,130 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { 
-  Plus, 
-  Edit, 
-  Trash2, 
-  Check, 
-  X, 
-  ShoppingCart, 
-  Search, 
-  Filter,
-  DollarSign,
-  Hash,
-  Calendar,
-  Tag,
-  Folder,
-  FolderOpen,
-  Box,
-  TrendingUp,
-  AlertCircle,
-  Star,
-  Eye,
-  BarChart3,
-  Truck,
-  Package,
-  Receipt,
-  ArrowLeft,
-  ArrowRight
-} from 'lucide-react';
 import DashboardLayout from '../components/dashboard-layout';
+
+// Material-UI imports
+import { 
+  Box,
+  Container,
+  Typography,
+  Button,
+  TextField,
+  Card,
+  CardContent,
+  Grid,
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Chip,
+  Avatar,
+  CircularProgress,
+  Tooltip,
+  InputAdornment,
+  Stack,
+  Alert,
+  Snackbar,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Autocomplete,
+  Divider,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
+  ListItemAvatar,
+  Fab,
+  Checkbox
+} from '@mui/material';
+
+// Material Icons
+import {
+  Add as AddIcon,
+  Search as SearchIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  ShoppingCart as ShoppingCartIcon,
+  CalendarToday as CalendarIcon,
+  TrendingUp as TrendingUpIcon,
+  AlertCircle as AlertCircleIcon,
+  Visibility as EyeIcon,
+  BarChart as BarChartIcon,
+  LocalShipping as TruckIcon,
+  Inventory as PackageIcon,
+  Receipt as ReceiptIcon,
+  ArrowBack as ArrowLeftIcon,
+  ArrowForward as ArrowRightIcon,
+  Close as CloseIcon,
+  Save as SaveIcon,
+  CheckCircle as CheckIcon,
+  Store as StoreIcon,
+  Person as PersonIcon,
+  Phone as PhoneIcon,
+  LocationOn as LocationOnIcon,
+  AttachMoney as AttachMoneyIcon
+} from '@mui/icons-material';
 
 export default function PurchasesPage() {
   // State management
   const [purchases, setPurchases] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [products, setProducts] = useState([]);
+  const [stores, setStores] = useState([]);
+  const [customerCategories, setCustomerCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Sample vehicle data
+  const [vehicles] = useState([
+    { id: 1, vehicle_no: 'ABC-123', driver_name: 'John Doe', vehicle_type: 'Truck' },
+    { id: 2, vehicle_no: 'XYZ-456', driver_name: 'Jane Smith', vehicle_type: 'Van' },
+    { id: 3, vehicle_no: 'DEF-789', driver_name: 'Mike Johnson', vehicle_type: 'Truck' },
+    { id: 4, vehicle_no: 'GHI-012', driver_name: 'Sarah Wilson', vehicle_type: 'Van' },
+    { id: 5, vehicle_no: 'JKL-345', driver_name: 'David Brown', vehicle_type: 'Truck' }
+  ]);
   const [editingPurchase, setEditingPurchase] = useState(null);
   const [currentView, setCurrentView] = useState('list'); // 'list' or 'create'
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'success'
+  });
+  
+  // Customer form states
+  const [showCustomerForm, setShowCustomerForm] = useState(false);
+  const [customerFormData, setCustomerFormData] = useState({
+    cus_name: '',
+    cus_phone_no: '',
+    cus_phone_no2: '',
+    cus_address: '',
+    cus_reference: '',
+    cus_account_info: '',
+    other: '',
+    cus_type: '',
+    cus_category: '',
+    cus_balance: 0,
+    CNIC: '',
+    NTN_NO: '',
+    name_urdu: '',
+    city_id: ''
+  });
+  const [isSubmittingCustomer, setIsSubmittingCustomer] = useState(false);
+  
+  // Customer form dropdown data
+  const [customerTypes, setCustomerTypes] = useState([]);
+  const [cities, setCities] = useState([]);
+  
   
   // Filter states
   const [searchTerm, setSearchTerm] = useState('');
@@ -52,20 +139,39 @@ export default function PurchasesPage() {
   const [categories, setCategories] = useState([]);
   const [subcategories, setSubcategories] = useState([]);
   
+  // Selected product for preview
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [productFormData, setProductFormData] = useState({
+    qnty: '1',
+    unit_rate: ''
+  });
+  
   // Customer dropdown filter states
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [selectedBankAccount, setSelectedBankAccount] = useState(null);
+  const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false);
+  const [bankAccountDropdownOpen, setBankAccountDropdownOpen] = useState(false);
+  const [formSelectedCustomer, setFormSelectedCustomer] = useState(null);
+  const [vehicleDropdownOpen, setVehicleDropdownOpen] = useState(false);
 
   // Form data
   const [formData, setFormData] = useState({
     cus_id: '',
+    store_id: '',
+    debit_account_id: '',
+    credit_account_id: '',
     total_amount: '',
     unloading_amount: '',
     fare_amount: '',
+    transport_amount: '',
+    labour_amount: '',
+    include_labour: false,
     discount: '',
     payment: '',
     payment_type: 'CASH',
     vehicle_no: '',
+    invoice_number: '',
     purchase_details: []
   });
 
@@ -91,12 +197,16 @@ export default function PurchasesPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [purchasesRes, customersRes, productsRes, categoriesRes, subcategoriesRes] = await Promise.all([
+      const [purchasesRes, customersRes, productsRes, categoriesRes, subcategoriesRes, storesRes, customerCategoriesRes, customerTypesRes, citiesRes] = await Promise.all([
         fetch('/api/purchases'),
         fetch('/api/customers'),
         fetch('/api/products'),
         fetch('/api/categories'),
-        fetch('/api/subcategories')
+        fetch('/api/subcategories'),
+        fetch('/api/stores'),
+        fetch('/api/customer-category'),
+        fetch('/api/customer-type'),
+        fetch('/api/cities')
       ]);
 
       if (purchasesRes.ok) {
@@ -119,11 +229,66 @@ export default function PurchasesPage() {
         const subcategoriesData = await subcategoriesRes.json();
         setSubcategories(subcategoriesData);
       }
+      if (storesRes.ok) {
+        const storesResponse = await storesRes.json();
+        const storesData = storesResponse.success ? storesResponse.data : [];
+        setStores(Array.isArray(storesData) ? storesData : []);
+      } else {
+        console.error('Stores API error:', storesRes.status, storesRes.statusText);
+        setStores([]);
+      }
+
+      if (customerCategoriesRes.ok) {
+        const customerCategoriesData = await customerCategoriesRes.json();
+        setCustomerCategories(Array.isArray(customerCategoriesData) ? customerCategoriesData : []);
+      } else {
+        console.error('Customer Categories API error:', customerCategoriesRes.status, customerCategoriesRes.statusText);
+        setCustomerCategories([]);
+      }
+      
+      if (customerTypesRes.ok) {
+        const customerTypesData = await customerTypesRes.json();
+        setCustomerTypes(Array.isArray(customerTypesData) ? customerTypesData : []);
+      } else {
+        console.error('Customer Types API error:', customerTypesRes.status, customerTypesRes.statusText);
+        setCustomerTypes([]);
+      }
+      
+      if (citiesRes.ok) {
+        const citiesData = await citiesRes.json();
+        setCities(Array.isArray(citiesData) ? citiesData : []);
+      } else {
+        console.error('Cities API error:', citiesRes.status, citiesRes.statusText);
+        setCities([]);
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
+      setSnackbar({
+        open: true,
+        message: 'Error fetching data',
+        severity: 'error'
+      });
+      // Ensure all dropdown data are always arrays even on error
+      setStores([]);
+      setCustomerCategories([]);
+      setCustomerTypes([]);
+      setCities([]);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Helper function to get sort label
+  const getSortLabel = (value) => {
+    const labels = {
+      'created_at-desc': 'Newest First',
+      'created_at-asc': 'Oldest First',
+      'customer-asc': 'Customer A-Z',
+      'customer-desc': 'Customer Z-A',
+      'net_total-desc': 'Amount High-Low',
+      'net_total-asc': 'Amount Low-High'
+    };
+    return labels[value] || 'Newest First';
   };
 
   // Filter and sort logic
@@ -197,41 +362,61 @@ export default function PurchasesPage() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const addProductToPurchase = (product) => {
-    const existingDetail = formData.purchase_details.find(detail => detail.pro_id === product.pro_id);
+  // Handle product selection (show in preview section)
+  const handleProductSelect = (product) => {
+    setSelectedProduct(product);
+    setProductFormData({
+      qnty: '1',
+      unit_rate: product.pro_cost_price.toString()
+    });
+  };
+
+  // Add product to purchase list
+  const addProductToPurchase = () => {
+    if (!selectedProduct) return;
+    
+    // Check if store is selected
+    if (!formData.store_id) {
+      alert('Please select a store before adding products');
+      return;
+    }
+    
+    const existingDetail = formData.purchase_details.find(detail => detail.pro_id === selectedProduct.pro_id);
     
     if (existingDetail) {
-      // Update quantity if product already exists
-      const updatedDetails = formData.purchase_details.map(detail => 
-        detail.pro_id === product.pro_id 
-          ? {
-              ...detail,
-              qnty: (parseInt(detail.qnty) + 1).toString(),
-              total_amount: ((parseInt(detail.qnty) + 1) * parseFloat(detail.unit_rate)).toString()
-            }
-          : detail
-      );
-      setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
-    } else {
-      // Add new product
-      const newDetail = {
-        pro_id: product.pro_id,
-        qnty: '1',
-        unit: product.pro_unit,
-        unit_rate: product.pro_cost_price.toString(),
-        total_amount: product.pro_cost_price.toString()
-      };
-      
-      setFormData(prev => ({
-        ...prev,
-        purchase_details: [...prev.purchase_details, newDetail]
-      }));
+      alert('Product already exists in the purchase list');
+      return;
     }
+    
+    const totalAmount = parseFloat(productFormData.qnty) * parseFloat(productFormData.unit_rate);
+    
+    const newDetail = {
+      pro_id: selectedProduct.pro_id,
+      store_id: formData.store_id, // Add store_id to each product detail
+      qnty: productFormData.qnty,
+      unit: selectedProduct.pro_unit,
+      unit_rate: productFormData.unit_rate,
+      total_amount: totalAmount.toString(),
+      discount: '0'
+    };
+    
+    setFormData(prev => ({
+      ...prev,
+      purchase_details: [...prev.purchase_details, newDetail]
+    }));
+    
+    // Reset selection
+    setSelectedProduct(null);
+    setProductFormData({
+      qnty: '1',
+      unit_rate: ''
+    });
   };
 
   const selectCustomer = (customer) => {
     setFormData(prev => ({ ...prev, cus_id: customer.cus_id }));
     setCustomerSearchTerm(customer.cus_name);
+    setFormSelectedCustomer(customer);
     setShowCustomerDropdown(false);
   };
 
@@ -253,14 +438,16 @@ export default function PurchasesPage() {
   const calculateNetTotal = () => {
     const totalAmount = calculateTotalAmount();
     const unloadingAmount = parseFloat(formData.unloading_amount || 0);
-    const fareAmount = parseFloat(formData.fare_amount || 0);
+    const transportAmount = parseFloat(formData.transport_amount || 0);
+    const labourAmount = parseFloat(formData.labour_amount || 0);
     const discount = parseFloat(formData.discount || 0);
     
-    return totalAmount + unloadingAmount + fareAmount - discount;
+    return totalAmount + unloadingAmount + transportAmount + labourAmount - discount;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsSubmitting(true);
     try {
       // Validation
       if (!formData.cus_id) {
@@ -302,18 +489,29 @@ export default function PurchasesPage() {
         setEditingPurchase(null);
         setFormData({
           cus_id: '',
+          store_id: '',
+          debit_account_id: '',
+          credit_account_id: '',
           total_amount: '',
           unloading_amount: '',
           fare_amount: '',
+          transport_amount: '',
+          labour_amount: '',
+          include_labour: false,
           discount: '',
           payment: '',
           payment_type: 'CASH',
           vehicle_no: '',
+          invoice_number: '',
           purchase_details: []
         });
+        setSelectedBankAccount(null);
+        setFormSelectedCustomer(null);
       }
     } catch (error) {
       console.error('Error saving purchase:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -321,15 +519,35 @@ export default function PurchasesPage() {
     setEditingPurchase(purchase);
     setFormData({
       cus_id: purchase.cus_id,
+      store_id: purchase.store_id?.toString() || '',
+      debit_account_id: purchase.debit_account_id || '',
+      credit_account_id: purchase.credit_account_id || '',
       total_amount: purchase.total_amount.toString(),
       unloading_amount: purchase.unloading_amount.toString(),
       fare_amount: purchase.fare_amount.toString(),
+      transport_amount: purchase.transport_amount?.toString() || '',
+      labour_amount: purchase.labour_amount?.toString() || '',
+      include_labour: purchase.include_labour || false,
       discount: purchase.discount.toString(),
       payment: purchase.payment.toString(),
       payment_type: purchase.payment_type,
       vehicle_no: purchase.vehicle_no || '',
+      invoice_number: purchase.invoice_number || '',
       purchase_details: purchase.purchase_details || []
     });
+    
+    // Set selected bank account if credit_account_id exists
+    if (purchase.credit_account_id) {
+      const bankAccount = customers.find(customer => customer.cus_id === purchase.credit_account_id);
+      setSelectedBankAccount(bankAccount || null);
+    } else {
+      setSelectedBankAccount(null);
+    }
+    
+    // Set selected customer for the form
+    const customer = customers.find(customer => customer.cus_id === purchase.cus_id);
+    setFormSelectedCustomer(customer || null);
+    
     setCurrentView('create');
   };
 
@@ -355,12 +573,178 @@ export default function PurchasesPage() {
     setSortOrder('desc');
   };
 
+  // Customer form handlers
+  const handleCustomerFormChange = (e) => {
+    const { name, value } = e.target;
+    setCustomerFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleAddCustomer = async () => {
+    // Validation
+    if (!customerFormData.cus_name.trim()) {
+      setSnackbar({
+        open: true,
+        message: 'Customer name is required',
+        severity: 'error'
+      });
+      return;
+    }
+    if (!customerFormData.cus_phone_no.trim()) {
+      setSnackbar({
+        open: true,
+        message: 'Phone number is required',
+        severity: 'error'
+      });
+      return;
+    }
+    if (!customerFormData.cus_address.trim()) {
+      setSnackbar({
+        open: true,
+        message: 'Address is required',
+        severity: 'error'
+      });
+      return;
+    }
+    if (!customerFormData.cus_category) {
+      setSnackbar({
+        open: true,
+        message: 'Customer category is required',
+        severity: 'error'
+      });
+      return;
+    }
+    if (!customerFormData.cus_type) {
+      setSnackbar({
+        open: true,
+        message: 'Customer type is required',
+        severity: 'error'
+      });
+      return;
+    }
+    if (!customerFormData.city_id) {
+      setSnackbar({
+        open: true,
+        message: 'City is required',
+        severity: 'error'
+      });
+      return;
+    }
+
+    setIsSubmittingCustomer(true);
+    try {
+      const response = await fetch('/api/customers', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          cus_name: customerFormData.cus_name,
+          cus_phone_no: customerFormData.cus_phone_no,
+          cus_phone_no2: customerFormData.cus_phone_no2 || '',
+          cus_address: customerFormData.cus_address,
+          cus_reference: customerFormData.cus_reference || '',
+          cus_account_info: customerFormData.cus_account_info || '',
+          other: customerFormData.other || '',
+          cus_type: customerFormData.cus_type,
+          cus_category: customerFormData.cus_category,
+          cus_balance: parseFloat(customerFormData.cus_balance || 0),
+          CNIC: customerFormData.CNIC || '',
+          NTN_NO: customerFormData.NTN_NO || '',
+          name_urdu: customerFormData.name_urdu || '',
+          city_id: customerFormData.city_id
+        })
+      });
+
+      if (response.ok) {
+        const newCustomer = await response.json();
+        setSnackbar({
+          open: true,
+          message: 'Customer added successfully',
+          severity: 'success'
+        });
+        setCustomerFormData({
+          cus_name: '',
+          cus_phone_no: '',
+          cus_phone_no2: '',
+          cus_address: '',
+          cus_reference: '',
+          cus_account_info: '',
+          other: '',
+          cus_type: '',
+          cus_category: '',
+          cus_balance: 0,
+          CNIC: '',
+          NTN_NO: '',
+          name_urdu: '',
+          city_id: ''
+        });
+        setShowCustomerForm(false);
+        // Refresh customers list
+        await fetchData();
+      } else {
+        setSnackbar({
+          open: true,
+          message: 'Error adding customer',
+          severity: 'error'
+        });
+      }
+    } catch (error) {
+      console.error('Error adding customer:', error);
+      setSnackbar({
+        open: true,
+        message: 'Error adding customer',
+        severity: 'error'
+      });
+    } finally {
+      setIsSubmittingCustomer(false);
+    }
+  };
+
+  const handleCloseCustomerForm = () => {
+    setShowCustomerForm(false);
+    setCustomerFormData({
+      cus_name: '',
+      cus_phone_no: '',
+      cus_phone_no2: '',
+      cus_address: '',
+      cus_reference: '',
+      cus_account_info: '',
+      other: '',
+      cus_type: '',
+      cus_category: '',
+      cus_balance: 0,
+      CNIC: '',
+      NTN_NO: '',
+      name_urdu: '',
+      city_id: ''
+    });
+  };
+
+
+  const handleSnackbarClose = (event, reason) => {
+    if (reason === 'clickaway') {
+      return;
+    }
+    setSnackbar(prev => ({ ...prev, open: false }));
+  };
+
   if (loading) {
     return (
       <DashboardLayout>
-        <div className="flex items-center justify-center h-full">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-        </div>
+        <Box
+          sx={{
+            minHeight: '100vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            bgcolor: 'background.default'
+          }}
+        >
+          <CircularProgress size={80} />
+        </Box>
       </DashboardLayout>
     );
   }
@@ -368,173 +752,277 @@ export default function PurchasesPage() {
   // Render Purchase List View
   const renderPurchaseListView = () => (
     <DashboardLayout>
-      {/* Fixed Height Container with Overflow Hidden */}
-      <div className="h-full flex flex-col overflow-hidden">
-        {/* Fixed Header Section */}
-        <div className="flex-shrink-0 mb-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">Purchase Management</h2>
-              <p className="text-gray-600 mt-1">Manage your purchase orders, suppliers, and inventory</p>
-            </div>
-            <button
+      <Container maxWidth="xl" sx={{ py: 4 }}>
+        <Stack spacing={4}>
+          {/* Header */}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Box>
+              <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
+                Purchase Management
+              </Typography>
+              <Typography variant="body1" sx={{ color: 'text.secondary', mt: 1 }}>
+                Manage your purchase orders, suppliers, and inventory
+              </Typography>
+            </Box>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
               onClick={() => setCurrentView('create')}
-              className="group bg-gradient-to-r from-green-500 to-emerald-500 text-white px-6 py-3 rounded-lg hover:from-green-600 hover:to-emerald-600 transition-all duration-200 font-medium shadow-md hover:shadow-lg transform hover:scale-105"
+              sx={{
+                background: 'linear-gradient(45deg, #4CAF50 30%, #2E7D32 90%)',
+                boxShadow: '0 3px 5px 2px rgba(76, 175, 80, .3)',
+                '&:hover': {
+                  background: 'linear-gradient(45deg, #388E3C 30%, #1B5E20 90%)',
+                  transform: 'scale(1.05)',
+                },
+                transition: 'all 0.2s ease-in-out'
+              }}
             >
-              <span className="flex items-center">
-                <Plus className="w-5 h-5 mr-2 group-hover:rotate-90 transition-transform duration-200" />
                 Add New Purchase
-              </span>
-            </button>
-          </div>
-        </div>
+            </Button>
+          </Box>
 
-        {/* Fixed Filters Section */}
-        <div className="flex-shrink-0 mb-6">
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Filters & Sorting</h3>
-              <button
+          {/* Filters */}
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+                <Typography variant="h6" component="h3" sx={{ fontWeight: 'semibold' }}>
+                  Filters & Sorting
+                </Typography>
+                <Button
+                  variant="text"
+                  size="small"
                 onClick={clearFilters}
-                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                  sx={{ color: 'primary.main' }}
               >
                 Clear All Filters
-              </button>
-            </div>
+                </Button>
+              </Box>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              <Grid container spacing={3}>
               {/* Search */}
-              <div className="lg:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
-                <div className="relative">
-                  <input
-                    type="text"
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Search"
                     placeholder="Search purchases..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon />
+                        </InputAdornment>
+                      ),
+                    }}
+                    sx={{ minWidth: 300 }}
                   />
-                  <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
-                </div>
-              </div>
+                </Grid>
 
               {/* Customer Filter */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Customer</label>
-                <select
-                  value={selectedCustomer}
-                  onChange={(e) => setSelectedCustomer(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
-                >
-                  <option value="">All Customers</option>
-                  {customers.map((customer) => (
-                    <option key={customer.cus_id} value={customer.cus_id}>
-                      {customer.cus_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                <Grid item xs={12} md={3}>
+                  <Autocomplete
+                    fullWidth
+                    options={[{ cus_id: '', cus_name: 'All Customers' }, ...customers]}
+                    getOptionLabel={(option) => option.cus_name}
+                    value={customers.find(c => c.cus_id === selectedCustomer) || { cus_id: '', cus_name: 'All Customers' }}
+                    onChange={(event, newValue) => {
+                      setSelectedCustomer(newValue ? newValue.cus_id : '');
+                    }}
+                    filterOptions={(options, { inputValue }) => {
+                      return options.filter(option =>
+                        option.cus_name.toLowerCase().includes(inputValue.toLowerCase())
+                      );
+                    }}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Customer"
+                        placeholder="Search customers..."
+                        sx={{ minWidth: 300 }}
+                      />
+                    )}
+                    sx={{ minWidth: 300 }}
+                  />
+                </Grid>
 
               {/* Sort */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
-                <select
-                  value={`${sortBy}-${sortOrder}`}
-                  onChange={(e) => {
-                    const [field, order] = e.target.value.split('-');
+                <Grid item xs={12} md={3}>
+                  <Autocomplete
+                    fullWidth
+                    options={[
+                      { value: 'created_at-desc', label: 'Newest First' },
+                      { value: 'created_at-asc', label: 'Oldest First' },
+                      { value: 'customer-asc', label: 'Customer A-Z' },
+                      { value: 'customer-desc', label: 'Customer Z-A' },
+                      { value: 'net_total-desc', label: 'Amount High-Low' },
+                      { value: 'net_total-asc', label: 'Amount Low-High' }
+                    ]}
+                    getOptionLabel={(option) => option.label}
+                    value={{ value: `${sortBy}-${sortOrder}`, label: getSortLabel(`${sortBy}-${sortOrder}`) }}
+                    onChange={(event, newValue) => {
+                      if (newValue) {
+                        const [field, order] = newValue.value.split('-');
                     setSortBy(field);
                     setSortOrder(order);
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
-                >
-                  <option value="created_at-desc">Newest First</option>
-                  <option value="created_at-asc">Oldest First</option>
-                  <option value="customer-asc">Customer A-Z</option>
-                  <option value="customer-desc">Customer Z-A</option>
-                  <option value="net_total-desc">Amount High-Low</option>
-                  <option value="net_total-asc">Amount Low-High</option>
-                </select>
-              </div>
-            </div>
-          </div>
-        </div>
+                      }
+                    }}
+                    filterOptions={(options, { inputValue }) => {
+                      return options.filter(option =>
+                        option.label.toLowerCase().includes(inputValue.toLowerCase())
+                      );
+                    }}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Sort By"
+                        placeholder="Select sort option..."
+                        sx={{ minWidth: 300 }}
+                      />
+                    )}
+                    sx={{ minWidth: 300 }}
+                  />
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
 
-        {/* Fixed Stats Cards Section */}
-        <div className="flex-shrink-0 mb-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6">
-              <div className="flex items-center">
-                <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl flex items-center justify-center mr-4">
-                  <ShoppingCart className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Total Purchases</p>
-                  <p className="text-2xl font-bold text-gray-900">{totalPurchases}</p>
-                </div>
-              </div>
-            </div>
+          {/* Stats Cards */}
+          <Grid container spacing={3}>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Avatar
+                      sx={{
+                        width: 48,
+                        height: 48,
+                        mr: 2,
+                        background: 'linear-gradient(45deg, #4CAF50 30%, #2E7D32 90%)'
+                      }}
+                    >
+                      <ShoppingCartIcon />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">
+                        Total Purchases
+                      </Typography>
+                      <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
+                        {totalPurchases}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
 
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6">
-              <div className="flex items-center">
-                <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center mr-4">
-                  <DollarSign className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Total Value</p>
-                  <p className="text-2xl font-bold text-gray-900">{totalPurchaseValue.toLocaleString()}</p>
-                </div>
-              </div>
-            </div>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Avatar
+                      sx={{
+                        width: 48,
+                        height: 48,
+                        mr: 2,
+                        background: 'linear-gradient(45deg, #2196F3 30%, #00BCD4 90%)'
+                      }}
+                    >
+                      <ShoppingCartIcon />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">
+                        Total Value
+                      </Typography>
+                      <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
+                        {totalPurchaseValue.toLocaleString()}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
 
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6">
-              <div className="flex items-center">
-                <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center mr-4">
-                  <Truck className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Unloading Amount</p>
-                  <p className="text-2xl font-bold text-gray-900">{totalUnloadingAmount.toLocaleString()}</p>
-                </div>
-              </div>
-            </div>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Avatar
+                      sx={{
+                        width: 48,
+                        height: 48,
+                        mr: 2,
+                        background: 'linear-gradient(45deg, #9C27B0 30%, #E91E63 90%)'
+                      }}
+                    >
+                      <TruckIcon />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">
+                        Unloading Amount
+                      </Typography>
+                      <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
+                        {totalUnloadingAmount.toLocaleString()}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
 
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6">
-              <div className="flex items-center">
-                <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-red-500 rounded-xl flex items-center justify-center mr-4">
-                  <Receipt className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Fare Amount</p>
-                  <p className="text-2xl font-bold text-gray-900">{totalFareAmount.toLocaleString()}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Avatar
+                      sx={{
+                        width: 48,
+                        height: 48,
+                        mr: 2,
+                        background: 'linear-gradient(45deg, #FF9800 30%, #F44336 90%)'
+                      }}
+                    >
+                      <ReceiptIcon />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">
+                        Fare Amount
+                      </Typography>
+                      <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
+                        {totalFareAmount.toLocaleString()}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
 
-        {/* Flexible Table Section - Only This Scrolls */}
-        <div className="flex-1 min-h-0">
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 h-full flex flex-col">
-            {/* Fixed Table Header */}
-            <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">Purchases List</h3>
-              <span className="text-sm text-gray-500">
+          {/* Purchases Table */}
+          <Card>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 3, borderBottom: 1, borderColor: 'divider' }}>
+              <Typography variant="h6" component="h3" sx={{ fontWeight: 'semibold' }}>
+                Purchases List
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
                 Showing {finalPurchases.length} of {purchases.length} purchases
-              </span>
-            </div>
+              </Typography>
+            </Box>
             
             {finalPurchases.length === 0 ? (
-              <div className="flex-1 flex items-center justify-center">
-                <div className="text-center">
-                  <ShoppingCart className="mx-auto h-12 w-12 text-gray-400" />
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">No purchases found</h3>
-                  <p className="mt-1 text-sm text-gray-500">
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 8 }}>
+                <Box sx={{ textAlign: 'center' }}>
+                  <ShoppingCartIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
+                  <Typography variant="h6" sx={{ mb: 1 }}>
+                    No purchases found
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
                     {searchTerm || selectedCustomer
                       ? 'Try adjusting your filters to see more results.'
                       : 'Get started by adding your first purchase.'}
-                  </p>
-                </div>
-              </div>
+                  </Typography>
+                </Box>
+              </Box>
             ) : (
               <div className="flex-1 flex flex-col min-h-0">
                 {/* Fixed Column Headers */}
@@ -561,7 +1049,7 @@ export default function PurchasesPage() {
                           <div className="col-span-2 flex items-center">
                             <div>
                               <div className="text-sm font-medium text-gray-900">Purchase #{purchase.sequentialId}</div>
-                              <div className="text-xs text-gray-500">ID: {purchase.pur_id.slice(-8)}</div>
+                              <div className="text-xs text-gray-500">ID: {purchase.pur_id.toString().slice(-8)}</div>
                             </div>
                           </div>
 
@@ -637,14 +1125,14 @@ export default function PurchasesPage() {
                                 className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-colors duration-200"
                                 title="Edit Purchase"
                               >
-                                <Edit className="w-4 h-4" />
+                                <EditIcon />
                               </button>
                               <button
                                 onClick={() => handleDelete(purchase.pur_id)}
                                 className="p-2 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-colors duration-200"
                                 title="Delete Purchase"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <DeleteIcon />
                               </button>
                             </div>
                           </div>
@@ -655,9 +1143,9 @@ export default function PurchasesPage() {
                 </div>
               </div>
             )}
-          </div>
-        </div>
-      </div>
+          </Card>
+        </Stack>
+      </Container>
     </DashboardLayout>
   );
 
@@ -673,7 +1161,7 @@ export default function PurchasesPage() {
                 onClick={() => setCurrentView('list')}
                 className="mr-4 p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors duration-200"
               >
-                <ArrowLeft className="w-5 h-5" />
+                <ArrowLeftIcon />
               </button>
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">
@@ -688,140 +1176,445 @@ export default function PurchasesPage() {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 min-h-0 flex gap-6">
-          {/* Left Side - Product Grid */}
-          <div className="w-1/3 flex flex-col">
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 h-full flex flex-col">
-              {/* Product Grid Header */}
-              <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Product Selection</h3>
-                
-                {/* Product Search */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Search Products</label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder="Search products..."
-                      value={productSearchTerm}
-                      onChange={(e) => setProductSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black"
-                    />
-                    <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
-                  </div>
-                </div>
-              </div>
-              
-              {/* Product List */}
-              <div className="flex-1 overflow-y-auto p-6">
-                <div className="space-y-2">
-                  {filteredProducts.map((product) => (
-                    <div
-                      key={product.pro_id}
-                      className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg hover:border-green-300 hover:bg-green-50 transition-all duration-200 cursor-pointer group"
-                      onClick={() => addProductToPurchase(product)}
-                    >
-                      <div className="flex items-center flex-1">
-                        <div className="flex-1">
-                          <div className="font-medium text-gray-900 text-sm group-hover:text-green-600 transition-colors">
-                            {product.pro_title}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {product.category?.cat_name || 'N/A'} - {product.sub_category?.sub_cat_name || 'N/A'}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-4">
-                        <div className="text-right">
-                          <div className="text-sm font-medium text-gray-900">
-                            {parseFloat(product.pro_cost_price).toFixed(2)}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            Cost Price
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm font-medium text-gray-900">
-                            {product.pro_stock_qnty}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            Stock
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                
-                {filteredProducts.length === 0 && (
-                  <div className="flex items-center justify-center h-32">
-                    <div className="text-center">
-                      <Package className="mx-auto h-8 w-8 text-gray-400" />
-                      <p className="text-sm text-gray-500 mt-2">No products found</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+        <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {/* Header Section */}
+          <Card sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Typography variant="h6" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
+                Order #
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={() => setShowCustomerForm(true)}
+                  sx={{
+                    bgcolor: 'secondary.main',
+                    '&:hover': { bgcolor: 'secondary.dark' }
+                  }}
+                >
+                  + New Customer
+                </Button>
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={() => setShowCustomerForm(true)}
+                  sx={{
+                    bgcolor: 'primary.main',
+                    '&:hover': { bgcolor: 'primary.dark' }
+                  }}
+                >
+                  + New Account
+                </Button>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <TextField
+                  size="small"
+                  placeholder="Invoice No"
+                  sx={{ width: 200 }}
+                />
+                <Button
+                  variant="contained"
+                  sx={{
+                    bgcolor: 'secondary.main',
+                    '&:hover': { bgcolor: 'secondary.dark' },
+                    minWidth: 80
+                  }}
+                >
+                  Q Find
+                </Button>
+              </Box>
+            </Box>
+          </Card>
 
-          {/* Right Side - Purchase Form */}
-          <div className="w-2/3 flex flex-col">
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 h-full flex flex-col">
-              {/* Form Header */}
-              <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">Purchase Details</h3>
-              </div>
-              
-              {/* Form Content */}
-              <div className="flex-1 overflow-y-auto p-6">
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  {/* Selected Products Section - At the Top */}
-                  {formData.purchase_details.length > 0 && (
-                    <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
-                      <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                        <Package className="w-5 h-5 mr-2 text-blue-600" />
-                        Selected Products ({formData.purchase_details.length})
-                      </h4>
+          {/* Main Form */}
+          <Card sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <Box component="form" onSubmit={handleSubmit} sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+              {/* Customer and Order Details Section */}
+              <Box sx={{ p: 3, borderBottom: 1, borderColor: 'divider' }}>
+                <Grid container spacing={3}>
+                  {/* Row 0 - Invoice Number */}
+                  <Grid item xs={12} md={4}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        INVOICE NUMBER
+                      </Typography>
+                      <TextField
+                        size="small"
+                        placeholder="Enter invoice number"
+                        value={formData.invoice_number || ''}
+                        onChange={(e) => setFormData(prev => ({ ...prev, invoice_number: e.target.value }))}
+                        sx={{ width: '100%' }}
+                      />
+                    </Box>
+                  </Grid>
+                  
+                  {/* Row 1 */}
+                  <Grid item xs={12} md={2}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        DATE
+                      </Typography>
+                      <TextField
+                        size="small"
+                        type="date"
+                        value={new Date().toISOString().split('T')[0]}
+                        sx={{ width: '100%' }}
+                        InputProps={{
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <CalendarIcon sx={{ color: 'warning.main' }} />
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+                    </Box>
+                  </Grid>
+                  
+                  
+                  <Grid item xs={12} md={4}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                          CUSTOMER
+                        </Typography>
+                        {formSelectedCustomer && (
+                          <Box sx={{ 
+                            bgcolor: 'success.light', 
+                            color: 'success.contrastText',
+                            px: 1.5,
+                            py: 0.5,
+                            borderRadius: 1,
+                            fontSize: '0.75rem',
+                            fontWeight: 'bold'
+                          }}>
+                            Balance: {parseFloat(formSelectedCustomer.cus_balance || 0).toFixed(2)}
+                          </Box>
+                        )}
+                      </Box>
+                      <Autocomplete
+                        size="small"
+                        open={customerDropdownOpen}
+                        onOpen={() => setCustomerDropdownOpen(true)}
+                        onClose={() => setCustomerDropdownOpen(false)}
+                        options={customers}
+                        getOptionLabel={(option) => option.cus_name}
+                        value={formSelectedCustomer}
+                        onChange={(event, newValue) => {
+                          if (newValue) {
+                            selectCustomer(newValue);
+                          } else {
+                            setFormData(prev => ({ ...prev, cus_id: '' }));
+                            setCustomerSearchTerm('');
+                            setFormSelectedCustomer(null);
+                          }
+                          setCustomerDropdownOpen(false);
+                        }}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            placeholder="Select customer..."
+                            sx={{ width: '100%', minWidth: 300 }}
+                            onClick={() => setCustomerDropdownOpen(true)}
+                          />
+                        )}
+                        sx={{ width: '100%', minWidth: 300 }}
+                        disablePortal={false}
+                        openOnFocus={true}
+                        selectOnFocus={true}
+                        clearOnBlur={false}
+                        handleHomeEndKeys={true}
+                      />
+                    </Box>
+                  </Grid>
+                  
+                  {/* Row 2 - Vehicle, Transport Amount, Labour Amount */}
+                  <Grid item xs={12} md={4}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        VEHICLE
+                      </Typography>
+                      <Autocomplete
+                        size="small"
+                        open={vehicleDropdownOpen}
+                        onOpen={() => setVehicleDropdownOpen(true)}
+                        onClose={() => setVehicleDropdownOpen(false)}
+                        options={vehicles}
+                        getOptionLabel={(option) => `${option.vehicle_no} - ${option.driver_name}`}
+                        value={vehicles.find(v => v.vehicle_no === formData.vehicle_no) || null}
+                        onChange={(event, newValue) => {
+                          setFormData(prev => ({ 
+                            ...prev, 
+                            vehicle_no: newValue ? newValue.vehicle_no : ''
+                          }));
+                          setVehicleDropdownOpen(false);
+                        }}
+                        filterOptions={(options, { inputValue }) => {
+                          return options.filter(option =>
+                            option.vehicle_no.toLowerCase().includes(inputValue.toLowerCase()) ||
+                            option.driver_name.toLowerCase().includes(inputValue.toLowerCase()) ||
+                            option.vehicle_type.toLowerCase().includes(inputValue.toLowerCase())
+                          );
+                        }}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            placeholder="Select vehicle..."
+                            sx={{ width: '100%', minWidth: 300 }}
+                            onClick={() => setVehicleDropdownOpen(true)}
+                          />
+                        )}
+                        sx={{ width: '100%', minWidth: 300 }}
+                        disablePortal={false}
+                        openOnFocus={true}
+                        selectOnFocus={true}
+                        clearOnBlur={false}
+                        handleHomeEndKeys={true}
+                      />
+                    </Box>
+                  </Grid>
+                  
+                  <Grid item xs={12} md={4}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        TRANSPORT AMOUNT
+                      </Typography>
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={formData.transport_amount || '0'}
+                        onChange={(e) => setFormData(prev => ({ ...prev, transport_amount: e.target.value }))}
+                        inputProps={{ step: 0.01, min: 0 }}
+                        sx={{ width: '100%' }}
+                      />
+                    </Box>
+                  </Grid>
+                  
+                  <Grid item xs={12} md={4}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        LABOUR AMOUNT
+                      </Typography>
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={formData.labour_amount || '0'}
+                        onChange={(e) => setFormData(prev => ({ ...prev, labour_amount: e.target.value }))}
+                        inputProps={{ step: 0.01, min: 0 }}
+                        sx={{ width: '100%' }}
+                      />
+                    </Box>
+                  </Grid>
+                  
+                  <Grid item xs={12} md={4}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        OPTIONS
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Checkbox
+                          checked={formData.include_labour || false}
+                          onChange={(e) => setFormData(prev => ({ ...prev, include_labour: e.target.checked }))}
+                          size="small"
+                        />
+                        <Typography variant="body2">
+                          Include Labour Charges
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Grid>
+                  
+                </Grid>
+              </Box>
+
+
+              {/* Product Selection Section */}
+              <Box sx={{ p: 3, borderBottom: 1, borderColor: 'divider' }}>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2 }}>
+                  SELECT PRODUCT X
+                </Typography>
+                
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={6}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        STORE
+                      </Typography>
+                      <Autocomplete
+                        size="small"
+                        options={stores}
+                        getOptionLabel={(option) => option.store_name}
+                        value={stores.find(store => store.storeid === parseInt(formData.store_id)) || null}
+                        onChange={(event, newValue) => {
+                          setFormData(prev => ({
+                            ...prev,
+                            store_id: newValue ? newValue.storeid.toString() : ''
+                          }));
+                        }}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            placeholder="Select store"
+                            sx={{ width: '100%', minWidth: 200 }}
+                          />
+                        )}
+                        renderOption={(props, option) => (
+                          <Box component="li" {...props}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <StoreIcon sx={{ color: 'primary.main' }} />
+                              <Box>
+                                <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                                  {option.store_name}
+                                </Typography>
+                                {option.store_address && (
+                                  <Typography variant="caption" color="text.secondary">
+                                    {option.store_address}
+                                  </Typography>
+                                )}
+                              </Box>
+                            </Box>
+                          </Box>
+                        )}
+                      />
+                    </Box>
+                  </Grid>
+                  
+                  <Grid item xs={12} md={6}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        PRODUCT
+                      </Typography>
+                      <Autocomplete
+                        options={products}
+                        getOptionLabel={(option) => option.pro_title}
+                        value={selectedProduct}
+                        onChange={(event, newValue) => {
+                          if (newValue) {
+                            handleProductSelect(newValue);
+                          }
+                        }}
+                        filterOptions={(options, { inputValue }) => {
+                          return options.filter(option =>
+                            option.pro_title.toLowerCase().includes(inputValue.toLowerCase()) ||
+                            option.category?.cat_name?.toLowerCase().includes(inputValue.toLowerCase()) ||
+                            option.sub_category?.sub_cat_name?.toLowerCase().includes(inputValue.toLowerCase())
+                          );
+                        }}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            placeholder="Select product..."
+                            size="small"
+                            sx={{ width: '100%', minWidth: 300 }}
+                          />
+                        )}
+                        sx={{ width: '100%', minWidth: 300 }}
+                      />
+                    </Box>
+                  </Grid>
+                  
+                  <Grid item xs={12} md={1.5}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        QTY
+                      </Typography>
+                      <TextField
+                        size="small"
+                            type="number"
+                            value={productFormData.qnty}
+                            onChange={(e) => setProductFormData(prev => ({ ...prev, qnty: e.target.value }))}
+                        inputProps={{ min: 1 }}
+                        sx={{ width: 100, minWidth: 100 }}
+                      />
+                    </Box>
+                  </Grid>
+                  
+                  <Grid item xs={12} md={1.5}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        RATE
+                      </Typography>
+                      <TextField
+                        size="small"
+                            type="number"
+                            value={productFormData.unit_rate}
+                            onChange={(e) => setProductFormData(prev => ({ ...prev, unit_rate: e.target.value }))}
+                        inputProps={{ step: 0.01, min: 0 }}
+                        sx={{ width: 100, minWidth: 100 }}
+                      />
+                    </Box>
+                  </Grid>
+                  
+                  <Grid item xs={12} md={1.5}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        AMOUNT
+                      </Typography>
+                      <TextField
+                        size="small"
+                        value={(parseFloat(productFormData.qnty || 0) * parseFloat(productFormData.unit_rate || 0)).toFixed(2)}
+                        InputProps={{ readOnly: true }}
+                        sx={{ width: '100%', minWidth: 150 }}
+                      />
+                    </Box>
+                  </Grid>
+                  
+                  <Grid item xs={12} md={1.5}>
+                    <Button
+                      variant="contained"
+                          onClick={addProductToPurchase}
+                          disabled={!productFormData.qnty || !productFormData.unit_rate}
+                      sx={{
+                        bgcolor: 'secondary.main',
+                        '&:hover': { bgcolor: 'secondary.dark' },
+                        minWidth: 40,
+                        height: 40
+                      }}
+                    >
+                      +
+                    </Button>
+                  </Grid>
+                </Grid>
+              </Box>
                       
-                      {/* Table */}
-                      <div className="overflow-x-auto">
-                        <table className="w-full bg-white border border-blue-200 rounded-lg">
-                          {/* Table Header */}
-                          <thead className="bg-blue-100">
-                            <tr>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                                Product
-                              </th>
-                              <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">
-                                Quantity
-                              </th>
-                              <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">
-                                Unit Rate
-                              </th>
-                              <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">
-                                Total
-                              </th>
-                              <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">
-                                Action
-                              </th>
-                            </tr>
-                          </thead>
-                          
-                          {/* Table Body */}
-                          <tbody className="divide-y divide-blue-200">
-                            {formData.purchase_details.map((detail, index) => {
+
+              {/* Product List Table */}
+              <Box sx={{ flex: 1, p: 3, borderBottom: 1, borderColor: 'divider' }}>
+                <TableContainer component={Paper} sx={{ maxHeight: 300 }}>
+                  <Table stickyHeader>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>S. No</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Product</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Store</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Qty</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Price</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Amount</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {formData.purchase_details.length > 0 ? (
+                        formData.purchase_details.map((detail, index) => {
                               const product = products.find(p => p.pro_id === detail.pro_id);
                               return (
-                                <tr key={index} className="hover:bg-blue-50 transition-colors duration-200">
-                                  {/* Product Column */}
-                                  <td className="px-4 py-3">
-                                    <div className="font-medium text-gray-900 text-sm">{product?.pro_title || 'Unknown Product'}</div>
-                                  </td>
-                                  
-                                  {/* Quantity Column */}
-                                  <td className="px-4 py-3 text-center">
-                                    <input
+                            <TableRow key={index} hover>
+                              <TableCell>{index + 1}</TableCell>
+                              <TableCell>
+                                <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                                  {product?.pro_title || 'Unknown Product'}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <StoreIcon sx={{ color: 'primary.main', fontSize: 16 }} />
+                                  <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                                    {stores.find(store => store.storeid === parseInt(detail.store_id))?.store_name || 'Unknown Store'}
+                                  </Typography>
+                                </Box>
+                              </TableCell>
+                              <TableCell>
+                                <TextField
                                       type="number"
                                       value={detail.qnty}
                                       onChange={(e) => {
@@ -837,14 +1630,13 @@ export default function PurchasesPage() {
                                         );
                                         setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
                                       }}
-                                      min="1"
-                                      className="w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-black"
-                                    />
-                                  </td>
-                                  
-                                  {/* Unit Rate Column */}
-                                  <td className="px-4 py-3 text-center">
-                                    <input
+                                  inputProps={{ min: 1 }}
+                                  size="small"
+                                  sx={{ width: 80 }}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <TextField
                                       type="number"
                                       value={detail.unit_rate}
                                       onChange={(e) => {
@@ -860,282 +1652,569 @@ export default function PurchasesPage() {
                                         );
                                         setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
                                       }}
-                                      step="0.01"
-                                      min="0"
-                                      className="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-black"
-                                    />
-                                  </td>
-                                  
-                                  {/* Total Column */}
-                                  <td className="px-4 py-3 text-center">
-                                    <span className="text-sm font-semibold text-blue-600">
+                                  inputProps={{ step: 0.01, min: 0 }}
+                                  size="small"
+                                  sx={{ width: 100 }}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="body2" sx={{ fontWeight: 'semibold', color: 'success.main' }}>
                                       {parseFloat(detail.total_amount).toFixed(2)}
-                                    </span>
-                                  </td>
-                                  
-                                  {/* Action Column */}
-                                  <td className="px-4 py-3 text-center">
-                                    <button
-                                      type="button"
+                                </Typography>
+                              </TableCell>
+                              <TableCell>
+                                <IconButton
                                       onClick={() => removePurchaseDetail(index)}
-                                      className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors duration-200"
+                                  color="error"
+                                  size="small"
                                       title="Remove Product"
                                     >
-                                      <X className="w-4 h-4" />
-                                    </button>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Form Fields Section - At the Bottom */}
-                  <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                    <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                      <Receipt className="w-5 h-5 mr-2 text-gray-600" />
-                      Purchase Information
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {/* Customer */}
-                      <div className="md:col-span-2 relative customer-dropdown">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Customer *
-                        </label>
-                        <div className="relative">
-                          <input
-                            type="text"
-                            value={customerSearchTerm}
+                                  <CloseIcon />
+                                </IconButton>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={6} align="center">
+                            <Typography variant="body2" color="text.secondary">
+                              No data found
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Box>
+                  
+              {/* Payment and Summary Section */}
+              <Box sx={{ p: 3 }}>
+                <Grid container spacing={3}>
+                  {/* Row 1 */}
+                  <Grid item xs={12} md={2}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        CASH
+                      </Typography>
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={formData.payment_type === 'CASH' ? formData.payment : '0'}
                             onChange={(e) => {
-                              setCustomerSearchTerm(e.target.value);
-                              setShowCustomerDropdown(true);
-                              if (!e.target.value) {
-                                setFormData(prev => ({ ...prev, cus_id: '' }));
-                              }
-                            }}
-                            onFocus={() => setShowCustomerDropdown(true)}
-                            placeholder="Search customers..."
-                            className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-black"
+                          if (formData.payment_type === 'CASH') {
+                            setFormData(prev => ({ ...prev, payment: e.target.value }));
+                          }
+                        }}
+                        inputProps={{ step: 0.01, min: 0 }}
+                        sx={{ width: '100%' }}
+                      />
+                    </Box>
+                  </Grid>
+                  
+                  <Grid item xs={12} md={2}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        BANK
+                      </Typography>
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={formData.payment_type === 'BANK_TRANSFER' ? formData.payment : '0'}
+                        onChange={(e) => {
+                          if (formData.payment_type === 'BANK_TRANSFER') {
+                            setFormData(prev => ({ ...prev, payment: e.target.value }));
+                          }
+                        }}
+                        inputProps={{ step: 0.01, min: 0 }}
+                        sx={{ width: '100%' }}
+                      />
+                    </Box>
+                  </Grid>
+                  
+                  <Grid item xs={12} md={3}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        BANK ACCOUNT
+                      </Typography>
+                      <Autocomplete
+                        size="small"
+                        open={bankAccountDropdownOpen}
+                        onOpen={() => setBankAccountDropdownOpen(true)}
+                        onClose={() => setBankAccountDropdownOpen(false)}
+                        options={customers}
+                        getOptionLabel={(option) => option.cus_name}
+                        value={selectedBankAccount}
+                        onChange={(event, newValue) => {
+                          setSelectedBankAccount(newValue);
+                          setFormData(prev => ({ 
+                            ...prev, 
+                            credit_account_id: newValue ? newValue.cus_id.toString() : ''
+                          }));
+                          setBankAccountDropdownOpen(false);
+                        }}
+                        filterOptions={(options, { inputValue }) => {
+                          return options.filter(option =>
+                            option.cus_name.toLowerCase().includes(inputValue.toLowerCase()) ||
+                            option.cus_phone_no?.toLowerCase().includes(inputValue.toLowerCase())
+                          );
+                        }}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            placeholder="Select Account"
+                            sx={{ width: '100%', minWidth: 300 }}
+                            onClick={() => setBankAccountDropdownOpen(true)}
                           />
-                          <Search className="w-4 h-4 text-gray-400 absolute right-3 top-4" />
-                          
-                          {/* Dropdown */}
-                          {showCustomerDropdown && (
-                            <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-xl shadow-lg max-h-60 overflow-y-auto">
-                              {filteredCustomers.length > 0 ? (
-                                filteredCustomers.map((customer) => (
-                                  <div
-                                    key={customer.cus_id}
-                                    onClick={() => selectCustomer(customer)}
-                                    className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                                  >
-                                    <div className="font-medium text-gray-900">{customer.cus_name}</div>
-                                    <div className="text-sm text-gray-500">
-                                      {customer.cus_phone_no} {customer.cus_email && `• ${customer.cus_email}`}
-                                    </div>
-                                  </div>
-                                ))
-                              ) : (
-                                <div className="px-4 py-3 text-gray-500 text-center">
-                                  No customers found
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        
-                        {/* Selected Customer Display */}
-                        {formData.cus_id && getSelectedCustomer() && (
-                          <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <div className="font-medium text-green-800">{getSelectedCustomer().cus_name}</div>
-                                <div className="text-sm text-green-600">
-                                  {getSelectedCustomer().cus_phone_no} {getSelectedCustomer().cus_email && `• ${getSelectedCustomer().cus_email}`}
-                                </div>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setFormData(prev => ({ ...prev, cus_id: '' }));
-                                  setCustomerSearchTerm('');
-                                }}
-                                className="text-red-600 hover:text-red-800"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
                         )}
-                      </div>
-
-                      {/* Vehicle Number */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Vehicle Number
-                        </label>
-                        <input
-                          type="text"
-                          name="vehicle_no"
-                          value={formData.vehicle_no}
-                          onChange={handleInputChange}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-black"
-                          placeholder="Enter vehicle number"
-                        />
-                      </div>
-
-                      {/* Payment Type */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Payment Type *
-                        </label>
-                        <select
-                          name="payment_type"
-                          value={formData.payment_type}
-                          onChange={handleInputChange}
-                          required
-                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-black"
-                        >
-                          <option value="CASH">Cash</option>
-                          <option value="CHEQUE">Cheque</option>
-                          <option value="BANK_TRANSFER">Bank Transfer</option>
-                        </select>
-                      </div>
-
-                      {/* Unloading Amount */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Unloading Amount
-                        </label>
-                        <input
-                          type="number"
-                          name="unloading_amount"
-                          value={formData.unloading_amount}
-                          onChange={handleInputChange}
-                          step="0.01"
-                          min="0"
-                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-black"
-                          placeholder="0.00"
-                        />
-                      </div>
-
-                      {/* Fare Amount */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Fare Amount
-                        </label>
-                        <input
-                          type="number"
-                          name="fare_amount"
-                          value={formData.fare_amount}
-                          onChange={handleInputChange}
-                          step="0.01"
-                          min="0"
-                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-black"
-                          placeholder="0.00"
-                        />
-                      </div>
-
-                      {/* Discount */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Discount
-                        </label>
-                        <input
-                          type="number"
-                          name="discount"
-                          value={formData.discount}
-                          onChange={handleInputChange}
-                          step="0.01"
-                          min="0"
-                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-black"
-                          placeholder="0.00"
-                        />
-                      </div>
-
-                      {/* Payment */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Payment Amount *
-                        </label>
-                        <input
-                          type="number"
-                          name="payment"
-                          value={formData.payment}
-                          onChange={handleInputChange}
-                          required
-                          step="0.01"
-                          min="0"
-                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-black"
-                          placeholder="0.00"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Total Calculations */}
-                  <div className="bg-green-50 rounded-xl p-4 border border-green-200">
-                    <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                      <DollarSign className="w-5 h-5 mr-2 text-green-600" />
-                      Total Summary
-                    </h4>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <span className="text-gray-600">Items Total:</span>
-                        <span className="font-semibold ml-2">{calculateTotalAmount().toFixed(2)}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-600">Unloading + Fare:</span>
-                        <span className="font-semibold ml-2">
-                          {(parseFloat(formData.unloading_amount || 0) + parseFloat(formData.fare_amount || 0)).toFixed(2)}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-gray-600">Discount:</span>
-                        <span className="font-semibold ml-2 text-red-600">
-                          -{parseFloat(formData.discount || 0).toFixed(2)}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-gray-600">Net Total:</span>
-                        <span className="font-semibold ml-2 text-green-600 text-lg">
-                          {calculateNetTotal().toFixed(2)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+                        sx={{ width: '100%', minWidth: 300 }}
+                        disablePortal={false}
+                        openOnFocus={true}
+                        selectOnFocus={true}
+                        clearOnBlur={false}
+                        handleHomeEndKeys={true}
+                      />
+                    </Box>
+                  </Grid>
+                  
+                  <Grid item xs={12} md={2.5}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        TOTAL CASH RECEIVED
+                      </Typography>
+                      <TextField
+                        size="small"
+                        value={formData.payment || '0'}
+                        InputProps={{ readOnly: true }}
+                        sx={{ width: '100%' }}
+                      />
+                    </Box>
+                  </Grid>
+                  
+                  <Grid item xs={12} md={2.5}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        TOTAL AMOUNT
+                      </Typography>
+                      <TextField
+                        size="small"
+                        value={calculateNetTotal().toFixed(2)}
+                        InputProps={{ readOnly: true }}
+                        sx={{ width: '100%' }}
+                      />
+                    </Box>
+                  </Grid>
+                  
+                  {/* Row 2 */}
+                  <Grid item xs={12} md={6}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        NOTES
+                      </Typography>
+                      <TextField
+                        size="small"
+                        multiline
+                        rows={2}
+                        placeholder="Additional notes"
+                        sx={{ width: '100%' }}
+                      />
+                    </Box>
+                  </Grid>
+                  
+                  
+                </Grid>
+              </Box>
 
                   {/* Form Actions */}
-                  <div className="flex items-center justify-end space-x-4 pt-6 border-t border-gray-200">
-                    <button
-                      type="button"
+              <Box sx={{ p: 3, borderTop: 1, borderColor: 'divider', display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+                <Button
+                                type="button"
                       onClick={() => setCurrentView('list')}
-                      className="px-6 py-3 text-gray-600 hover:text-gray-800 font-medium transition-colors duration-200"
+                  variant="outlined"
+                  sx={{ px: 3, py: 1.5 }}
                     >
                       Cancel
-                    </button>
-                    <button
+                </Button>
+                <Button
                       type="submit"
-                      className="px-8 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-medium rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105"
-                    >
-                      {editingPurchase ? 'Update Purchase' : 'Create Purchase'}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+                      disabled={isSubmitting}
+                  variant="contained"
+                  startIcon={isSubmitting ? <CircularProgress size={20} /> : null}
+                  sx={{
+                    px: 4,
+                    py: 1.5,
+                    bgcolor: 'secondary.main',
+                    '&:hover': { bgcolor: 'secondary.dark' }
+                  }}
+                >
+                  {isSubmitting ? (editingPurchase ? 'Updating...' : 'Creating...') : (editingPurchase ? 'Update Purchase' : 'Create Purchase')}
+                </Button>
+              </Box>
+            </Box>
+          </Card>
+        </Box>
+                            </div>
     </DashboardLayout>
   );
 
   return (
     <>
       {currentView === 'list' ? renderPurchaseListView() : renderPurchaseCreateView()}
+      
+
+      {/* Add Customer Modal */}
+      <Dialog
+        open={showCustomerForm}
+        onClose={handleCloseCustomerForm}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.12)'
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          bgcolor: 'secondary.main', 
+          color: 'white', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between',
+          p: 2
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Avatar sx={{ bgcolor: 'white', color: 'secondary.main' }}>
+              <AddIcon />
+            </Avatar>
+            <Box>
+              <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
+                Add New Customer
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Create a new customer account with complete details
+              </Typography>
+            </Box>
+          </Box>
+          <IconButton 
+            onClick={handleCloseCustomerForm} 
+            sx={{ color: 'white' }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        
+        <DialogContent sx={{ p: 3 }}>
+          <Box component="form" sx={{ mt: 2 }}>
+            <Grid container spacing={3}>
+              {/* Row 1: Name, Primary Phone, Secondary Phone */}
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                          required
+                  label="Customer Name"
+                  name="cus_name"
+                  value={customerFormData.cus_name}
+                  onChange={handleCustomerFormChange}
+                  placeholder="Enter customer name"
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <PersonIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  required
+                  label="Primary Phone"
+                  name="cus_phone_no"
+                  type="tel"
+                  value={customerFormData.cus_phone_no}
+                  onChange={handleCustomerFormChange}
+                  placeholder="Enter primary phone number"
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <PhoneIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  label="Secondary Phone"
+                  name="cus_phone_no2"
+                  type="tel"
+                  value={customerFormData.cus_phone_no2}
+                  onChange={handleCustomerFormChange}
+                  placeholder="Enter secondary phone number"
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <PhoneIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+
+              {/* Row 2: Address, Customer Type, Category */}
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  required
+                  label="Address"
+                  name="cus_address"
+                  multiline
+                  rows={2}
+                  value={customerFormData.cus_address}
+                  onChange={handleCustomerFormChange}
+                  placeholder="Enter customer address"
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <LocationOnIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={4}>
+                <FormControl fullWidth required sx={{ minWidth: 250 }}>
+                  <InputLabel>Customer Type</InputLabel>
+                  <Select
+                    name="cus_type"
+                    value={customerFormData.cus_type}
+                    label="Customer Type"
+                    onChange={handleCustomerFormChange}
+                  >
+                    {customerTypes.map(type => (
+                      <MenuItem key={type.cus_type_id} value={type.cus_type_id}>
+                        {type.cus_type_title}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              <Grid item xs={12} md={4}>
+                <FormControl fullWidth required sx={{ minWidth: 250 }}>
+                  <InputLabel>Customer Category</InputLabel>
+                  <Select
+                    name="cus_category"
+                    value={customerFormData.cus_category}
+                    label="Customer Category"
+                    onChange={handleCustomerFormChange}
+                  >
+                    {customerCategories.map(category => (
+                      <MenuItem key={category.cus_cat_id} value={category.cus_cat_id}>
+                        {category.cus_cat_title}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              {/* Row 3: Reference, Account Info, CNIC */}
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  label="Reference"
+                  name="cus_reference"
+                  value={customerFormData.cus_reference}
+                  onChange={handleCustomerFormChange}
+                  placeholder="Enter reference"
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <PersonIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  label="Account Info"
+                  name="cus_account_info"
+                  value={customerFormData.cus_account_info}
+                  onChange={handleCustomerFormChange}
+                  placeholder="Enter account information"
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <PersonIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  label="CNIC"
+                  name="CNIC"
+                  value={customerFormData.CNIC}
+                  onChange={handleCustomerFormChange}
+                  placeholder="Enter CNIC number"
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <PersonIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+
+              {/* Row 4: NTN Number, Name in Urdu, City */}
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  label="NTN Number"
+                  name="NTN_NO"
+                  value={customerFormData.NTN_NO}
+                  onChange={handleCustomerFormChange}
+                  placeholder="Enter NTN number"
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <PersonIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  label="Name in Urdu"
+                  name="name_urdu"
+                  value={customerFormData.name_urdu}
+                  onChange={handleCustomerFormChange}
+                  placeholder="Enter name in Urdu"
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <PersonIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={4}>
+                <FormControl fullWidth required sx={{ minWidth: 250 }}>
+                  <InputLabel>City</InputLabel>
+                  <Select
+                    name="city_id"
+                    value={customerFormData.city_id}
+                    label="City"
+                    onChange={handleCustomerFormChange}
+                  >
+                    {cities.map(city => (
+                      <MenuItem key={city.city_id} value={city.city_id}>
+                        {city.city_name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              {/* Row 5: Balance, Other Information */}
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Opening Balance"
+                  name="cus_balance"
+                          type="number"
+                  inputProps={{ step: "0.01" }}
+                  value={customerFormData.cus_balance}
+                  onChange={handleCustomerFormChange}
+                  placeholder="Enter opening balance"
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <AttachMoneyIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Other Information"
+                  name="other"
+                  multiline
+                  rows={2}
+                  value={customerFormData.other}
+                  onChange={handleCustomerFormChange}
+                  placeholder="Enter other information"
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <PersonIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+            </Grid>
+          </Box>
+        </DialogContent>
+        
+        <DialogActions sx={{ p: 3, gap: 2 }}>
+          <Button 
+            onClick={handleCloseCustomerForm} 
+            variant="outlined" 
+            sx={{ px: 3, py: 1.5 }}
+                    >
+                      Cancel
+          </Button>
+          <Button 
+            onClick={handleAddCustomer} 
+            variant="contained" 
+            disabled={isSubmittingCustomer}
+            startIcon={isSubmittingCustomer ? <CircularProgress size={20} /> : <SaveIcon />}
+            sx={{ 
+              px: 4, 
+              py: 1.5,
+              bgcolor: 'secondary.main',
+              '&:hover': { bgcolor: 'secondary.dark' }
+            }}
+          >
+            {isSubmittingCustomer ? 'Adding...' : 'Add Customer'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert onClose={handleSnackbarClose} severity={snackbar.severity} sx={{ width: '100%' }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </>
   );
 }

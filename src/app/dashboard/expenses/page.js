@@ -423,7 +423,7 @@ export default function ExpensesPage() {
                           <div className="col-span-2 flex items-center">
                             <div>
                               <div className="text-sm font-medium text-gray-900">#{expense.sequentialId}</div>
-                              <div className="text-xs text-gray-500">ID: {expense.exp_id.slice(-8)}</div>
+                              <div className="text-xs text-gray-500">ID: {expense.exp_id.toString().slice(-8)}</div>
                             </div>
                           </div>
 

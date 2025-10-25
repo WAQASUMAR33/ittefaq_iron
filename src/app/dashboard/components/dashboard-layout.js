@@ -2,8 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { 
+  Box, 
+  CircularProgress, 
+  useTheme, 
+  useMediaQuery 
+} from '@mui/material';
 import Header from './header';
 import Sidebar from './sidebar';
+import ClientOnly from './client-only';
 
 export default function DashboardLayout({ children }) {
   const [user, setUser] = useState(null);
@@ -19,10 +26,14 @@ export default function DashboardLayout({ children }) {
     'cargo-operations': false,
     'system': false
   });
+  const [isClient, setIsClient] = useState(false);
 
   const router = useRouter();
 
   useEffect(() => {
+    // Set client-side flag
+    setIsClient(true);
+    
     // Check if user is logged in
     const userData = localStorage.getItem('user');
     console.log('Dashboard layout - userData from localStorage:', userData);
@@ -39,7 +50,7 @@ export default function DashboardLayout({ children }) {
         setUser(parsedUser);
         
         // Set initial active tab based on current route
-        const currentPath = window.location.pathname;
+        const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
         if (currentPath.startsWith('/dashboard/usermanagement')) {
           setActiveTab('usermanagement');
         } else if (currentPath.startsWith('/dashboard/customercategory')) {
@@ -63,13 +74,15 @@ export default function DashboardLayout({ children }) {
         } else if (currentPath.startsWith('/dashboard/cargo')) {
           setActiveTab('cargo');
         } else if (currentPath.startsWith('/dashboard/new-sale')) {
-          setActiveTab('new-sale');
+          setActiveTab('sales');
         } else if (currentPath.startsWith('/dashboard/orders')) {
           setActiveTab('orders');
         } else if (currentPath.startsWith('/dashboard/quotations')) {
           setActiveTab('quotations');
         } else if (currentPath.startsWith('/dashboard/reports')) {
           setActiveTab('reports');
+        } else if (currentPath.startsWith('/dashboard/stores')) {
+          setActiveTab('stores');
         } else if (currentPath === '/dashboard') {
           setActiveTab('dashboard');
         }
@@ -88,45 +101,87 @@ export default function DashboardLayout({ children }) {
     router.push('/login');
   };
 
-  if (!user) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('lg'));
+
+  // Show loading state until client-side hydration is complete
+  if (!isClient || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-      </div>
+      <Box
+        sx={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          bgcolor: 'background.default'
+        }}
+      >
+        <CircularProgress size={80} />
+      </Box>
     );
   }
 
   return (
-    <div className="min-h-screen flex bg-white">
-      {/* Sidebar */}
-      <Sidebar
-        sidebarOpen={sidebarOpen}
-        setSidebarOpen={setSidebarOpen}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        expandedDropdowns={expandedDropdowns}
-        setExpandedDropdowns={setExpandedDropdowns}
-        user={user}
-        handleLogout={handleLogout}
-      />
-
-      {/* Main Content */}
-      <div className="flex-1 lg:ml-80 bg-white">
-        {/* Header */}
-        <Header
+    <ClientOnly fallback={
+      <Box
+        sx={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          bgcolor: 'background.default'
+        }}
+      >
+        <CircularProgress size={80} />
+      </Box>
+    }>
+      <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
+        {/* Sidebar */}
+        <Sidebar
           sidebarOpen={sidebarOpen}
           setSidebarOpen={setSidebarOpen}
           activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          expandedDropdowns={expandedDropdowns}
+          setExpandedDropdowns={setExpandedDropdowns}
           user={user}
+          handleLogout={handleLogout}
         />
 
-        {/* Main Content Area */}
-        <main className="overflow-y-auto h-screen bg-white">
-          <div className="p-3 sm:p-4 lg:p-6">
+        {/* Main Content */}
+        <Box
+          component="main"
+          sx={{
+            flexGrow: 1,
+            width: { lg: `calc(100% - 320px)` },
+            bgcolor: 'background.default',
+            minHeight: '100vh',
+            display: 'flex',
+            flexDirection: 'column'
+          }}
+        >
+          {/* Header */}
+          <Header
+            sidebarOpen={sidebarOpen}
+            setSidebarOpen={setSidebarOpen}
+            activeTab={activeTab}
+            user={user}
+          />
+
+          {/* Main Content Area */}
+          <Box
+            component="main"
+            sx={{
+              flexGrow: 1,
+              overflow: 'auto',
+              bgcolor: 'background.default',
+              p: { xs: 2, sm: 3, lg: 4 }
+            }}
+          >
             {children}
-          </div>
-        </main>
-      </div>
-    </div>
+          </Box>
+        </Box>
+      </Box>
+    </ClientOnly>
   );
 }

@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    const id = searchParams.get('id') ? parseInt(searchParams.get('id')) : null;
 
     if (id) {
       // Fetch single sale
@@ -27,6 +27,34 @@ export async function GET(request) {
                   sub_category: true
                 }
               }
+            }
+          },
+          debit_account: {
+            select: {
+              cus_id: true,
+              cus_name: true,
+              cus_phone_no: true
+            }
+          },
+          credit_account: {
+            select: {
+              cus_id: true,
+              cus_name: true,
+              cus_phone_no: true
+            }
+          },
+          loader: {
+            select: {
+              loader_id: true,
+              loader_name: true,
+              loader_number: true,
+              loader_phone: true
+            }
+          },
+          split_payments: {
+            include: {
+              debit_account: true,
+              credit_account: true
             }
           },
           updated_by_user: {
@@ -62,6 +90,34 @@ export async function GET(request) {
               }
             }
           },
+          debit_account: {
+            select: {
+              cus_id: true,
+              cus_name: true,
+              cus_phone_no: true
+            }
+          },
+          credit_account: {
+            select: {
+              cus_id: true,
+              cus_name: true,
+              cus_phone_no: true
+            }
+          },
+          loader: {
+            select: {
+              loader_id: true,
+              loader_name: true,
+              loader_number: true,
+              loader_phone: true
+            }
+          },
+          split_payments: {
+            include: {
+              debit_account: true,
+              credit_account: true
+            }
+          },
           updated_by_user: {
             select: {
               full_name: true,
@@ -92,8 +148,14 @@ export async function POST(request) {
       discount,
       payment,
       payment_type,
+      debit_account_id,
+      credit_account_id,
+      loader_id,
+      shipping_amount,
       bill_type,
+      reference,
       sale_details,
+      split_payments,
       updated_by
     } = body;
 
@@ -102,8 +164,8 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Calculate net total
-    const netTotal = parseFloat(total_amount) - parseFloat(discount || 0);
+    // Calculate net total (including shipping amount)
+    const netTotal = parseFloat(total_amount) - parseFloat(discount || 0) + parseFloat(shipping_amount || 0);
 
     // Use transaction to ensure data consistency
     const result = await prisma.$transaction(async (tx) => {
@@ -124,7 +186,12 @@ export async function POST(request) {
           discount: parseFloat(discount || 0),
           payment: parseFloat(payment),
           payment_type,
+          debit_account_id: debit_account_id || null,
+          credit_account_id: credit_account_id || null,
+          loader_id: loader_id || null,
+          shipping_amount: parseFloat(shipping_amount || 0),
           bill_type: bill_type || 'BILL',
+          reference: reference || null,
           updated_by
         }
       });
@@ -149,6 +216,23 @@ export async function POST(request) {
       );
 
       await Promise.all(saleDetailPromises);
+
+      // Create split payments if provided
+      if (split_payments && split_payments.length > 0) {
+        const splitPaymentPromises = split_payments.map(splitPayment => 
+          tx.splitPayment.create({
+            data: {
+              sale_id: sale.sale_id,
+              amount: parseFloat(splitPayment.amount),
+              payment_type: splitPayment.payment_type,
+              debit_account_id: splitPayment.debit_account_id || null,
+              credit_account_id: splitPayment.credit_account_id || null,
+              reference: splitPayment.reference || null
+            }
+          })
+        );
+        await Promise.all(splitPaymentPromises);
+      }
 
       // Update product stock quantities
       const stockUpdatePromises = sale_details.map(detail => 
@@ -208,6 +292,8 @@ export async function POST(request) {
       });
 
       return sale;
+    }, {
+      timeout: 15000 // 15 seconds timeout for complex transactions
     });
 
     return NextResponse.json(result, { status: 201 });
@@ -228,8 +314,14 @@ export async function PUT(request) {
       discount,
       payment,
       payment_type,
+      debit_account_id,
+      credit_account_id,
+      loader_id,
+      shipping_amount,
       bill_type,
+      reference,
       sale_details,
+      split_payments,
       updated_by
     } = body;
 
@@ -237,8 +329,8 @@ export async function PUT(request) {
       return NextResponse.json({ error: 'Sale ID is required' }, { status: 400 });
     }
 
-    // Calculate net total
-    const netTotal = parseFloat(total_amount) - parseFloat(discount || 0);
+    // Calculate net total (including shipping amount)
+    const netTotal = parseFloat(total_amount) - parseFloat(discount || 0) + parseFloat(shipping_amount || 0);
 
     // Use transaction to ensure data consistency
     const result = await prisma.$transaction(async (tx) => {
@@ -296,7 +388,12 @@ export async function PUT(request) {
           discount: parseFloat(discount || 0),
           payment: parseFloat(payment),
           payment_type,
+          debit_account_id: debit_account_id || null,
+          credit_account_id: credit_account_id || null,
+          loader_id: loader_id || null,
+          shipping_amount: parseFloat(shipping_amount || 0),
           bill_type: bill_type || 'BILL',
+          reference: reference || null,
           updated_by
         }
       });
@@ -321,6 +418,28 @@ export async function PUT(request) {
       );
 
       await Promise.all(saleDetailPromises);
+
+      // Delete existing split payments
+      await tx.splitPayment.deleteMany({
+        where: { sale_id: id }
+      });
+
+      // Create new split payments if provided
+      if (split_payments && split_payments.length > 0) {
+        const splitPaymentPromises = split_payments.map(splitPayment => 
+          tx.splitPayment.create({
+            data: {
+              sale_id: sale.sale_id,
+              amount: parseFloat(splitPayment.amount),
+              payment_type: splitPayment.payment_type,
+              debit_account_id: splitPayment.debit_account_id || null,
+              credit_account_id: splitPayment.credit_account_id || null,
+              reference: splitPayment.reference || null
+            }
+          })
+        );
+        await Promise.all(splitPaymentPromises);
+      }
 
       // Update product stock quantities
       const stockUpdatePromises = sale_details.map(detail => 
@@ -380,6 +499,8 @@ export async function PUT(request) {
       });
 
       return sale;
+    }, {
+      timeout: 15000 // 15 seconds timeout for complex transactions
     });
 
     return NextResponse.json(result);
@@ -393,7 +514,7 @@ export async function PUT(request) {
 export async function DELETE(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    const id = searchParams.get('id') ? parseInt(searchParams.get('id')) : null;
 
     if (!id) {
       return NextResponse.json({ error: 'Sale ID is required' }, { status: 400 });
@@ -441,6 +562,8 @@ export async function DELETE(request) {
       await tx.sale.delete({
         where: { sale_id: id }
       });
+    }, {
+      timeout: 15000 // 15 seconds timeout for complex transactions
     });
 
     return NextResponse.json({ message: 'Sale deleted successfully' });

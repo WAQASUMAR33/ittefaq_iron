@@ -1,21 +1,71 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Check, X, FolderOpen, Tag, Calendar, Package, Search, Hash, Folder, Filter } from 'lucide-react';
 import DashboardLayout from '../components/dashboard-layout';
 
+// Material-UI imports
+import {
+  Box,
+  Container,
+  Typography,
+  Button,
+  TextField,
+  Card,
+  CardContent,
+  Grid,
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Chip,
+  Avatar,
+  CircularProgress,
+  Tooltip,
+  InputAdornment,
+  Stack,
+  Alert,
+  Snackbar,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem
+} from '@mui/material';
+
+// Material Icons
+import {
+  Add as AddIcon,
+  Search as SearchIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  FolderOpen as FolderOpenIcon,
+  Tag as TagIcon,
+  CalendarToday as CalendarIcon,
+  Inventory as PackageIcon,
+  Close as CloseIcon,
+  Save as SaveIcon,
+  CheckCircle as CheckIcon,
+  FilterList as FilterIcon
+} from '@mui/icons-material';
+
 export default function SubCategoriesPage() {
-  // Categories data (would normally come from API/database)
   const [categories, setCategories] = useState([]);
   const [subCategories, setSubCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [showSubCategoryForm, setShowSubCategoryForm] = useState(false);
   const [editingSubCategory, setEditingSubCategory] = useState(null);
   const [formData, setFormData] = useState({
     cat_id: '',
-    sub_cat_name: '',
-    sub_cat_code: ''
+    sub_cat_name: ''
   });
 
   // Filter states
@@ -23,6 +73,13 @@ export default function SubCategoriesPage() {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [sortBy, setSortBy] = useState('created_at');
   const [sortOrder, setSortOrder] = useState('desc');
+
+  // Snackbar state
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'success'
+  });
 
   // Load data from API
   useEffect(() => {
@@ -44,10 +101,19 @@ export default function SubCategoriesPage() {
         setCategories(categoriesData);
         setSubCategories(subCategoriesData);
       } else {
-        console.error('Failed to fetch data');
+        setSnackbar({
+          open: true,
+          message: 'Failed to fetch data',
+          severity: 'error'
+        });
       }
     } catch (error) {
       console.error('Error fetching data:', error);
+      setSnackbar({
+        open: true,
+        message: 'Error fetching data',
+        severity: 'error'
+      });
     } finally {
       setLoading(false);
     }
@@ -55,6 +121,7 @@ export default function SubCategoriesPage() {
 
   const handleAddSubCategory = async (e) => {
     e.preventDefault();
+    setIsSubmitting(true);
     
     try {
       const response = await fetch('/api/subcategories', {
@@ -71,17 +138,30 @@ export default function SubCategoriesPage() {
         setShowSubCategoryForm(false);
         setFormData({
           cat_id: '',
-          sub_cat_name: '',
-          sub_cat_code: ''
+          sub_cat_name: ''
         });
-        alert('Subcategory added successfully!');
+        setSnackbar({
+          open: true,
+          message: 'Subcategory added successfully!',
+          severity: 'success'
+        });
       } else {
         const error = await response.json();
-        alert(error.error || 'Failed to create subcategory');
+        setSnackbar({
+          open: true,
+          message: error.error || 'Failed to create subcategory',
+          severity: 'error'
+        });
       }
     } catch (error) {
       console.error('Error creating subcategory:', error);
-      alert('Failed to create subcategory');
+      setSnackbar({
+        open: true,
+        message: 'Failed to create subcategory',
+        severity: 'error'
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -89,14 +169,14 @@ export default function SubCategoriesPage() {
     setEditingSubCategory(subCategory);
     setFormData({
       cat_id: subCategory.cat_id || '',
-      sub_cat_name: subCategory.sub_cat_name || '',
-      sub_cat_code: subCategory.sub_cat_code || ''
+      sub_cat_name: subCategory.sub_cat_name || ''
     });
     setShowSubCategoryForm(true);
   };
 
   const handleUpdateSubCategory = async (e) => {
     e.preventDefault();
+    setIsSubmitting(true);
     
     try {
       const response = await fetch('/api/subcategories', {
@@ -119,17 +199,30 @@ export default function SubCategoriesPage() {
         setEditingSubCategory(null);
         setFormData({
           cat_id: '',
-          sub_cat_name: '',
-          sub_cat_code: ''
+          sub_cat_name: ''
         });
-        alert('Subcategory updated successfully!');
+        setSnackbar({
+          open: true,
+          message: 'Subcategory updated successfully!',
+          severity: 'success'
+        });
       } else {
         const error = await response.json();
-        alert(error.error || 'Failed to update subcategory');
+        setSnackbar({
+          open: true,
+          message: error.error || 'Failed to update subcategory',
+          severity: 'error'
+        });
       }
     } catch (error) {
       console.error('Error updating subcategory:', error);
-      alert('Failed to update subcategory');
+      setSnackbar({
+        open: true,
+        message: 'Failed to update subcategory',
+        severity: 'error'
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -142,14 +235,26 @@ export default function SubCategoriesPage() {
 
         if (response.ok) {
           setSubCategories(prev => prev.filter(subCategory => subCategory.sub_cat_id !== subCategoryId));
-          alert('Subcategory deleted successfully!');
+          setSnackbar({
+            open: true,
+            message: 'Subcategory deleted successfully!',
+            severity: 'success'
+          });
         } else {
           const error = await response.json();
-          alert(error.error || 'Failed to delete subcategory');
+          setSnackbar({
+            open: true,
+            message: error.error || 'Failed to delete subcategory',
+            severity: 'error'
+          });
         }
       } catch (error) {
         console.error('Error deleting subcategory:', error);
-        alert('Failed to delete subcategory');
+        setSnackbar({
+          open: true,
+          message: 'Failed to delete subcategory',
+          severity: 'error'
+        });
       }
     }
   };
@@ -162,62 +267,25 @@ export default function SubCategoriesPage() {
     }));
   };
 
-  const generateSubCategoryCode = (subCategoryName, categoryName) => {
-    const words = subCategoryName.split(' ');
-    let code = '';
-    
-    if (words.length === 1) {
-      code = words[0].substring(0, 6).toUpperCase();
-    } else {
-      code = words.map(word => word.charAt(0)).join('').toUpperCase();
-    }
-    
-    // Add category prefix if available
-    if (categoryName) {
-      const categoryPrefix = categoryName.split(' ').map(word => word.charAt(0)).join('').toUpperCase();
-      code = categoryPrefix + code;
-    }
-    
-    // Add a number to make it unique
-    const existingCodes = subCategories.map(subCat => subCat.sub_cat_code);
-    let counter = 1;
-    let finalCode = code + String(counter).padStart(3, '0');
-    
-    while (existingCodes.includes(finalCode)) {
-      counter++;
-      finalCode = code + String(counter).padStart(3, '0');
-    }
-    
-    return finalCode;
-  };
-
-  const handleAutoGenerateCode = () => {
-    if (formData.sub_cat_name && !formData.sub_cat_code) {
-      const selectedCategory = categories.find(cat => cat.cat_id === formData.cat_id);
-      const generatedCode = generateSubCategoryCode(formData.sub_cat_name, selectedCategory?.cat_name);
-      setFormData(prev => ({
-        ...prev,
-        sub_cat_code: generatedCode
-      }));
-    }
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     
     // Validate form
     if (!formData.cat_id) {
-      alert('Please select a category');
+      setSnackbar({
+        open: true,
+        message: 'Please select a category',
+        severity: 'error'
+      });
       return;
     }
     
     if (!formData.sub_cat_name.trim()) {
-      alert('Sub category name is required');
-      return;
-    }
-    
-    if (!formData.sub_cat_code.trim()) {
-      alert('Sub category code is required');
+      setSnackbar({
+        open: true,
+        message: 'Sub category name is required',
+        severity: 'error'
+      });
       return;
     }
 
@@ -228,12 +296,21 @@ export default function SubCategoriesPage() {
     }
   };
 
+  const handleCloseDialog = () => {
+    setShowSubCategoryForm(false);
+    setEditingSubCategory(null);
+    setFormData({ cat_id: '', sub_cat_name: '' });
+  };
+
+  const handleSnackbarClose = () => {
+    setSnackbar(prev => ({ ...prev, open: false }));
+  };
+
   // Filter and sort sub categories
   const filteredAndSortedSubCategories = subCategories
     .filter(subCategory => {
       const matchesSearch = subCategory.sub_cat_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           subCategory.sub_cat_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           subCategory.category.cat_name.toLowerCase().includes(searchTerm.toLowerCase());
+                           subCategory.category?.cat_name.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory = categoryFilter === 'all' || subCategory.cat_id === categoryFilter;
       
       return matchesSearch && matchesCategory;
@@ -246,18 +323,6 @@ export default function SubCategoriesPage() {
       if (sortBy === 'created_at' || sortBy === 'updated_at') {
         aValue = new Date(aValue);
         bValue = new Date(bValue);
-      }
-      
-      // Handle numeric sorting
-      if (sortBy === 'product_count') {
-        aValue = parseInt(aValue);
-        bValue = parseInt(bValue);
-      }
-      
-      // Handle string sorting
-      if (sortBy === 'category_name') {
-        aValue = a.category.cat_name;
-        bValue = b.category.cat_name;
       }
       
       if (sortOrder === 'asc') {
@@ -273,8 +338,8 @@ export default function SubCategoriesPage() {
 
   // Calculate stats
   const totalSubCategories = subCategories.length;
-  const totalProducts = subCategories.reduce((sum, subCat) => sum + subCat._count.products, 0);
-  const averageProductsPerSubCat = totalSubCategories > 0 ? Math.round(totalProducts / totalSubCategories) : 0;
+  const totalProducts = subCategories.reduce((sum, subCat) => sum + (subCat._count?.products || 0), 0);
+  const categoriesWithSubCategories = new Set(subCategories.map(sub => sub.cat_id)).size;
   const recentAdditions = subCategories.filter(subCat => {
     const createdDate = new Date(subCat.created_at);
     const sevenDaysAgo = new Date();
@@ -290,427 +355,475 @@ export default function SubCategoriesPage() {
     setSortOrder('desc');
   };
 
-  const getSubCategoryIcon = (subCategoryName) => {
-    const name = subCategoryName.toLowerCase();
-    if (name.includes('smartphone') || name.includes('phone')) return '📱';
-    if (name.includes('laptop') || name.includes('computer')) return '💻';
-    if (name.includes('men') || name.includes('women')) return '👔';
-    if (name.includes('furniture')) return '🪑';
-    if (name.includes('garden') || name.includes('tool')) return '🌱';
-    if (name.includes('fitness') || name.includes('equipment')) return '🏋️';
-    if (name.includes('outdoor') || name.includes('sport')) return '⚽';
-    if (name.includes('book') || name.includes('fiction') || name.includes('education')) return '📚';
-    return '📂';
-  };
-
-  const getCategoryColor = (categoryName) => {
-    switch (categoryName) {
-      case 'Electronics': return 'bg-blue-100 text-blue-800';
-      case 'Clothing & Apparel': return 'bg-pink-100 text-pink-800';
-      case 'Home & Garden': return 'bg-green-100 text-green-800';
-      case 'Sports & Fitness': return 'bg-orange-100 text-orange-800';
-      case 'Books & Media': return 'bg-purple-100 text-purple-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
   if (loading) {
     return (
       <DashboardLayout>
-        <div className="min-h-screen flex items-center justify-center bg-white">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-        </div>
+        <Box
+          sx={{
+            minHeight: '100vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            bgcolor: 'background.default'
+          }}
+        >
+          <CircularProgress size={80} />
+        </Box>
       </DashboardLayout>
     );
   }
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">Sub Category Management</h2>
-            <p className="text-gray-600 mt-1">Organize your products with subcategories under main categories</p>
-          </div>
-          <button
-            onClick={() => setShowSubCategoryForm(true)}
-            className="group bg-gradient-to-r from-blue-500 to-purple-500 text-white px-6 py-3 rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all duration-200 font-medium shadow-md hover:shadow-lg transform hover:scale-105"
-          >
-            <span className="flex items-center">
-              <Plus className="w-5 h-5 mr-2 group-hover:rotate-90 transition-transform duration-200" />
-              Add New Sub Category
-            </span>
-          </button>
-        </div>
-
-        {/* Filters */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Filters & Sorting</h3>
-            <button
-              onClick={clearFilters}
-              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+      <Container maxWidth="xl" sx={{ py: 4 }}>
+        <Stack spacing={4}>
+          {/* Header */}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Box>
+              <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
+                Sub Categories Management
+              </Typography>
+              <Typography variant="body1" sx={{ color: 'text.secondary', mt: 1 }}>
+                Organize your products with subcategories under main categories
+              </Typography>
+            </Box>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => setShowSubCategoryForm(true)}
+              sx={{
+                background: 'linear-gradient(45deg, #2196F3 30%, #9C27B0 90%)',
+                boxShadow: '0 3px 5px 2px rgba(33, 203, 243, .3)',
+                '&:hover': {
+                  background: 'linear-gradient(45deg, #1976D2 30%, #7B1FA2 90%)',
+                  transform: 'scale(1.05)',
+                },
+                transition: 'all 0.2s ease-in-out'
+              }}
             >
-              Clear All Filters
-            </button>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {/* Search */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
-              <input
-                type="text"
-                placeholder="Search sub categories..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
-              />
-            </div>
+              Add New Sub Category
+            </Button>
+          </Box>
 
-            {/* Category Filter */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
-              <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
-              >
-                <option value="all">All Categories</option>
-                {categories.map(category => (
-                  <option key={category.cat_id} value={category.cat_id}>
-                    {category.cat_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Sort By */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
-              >
-                <option value="sub_cat_name">Sub Category Name</option>
-                <option value="sub_cat_code">Sub Category Code</option>
-                <option value="category_name">Category Name</option>
-                <option value="product_count">Product Count</option>
-                <option value="created_at">Created Date</option>
-                <option value="updated_at">Updated Date</option>
-              </select>
-            </div>
-
-            {/* Sort Order */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Order</label>
-              <select
-                value={sortOrder}
-                onChange={(e) => setSortOrder(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
-              >
-                <option value="asc">Ascending</option>
-                <option value="desc">Descending</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6">
-            <div className="flex items-center">
-              <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center mr-4">
-                <FolderOpen className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Sub Categories</p>
-                <p className="text-2xl font-bold text-gray-900">{totalSubCategories}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6">
-            <div className="flex items-center">
-              <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl flex items-center justify-center mr-4">
-                <Package className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Products</p>
-                <p className="text-2xl font-bold text-gray-900">{totalProducts}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6">
-            <div className="flex items-center">
-              <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center mr-4">
-                <Tag className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-600">Avg Products/Sub Cat</p>
-                <p className="text-2xl font-bold text-gray-900">{averageProductsPerSubCat}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6">
-            <div className="flex items-center">
-              <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-red-500 rounded-xl flex items-center justify-center mr-4">
-                <Calendar className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-600">Recent Additions</p>
-                <p className="text-2xl font-bold text-gray-900">{recentAdditions}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Sub Categories Table */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 flex flex-col h-[600px]">
-          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
-            <h3 className="text-lg font-semibold text-gray-900">Sub Categories List</h3>
-            <span className="text-sm text-gray-500">
-              Showing {filteredAndSortedSubCategories.length} of {subCategories.length} sub categories
-            </span>
-          </div>
-          <div className="flex-1 overflow-hidden">
-            <div className="h-full overflow-y-auto">
-              <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sub Category</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parent Category</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Products</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Updated By</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredAndSortedSubCategories.map((subCategory) => (
-                  <tr key={subCategory.sub_cat_id} className="hover:bg-gray-50 transition-colors duration-200">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center mr-3">
-                          <span className="text-white text-lg">{getSubCategoryIcon(subCategory.sub_cat_name)}</span>
-                        </div>
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">{subCategory.sub_cat_name}</div>
-                          <div className="text-sm text-gray-500">ID: #{subCategory.sequentialId}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                        <Hash className="w-3 h-3 mr-1" />
-                        {subCategory.sub_cat_code}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCategoryColor(subCategory.category.cat_name)}`}>
-                        <Folder className="w-3 h-3 mr-1" />
-                        {subCategory.category.cat_name}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <Package className="w-4 h-4 text-gray-400 mr-2" />
-                        <span className="text-sm text-gray-900">{subCategory._count.products}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(subCategory.created_at).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {subCategory.updated_by_user?.full_name ? (
-                        <div className="flex items-center">
-                          <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-blue-500 rounded-full flex items-center justify-center mr-2">
-                            <span className="text-white text-xs font-bold">
-                              {subCategory.updated_by_user.full_name.charAt(0).toUpperCase()}
-                            </span>
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium text-gray-900">
-                              {subCategory.updated_by_user.full_name}
-                            </div>
-                            <div className="text-xs text-gray-500 capitalize">
-                              {subCategory.updated_by_user.role || 'User'}
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="text-sm text-gray-400 italic">N/A</div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => handleEditSubCategory(subCategory)}
-                          className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50 transition-colors duration-200"
-                          title="Edit Sub Category"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteSubCategory(subCategory.sub_cat_id)}
-                          className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50 transition-colors duration-200"
-                          title="Delete Sub Category"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        {/* Sub Category Modal */}
-        {showSubCategoryForm && (
-          <div className="fixed inset-0 z-[9999] overflow-y-auto">
-            <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-              {/* Background Overlay */}
-              <div 
-                className="fixed inset-0 bg-gradient-to-br from-gray-900/80 via-blue-900/60 to-purple-900/80 backdrop-blur-md transition-all duration-500 ease-out animate-fade-in" 
-                onClick={() => setShowSubCategoryForm(false)}
-              ></div>
+          {/* Filters */}
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+                <Typography variant="h6" component="h3" sx={{ fontWeight: 'semibold' }}>
+                  Filters & Sorting
+                </Typography>
+                <Button
+                  variant="text"
+                  size="small"
+                  onClick={clearFilters}
+                  sx={{ color: 'primary.main' }}
+                >
+                  Clear All Filters
+                </Button>
+              </Box>
               
-              {/* Modal Container */}
-              <div className="relative inline-block w-full max-w-md p-0 my-8 overflow-hidden text-left align-middle transition-all duration-500 ease-out transform bg-white/95 backdrop-blur-xl shadow-2xl rounded-3xl border border-white/20 animate-slide-in-up">
-                
-                {/* Header */}
-                <div className="relative bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-white">
-                  <div className="absolute inset-0 bg-black/10"></div>
-                  <div className="relative flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mr-4">
-                        <FolderOpen className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <h3 className="text-xl font-bold">
-                          {editingSubCategory ? 'Edit Sub Category' : 'Add New Sub Category'}
-                        </h3>
-                        <p className="text-indigo-100 text-sm">
-                          {editingSubCategory ? 'Update sub category information' : 'Create a new product sub category'}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => setShowSubCategoryForm(false)}
-                      className="w-10 h-10 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110"
+              <Grid container spacing={3}>
+                {/* Search */}
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    fullWidth
+                    label="Search"
+                    placeholder="Search subcategories..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                </Grid>
+
+                {/* Category Filter */}
+                <Grid item xs={12} md={3}>
+                  <FormControl fullWidth>
+                    <InputLabel>Category</InputLabel>
+                    <Select
+                      value={categoryFilter}
+                      label="Category"
+                      onChange={(e) => setCategoryFilter(e.target.value)}
                     >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-                </div>
+                      <MenuItem value="all">All Categories</MenuItem>
+                      {categories.map(category => (
+                        <MenuItem key={category.cat_id} value={category.cat_id}>
+                          {category.cat_name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
 
-                {/* Form Content */}
-                <div className="p-6">
-                  <form onSubmit={handleSubmit} className="space-y-6">
-                    
-                    {/* Category Selection */}
-                    <div className="group">
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        <Folder className="w-4 h-4 inline mr-2" />
-                        Parent Category <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        name="cat_id"
-                        value={formData.cat_id}
-                        onChange={handleFormChange}
-                        required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200 bg-white hover:bg-gray-50 text-black"
-                      >
-                        <option value="">Select a category</option>
-                        {categories.map(category => (
-                          <option key={category.cat_id} value={category.cat_id}>
-                            {category.cat_name} ({category.cat_code})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                {/* Sort By */}
+                <Grid item xs={12} md={3}>
+                  <FormControl fullWidth>
+                    <InputLabel>Sort By</InputLabel>
+                    <Select
+                      value={sortBy}
+                      label="Sort By"
+                      onChange={(e) => setSortBy(e.target.value)}
+                    >
+                      <MenuItem value="sub_cat_name">Sub Category Name</MenuItem>
+                      <MenuItem value="product_count">Product Count</MenuItem>
+                      <MenuItem value="created_at">Created Date</MenuItem>
+                      <MenuItem value="updated_at">Updated Date</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
 
-                    {/* Sub Category Name Field */}
-                    <div className="group">
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        <FolderOpen className="w-4 h-4 inline mr-2" />
-                        Sub Category Name <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        name="sub_cat_name"
-                        value={formData.sub_cat_name}
-                        onChange={handleFormChange}
-                        required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200 bg-white hover:bg-gray-50 text-black"
-                        placeholder="Enter sub category name (e.g., Smartphones)"
-                      />
-                    </div>
+                {/* Sort Order */}
+                <Grid item xs={12} md={3}>
+                  <FormControl fullWidth>
+                    <InputLabel>Order</InputLabel>
+                    <Select
+                      value={sortOrder}
+                      label="Order"
+                      onChange={(e) => setSortOrder(e.target.value)}
+                    >
+                      <MenuItem value="asc">Ascending</MenuItem>
+                      <MenuItem value="desc">Descending</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
 
-                    {/* Sub Category Code Field */}
-                    <div className="group">
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        <Hash className="w-4 h-4 inline mr-2" />
-                        Sub Category Code <span className="text-red-500">*</span>
-                      </label>
-                      <div className="flex space-x-2">
-                        <input
-                          type="text"
-                          name="sub_cat_code"
-                          value={formData.sub_cat_code}
-                          onChange={handleFormChange}
-                          required
-                          className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200 bg-white hover:bg-gray-50 text-black"
-                          placeholder="Enter sub category code (e.g., SMARTPHONE001)"
+          {/* Stats Cards */}
+          <Grid container spacing={3}>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Avatar
+                      sx={{
+                        width: 48,
+                        height: 48,
+                        mr: 2,
+                        background: 'linear-gradient(45deg, #2196F3 30%, #00BCD4 90%)'
+                      }}
+                    >
+                      <FolderOpenIcon />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">
+                        Total Sub Categories
+                      </Typography>
+                      <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
+                        {totalSubCategories}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Avatar
+                      sx={{
+                        width: 48,
+                        height: 48,
+                        mr: 2,
+                        background: 'linear-gradient(45deg, #4CAF50 30%, #8BC34A 90%)'
+                      }}
+                    >
+                      <PackageIcon />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">
+                        Total Products
+                      </Typography>
+                      <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
+                        {totalProducts}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Avatar
+                      sx={{
+                        width: 48,
+                        height: 48,
+                        mr: 2,
+                        background: 'linear-gradient(45deg, #9C27B0 30%, #E91E63 90%)'
+                      }}
+                    >
+                      <TagIcon />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">
+                        Categories Used
+                      </Typography>
+                      <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
+                        {categoriesWithSubCategories}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Avatar
+                      sx={{
+                        width: 48,
+                        height: 48,
+                        mr: 2,
+                        background: 'linear-gradient(45deg, #FF9800 30%, #F44336 90%)'
+                      }}
+                    >
+                      <CalendarIcon />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">
+                        Recent Additions
+                      </Typography>
+                      <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
+                        {recentAdditions}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+
+          {/* Sub Categories Table */}
+          <Card sx={{ height: 600, display: 'flex', flexDirection: 'column' }}>
+            <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Typography variant="h6" component="h3" sx={{ fontWeight: 'semibold' }}>
+                Sub Categories List
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Showing {filteredAndSortedSubCategories.length} of {subCategories.length} subcategories
+              </Typography>
+            </Box>
+            <TableContainer component={Paper} sx={{ flex: 1, overflow: 'auto' }}>
+              <Table stickyHeader>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Sub Category</TableCell>
+                    <TableCell>Parent Category</TableCell>
+                    <TableCell>Products</TableCell>
+                    <TableCell>Created</TableCell>
+                    <TableCell align="center">Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredAndSortedSubCategories.map((subCategory) => (
+                    <TableRow key={subCategory.sub_cat_id} hover>
+                      <TableCell>
+                        <Box>
+                          <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                            {subCategory.sub_cat_name}
+                          </Typography>
+                          <Chip label={`ID: #${subCategory.sequentialId}`} size="small" variant="outlined" />
+                        </Box>
+                      </TableCell>
+                      <TableCell>
+                        <Chip 
+                          label={subCategory.category?.cat_name || 'N/A'} 
+                          color="primary" 
+                          variant="outlined" 
+                          size="small"
                         />
-                        <button
-                          type="button"
-                          onClick={handleAutoGenerateCode}
-                          className="px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-colors duration-200"
-                          title="Auto Generate Code"
-                        >
-                          <Hash className="w-4 h-4" />
-                        </button>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Sub category code must be unique. Click the # button to auto-generate.
-                      </p>
-                    </div>
+                      </TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <PackageIcon sx={{ mr: 1, color: 'text.secondary' }} />
+                          <Typography variant="body2">
+                            {subCategory._count?.products || 0}
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" color="text.secondary">
+                          {new Date(subCategory.created_at).toLocaleDateString()}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+                          <Tooltip title="Edit Sub Category">
+                            <IconButton
+                              size="small"
+                              color="primary"
+                              onClick={() => handleEditSubCategory(subCategory)}
+                            >
+                              <EditIcon />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Delete Sub Category">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => handleDeleteSubCategory(subCategory.sub_cat_id)}
+                            >
+                              <DeleteIcon />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Card>
 
-                    {/* Action Buttons */}
-                    <div className="flex items-center justify-end space-x-4 pt-4 border-t border-gray-200">
-                      <button
-                        type="button"
-                        onClick={() => setShowSubCategoryForm(false)}
-                        className="px-6 py-2.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-all duration-200"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        className="group px-8 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-500 rounded-lg hover:from-indigo-600 hover:to-purple-600 transition-all duration-200 shadow-md hover:shadow-lg"
-                      >
-                        <span className="flex items-center">
-                          {editingSubCategory ? 'Update Sub Category' : 'Create Sub Category'}
-                          <Check className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform duration-200" />
-                        </span>
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+          {/* Sub Category Dialog */}
+          <Dialog
+            open={showSubCategoryForm}
+            onClose={handleCloseDialog}
+            maxWidth="sm"
+            fullWidth
+            PaperProps={{
+              sx: {
+                borderRadius: 3,
+                background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.9) 100%)',
+                backdropFilter: 'blur(20px)',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+              }
+            }}
+          >
+            <DialogTitle
+              sx={{
+                background: 'linear-gradient(45deg, #2196F3 30%, #9C27B0 90%)',
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                p: 3
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Avatar
+                  sx={{
+                    width: 48,
+                    height: 48,
+                    mr: 2,
+                    bgcolor: 'rgba(255,255,255,0.2)',
+                    backdropFilter: 'blur(10px)'
+                  }}
+                >
+                  <FolderOpenIcon />
+                </Avatar>
+                <Box>
+                  <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
+                    {editingSubCategory ? 'Edit Sub Category' : 'Add New Sub Category'}
+                  </Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                    {editingSubCategory ? 'Update subcategory information' : 'Create a new subcategory under a category'}
+                  </Typography>
+                </Box>
+              </Box>
+              <IconButton
+                onClick={handleCloseDialog}
+                sx={{
+                  color: 'white',
+                  bgcolor: 'rgba(255,255,255,0.2)',
+                  '&:hover': {
+                    bgcolor: 'rgba(255,255,255,0.3)',
+                    transform: 'scale(1.1)'
+                  },
+                  transition: 'all 0.2s ease-in-out'
+                }}
+              >
+                <CloseIcon />
+              </IconButton>
+            </DialogTitle>
+
+            <DialogContent sx={{ p: 3 }}>
+              <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2 }}>
+                <FormControl fullWidth sx={{ mb: 3 }}>
+                  <InputLabel>Parent Category</InputLabel>
+                  <Select
+                    value={formData.cat_id}
+                    label="Parent Category"
+                    name="cat_id"
+                    onChange={handleFormChange}
+                    required
+                  >
+                    {categories.map(category => (
+                      <MenuItem key={category.cat_id} value={category.cat_id}>
+                        {category.cat_name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <TextField
+                  fullWidth
+                  required
+                  label="Sub Category Name"
+                  name="sub_cat_name"
+                  value={formData.sub_cat_name}
+                  onChange={handleFormChange}
+                  placeholder="Enter subcategory name (e.g., Smartphones)"
+                  sx={{ mb: 3 }}
+                />
+              </Box>
+            </DialogContent>
+
+            <DialogActions sx={{ p: 3, pt: 0 }}>
+              <Button
+                onClick={handleCloseDialog}
+                variant="outlined"
+                sx={{ mr: 2 }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSubmit}
+                variant="contained"
+                disabled={isSubmitting}
+                startIcon={isSubmitting ? <CircularProgress size={20} /> : <SaveIcon />}
+                sx={{
+                  background: 'linear-gradient(45deg, #2196F3 30%, #9C27B0 90%)',
+                  boxShadow: '0 3px 5px 2px rgba(33, 203, 243, .3)',
+                  '&:hover': {
+                    background: 'linear-gradient(45deg, #1976D2 30%, #7B1FA2 90%)',
+                  }
+                }}
+              >
+                {isSubmitting ? 'Saving...' : editingSubCategory ? 'Update Sub Category' : 'Create Sub Category'}
+              </Button>
+            </DialogActions>
+          </Dialog>
+
+          {/* Snackbar for notifications */}
+          <Snackbar
+            open={snackbar.open}
+            autoHideDuration={6000}
+            onClose={handleSnackbarClose}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          >
+            <Alert
+              onClose={handleSnackbarClose}
+              severity={snackbar.severity}
+              sx={{ width: '100%' }}
+            >
+              {snackbar.message}
+            </Alert>
+          </Snackbar>
+        </Stack>
+      </Container>
     </DashboardLayout>
   );
 }

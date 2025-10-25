@@ -533,7 +533,7 @@ export default function FinancePage() {
                           <div className="col-span-2 flex items-center">
                             <div>
                               <div className="text-sm font-medium text-gray-900">Entry #{entry.sequentialId}</div>
-                              <div className="text-xs text-gray-500">ID: {entry.l_id.slice(-8)}</div>
+                              <div className="text-xs text-gray-500">ID: {entry.l_id.toString().slice(-8)}</div>
                             </div>
                           </div>
 

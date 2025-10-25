@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    const id = searchParams.get('id') ? parseInt(searchParams.get('id')) : null;
 
     if (id) {
       // Fetch single expense title
@@ -145,7 +145,7 @@ export async function PUT(request) {
 export async function DELETE(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    const id = searchParams.get('id') ? parseInt(searchParams.get('id')) : null;
 
     if (!id) {
       return NextResponse.json({ error: 'Expense title ID is required' }, { status: 400 });

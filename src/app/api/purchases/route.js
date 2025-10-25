@@ -11,7 +11,7 @@ function errorResponse(message, status = 400) {
 // ========================================
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id'); // optional: ?id=1
+  const id = searchParams.get('id') ? parseInt(searchParams.get('id')) : null; // optional: ?id=1
 
   try {
     if (id) {
@@ -19,6 +19,7 @@ export async function GET(request) {
         where: { pur_id: id },
         include: {
           customer: true,
+          store: true,
           updated_by_user: {
             select: {
               user_id: true,
@@ -54,6 +55,13 @@ export async function GET(request) {
             cus_id: true,
             cus_name: true,
             cus_phone_no: true
+          }
+        },
+        store: {
+          select: {
+            storeid: true,
+            store_name: true,
+            store_address: true
           }
         },
         updated_by_user: {
@@ -93,6 +101,9 @@ export async function POST(request) {
     const body = await request.json();
     const { 
       cus_id, 
+      store_id,
+      debit_account_id,
+      credit_account_id,
       total_amount, 
       unloading_amount = 0, 
       fare_amount = 0, 
@@ -143,16 +154,19 @@ export async function POST(request) {
       // Create the purchase
       const newPurchase = await tx.purchase.create({
         data: {
-          cus_id,
+          cus_id: parseInt(cus_id),
+          store_id: store_id ? parseInt(store_id) : null,
+          debit_account_id: debit_account_id ? parseInt(debit_account_id) : null,
+          credit_account_id: credit_account_id ? parseInt(credit_account_id) : null,
           total_amount: parseFloat(total_amount),
           unloading_amount: parseFloat(unloading_amount),
           fare_amount: parseFloat(fare_amount),
           discount: parseFloat(discount),
-          net_total,
+          net_total: parseFloat(net_total),
           payment: parseFloat(payment),
           payment_type,
           vehicle_no: vehicle_no || null,
-          updated_by: updated_by || null
+          updated_by: updated_by ? parseInt(updated_by) : null
         }
       });
 
@@ -161,14 +175,14 @@ export async function POST(request) {
         const detailsData = purchase_details.map(detail => ({
           pur_id: newPurchase.pur_id,
           vehicle_no: vehicle_no || null,
-          cus_id,
-          pro_id: detail.pro_id,
-          qnty: parseInt(detail.qnty),
+          cus_id: parseInt(cus_id),
+          pro_id: parseInt(detail.pro_id),
+          qnty: parseInt(detail.qnty) || 0,
           unit: detail.unit,
           unit_rate: parseFloat(detail.unit_rate),
           total_amount: parseFloat(detail.total_amount),
           net_total: parseFloat(detail.total_amount), // Use total_amount as net_total for now
-          updated_by: updated_by || null
+          updated_by: updated_by ? parseInt(updated_by) : null
         }));
 
         await tx.purchaseDetail.createMany({
@@ -176,11 +190,76 @@ export async function POST(request) {
         });
       }
 
-      // Create ledger entry for purchase (debit - customer owes money)
+      // Create ledger entries for debit and credit accounts
+      if (debit_account_id) {
+        // Get debit account balance
+        const debitAccountData = await tx.customer.findUnique({
+          where: { cus_id: debit_account_id },
+          select: { cus_balance: true }
+        });
+        const debitCurrentBalance = parseFloat(debitAccountData?.cus_balance || 0);
+        const debitNewBalance = debitCurrentBalance + net_total;
+
+        // Create ledger entry for debit account (DR - amount increases)
+        await tx.ledger.create({
+          data: {
+            cus_id: debit_account_id,
+            opening_balance: debitCurrentBalance,
+            debit_amount: net_total,
+            credit_amount: 0,
+            closing_balance: debitNewBalance,
+            bill_no: newPurchase.pur_id,
+            trnx_type: payment_type,
+            details: `Purchase - DR Account - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
+            payments: 0,
+            updated_by: updated_by ? parseInt(updated_by) : null
+          }
+        });
+
+        // Update debit account balance
+        await tx.customer.update({
+          where: { cus_id: debit_account_id },
+          data: { cus_balance: debitNewBalance }
+        });
+      }
+
+      if (credit_account_id) {
+        // Get credit account balance
+        const creditAccountData = await tx.customer.findUnique({
+          where: { cus_id: credit_account_id },
+          select: { cus_balance: true }
+        });
+        const creditCurrentBalance = parseFloat(creditAccountData?.cus_balance || 0);
+        const creditNewBalance = creditCurrentBalance - net_total;
+
+        // Create ledger entry for credit account (CR - amount decreases)
+        await tx.ledger.create({
+          data: {
+            cus_id: credit_account_id,
+            opening_balance: creditCurrentBalance,
+            debit_amount: 0,
+            credit_amount: net_total,
+            closing_balance: creditNewBalance,
+            bill_no: newPurchase.pur_id,
+            trnx_type: payment_type,
+            details: `Purchase - CR Account - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
+            payments: 0,
+            updated_by: updated_by ? parseInt(updated_by) : null
+          }
+        });
+
+        // Update credit account balance
+        await tx.customer.update({
+          where: { cus_id: credit_account_id },
+          data: { cus_balance: creditNewBalance }
+        });
+      }
+
+      // Create ledger entry for main customer purchase (debit - customer owes money)
       const purchaseBalance = currentBalance + net_total;
       await tx.ledger.create({
         data: {
-          cus_id,
+          cus_id: parseInt(cus_id),
           opening_balance: currentBalance,
           debit_amount: net_total,
           credit_amount: 0,
@@ -189,7 +268,7 @@ export async function POST(request) {
           trnx_type: payment_type,
           details: `Purchase - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
           payments: 0,
-          updated_by: updated_by || null
+          updated_by: updated_by ? parseInt(updated_by) : null
         }
       });
 
@@ -198,7 +277,7 @@ export async function POST(request) {
         const paymentBalance = purchaseBalance - parseFloat(payment);
         await tx.ledger.create({
           data: {
-            cus_id,
+            cus_id: parseInt(cus_id),
             opening_balance: purchaseBalance,
             debit_amount: 0,
             credit_amount: parseFloat(payment),
@@ -207,7 +286,7 @@ export async function POST(request) {
             trnx_type: payment_type,
             details: `Payment - ${payment_type}`,
             payments: parseFloat(payment),
-            updated_by: updated_by || null
+            updated_by: updated_by ? parseInt(updated_by) : null
           }
         });
 
@@ -225,6 +304,8 @@ export async function POST(request) {
       }
 
       return newPurchase;
+    }, {
+      timeout: 15000 // 15 seconds timeout for complex transactions
     });
 
     // Fetch the complete purchase with relations
@@ -269,6 +350,9 @@ export async function PUT(request) {
     const { 
       id, 
       cus_id, 
+      store_id,
+      debit_account_id,
+      credit_account_id,
       total_amount, 
       unloading_amount = 0, 
       fare_amount = 0, 
@@ -323,12 +407,15 @@ export async function PUT(request) {
       const updatedPurchase = await tx.purchase.update({
         where: { pur_id: id },
         data: {
-          cus_id,
+          cus_id: parseInt(cus_id),
+          store_id: store_id ? parseInt(store_id) : null,
+          debit_account_id: debit_account_id ? parseInt(debit_account_id) : null,
+          credit_account_id: credit_account_id ? parseInt(credit_account_id) : null,
           total_amount: parseFloat(total_amount),
           unloading_amount: parseFloat(unloading_amount),
           fare_amount: parseFloat(fare_amount),
           discount: parseFloat(discount),
-          net_total,
+          net_total: parseFloat(net_total),
           payment: parseFloat(payment),
           payment_type,
           vehicle_no: vehicle_no || null,
@@ -346,9 +433,9 @@ export async function PUT(request) {
         const detailsData = purchase_details.map(detail => ({
           pur_id: id,
           vehicle_no: vehicle_no || null,
-          cus_id,
-          pro_id: detail.pro_id,
-          qnty: parseInt(detail.qnty),
+          cus_id: parseInt(cus_id),
+          pro_id: parseInt(detail.pro_id),
+          qnty: parseInt(detail.qnty) || 0,
           unit: detail.unit,
           unit_rate: parseFloat(detail.unit_rate),
           total_amount: parseFloat(detail.total_amount),
@@ -370,7 +457,7 @@ export async function PUT(request) {
       const purchaseBalance = currentBalance + net_total;
       await tx.ledger.create({
         data: {
-          cus_id,
+          cus_id: parseInt(cus_id),
           opening_balance: currentBalance,
           debit_amount: net_total,
           credit_amount: 0,
@@ -388,7 +475,7 @@ export async function PUT(request) {
         const paymentBalance = purchaseBalance - parseFloat(payment);
         await tx.ledger.create({
           data: {
-            cus_id,
+            cus_id: parseInt(cus_id),
             opening_balance: purchaseBalance,
             debit_amount: 0,
             credit_amount: parseFloat(payment),
@@ -415,6 +502,8 @@ export async function PUT(request) {
       }
 
       return updatedPurchase;
+    }, {
+      timeout: 15000 // 15 seconds timeout for complex transactions
     });
 
     // Fetch the complete updated purchase with relations
@@ -455,7 +544,7 @@ export async function PUT(request) {
 // ========================================
 export async function DELETE(request) {
   const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id'); // /api/purchases?id=1
+  const id = searchParams.get('id') ? parseInt(searchParams.get('id')) : null; // /api/purchases?id=1
 
   if (!id) {
     return errorResponse('Purchase ID is required');

@@ -4,13 +4,18 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npx prisma generate && next build", 
+    "build": "npx prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
-    "generate": "prisma generate",          
+    "generate": "prisma generate",
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^7.3.4",
+    "@mui/lab": "^7.0.1-beta.18",
+    "@mui/material": "^7.3.4",
     "@prisma/client": "^6.17.0",
     "bcryptjs": "^3.0.2",
     "lucide-react": "^0.545.0",
