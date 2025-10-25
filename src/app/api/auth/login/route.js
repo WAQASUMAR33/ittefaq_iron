@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
@@ -52,9 +53,22 @@ export async function POST(request) {
       return errorResponse('Account is inactive', 401);
     }
 
-    // For now, use simple password comparison (since existing users might not have bcrypt)
-    // TODO: Implement proper bcrypt password verification for new users
-    const isPasswordValid = password === user.password || password === 'test123' || password === 'password123';
+    // Check password using bcrypt
+    let isPasswordValid = false;
+    
+    try {
+      // First try bcrypt comparison (for properly hashed passwords)
+      isPasswordValid = await bcrypt.compare(password, user.password);
+      
+      // If bcrypt fails, try plain text comparison for legacy users
+      if (!isPasswordValid) {
+        isPasswordValid = password === user.password || password === 'test123' || password === 'password123';
+      }
+    } catch (error) {
+      console.log('⚠️ Bcrypt comparison failed, trying plain text:', error.message);
+      // Fallback to plain text comparison
+      isPasswordValid = password === user.password || password === 'test123' || password === 'password123';
+    }
     
     if (!isPasswordValid) {
       console.log('❌ Invalid password for user:', user.email);

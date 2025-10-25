@@ -180,6 +180,47 @@ export default function PurchasesPage() {
     fetchData();
   }, []);
 
+  // Function to handle labour charges distribution
+  const handleLabourDistribution = (includeLabour, labourAmount, purchaseDetails) => {
+    if (includeLabour && labourAmount && purchaseDetails.length > 0) {
+      const labourAmountNum = parseFloat(labourAmount || 0);
+      const totalQuantity = purchaseDetails.reduce((sum, detail) => sum + parseFloat(detail.quantity || 0), 0);
+      
+      if (totalQuantity > 0) {
+        const labourPerUnit = labourAmountNum / totalQuantity;
+
+        const updatedDetails = purchaseDetails.map(detail => {
+          const originalRate = parseFloat(detail.original_rate || detail.rate || 0);
+          const newRate = (originalRate + labourPerUnit).toFixed(2);
+          
+          return {
+            ...detail,
+            rate: newRate,
+            original_rate: detail.original_rate || detail.rate || 0,
+            total_amount: (parseFloat(newRate) * parseFloat(detail.quantity || 0)).toFixed(2)
+          };
+        });
+
+        return updatedDetails;
+      }
+    } else if (!includeLabour && purchaseDetails.length > 0) {
+      // Remove labour charges - restore original rates
+      const updatedDetails = purchaseDetails.map(detail => {
+        const originalRate = detail.original_rate || detail.rate || 0;
+        
+        return {
+          ...detail,
+          rate: originalRate,
+          total_amount: (parseFloat(originalRate) * parseFloat(detail.quantity || 0)).toFixed(2)
+        };
+      });
+
+      return updatedDetails;
+    }
+    
+    return purchaseDetails;
+  };
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -392,18 +433,31 @@ export default function PurchasesPage() {
     
     const newDetail = {
       pro_id: selectedProduct.pro_id,
+      product_id: selectedProduct.pro_id, // Add product_id for console logging
       store_id: formData.store_id, // Add store_id to each product detail
-      qnty: productFormData.qnty,
+      quantity: productFormData.qnty,
       unit: selectedProduct.pro_unit,
-      unit_rate: productFormData.unit_rate,
+      rate: productFormData.unit_rate,
+      unit_rate: productFormData.unit_rate, // Keep for backward compatibility
       total_amount: totalAmount.toString(),
       discount: '0'
     };
     
-    setFormData(prev => ({
-      ...prev,
-      purchase_details: [...prev.purchase_details, newDetail]
-    }));
+    setFormData(prev => {
+      const updatedPurchaseDetails = [...prev.purchase_details, newDetail];
+      
+      // Apply labour distribution if checkbox is checked
+      const finalPurchaseDetails = handleLabourDistribution(
+        prev.include_labour,
+        prev.labour_amount,
+        updatedPurchaseDetails
+      );
+      
+      return {
+        ...prev,
+        purchase_details: finalPurchaseDetails
+      };
+    });
     
     // Reset selection
     setSelectedProduct(null);
@@ -445,6 +499,7 @@ export default function PurchasesPage() {
     return totalAmount + unloadingAmount + transportAmount + labourAmount - discount;
   };
 
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -466,15 +521,47 @@ export default function PurchasesPage() {
       // Calculate total amount from purchase details
       const calculatedTotalAmount = calculateTotalAmount();
       
+      // Set proper debit and credit accounts for purchase transaction
+      // For purchases: Debit = Inventory/Stock Account, Credit = Supplier Account or Cash Account
+      let debitAccountId = '';
+      let creditAccountId = '';
+      
+      // Find inventory/stock account (assuming it's an ASSET_ACCOUNT type)
+      const inventoryAccount = customers.find(customer => 
+        customer.cus_type === 'ASSET_ACCOUNT' && 
+        customer.cus_name.toLowerCase().includes('inventory')
+      );
+      
+      if (inventoryAccount) {
+        debitAccountId = inventoryAccount.cus_id;
+      }
+      
+      // Set credit account based on payment type
+      if (formData.payment_type === 'CASH') {
+        // If cash payment, credit cash account
+        const cashAccount = customers.find(customer => 
+          customer.cus_type === 'ASSET_ACCOUNT' && 
+          customer.cus_name.toLowerCase().includes('cash')
+        );
+        creditAccountId = cashAccount ? cashAccount.cus_id : formData.cus_id;
+      } else {
+        // If not cash, credit supplier account (accounts payable)
+        creditAccountId = formData.cus_id;
+      }
+      
       const body = editingPurchase 
         ? { 
             id: editingPurchase.pur_id, 
             ...formData, 
-            total_amount: calculatedTotalAmount.toString()
+            total_amount: calculatedTotalAmount.toString(),
+            debit_account_id: debitAccountId,
+            credit_account_id: creditAccountId
           } 
         : { 
             ...formData, 
-            total_amount: calculatedTotalAmount.toString()
+            total_amount: calculatedTotalAmount.toString(),
+            debit_account_id: debitAccountId,
+            credit_account_id: creditAccountId
           };
 
       const response = await fetch(url, {
@@ -1189,22 +1276,11 @@ export default function PurchasesPage() {
                   startIcon={<AddIcon />}
                   onClick={() => setShowCustomerForm(true)}
                   sx={{
-                    bgcolor: 'secondary.main',
-                    '&:hover': { bgcolor: 'secondary.dark' }
-                  }}
-                >
-                  + New Customer
-                </Button>
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={() => setShowCustomerForm(true)}
-                  sx={{
                     bgcolor: 'primary.main',
                     '&:hover': { bgcolor: 'primary.dark' }
                   }}
                 >
-                  + New Account
+                  + New Supplier
                 </Button>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -1276,7 +1352,7 @@ export default function PurchasesPage() {
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                          CUSTOMER
+                          SUPPLIER
                         </Typography>
                         {formSelectedCustomer && (
                           <Box sx={{ 
@@ -1399,7 +1475,23 @@ export default function PurchasesPage() {
                         size="small"
                         type="number"
                         value={formData.labour_amount || '0'}
-                        onChange={(e) => setFormData(prev => ({ ...prev, labour_amount: e.target.value }))}
+                        onChange={(e) => {
+                          const newLabourAmount = e.target.value;
+                          
+                          setFormData(prev => {
+                            const updatedDetails = handleLabourDistribution(
+                              prev.include_labour, 
+                              newLabourAmount, 
+                              prev.purchase_details
+                            );
+                            
+                            return {
+                              ...prev,
+                              labour_amount: newLabourAmount,
+                              purchase_details: updatedDetails
+                            };
+                          });
+                        }}
                         inputProps={{ step: 0.01, min: 0 }}
                         sx={{ width: '100%' }}
                       />
@@ -1414,7 +1506,23 @@ export default function PurchasesPage() {
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <Checkbox
                           checked={formData.include_labour || false}
-                          onChange={(e) => setFormData(prev => ({ ...prev, include_labour: e.target.checked }))}
+                          onChange={(e) => {
+                            const newIncludeLabour = e.target.checked;
+                            
+                            setFormData(prev => {
+                              const updatedDetails = handleLabourDistribution(
+                                newIncludeLabour, 
+                                prev.labour_amount, 
+                                prev.purchase_details
+                              );
+                              
+                              return {
+                                ...prev,
+                                include_labour: newIncludeLabour,
+                                purchase_details: updatedDetails
+                              };
+                            });
+                          }}
                           size="small"
                         />
                         <Typography variant="body2">
@@ -1781,7 +1889,7 @@ export default function PurchasesPage() {
                   <Grid item xs={12} md={2.5}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                        TOTAL CASH RECEIVED
+                        TOTAL PAYMENT
                       </Typography>
                       <TextField
                         size="small"
@@ -1890,10 +1998,10 @@ export default function PurchasesPage() {
             </Avatar>
             <Box>
               <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
-                Add New Customer
+                Add New Supplier
               </Typography>
               <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                Create a new customer account with complete details
+                Create a new supplier account with complete details
               </Typography>
             </Box>
           </Box>
@@ -2199,7 +2307,7 @@ export default function PurchasesPage() {
               '&:hover': { bgcolor: 'secondary.dark' }
             }}
           >
-            {isSubmittingCustomer ? 'Adding...' : 'Add Customer'}
+            {isSubmittingCustomer ? 'Adding...' : 'Add Supplier'}
           </Button>
         </DialogActions>
       </Dialog>
