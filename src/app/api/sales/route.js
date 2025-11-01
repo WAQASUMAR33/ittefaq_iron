@@ -49,130 +49,225 @@ export async function GET(request) {
 
     if (id) {
       // Fetch single sale
-      const sale = await prisma.sale.findUnique({
-        where: { sale_id: id },
-        include: {
-          customer: {
-            include: {
-              customer_category: true
-            }
-          },
-          sale_details: {
-            include: {
-              product: {
-                include: {
-                  category: true,
-                  sub_category: true
+      try {
+        const sale = await prisma.sale.findUnique({
+          where: { sale_id: id },
+          include: {
+            customer: {
+              include: {
+                customer_category: true
+              }
+            },
+            sale_details: {
+              include: {
+                product: {
+                  include: {
+                    category: true,
+                    sub_category: true
+                  }
                 }
               }
-            }
-          },
-          debit_account: {
-            select: {
-              cus_id: true,
-              cus_name: true,
-              cus_phone_no: true
-            }
-          },
-          credit_account: {
-            select: {
-              cus_id: true,
-              cus_name: true,
-              cus_phone_no: true
-            }
-          },
-          loader: {
-            select: {
-              loader_id: true,
-              loader_name: true,
-              loader_number: true,
-              loader_phone: true
-            }
-          },
-          split_payments: {
-            include: {
-              debit_account: true,
-              credit_account: true
-            }
-          },
-          updated_by_user: {
-            select: {
-              full_name: true,
-              role: true
+            },
+            debit_account: {
+              select: {
+                cus_id: true,
+                cus_name: true,
+                cus_phone_no: true
+              }
+            },
+            credit_account: {
+              select: {
+                cus_id: true,
+                cus_name: true,
+                cus_phone_no: true
+              }
+            },
+            loader: {
+              select: {
+                loader_id: true,
+                loader_name: true,
+                loader_number: true,
+                loader_phone: true
+              }
+            },
+            split_payments: {
+              include: {
+                debit_account: true,
+                credit_account: true
+              }
+            },
+            updated_by_user: {
+              select: {
+                full_name: true,
+                role: true
+              }
             }
           }
+        });
+
+        if (!sale) {
+          return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
         }
-      });
 
-      if (!sale) {
-        return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
+        return NextResponse.json(sale);
+      } catch (prismaError) {
+        // If store_id column doesn't exist, use raw SQL
+        if (prismaError.code === 'P2022' && prismaError.message?.includes('store_id')) {
+          console.warn('⚠️ store_id column not found in GET, using raw SQL fallback');
+          const sale = await prisma.$queryRaw`
+            SELECT s.*, 
+              c.cus_id as customer_cus_id, c.cus_name as customer_cus_name, c.cus_phone_no as customer_cus_phone_no,
+              c.cus_category as customer_cus_category, c.cus_type as customer_cus_type
+            FROM sales s
+            LEFT JOIN customers c ON s.cus_id = c.cus_id
+            WHERE s.sale_id = ${id}
+            LIMIT 1
+          `;
+          
+          if (!sale || sale.length === 0) {
+            return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
+          }
+          
+          // Fetch sale_details separately
+          const saleDetails = await prisma.$queryRaw`
+            SELECT sd.*, p.pro_name, p.pro_stock_qnty
+            FROM sale_details sd
+            LEFT JOIN products p ON sd.pro_id = p.pro_id
+            WHERE sd.sale_id = ${id}
+          `;
+          
+          const result = {
+            ...sale[0],
+            sale_details: saleDetails || []
+          };
+          
+          return NextResponse.json(result);
+        } else {
+          throw prismaError;
+        }
       }
-
-      return NextResponse.json(sale);
     } else {
       // Fetch all sales
-      const sales = await prisma.sale.findMany({
-        include: {
-          customer: {
-            include: {
-              customer_category: true
-            }
-          },
-          sale_details: {
-            include: {
-              product: {
-                include: {
-                  category: true,
-                  sub_category: true
+      try {
+        const sales = await prisma.sale.findMany({
+          include: {
+            customer: {
+              include: {
+                customer_category: true
+              }
+            },
+            sale_details: {
+              include: {
+                product: {
+                  include: {
+                    category: true,
+                    sub_category: true
+                  }
                 }
+              }
+            },
+            debit_account: {
+              select: {
+                cus_id: true,
+                cus_name: true,
+                cus_phone_no: true
+              }
+            },
+            credit_account: {
+              select: {
+                cus_id: true,
+                cus_name: true,
+                cus_phone_no: true
+              }
+            },
+            loader: {
+              select: {
+                loader_id: true,
+                loader_name: true,
+                loader_number: true,
+                loader_phone: true
+              }
+            },
+            split_payments: {
+              include: {
+                debit_account: true,
+                credit_account: true
+              }
+            },
+            updated_by_user: {
+              select: {
+                full_name: true,
+                role: true
               }
             }
           },
-          debit_account: {
-            select: {
-              cus_id: true,
-              cus_name: true,
-              cus_phone_no: true
-            }
-          },
-          credit_account: {
-            select: {
-              cus_id: true,
-              cus_name: true,
-              cus_phone_no: true
-            }
-          },
-          loader: {
-            select: {
-              loader_id: true,
-              loader_name: true,
-              loader_number: true,
-              loader_phone: true
-            }
-          },
-          split_payments: {
-            include: {
-              debit_account: true,
-              credit_account: true
-            }
-          },
-          updated_by_user: {
-            select: {
-              full_name: true,
-              role: true
-            }
+          orderBy: {
+            created_at: 'desc'
           }
-        },
-        orderBy: {
-          created_at: 'desc'
-        }
-      });
+        });
 
-      return NextResponse.json(sales);
+        return NextResponse.json(sales);
+      } catch (prismaError) {
+        // If store_id column doesn't exist, use raw SQL
+        if (prismaError.code === 'P2022' && prismaError.message?.includes('store_id')) {
+          console.warn('⚠️ store_id column not found in GET, using raw SQL fallback');
+          const sales = await prisma.$queryRaw`
+            SELECT s.*, 
+              c.cus_id as customer_cus_id, c.cus_name as customer_cus_name, 
+              c.cus_phone_no as customer_cus_phone_no
+            FROM sales s
+            LEFT JOIN customers c ON s.cus_id = c.cus_id
+            ORDER BY s.created_at DESC
+          `;
+          
+          // Fetch sale_details for all sales
+          const saleIds = sales.map(s => s.sale_id);
+          let saleDetails = [];
+          if (saleIds.length > 0) {
+            saleDetails = await prisma.$queryRaw`
+              SELECT sd.*, p.pro_name, p.pro_stock_qnty
+              FROM sale_details sd
+              LEFT JOIN products p ON sd.pro_id = p.pro_id
+              WHERE sd.sale_id IN (${saleIds.join(',')})
+            `;
+          }
+          
+          // Group sale_details by sale_id
+          const detailsBySaleId = {};
+          saleDetails.forEach(detail => {
+            if (!detailsBySaleId[detail.sale_id]) {
+              detailsBySaleId[detail.sale_id] = [];
+            }
+            detailsBySaleId[detail.sale_id].push(detail);
+          });
+          
+          // Attach sale_details to each sale
+          const result = sales.map(sale => ({
+            ...sale,
+            sale_details: detailsBySaleId[sale.sale_id] || []
+          }));
+          
+          return NextResponse.json(result);
+        } else {
+          throw prismaError;
+        }
+      }
     }
   } catch (error) {
     console.error('Error fetching sales:', error);
-    return NextResponse.json({ error: 'Failed to fetch sales' }, { status: 500 });
+    
+    // Provide helpful error message for store_id issues
+    if (error.code === 'P2022' && error.message?.includes('store_id')) {
+      return NextResponse.json({
+        error: 'Database migration required: store_id column is missing',
+        details: 'Please run the migration SQL to add store_id column. See ADD_STORE_ID_TO_SALES_SIMPLE.sql'
+      }, { status: 500 });
+    }
+    
+    return NextResponse.json({ 
+      error: 'Failed to fetch sales',
+      details: error.message 
+    }, { status: 500 });
   }
 }
 
