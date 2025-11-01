@@ -50,66 +50,66 @@ export async function GET(request) {
     if (id) {
       // Fetch single sale
       try {
-        const sale = await prisma.sale.findUnique({
-          where: { sale_id: id },
-          include: {
-            customer: {
-              include: {
-                customer_category: true
-              }
-            },
-            sale_details: {
-              include: {
-                product: {
-                  include: {
-                    category: true,
-                    sub_category: true
-                  }
+      const sale = await prisma.sale.findUnique({
+        where: { sale_id: id },
+        include: {
+          customer: {
+            include: {
+              customer_category: true
+            }
+          },
+          sale_details: {
+            include: {
+              product: {
+                include: {
+                  category: true,
+                  sub_category: true
                 }
               }
-            },
-            debit_account: {
-              select: {
-                cus_id: true,
-                cus_name: true,
-                cus_phone_no: true
-              }
-            },
-            credit_account: {
-              select: {
-                cus_id: true,
-                cus_name: true,
-                cus_phone_no: true
-              }
-            },
-            loader: {
-              select: {
-                loader_id: true,
-                loader_name: true,
-                loader_number: true,
-                loader_phone: true
-              }
-            },
-            split_payments: {
-              include: {
-                debit_account: true,
-                credit_account: true
-              }
-            },
-            updated_by_user: {
-              select: {
-                full_name: true,
-                role: true
-              }
+            }
+          },
+          debit_account: {
+            select: {
+              cus_id: true,
+              cus_name: true,
+              cus_phone_no: true
+            }
+          },
+          credit_account: {
+            select: {
+              cus_id: true,
+              cus_name: true,
+              cus_phone_no: true
+            }
+          },
+          loader: {
+            select: {
+              loader_id: true,
+              loader_name: true,
+              loader_number: true,
+              loader_phone: true
+            }
+          },
+          split_payments: {
+            include: {
+              debit_account: true,
+              credit_account: true
+            }
+          },
+          updated_by_user: {
+            select: {
+              full_name: true,
+              role: true
             }
           }
-        });
-
-        if (!sale) {
-          return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
         }
+      });
 
-        return NextResponse.json(sale);
+      if (!sale) {
+        return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
+      }
+
+      return NextResponse.json(sale);
       } catch (prismaError) {
         // If store_id column doesn't exist, use raw SQL
         if (prismaError.code === 'P2022' && prismaError.message?.includes('store_id')) {
@@ -149,64 +149,64 @@ export async function GET(request) {
     } else {
       // Fetch all sales
       try {
-        const sales = await prisma.sale.findMany({
-          include: {
-            customer: {
-              include: {
-                customer_category: true
-              }
-            },
-            sale_details: {
-              include: {
-                product: {
-                  include: {
-                    category: true,
-                    sub_category: true
-                  }
+      const sales = await prisma.sale.findMany({
+        include: {
+          customer: {
+            include: {
+              customer_category: true
+            }
+          },
+          sale_details: {
+            include: {
+              product: {
+                include: {
+                  category: true,
+                  sub_category: true
                 }
-              }
-            },
-            debit_account: {
-              select: {
-                cus_id: true,
-                cus_name: true,
-                cus_phone_no: true
-              }
-            },
-            credit_account: {
-              select: {
-                cus_id: true,
-                cus_name: true,
-                cus_phone_no: true
-              }
-            },
-            loader: {
-              select: {
-                loader_id: true,
-                loader_name: true,
-                loader_number: true,
-                loader_phone: true
-              }
-            },
-            split_payments: {
-              include: {
-                debit_account: true,
-                credit_account: true
-              }
-            },
-            updated_by_user: {
-              select: {
-                full_name: true,
-                role: true
               }
             }
           },
-          orderBy: {
-            created_at: 'desc'
+          debit_account: {
+            select: {
+              cus_id: true,
+              cus_name: true,
+              cus_phone_no: true
+            }
+          },
+          credit_account: {
+            select: {
+              cus_id: true,
+              cus_name: true,
+              cus_phone_no: true
+            }
+          },
+          loader: {
+            select: {
+              loader_id: true,
+              loader_name: true,
+              loader_number: true,
+              loader_phone: true
+            }
+          },
+          split_payments: {
+            include: {
+              debit_account: true,
+              credit_account: true
+            }
+          },
+          updated_by_user: {
+            select: {
+              full_name: true,
+              role: true
+            }
           }
-        });
+        },
+        orderBy: {
+          created_at: 'desc'
+        }
+      });
 
-        return NextResponse.json(sales);
+      return NextResponse.json(sales);
       } catch (prismaError) {
         // If store_id column doesn't exist, use raw SQL
         if (prismaError.code === 'P2022' && prismaError.message?.includes('store_id')) {
@@ -224,12 +224,13 @@ export async function GET(request) {
           const saleIds = sales.map(s => s.sale_id);
           let saleDetails = [];
           if (saleIds.length > 0) {
-            saleDetails = await prisma.$queryRaw`
-              SELECT sd.*, p.pro_name, p.pro_stock_qnty
+            // Build IN clause manually for raw SQL
+            const placeholders = saleIds.map(() => '?').join(',');
+            const query = `SELECT sd.*, p.pro_name, p.pro_stock_qnty
               FROM sale_details sd
               LEFT JOIN products p ON sd.pro_id = p.pro_id
-              WHERE sd.sale_id IN (${saleIds.join(',')})
-            `;
+              WHERE sd.sale_id IN (${placeholders})`;
+            saleDetails = await prisma.$queryRawUnsafe(query, ...saleIds);
           }
           
           // Group sale_details by sale_id
@@ -343,22 +344,22 @@ export async function POST(request) {
       let sale;
       try {
         sale = await tx.sale.create({
-          data: {
-            cus_id,
-            store_id: parseInt(store_id), // Added store_id
-            total_amount: parseFloat(total_amount),
-            discount: parseFloat(discount || 0),
-            payment: parseFloat(payment),
-            payment_type,
-            debit_account_id: debit_account_id || null,
-            credit_account_id: credit_account_id || null,
-            loader_id: loader_id || null,
-            shipping_amount: parseFloat(shipping_amount || 0),
-            bill_type: bill_type || 'BILL',
-            reference: reference || null,
-            updated_by
-          }
-        });
+        data: {
+          cus_id,
+          store_id: parseInt(store_id), // Added store_id
+          total_amount: parseFloat(total_amount),
+          discount: parseFloat(discount || 0),
+          payment: parseFloat(payment),
+          payment_type,
+          debit_account_id: debit_account_id || null,
+          credit_account_id: credit_account_id || null,
+          loader_id: loader_id || null,
+          shipping_amount: parseFloat(shipping_amount || 0),
+          bill_type: bill_type || 'BILL',
+          reference: reference || null,
+          updated_by
+        }
+      });
       } catch (storeIdError) {
         // If store_id column doesn't exist, use raw SQL to create sale without store_id
         if (storeIdError.code === 'P2022' && storeIdError.message?.includes('store_id')) {
@@ -403,17 +404,17 @@ export async function POST(request) {
       // Create sale details - try with store_id first, fallback to raw SQL if column doesn't exist
       const saleDetailPromises = sale_details.map(async detail => {
         const detailData = {
-          sale_id: sale.sale_id,
-          pro_id: detail.pro_id,
-          vehicle_no: detail.vehicle_no || null,
-          qnty: parseInt(detail.qnty),
-          unit: detail.unit,
-          unit_rate: parseFloat(detail.unit_rate),
-          total_amount: parseFloat(detail.total_amount),
-          discount: parseFloat(detail.discount || 0),
-          net_total: parseFloat(detail.total_amount) - parseFloat(detail.discount || 0),
-          cus_id,
-          updated_by: updated_by || null
+            sale_id: sale.sale_id,
+            pro_id: detail.pro_id,
+            vehicle_no: detail.vehicle_no || null,
+            qnty: parseInt(detail.qnty),
+            unit: detail.unit,
+            unit_rate: parseFloat(detail.unit_rate),
+            total_amount: parseFloat(detail.total_amount),
+            discount: parseFloat(detail.discount || 0),
+            net_total: parseFloat(detail.total_amount) - parseFloat(detail.discount || 0),
+            cus_id,
+            updated_by: updated_by || null
         };
 
         // Try with store_id first
