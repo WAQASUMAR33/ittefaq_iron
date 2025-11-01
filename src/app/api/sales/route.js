@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { updateStoreStock, getStoreStock, checkStockAvailability } from '../../../lib/storeStock';
+import { updateStoreStock, getStoreStock, checkStockAvailability } from '@/lib/storeStock';
 
 // Helper function to get special accounts
 async function getSpecialAccounts(tx) {

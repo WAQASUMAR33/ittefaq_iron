@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import prisma from '../../../lib/prisma';
+import prisma from '@/lib/prisma';
 import { 
   getStoreStock, 
   updateStoreStock, 
   getStoreStockSummary, 
   getLowStockProducts,
   transferStock 
-} from '../../../lib/storeStock';
+} from '@/lib/storeStock';
 
 // GET - Get store stock information
 export async function GET(request) {

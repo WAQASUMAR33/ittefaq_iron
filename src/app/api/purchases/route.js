@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { updateStoreStock } from '../../../lib/storeStock';
+import { updateStoreStock } from '@/lib/storeStock';
 
 // Helper for JSON errors
 function errorResponse(message, status = 400) {

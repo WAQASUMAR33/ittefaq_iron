@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { updateStoreStock } from '../../../lib/storeStock';
+import { updateStoreStock } from '@/lib/storeStock';
 
 const prisma = new PrismaClient();
 
