@@ -598,7 +598,20 @@ export async function POST(request) {
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     console.error('Error creating sale:', error);
-    return NextResponse.json({ error: 'Failed to create sale' }, { status: 500 });
+    const errorMessage = error.message || 'Failed to create sale';
+    
+    // Provide more specific error messages
+    if (error.message && error.message.includes('store_id')) {
+      return NextResponse.json({ 
+        error: 'Prisma client needs to be regenerated. Run: npx prisma generate',
+        details: errorMessage
+      }, { status: 500 });
+    }
+    
+    return NextResponse.json({ 
+      error: errorMessage,
+      type: error.name || 'UnknownError'
+    }, { status: 500 });
   }
 }
 
