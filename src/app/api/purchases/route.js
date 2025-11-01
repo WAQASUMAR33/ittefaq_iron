@@ -727,10 +727,7 @@ export async function PUT(request) {
             trnx_type: 'CASH',
             details: `Purchase Update from ${supplierData?.cus_name || 'Supplier'} - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
             payments: 0,
-            updated_by: updated_by || existingPurchase.updated_by,
-            customer: {
-              connect: { cus_id: cus_id }
-            }
+            updated_by: updated_by || existingPurchase.updated_by
           }
         });
 
@@ -784,10 +781,7 @@ export async function PUT(request) {
               trnx_type: 'CASH',
               details: `Cash Payment to ${supplierData?.cus_name || 'Supplier'} - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
               payments: parseFloat(payment || 0),
-              updated_by: updated_by || existingPurchase.updated_by,
-              customer: {
-                connect: { cus_id: cus_id }
-              }
+              updated_by: updated_by || existingPurchase.updated_by
             }
           });
 
@@ -830,8 +824,7 @@ export async function PUT(request) {
               trnx_type: 'BANK_TRANSFER',
               details: `Bank Payment to ${supplierData?.cus_name || 'Supplier'} - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
               payments: parseFloat(payment || 0),
-              updated_by: updated_by || existingPurchase.updated_by,
-              customer: { connect: { cus_id: cus_id } }
+              updated_by: updated_by || existingPurchase.updated_by
             }
           });
 
