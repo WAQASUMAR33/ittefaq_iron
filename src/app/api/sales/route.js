@@ -213,39 +213,95 @@ export async function GET(request) {
           console.warn('⚠️ store_id column not found in GET, using raw SQL fallback');
           const sales = await prisma.$queryRaw`
             SELECT s.*, 
-              c.cus_id as customer_cus_id, c.cus_name as customer_cus_name, 
-              c.cus_phone_no as customer_cus_phone_no
+              c.cus_id as cus_id, c.cus_name as cus_name, 
+              c.cus_phone_no as cus_phone_no, c.cus_category as cus_category,
+              c.cus_type as cus_type, c.cus_balance as cus_balance,
+              c.cus_address as cus_address, c.cus_reference as cus_reference
             FROM sales s
             LEFT JOIN customers c ON s.cus_id = c.cus_id
             ORDER BY s.created_at DESC
           `;
           
           // Fetch sale_details for all sales
-          const saleIds = sales.map(s => s.sale_id);
+          const saleIds = sales.map(s => s.sale_id).filter(id => id != null);
           let saleDetails = [];
           if (saleIds.length > 0) {
             // Build IN clause manually for raw SQL
             const placeholders = saleIds.map(() => '?').join(',');
-            const query = `SELECT sd.*, p.pro_name, p.pro_stock_qnty
+            const query = `SELECT sd.*, p.pro_name, p.pro_stock_qnty, 
+              cat.cat_name, sub.sub_cat_name
               FROM sale_details sd
               LEFT JOIN products p ON sd.pro_id = p.pro_id
+              LEFT JOIN categories cat ON p.cat_id = cat.cat_id
+              LEFT JOIN subcategories sub ON p.sub_cat_id = sub.sub_cat_id
               WHERE sd.sale_id IN (${placeholders})`;
             saleDetails = await prisma.$queryRawUnsafe(query, ...saleIds);
           }
           
-          // Group sale_details by sale_id
+          // Fetch customer categories for nested structure
+          const customerCategoryIds = [...new Set(sales.map(s => s.cus_category).filter(id => id != null))];
+          let customerCategories = [];
+          if (customerCategoryIds.length > 0) {
+            const catPlaceholders = customerCategoryIds.map(() => '?').join(',');
+            const catQuery = `SELECT * FROM customer_categories WHERE cus_category_id IN (${catPlaceholders})`;
+            customerCategories = await prisma.$queryRawUnsafe(catQuery, ...customerCategoryIds);
+          }
+          
+          const categoriesMap = {};
+          customerCategories.forEach(cat => {
+            categoriesMap[cat.cus_category_id] = cat;
+          });
+          
+          // Group sale_details by sale_id and format properly
           const detailsBySaleId = {};
           saleDetails.forEach(detail => {
             if (!detailsBySaleId[detail.sale_id]) {
               detailsBySaleId[detail.sale_id] = [];
             }
-            detailsBySaleId[detail.sale_id].push(detail);
+            detailsBySaleId[detail.sale_id].push({
+              ...detail,
+              product: detail.pro_name ? {
+                pro_id: detail.pro_id,
+                pro_name: detail.pro_name,
+                pro_stock_qnty: detail.pro_stock_qnty,
+                category: detail.cat_name ? { cat_name: detail.cat_name } : null,
+                sub_category: detail.sub_cat_name ? { sub_cat_name: detail.sub_cat_name } : null
+              } : null
+            });
           });
           
-          // Attach sale_details to each sale
+          // Format sales to match Prisma structure
           const result = sales.map(sale => ({
-            ...sale,
-            sale_details: detailsBySaleId[sale.sale_id] || []
+            sale_id: sale.sale_id,
+            total_amount: sale.total_amount,
+            discount: sale.discount || 0,
+            payment: sale.payment,
+            payment_type: sale.payment_type,
+            shipping_amount: sale.shipping_amount || 0,
+            bill_type: sale.bill_type,
+            reference: sale.reference,
+            created_at: sale.created_at,
+            updated_at: sale.updated_at,
+            cus_id: sale.cus_id,
+            loader_id: sale.loader_id,
+            debit_account_id: sale.debit_account_id,
+            credit_account_id: sale.credit_account_id,
+            customer: sale.cus_name ? {
+              cus_id: sale.cus_id,
+              cus_name: sale.cus_name,
+              cus_phone_no: sale.cus_phone_no,
+              cus_category: sale.cus_category,
+              cus_type: sale.cus_type,
+              cus_balance: sale.cus_balance,
+              cus_address: sale.cus_address,
+              cus_reference: sale.cus_reference,
+              customer_category: categoriesMap[sale.cus_category] || null
+            } : null,
+            sale_details: detailsBySaleId[sale.sale_id] || [],
+            loader: null, // Can be fetched separately if needed
+            debit_account: null, // Can be fetched separately if needed
+            credit_account: null, // Can be fetched separately if needed
+            split_payments: [] // Can be fetched separately if needed
           }));
           
           return NextResponse.json(result);
