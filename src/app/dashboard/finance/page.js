@@ -22,6 +22,49 @@ import {
 } from 'lucide-react';
 import DashboardLayout from '../components/dashboard-layout';
 
+// Material-UI imports
+import { 
+  Box,
+  Container,
+  Typography,
+  Button,
+  TextField,
+  Card,
+  CardContent,
+  Grid,
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Chip,
+  Avatar,
+  CircularProgress,
+  Tooltip,
+  InputAdornment,
+  Stack,
+  Alert,
+  Snackbar,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Autocomplete,
+  Divider,
+  CardHeader,
+  CardActions,
+  TablePagination,
+  Chip as MuiChip,
+  LinearProgress
+} from '@mui/material';
+
 export default function FinancePage() {
   // State management
   const [ledgerEntries, setLedgerEntries] = useState([]);
@@ -273,358 +316,498 @@ export default function FinancePage() {
   if (loading) {
     return (
       <DashboardLayout>
-        <div className="flex items-center justify-center h-full">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-        </div>
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          height: '100%',
+          flexDirection: 'column',
+          gap: 2
+        }}>
+          <CircularProgress size={60} />
+          <Typography variant="body1" color="text.secondary">
+            Loading ledger entries...
+          </Typography>
+        </Box>
       </DashboardLayout>
     );
   }
 
   return (
     <DashboardLayout>
-      {/* Fixed Height Container with Overflow Hidden */}
-      <div className="h-full flex flex-col overflow-hidden">
-        {/* Fixed Header Section */}
-        <div className="flex-shrink-0 mb-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">Finance Management</h2>
-              <p className="text-gray-600 mt-1">Manage customer ledger entries, payments, and financial records</p>
-            </div>
-            <button
+      <Container maxWidth="xl" sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', p: 3 }}>
+        {/* Header Section */}
+        <Box sx={{ flexShrink: 0, mb: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Box>
+              <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
+                Finance Management
+              </Typography>
+              <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>
+                Manage customer ledger entries, payments, and financial records
+              </Typography>
+            </Box>
+            <Button
+              variant="contained"
+              startIcon={<Plus />}
               onClick={() => setShowLedgerForm(true)}
-              className="group bg-gradient-to-r from-green-500 to-emerald-500 text-white px-6 py-3 rounded-lg hover:from-green-600 hover:to-emerald-600 transition-all duration-200 font-medium shadow-md hover:shadow-lg transform hover:scale-105"
+              sx={{
+                background: 'linear-gradient(45deg, #4caf50, #2e7d32)',
+                '&:hover': {
+                  background: 'linear-gradient(45deg, #388e3c, #1b5e20)',
+                },
+                px: 3,
+                py: 1.5,
+                borderRadius: 0,
+                textTransform: 'none',
+                fontSize: '1rem',
+                fontWeight: 600,
+                boxShadow: 3,
+                '&:hover': {
+                  boxShadow: 6,
+                  transform: 'translateY(-2px)',
+                },
+                transition: 'all 0.2s ease-in-out'
+              }}
             >
-              <span className="flex items-center">
-                <Plus className="w-5 h-5 mr-2 group-hover:rotate-90 transition-transform duration-200" />
                 Add Ledger Entry
-              </span>
-            </button>
-          </div>
-        </div>
+            </Button>
+          </Box>
+        </Box>
 
-        {/* Fixed Filters Section */}
-        <div className="flex-shrink-0 mb-6">
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Filters & Sorting</h3>
-              <button
+        {/* Filters Section */}
+        <Box sx={{ flexShrink: 0, mb: 3 }}>
+          <Card sx={{ borderRadius: 0, boxShadow: 3 }}>
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  Filters & Sorting
+                </Typography>
+                <Button
                 onClick={clearFilters}
-                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                  size="small"
+                  sx={{ 
+                    color: 'primary.main',
+                    textTransform: 'none',
+                    fontWeight: 500
+                  }}
               >
                 Clear All Filters
-              </button>
-            </div>
+                </Button>
+              </Box>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Grid container spacing={3}>
               {/* Search */}
-              <div className="lg:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
-                <div className="relative">
-                  <input
-                    type="text"
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
                     placeholder="Search ledger entries..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
-                  />
-                  <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
-                </div>
-              </div>
-
-              {/* Account Filter */}
-              <div className="relative account-dropdown">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Account</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={accountSearchTerm}
-                    onChange={(e) => {
-                      setAccountSearchTerm(e.target.value);
-                      setShowAccountDropdown(true);
-                      if (!e.target.value) {
-                        setSelectedCustomer('');
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <Search size={20} />
+                        </InputAdornment>
+                      ),
+                    }}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: 0,
                       }
                     }}
-                    onFocus={() => setShowAccountDropdown(true)}
-                    onClick={() => setShowAccountDropdown(true)}
-                    placeholder="Search accounts..."
-                    className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
                   />
-                  {accountSearchTerm && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAccountSearchTerm('');
+                </Grid>
+
+              {/* Account Filter */}
+                <Grid item xs={12} md={3}>
+                  <Autocomplete
+                    options={filteredAccounts}
+                    getOptionLabel={(option) => option.cus_name}
+                    value={selectedCustomer ? customers.find(c => c.cus_id === selectedCustomer) : null}
+                    onChange={(event, newValue) => {
+                      if (newValue) {
+                        setSelectedCustomer(newValue.cus_id);
+                        setAccountSearchTerm(newValue.cus_name);
+                      } else {
                         setSelectedCustomer('');
-                        setShowAccountDropdown(false);
-                      }}
-                      className="absolute right-8 top-3 text-gray-400 hover:text-gray-600"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
-                  <Search className="w-4 h-4 text-gray-400 absolute right-3 top-3" />
-                  
-                  {/* Dropdown */}
-                  {showAccountDropdown && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                      <div
-                        onClick={() => {
-                          setSelectedCustomer('');
-                          setAccountSearchTerm('');
-                          setShowAccountDropdown(false);
+                        setAccountSearchTerm('');
+                      }
+                    }}
+                    inputValue={accountSearchTerm}
+                    onInputChange={(event, newInputValue) => {
+                      setAccountSearchTerm(newInputValue);
+                    }}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                    placeholder="Search accounts..."
+                        InputProps={{
+                          ...params.InputProps,
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <Search size={20} />
+                            </InputAdornment>
+                          ),
                         }}
-                        className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100"
-                      >
-                        <div className="font-medium text-gray-900">All Accounts</div>
-                      </div>
-                      {filteredAccounts.map((customer) => (
-                        <div
-                          key={customer.cus_id}
-                          onClick={() => {
-                            setSelectedCustomer(customer.cus_id);
-                            setAccountSearchTerm(customer.cus_name);
-                            setShowAccountDropdown(false);
-                          }}
-                          className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                        >
-                          <div className="font-medium text-gray-900">{customer.cus_name}</div>
-                          <div className="text-sm text-gray-500">
-                            {customer.cus_phone_no} {customer.cus_email && `• ${customer.cus_email}`}
-                          </div>
-                        </div>
-                      ))}
-                      {filteredAccounts.length === 0 && (
-                        <div className="px-4 py-3 text-gray-500 text-center">
-                          No accounts found
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
+                        sx={{
+                          minWidth: 300,
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 0,
+                          }
+                        }}
+                      />
+                    )}
+                    renderOption={(props, option) => (
+                      <Box component="li" {...props}>
+                        <Box>
+                          <Typography variant="body2" fontWeight="medium">
+                            {option.cus_name}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {option.cus_phone_no} {option.cus_email && `• ${option.cus_email}`}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    )}
+                    noOptionsText="No accounts found"
+                    clearOnEscape
+                    clearText="Clear"
+                  />
+                </Grid>
 
               {/* Sort */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
-                <select
+                <Grid item xs={12} md={3}>
+                  <FormControl fullWidth>
+                    <InputLabel>Sort By</InputLabel>
+                    <Select
                   value={`${sortBy}-${sortOrder}`}
                   onChange={(e) => {
                     const [field, order] = e.target.value.split('-');
                     setSortBy(field);
                     setSortOrder(order);
                   }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
-                >
-                  <option value="created_at-desc">Newest First</option>
-                  <option value="created_at-asc">Oldest First</option>
-                  <option value="customer-asc">Customer A-Z</option>
-                  <option value="customer-desc">Customer Z-A</option>
-                  <option value="debit_amount-desc">Debit High-Low</option>
-                  <option value="credit_amount-desc">Credit High-Low</option>
-                  <option value="closing_balance-desc">Balance High-Low</option>
-                </select>
-              </div>
-            </div>
-          </div>
-        </div>
+                      label="Sort By"
+                      sx={{
+                        borderRadius: 0,
+                      }}
+                    >
+                      <MenuItem value="created_at-desc">Newest First</MenuItem>
+                      <MenuItem value="created_at-asc">Oldest First</MenuItem>
+                      <MenuItem value="customer-asc">Customer A-Z</MenuItem>
+                      <MenuItem value="customer-desc">Customer Z-A</MenuItem>
+                      <MenuItem value="debit_amount-desc">Debit High-Low</MenuItem>
+                      <MenuItem value="credit_amount-desc">Credit High-Low</MenuItem>
+                      <MenuItem value="closing_balance-desc">Balance High-Low</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        </Box>
 
-        {/* Fixed Stats Cards Section */}
-        <div className="flex-shrink-0 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6">
-              <div className="flex items-center">
-                <div className="w-12 h-12 bg-gradient-to-r from-red-500 to-pink-500 rounded-xl flex items-center justify-center mr-4">
-                  <TrendingUp className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Total Debit</p>
-                  <p className="text-2xl font-bold text-gray-900">{totalDebit.toLocaleString()}</p>
-                </div>
-              </div>
-            </div>
+        {/* Stats Cards Section */}
+        <Box sx={{ flexShrink: 0, mb: 3 }}>
+          <Grid container spacing={3}>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ borderRadius: 0, boxShadow: 3, height: '100%' }}>
+                <CardContent sx={{ p: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Avatar sx={{ 
+                      bgcolor: 'error.main', 
+                      mr: 2, 
+                      width: 48, 
+                      height: 48,
+                      background: 'linear-gradient(45deg, #f44336, #d32f2f)'
+                    }}>
+                      <TrendingUp size={24} />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+                        Total Debit
+                      </Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+                        {totalDebit.toLocaleString()}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
 
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6">
-              <div className="flex items-center">
-                <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl flex items-center justify-center mr-4">
-                  <TrendingDown className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Total Credit</p>
-                  <p className="text-2xl font-bold text-gray-900">{totalCredit.toLocaleString()}</p>
-                </div>
-              </div>
-            </div>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ borderRadius: 0, boxShadow: 3, height: '100%' }}>
+                <CardContent sx={{ p: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Avatar sx={{ 
+                      bgcolor: 'success.main', 
+                      mr: 2, 
+                      width: 48, 
+                      height: 48,
+                      background: 'linear-gradient(45deg, #4caf50, #2e7d32)'
+                    }}>
+                      <TrendingDown size={24} />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+                        Total Credit
+                      </Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+                        {totalCredit.toLocaleString()}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
 
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6">
-              <div className="flex items-center">
-                <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center mr-4">
-                  <DollarSign className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Total Payments</p>
-                  <p className="text-2xl font-bold text-gray-900">{totalPayments.toLocaleString()}</p>
-                </div>
-              </div>
-            </div>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ borderRadius: 0, boxShadow: 3, height: '100%' }}>
+                <CardContent sx={{ p: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Avatar sx={{ 
+                      bgcolor: 'primary.main', 
+                      mr: 2, 
+                      width: 48, 
+                      height: 48,
+                      background: 'linear-gradient(45deg, #2196f3, #1976d2)'
+                    }}>
+                      <DollarSign size={24} />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+                        Total Payments
+                      </Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+                        {totalPayments.toLocaleString()}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
 
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6">
-              <div className="flex items-center">
-                <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-indigo-500 rounded-xl flex items-center justify-center mr-4">
-                  <Receipt className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Current Balance</p>
-                  <p className="text-2xl font-bold text-gray-900">{currentBalance.toLocaleString()}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ borderRadius: 0, boxShadow: 3, height: '100%' }}>
+                <CardContent sx={{ p: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Avatar sx={{ 
+                      bgcolor: 'secondary.main', 
+                      mr: 2, 
+                      width: 48, 
+                      height: 48,
+                      background: 'linear-gradient(45deg, #9c27b0, #7b1fa2)'
+                    }}>
+                      <Receipt size={24} />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+                        Current Balance
+                      </Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+                        {currentBalance.toLocaleString()}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        </Box>
 
-        {/* Flexible Table Section - Only This Scrolls */}
-        <div className="flex-1 min-h-0">
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 h-full flex flex-col">
-            {/* Fixed Table Header */}
-            <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">Ledger Entries</h3>
-              <span className="text-sm text-gray-500">
+        {/* Table Section */}
+        <Box sx={{ flex: 1, minHeight: 0 }}>
+          <Card sx={{ borderRadius: 0, boxShadow: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
+            {/* Table Header */}
+            <CardHeader
+              title="Ledger Entries"
+              action={
+                <Typography variant="body2" color="text.secondary">
                 Showing {finalLedgerEntries.length} of {ledgerEntries.length} entries
-              </span>
-            </div>
+                </Typography>
+              }
+              sx={{ borderBottom: 1, borderColor: 'divider' }}
+            />
             
             {finalLedgerEntries.length === 0 ? (
-              <div className="flex-1 flex items-center justify-center">
-                <div className="text-center">
-                  <Receipt className="mx-auto h-12 w-12 text-gray-400" />
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">No ledger entries found</h3>
-                  <p className="mt-1 text-sm text-gray-500">
+              <Box sx={{ 
+                flex: 1, 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                flexDirection: 'column',
+                gap: 2
+              }}>
+                <Receipt size={48} color="#9e9e9e" />
+                <Typography variant="h6" color="text.secondary">
+                  No ledger entries found
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
                     {searchTerm || selectedCustomer
                       ? 'Try adjusting your filters to see more results.'
                       : 'Get started by adding your first ledger entry.'}
-                  </p>
-                </div>
-              </div>
+                </Typography>
+              </Box>
             ) : (
-              <div className="flex-1 flex flex-col min-h-0">
-                {/* Fixed Column Headers */}
-                <div className="flex-shrink-0 bg-gray-50 border-b border-gray-200">
-                  <div className="grid grid-cols-12 gap-4 px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <div className="col-span-2">Entry</div>
-                    <div className="col-span-2">Customer</div>
-                    <div className="col-span-1">Pre Balance</div>
-                    <div className="col-span-1">Debit</div>
-                    <div className="col-span-1">Credit</div>
-                    <div className="col-span-1">Balance</div>
-                    <div className="col-span-1">Type</div>
-                    <div className="col-span-1">Created</div>
-                    <div className="col-span-2">Actions</div>
-                  </div>
-                </div>
-                
-                {/* Scrollable Table Body */}
-                <div className="flex-1 overflow-y-auto">
-                  <div className="divide-y divide-gray-200">
-                    {finalLedgerEntries.map((entry) => {
-                      return (
-                        <div key={entry.l_id} className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-gray-50 transition-colors duration-200">
+              <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                <TableContainer sx={{ flex: 1 }}>
+                  <Table stickyHeader>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600 }}>Entry</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Customer</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Pre Balance</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Debit</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Credit</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Balance</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Created</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {finalLedgerEntries.map((entry) => (
+                        <TableRow key={entry.l_id} hover>
                           {/* Entry */}
-                          <div className="col-span-2 flex items-center">
-                            <div>
-                              <div className="text-sm font-medium text-gray-900">Entry #{entry.sequentialId}</div>
-                              <div className="text-xs text-gray-500">ID: {entry.l_id.toString().slice(-8)}</div>
-                            </div>
-                          </div>
+                          <TableCell>
+                            <Box>
+                              <Typography variant="body2" fontWeight="medium">
+                                Entry #{entry.sequentialId}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                ID: {entry.l_id.toString().slice(-8)}
+                              </Typography>
+                            </Box>
+                          </TableCell>
 
                           {/* Customer */}
-                          <div className="col-span-2 flex items-center">
-                            <div>
-                              <div className="text-sm font-medium text-gray-900">{entry.customer?.cus_name || 'N/A'}</div>
-                              <div className="text-xs text-gray-500">{entry.customer?.cus_phone_no || 'N/A'}</div>
-                            </div>
-                          </div>
+                          <TableCell>
+                            <Box>
+                              <Typography variant="body2" fontWeight="medium">
+                                {entry.customer?.cus_name || 'N/A'}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {entry.customer?.cus_phone_no || 'N/A'}
+                              </Typography>
+                            </Box>
+                          </TableCell>
 
                           {/* Pre Balance */}
-                          <div className="col-span-1 flex items-center">
-                            <div className="text-sm font-medium text-gray-700">
+                          <TableCell>
+                            <Typography variant="body2">
                               {parseFloat(entry.opening_balance).toFixed(2)}
-                            </div>
-                          </div>
+                            </Typography>
+                          </TableCell>
 
                           {/* Debit */}
-                          <div className="col-span-1 flex items-center">
-                            <div className="text-sm font-semibold text-red-600">
+                          <TableCell>
+                            <Typography variant="body2" color="error.main" fontWeight="medium">
                               {parseFloat(entry.debit_amount).toFixed(2)}
-                            </div>
-                          </div>
+                            </Typography>
+                          </TableCell>
 
                           {/* Credit */}
-                          <div className="col-span-1 flex items-center">
-                            <div className="text-sm font-semibold text-green-600">
+                          <TableCell>
+                            <Typography variant="body2" color="success.main" fontWeight="medium">
                               {parseFloat(entry.credit_amount).toFixed(2)}
-                            </div>
-                          </div>
+                            </Typography>
+                          </TableCell>
 
                           {/* Balance */}
-                          <div className="col-span-1 flex items-center">
-                            <div className="text-sm font-medium text-gray-900">
+                          <TableCell>
+                            <Typography variant="body2" fontWeight="medium">
                               {parseFloat(entry.closing_balance).toFixed(2)}
-                            </div>
-                          </div>
+                            </Typography>
+                          </TableCell>
 
                           {/* Type */}
-                          <div className="col-span-1 flex items-center">
-                            <div className="text-sm text-gray-900">{entry.trnx_type}</div>
-                          </div>
+                          <TableCell>
+                            <Chip 
+                              label={entry.trnx_type} 
+                              size="small" 
+                              variant="outlined"
+                              color={
+                                entry.trnx_type === 'CASH' ? 'primary' :
+                                entry.trnx_type === 'BANK_TRANSFER' ? 'secondary' : 'default'
+                              }
+                            />
+                          </TableCell>
 
                           {/* Created */}
-                          <div className="col-span-1 flex items-center">
-                            <div className="text-sm text-gray-900">
+                          <TableCell>
+                            <Typography variant="body2">
                               {new Date(entry.created_at).toLocaleDateString()}
-                            </div>
-                          </div>
+                            </Typography>
+                          </TableCell>
 
                           {/* Actions */}
-                          <div className="col-span-2 flex items-center">
-                            <div className="flex items-center space-x-2">
-                              <button
+                          <TableCell>
+                            <Box sx={{ display: 'flex', gap: 1 }}>
+                              <Tooltip title="Edit Entry">
+                                <IconButton
+                                  size="small"
                                 onClick={() => handleEdit(entry)}
-                                className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-colors duration-200"
-                                title="Edit Entry"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </button>
-                              <button
+                                  sx={{ color: 'primary.main' }}
+                                >
+                                  <Edit size={16} />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Delete Entry">
+                                <IconButton
+                                  size="small"
                                 onClick={() => handleDelete(entry.l_id)}
-                                className="p-2 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-colors duration-200"
-                                title="Delete Entry"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
+                                  sx={{ color: 'error.main' }}
+                                >
+                                  <Trash2 size={16} />
+                                </IconButton>
+                              </Tooltip>
+                            </Box>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Box>
             )}
-          </div>
-        </div>
-      </div>
+          </Card>
+        </Box>
+      </Container>
 
       {/* Ledger Form Modal */}
-      {showLedgerForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-gray-900">
+      <Dialog
+        open={showLedgerForm}
+        onClose={() => {
+          setShowLedgerForm(false);
+          setEditingLedger(null);
+          setFormData({
+            cus_id: '',
+            debit_amount: '',
+            credit_amount: '',
+            bill_no: '',
+            trnx_type: 'CASH',
+            details: '',
+            payments: ''
+          });
+          setCustomerSearchTerm('');
+        }}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: { borderRadius: 0 }
+        }}
+      >
+        <DialogTitle sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between',
+          pb: 2
+        }}>
+          <Typography variant="h5" component="h2" sx={{ fontWeight: 'bold' }}>
                   {editingLedger ? 'Edit Ledger Entry' : 'Add New Ledger Entry'}
-                </h3>
-                <button
+          </Typography>
+          <IconButton
                   onClick={() => {
                     setShowLedgerForm(false);
                     setEditingLedger(null);
@@ -639,194 +822,231 @@ export default function FinancePage() {
                     });
                     setCustomerSearchTerm('');
                   }}
-                  className="p-2 text-gray-400 hover:text-gray-600 rounded-lg transition-colors duration-200"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+            sx={{ color: 'text.secondary' }}
+          >
+            <X size={20} />
+          </IconButton>
+        </DialogTitle>
+        
+        <DialogContent sx={{ pt: 2 }}>
 
-              <form onSubmit={handleSubmit} className="space-y-6">
+          <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                 {/* Account Selection */}
-                <div className="relative customer-dropdown">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Account *
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={customerSearchTerm}
-                      onChange={(e) => {
-                        setCustomerSearchTerm(e.target.value);
-                        setShowCustomerDropdown(true);
-                        if (!e.target.value) {
+            <Autocomplete
+              options={filteredCustomers}
+              getOptionLabel={(option) => option.cus_name}
+              value={formData.cus_id ? customers.find(c => c.cus_id === formData.cus_id) : null}
+              onChange={(event, newValue) => {
+                if (newValue) {
+                  setFormData(prev => ({ ...prev, cus_id: newValue.cus_id }));
+                  setCustomerSearchTerm(newValue.cus_name);
+                } else {
                           setFormData(prev => ({ ...prev, cus_id: '' }));
-                        }
-                      }}
-                      onFocus={() => setShowCustomerDropdown(true)}
+                  setCustomerSearchTerm('');
+                }
+              }}
+              inputValue={customerSearchTerm}
+              onInputChange={(event, newInputValue) => {
+                setCustomerSearchTerm(newInputValue);
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Account *"
                       placeholder="Search accounts..."
-                      className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-black"
-                    />
-                    <Search className="w-4 h-4 text-gray-400 absolute right-3 top-4" />
-                    
-                    {/* Dropdown */}
-                    {showCustomerDropdown && (
-                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-xl shadow-lg max-h-60 overflow-y-auto">
-                        {filteredCustomers.length > 0 ? (
-                          filteredCustomers.map((customer) => (
-                            <div
-                              key={customer.cus_id}
-                              onClick={() => selectCustomer(customer)}
-                              className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                            >
-                              <div className="font-medium text-gray-900">{customer.cus_name}</div>
-                              <div className="text-sm text-gray-500">
-                                {customer.cus_phone_no} {customer.cus_email && `• ${customer.cus_email}`}
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="px-4 py-3 text-gray-500 text-center">
-                            No accounts found
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  required
+                  InputProps={{
+                    ...params.InputProps,
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Search size={20} />
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={{
+                    minWidth: 300,
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 0,
+                    }
+                  }}
+                />
+              )}
+              renderOption={(props, option) => (
+                <Box component="li" {...props}>
+                  <Box>
+                    <Typography variant="body2" fontWeight="medium">
+                      {option.cus_name}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {option.cus_phone_no} {option.cus_email && `• ${option.cus_email}`}
+                    </Typography>
+                  </Box>
+                </Box>
+              )}
+              noOptionsText="No accounts found"
+              clearOnEscape
+              clearText="Clear"
+            />
                   
                   {/* Selected Customer Display */}
                   {formData.cus_id && getSelectedCustomer() && (
-                    <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-medium text-green-800">{getSelectedCustomer().cus_name}</div>
-                          <div className="text-sm text-green-600">
-                            {getSelectedCustomer().cus_phone_no} {getSelectedCustomer().cus_email && `• ${getSelectedCustomer().cus_email}`}
-                          </div>
-                        </div>
-                        <button
-                          type="button"
+              <Alert 
+                severity="success" 
+                action={
+                  <IconButton
+                    size="small"
                           onClick={() => {
                             setFormData(prev => ({ ...prev, cus_id: '' }));
                             setCustomerSearchTerm('');
                           }}
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                    sx={{ color: 'error.main' }}
+                  >
+                    <X size={16} />
+                  </IconButton>
+                }
+              >
+                <Typography variant="body2" fontWeight="medium">
+                  {getSelectedCustomer().cus_name}
+                </Typography>
+                <Typography variant="caption">
+                  {getSelectedCustomer().cus_phone_no} {getSelectedCustomer().cus_email && `• ${getSelectedCustomer().cus_email}`}
+                </Typography>
+              </Alert>
+            )}
 
                 {/* Amount Fields */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Grid container spacing={3}>
                   {/* Debit Amount */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Debit Amount
-                    </label>
-                    <input
-                      type="number"
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Debit Amount"
                       name="debit_amount"
+                  type="number"
                       value={formData.debit_amount}
                       onChange={handleInputChange}
-                      step="0.01"
-                      min="0"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all duration-200 text-black"
+                  inputProps={{ step: 0.01, min: 0 }}
                       placeholder="0.00"
-                    />
-                  </div>
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 0,
+                      '&:hover fieldset': {
+                        borderColor: 'error.main',
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: 'error.main',
+                      },
+                    },
+                  }}
+                />
+              </Grid>
 
                   {/* Credit Amount */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Credit Amount
-                    </label>
-                    <input
-                      type="number"
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Credit Amount"
                       name="credit_amount"
+                  type="number"
                       value={formData.credit_amount}
                       onChange={handleInputChange}
-                      step="0.01"
-                      min="0"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-black"
+                  inputProps={{ step: 0.01, min: 0 }}
                       placeholder="0.00"
-                    />
-                  </div>
-                </div>
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 0,
+                      '&:hover fieldset': {
+                        borderColor: 'success.main',
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: 'success.main',
+                      },
+                    },
+                  }}
+                />
+              </Grid>
+            </Grid>
 
                 {/* Transaction Type and Bill No */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Grid container spacing={3}>
                   {/* Transaction Type */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Transaction Type *
-                    </label>
-                    <select
+              <Grid item xs={12} md={6}>
+                <FormControl fullWidth required>
+                  <InputLabel>Transaction Type</InputLabel>
+                  <Select
                       name="trnx_type"
                       value={formData.trnx_type}
                       onChange={handleInputChange}
-                      required
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-black"
-                    >
-                      <option value="CASH">Cash</option>
-                      <option value="CHEQUE">Cheque</option>
-                      <option value="BANK_TRANSFER">Bank Transfer</option>
-                    </select>
-                  </div>
+                    label="Transaction Type"
+                    sx={{
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        borderRadius: 0,
+                      }
+                    }}
+                  >
+                    <MenuItem value="CASH">Cash</MenuItem>
+                    <MenuItem value="CHEQUE">Cheque</MenuItem>
+                    <MenuItem value="BANK_TRANSFER">Bank Transfer</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
 
                   {/* Bill No */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Bill Number
-                    </label>
-                    <input
-                      type="text"
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Bill Number"
                       name="bill_no"
                       value={formData.bill_no}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-black"
                       placeholder="Enter bill number"
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 0,
+                    }
+                  }}
                     />
-                  </div>
-                </div>
+              </Grid>
+            </Grid>
 
                 {/* Details */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Details
-                  </label>
-                  <textarea
+            <TextField
+              fullWidth
+              label="Details"
                     name="details"
                     value={formData.details}
                     onChange={handleInputChange}
+              multiline
                     rows={3}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-black"
                     placeholder="Enter transaction details"
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 0,
+                }
+              }}
                   />
-                </div>
 
                 {/* Payments */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Payments
-                  </label>
-                  <input
-                    type="number"
+            <TextField
+              fullWidth
+              label="Payments"
                     name="payments"
+              type="number"
                     value={formData.payments}
                     onChange={handleInputChange}
-                    step="0.01"
-                    min="0"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-black"
+              inputProps={{ step: 0.01, min: 0 }}
                     placeholder="0.00"
-                  />
-                </div>
-
-                {/* Form Actions */}
-                <div className="flex items-center justify-end space-x-4 pt-6 border-t border-gray-200">
-                  <button
-                    type="button"
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 0,
+                }
+              }}
+            />
+          </Box>
+        </DialogContent>
+        
+        <DialogActions sx={{ p: 3, pt: 1 }}>
+          <Button
                     onClick={() => {
                       setShowLedgerForm(false);
                       setEditingLedger(null);
@@ -841,22 +1061,36 @@ export default function FinancePage() {
                       });
                       setCustomerSearchTerm('');
                     }}
-                    className="px-6 py-3 text-gray-600 hover:text-gray-800 font-medium transition-colors duration-200"
+            sx={{ textTransform: 'none', fontWeight: 500 }}
                   >
                     Cancel
-                  </button>
-                  <button
+          </Button>
+          <Button
                     type="submit"
-                    className="px-8 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-medium rounded-xl hover:from-blue-600 hover:to-purple-600 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105"
+            variant="contained"
+            onClick={handleSubmit}
+            sx={{
+              background: 'linear-gradient(45deg, #2196f3, #9c27b0)',
+              '&:hover': {
+                background: 'linear-gradient(45deg, #1976d2, #7b1fa2)',
+              },
+              px: 4,
+              py: 1.5,
+              borderRadius: 0,
+              textTransform: 'none',
+              fontWeight: 600,
+              boxShadow: 3,
+              '&:hover': {
+                boxShadow: 6,
+                transform: 'translateY(-2px)',
+              },
+              transition: 'all 0.2s ease-in-out'
+            }}
                   >
                     {editingLedger ? 'Update Entry' : 'Create Entry'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </DashboardLayout>
   );
 }

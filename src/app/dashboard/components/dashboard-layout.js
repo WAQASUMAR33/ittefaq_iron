@@ -175,7 +175,7 @@ export default function DashboardLayout({ children }) {
               flexGrow: 1,
               overflow: 'auto',
               bgcolor: 'background.default',
-              p: { xs: 2, sm: 3, lg: 4 }
+              p: 0
             }}
           >
             {children}

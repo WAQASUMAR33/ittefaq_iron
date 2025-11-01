@@ -495,6 +495,12 @@ export default function CustomersPage() {
     return 'text-gray-600';
   };
 
+  // Get customer type title from ID
+  const getCustomerTypeTitle = (typeId) => {
+    const customerType = customerTypes.find(type => type.cus_type_id === typeId);
+    return customerType ? customerType.cus_type_title : typeId || 'Unknown';
+  };
+
   // Get unique categories for filter dropdown
   const categories = [...new Set(customers.map(c => c.customer_category?.cus_cat_title || c.cus_category))];
 
@@ -940,7 +946,7 @@ export default function CustomersPage() {
                       </TableCell>
                       <TableCell>
                         <Chip 
-                          label={customer.cus_type}
+                          label={getCustomerTypeTitle(customer.cus_type)}
                           size="small"
                           sx={{
                             backgroundColor: getTypeColor(customer.cus_type).includes('yellow') ? '#fef3c7' :
@@ -1213,8 +1219,17 @@ export default function CustomersPage() {
                         title: type.cus_type_title
                       }))
                     ]}
-                    getOptionLabel={(option) => option.title}
-                    value={customerTypes.find(type => type.cus_type_id === formData.cus_type) || { id: '', title: 'Select a type' }}
+                    getOptionLabel={(option) => option.title || ''}
+                    value={(() => {
+                      const options = [
+                        { id: '', title: 'Select a type' },
+                        ...customerTypes.map(type => ({
+                          id: type.cus_type_id,
+                          title: type.cus_type_title
+                        }))
+                      ];
+                      return options.find(option => option.id === formData.cus_type) || { id: '', title: 'Select a type' };
+                    })()}
                     onChange={(event, newValue) => {
                       setFormData(prev => ({
                         ...prev,
@@ -1250,11 +1265,10 @@ export default function CustomersPage() {
                         maxHeight: '200px'
                       }
                     }}
-                    sx={{
-                      '& .MuiAutocomplete-popper': {
-                        width: '300px !important',
-                        '& .MuiAutocomplete-listbox': {
-                          width: '300px !important'
+                    slotProps={{
+                      popper: {
+                        style: {
+                          width: '300px'
                         }
                       }
                     }}
@@ -1272,8 +1286,17 @@ export default function CustomersPage() {
                         title: category.cus_cat_title
                       }))
                     ]}
-                    getOptionLabel={(option) => option.title}
-                    value={customerCategories.find(category => category.cus_cat_id === formData.cus_category) || { id: '', title: 'Select a category' }}
+                    getOptionLabel={(option) => option.title || ''}
+                    value={(() => {
+                      const options = [
+                        { id: '', title: 'Select a category' },
+                        ...customerCategories.map(category => ({
+                          id: category.cus_cat_id,
+                          title: category.cus_cat_title
+                        }))
+                      ];
+                      return options.find(option => option.id === formData.cus_category) || { id: '', title: 'Select a category' };
+                    })()}
                     onChange={(event, newValue) => {
                       setFormData(prev => ({
                         ...prev,
@@ -1309,11 +1332,10 @@ export default function CustomersPage() {
                         maxHeight: '200px'
                       }
                     }}
-                    sx={{
-                      '& .MuiAutocomplete-popper': {
-                        width: '300px !important',
-                        '& .MuiAutocomplete-listbox': {
-                          width: '300px !important'
+                    slotProps={{
+                      popper: {
+                        style: {
+                          width: '300px'
                         }
                       }
                     }}
@@ -1392,8 +1414,17 @@ export default function CustomersPage() {
                         name: city.city_name
                       }))
                     ]}
-                    getOptionLabel={(option) => option.name}
-                    value={cities.find(city => city.city_id === formData.city_id) || { id: '', name: 'Select a city' }}
+                    getOptionLabel={(option) => option.name || ''}
+                    value={(() => {
+                      const options = [
+                        { id: '', name: 'Select a city' },
+                        ...cities.map(city => ({
+                          id: city.city_id,
+                          name: city.city_name
+                        }))
+                      ];
+                      return options.find(option => option.id === formData.city_id) || { id: '', name: 'Select a city' };
+                    })()}
                     onChange={(event, newValue) => {
                       setFormData(prev => ({
                         ...prev,
@@ -1428,11 +1459,10 @@ export default function CustomersPage() {
                         maxHeight: '200px'
                       }
                     }}
-                    sx={{
-                      '& .MuiAutocomplete-popper': {
-                        width: '100% !important',
-                        '& .MuiAutocomplete-listbox': {
-                          width: '100% !important'
+                    slotProps={{
+                      popper: {
+                        style: {
+                          width: '100%'
                         }
                       }
                     }}

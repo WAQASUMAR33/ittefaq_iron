@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { updateStoreStock } from '../../../lib/storeStock';
 
 const prisma = new PrismaClient();
 
@@ -209,19 +210,12 @@ export async function POST(request) {
 
       await Promise.all(returnDetailPromises);
 
-      // Restore product stock quantities
-      const stockRestorePromises = return_details.map(detail => 
-        tx.product.update({
-          where: { pro_id: detail.pro_id },
-          data: {
-            pro_stock_qnty: {
-              increment: parseInt(detail.qnty)
-            }
-          }
-        })
-      );
+      // Restore store stock quantities
+      const storeStockRestorePromises = return_details.map(async detail => {
+        await updateStoreStock(sale.store_id, detail.pro_id, parseInt(detail.qnty), 'increment', updated_by);
+      });
 
-      await Promise.all(stockRestorePromises);
+      await Promise.all(storeStockRestorePromises);
 
       // Create ledger entries (reverse of sale)
       // Credit entry for return (reduce customer debt)
@@ -318,19 +312,12 @@ export async function DELETE(request) {
         throw new Error('Sale return not found');
       }
 
-      // Reverse product stock quantities
-      const stockReversePromises = existingReturn.return_details.map(detail => 
-        tx.product.update({
-          where: { pro_id: detail.pro_id },
-          data: {
-            pro_stock_qnty: {
-              decrement: detail.qnty
-            }
-          }
-        })
-      );
+      // Reverse store stock quantities
+      const storeStockReversePromises = existingReturn.return_details.map(async detail => {
+        await updateStoreStock(existingReturn.sale.store_id, detail.pro_id, detail.qnty, 'decrement', updated_by);
+      });
 
-      await Promise.all(stockReversePromises);
+      await Promise.all(storeStockReversePromises);
 
       // If loader was involved, add back shipping amount to loader balance
       if (existingReturn.loader_id && parseFloat(existingReturn.shipping_amount || 0) > 0) {

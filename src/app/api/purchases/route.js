@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import prisma from '@/lib/prisma';
+import { updateStoreStock } from '../../../lib/storeStock';
 
 // Helper for JSON errors
 function errorResponse(message, status = 400) {
@@ -103,17 +104,34 @@ export async function POST(request) {
       cus_id, 
       store_id,
       debit_account_id,
-      credit_account_id,
       total_amount, 
       unloading_amount = 0, 
       fare_amount = 0, 
+      transport_amount = 0,
+      labour_amount = 0,
       discount = 0, 
       payment, 
       payment_type, 
+      cash_payment = 0,
+      bank_payment = 0,
       vehicle_no,
+      invoice_number,
       updated_by,
       purchase_details = []
     } = body;
+    
+    let { credit_account_id } = body;
+
+    // Helper function to safely parse numbers and avoid NaN
+    const safeParseFloat = (value, defaultValue = 0) => {
+      const parsed = parseFloat(value);
+      return isNaN(parsed) ? defaultValue : parsed;
+    };
+
+    const safeParseInt = (value, defaultValue = null) => {
+      const parsed = parseInt(value);
+      return isNaN(parsed) ? defaultValue : parsed;
+    };
 
     // Validation for required fields
     if (!cus_id) {
@@ -122,15 +140,46 @@ export async function POST(request) {
     if (!total_amount || total_amount <= 0) {
       return errorResponse('Total amount is required and must be greater than 0');
     }
-    if (!payment || payment < 0) {
-      return errorResponse('Payment amount is required and must be non-negative');
+    
+    // Validate payment amounts
+    const cashPaymentAmount = safeParseFloat(cash_payment);
+    const bankPaymentAmount = safeParseFloat(bank_payment);
+    const totalPaymentAmount = cashPaymentAmount + bankPaymentAmount;
+    
+    if (totalPaymentAmount < 0) {
+      return errorResponse('Total payment amount must be non-negative');
     }
-    if (!payment_type || !['CASH', 'CHEQUE', 'BANK_TRANSFER'].includes(payment_type)) {
+    
+    // Determine payment type based on split payments
+    // Note: Using BANK_TRANSFER for split payments since SPLIT is not in PaymentType enum
+    let actualPaymentType = 'CASH';
+    let isSplitPayment = false;
+    
+    if (cashPaymentAmount > 0 && bankPaymentAmount > 0) {
+      actualPaymentType = 'BANK_TRANSFER'; // Use BANK_TRANSFER for split payments
+      isSplitPayment = true;
+    } else if (bankPaymentAmount > 0) {
+      actualPaymentType = 'BANK_TRANSFER';
+    }
+    
+    console.log('💳 Payment Type Logic:', {
+      frontend_payment_type: payment_type,
+      cashPaymentAmount,
+      bankPaymentAmount,
+      actualPaymentType,
+      isSplitPayment
+    });
+    
+    // Validate that we have a valid payment type (we'll use actualPaymentType for the database)
+    if (!actualPaymentType || !['CASH', 'CHEQUE', 'BANK_TRANSFER'].includes(actualPaymentType)) {
       return errorResponse('Valid payment type is required (CASH, CHEQUE, BANK_TRANSFER)');
     }
 
-    // Calculate net total: total_amount + unloading_amount + fare_amount - discount
-    const net_total = parseFloat(total_amount) + parseFloat(unloading_amount) + parseFloat(fare_amount) - parseFloat(discount);
+    // Calculate net total: total_amount + unloading_amount + fare_amount + transport_amount + labour_amount - discount
+    const net_total = safeParseFloat(total_amount) + safeParseFloat(unloading_amount) + safeParseFloat(fare_amount) + safeParseFloat(transport_amount) + safeParseFloat(labour_amount) - safeParseFloat(discount);
+    
+    // Update payment amount to use total payment from split payments
+    // payment is now calculated as totalPaymentAmount
 
     // Check if customer exists
     const customer = await prisma.customer.findUnique({
@@ -139,6 +188,48 @@ export async function POST(request) {
 
     if (!customer) {
       return errorResponse('Customer not found', 404);
+    }
+
+      // Ensure special accounts exist before transaction
+      if (actualPaymentType === 'CASH' && cashPaymentAmount > 0) {
+      // Find or create Cash Account
+      let cashAccount = await prisma.customer.findFirst({
+        where: { cus_name: 'Cash Account' }
+      });
+      
+      console.log('🔍 Cash Account search result (pre-transaction):', {
+        found: !!cashAccount,
+        cashAccount: cashAccount ? { id: cashAccount.cus_id, name: cashAccount.cus_name } : null,
+        credit_account_id_from_frontend: credit_account_id
+      });
+      
+      if (!cashAccount) {
+        // Get the Cash Account customer type
+        const cashAccountType = await prisma.customerType.findFirst({
+          where: { cus_type_title: 'Cash Account' }
+        });
+        
+        if (cashAccountType) {
+          cashAccount = await prisma.customer.create({
+            data: {
+              cus_name: 'Cash Account',
+              cus_phone_no: '0000000000',
+              cus_address: 'Main Office',
+              cus_balance: 0,
+              cus_type: cashAccountType.cus_type_id,
+              cus_category: 1, // Default category
+              city_id: 1, // Default city
+              updated_by: updated_by ? parseInt(updated_by) : null
+            }
+          });
+          console.log('✅ Created Cash Account (pre-transaction):', cashAccount);
+        }
+      }
+      
+      if (cashAccount) {
+        credit_account_id = cashAccount.cus_id;
+        console.log('✅ Using Cash Account ID (pre-transaction):', credit_account_id);
+      }
     }
 
     // Create purchase with details and ledger entries in a transaction
@@ -151,166 +242,309 @@ export async function POST(request) {
 
       const currentBalance = parseFloat(customerData?.cus_balance || 0);
 
-      // Create the purchase
+
+      console.log('🔍 Purchase data before parsing:', {
+        cus_id,
+        store_id,
+        debit_account_id,
+        credit_account_id,
+        total_amount,
+        unloading_amount,
+        fare_amount,
+        transport_amount,
+        labour_amount,
+        discount,
+        net_total,
+        payment,
+        payment_type,
+        vehicle_no,
+        invoice_number,
+        updated_by
+      });
+
+      // Prepare the data object for purchase creation
+      const purchaseData = {
+        cus_id: parseInt(cus_id),
+        store_id: store_id ? safeParseInt(store_id) : null,
+        debit_account_id: debit_account_id ? safeParseInt(debit_account_id) : null,
+        credit_account_id: credit_account_id ? safeParseInt(credit_account_id) : null,
+        total_amount: safeParseFloat(total_amount),
+        unloading_amount: safeParseFloat(unloading_amount),
+        fare_amount: safeParseFloat(fare_amount),
+        transport_amount: safeParseFloat(transport_amount),
+        labour_amount: safeParseFloat(labour_amount),
+        discount: safeParseFloat(discount),
+        net_total: safeParseFloat(net_total),
+        payment: totalPaymentAmount,
+        payment_type: actualPaymentType,
+        vehicle_no: vehicle_no || null,
+        invoice_number: invoice_number || null,
+        updated_by: updated_by ? safeParseInt(updated_by) : null
+      };
+
+      console.log('🔍 Processed purchase data:', purchaseData);
+
+      // Create the purchase using the prepared data
       const newPurchase = await tx.purchase.create({
-        data: {
-          cus_id: parseInt(cus_id),
-          store_id: store_id ? parseInt(store_id) : null,
-          debit_account_id: debit_account_id ? parseInt(debit_account_id) : null,
-          credit_account_id: credit_account_id ? parseInt(credit_account_id) : null,
-          total_amount: parseFloat(total_amount),
-          unloading_amount: parseFloat(unloading_amount),
-          fare_amount: parseFloat(fare_amount),
-          discount: parseFloat(discount),
-          net_total: parseFloat(net_total),
-          payment: parseFloat(payment),
-          payment_type,
-          vehicle_no: vehicle_no || null,
-          updated_by: updated_by ? parseInt(updated_by) : null
-        }
+        data: purchaseData
       });
 
       // Create purchase details if provided
       if (purchase_details && purchase_details.length > 0) {
-        const detailsData = purchase_details.map(detail => ({
-          pur_id: newPurchase.pur_id,
-          vehicle_no: vehicle_no || null,
-          cus_id: parseInt(cus_id),
-          pro_id: parseInt(detail.pro_id),
-          qnty: parseInt(detail.qnty) || 0,
-          unit: detail.unit,
-          unit_rate: parseFloat(detail.unit_rate),
-          total_amount: parseFloat(detail.total_amount),
-          net_total: parseFloat(detail.total_amount), // Use total_amount as net_total for now
-          updated_by: updated_by ? parseInt(updated_by) : null
-        }));
+        console.log('🔍 Processing purchase details:', purchase_details);
+        
+        const detailsData = purchase_details.map(detail => {
+          const processedDetail = {
+            pur_id: newPurchase.pur_id,
+            vehicle_no: vehicle_no || null,
+            cus_id: parseInt(cus_id),
+            pro_id: safeParseInt(detail.pro_id, 0),
+            qnty: safeParseInt(detail.qnty || detail.quantity, 1),
+            unit: detail.unit || 'pcs',
+            unit_rate: safeParseFloat(detail.unit_rate || detail.rate),
+            prate: safeParseFloat(detail.prate || detail.unit_rate || detail.rate),
+            crate: safeParseFloat(detail.crate || detail.unit_rate || detail.rate),
+            total_amount: safeParseFloat(detail.total_amount),
+            net_total: safeParseFloat(detail.total_amount), // Use total_amount as net_total for now
+            updated_by: updated_by ? safeParseInt(updated_by) : null
+          };
+          
+          console.log('🔍 Processed detail:', processedDetail);
+          return processedDetail;
+        });
 
         await tx.purchaseDetail.createMany({
           data: detailsData
         });
+
+        // Update store stock for each product
+        if (store_id) {
+          const storeStockUpdatePromises = detailsData.map(async detail => {
+            await updateStoreStock(store_id, detail.pro_id, detail.qnty, 'increment', updated_by, tx);
+          });
+          await Promise.all(storeStockUpdatePromises);
+        }
       }
 
-      // Create ledger entries for debit and credit accounts
-      if (debit_account_id) {
-        // Get debit account balance
-        const debitAccountData = await tx.customer.findUnique({
-          where: { cus_id: debit_account_id },
-          select: { cus_balance: true }
+      // Create comprehensive ledger entries for purchase
+      // 1. Debit Entry: Supplier Account (Amount owed to supplier increases with net_total)
+      if (cus_id) {
+        const supplierData = await tx.customer.findUnique({
+          where: { cus_id: cus_id },
+          select: { cus_balance: true, cus_name: true }
         });
-        const debitCurrentBalance = parseFloat(debitAccountData?.cus_balance || 0);
-        const debitNewBalance = debitCurrentBalance + net_total;
+        const supplierCurrentBalance = parseFloat(supplierData?.cus_balance || 0);
+        const supplierNewBalance = supplierCurrentBalance + net_total;
 
-        // Create ledger entry for debit account (DR - amount increases)
+        // Debit Supplier Account (Amount owed increases by invoice net total)
         await tx.ledger.create({
           data: {
-            cus_id: debit_account_id,
-            opening_balance: debitCurrentBalance,
+            cus_id: cus_id,
+            opening_balance: supplierCurrentBalance,
             debit_amount: net_total,
             credit_amount: 0,
-            closing_balance: debitNewBalance,
-            bill_no: newPurchase.pur_id,
-            trnx_type: payment_type,
-            details: `Purchase - DR Account - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
+            closing_balance: supplierNewBalance,
+            bill_no: newPurchase.pur_id.toString(),
+            trnx_type: 'CASH',
+            details: `Purchase Invoice${invoice_number ? ` #${invoice_number}` : ''} from ${supplierData?.cus_name || 'Supplier'}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
             payments: 0,
             updated_by: updated_by ? parseInt(updated_by) : null
           }
         });
 
-        // Update debit account balance
-        await tx.customer.update({
-          where: { cus_id: debit_account_id },
-          data: { cus_balance: debitNewBalance }
-        });
+        // Don't finalize supplier balance here; payment entries and final adjustment will handle it
       }
 
-      if (credit_account_id) {
-        // Get credit account balance
-        const creditAccountData = await tx.customer.findUnique({
-          where: { cus_id: credit_account_id },
-          select: { cus_balance: true }
-        });
-        const creditCurrentBalance = parseFloat(creditAccountData?.cus_balance || 0);
-        const creditNewBalance = creditCurrentBalance - net_total;
+      // 2. Payment Entries based on payment type
+      // Use the already calculated values from validation
+      
+      console.log('🔍 Payment Debug Info:', {
+        payment_type: actualPaymentType,
+        credit_account_id,
+        total_payment: totalPaymentAmount,
+        cash_payment: cashPaymentAmount,
+        bank_payment: bankPaymentAmount,
+        cus_id
+      });
 
-        // Create ledger entry for credit account (CR - amount decreases)
+      // Special accounts are now handled before the transaction
+
+      // Handle Cash Payment
+      if (cashPaymentAmount > 0) {
+        // Cash Payment: Debit Cash Account, Credit Supplier Account
+        const cashAccountData = await tx.customer.findUnique({
+          where: { cus_id: credit_account_id },
+          select: { cus_balance: true, cus_name: true }
+        });
+        const cashCurrentBalance = parseFloat(cashAccountData?.cus_balance || 0);
+        const cashNewBalance = cashCurrentBalance - cashPaymentAmount;
+
+        // Debit Cash Account (Cash decreases when payment is made)
         await tx.ledger.create({
           data: {
             cus_id: credit_account_id,
-            opening_balance: creditCurrentBalance,
-            debit_amount: 0,
-            credit_amount: net_total,
-            closing_balance: creditNewBalance,
-            bill_no: newPurchase.pur_id,
-            trnx_type: payment_type,
-            details: `Purchase - CR Account - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
-            payments: 0,
+            opening_balance: cashCurrentBalance,
+            debit_amount: cashPaymentAmount,
+            credit_amount: 0,
+            closing_balance: cashNewBalance,
+            bill_no: newPurchase.pur_id.toString(),
+            trnx_type: 'CASH',
+            details: `Cash Payment for Purchase - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
+            payments: cashPaymentAmount,
             updated_by: updated_by ? parseInt(updated_by) : null
           }
         });
 
-        // Update credit account balance
+        // Credit Supplier Account (Amount owed decreases when payment is made)
+        if (cus_id) {
+          const supplierData = await tx.customer.findUnique({
+            where: { cus_id: cus_id },
+            select: { cus_balance: true, cus_name: true }
+          });
+          const supplierCurrentBalance = parseFloat(supplierData?.cus_balance || 0);
+          const supplierNewBalance = supplierCurrentBalance - cashPaymentAmount;
+
+          await tx.ledger.create({
+            data: {
+              cus_id: cus_id,
+              opening_balance: supplierCurrentBalance,
+              debit_amount: 0,
+              credit_amount: cashPaymentAmount,
+              closing_balance: supplierNewBalance,
+              bill_no: newPurchase.pur_id.toString(),
+              trnx_type: 'CASH',
+              details: `Cash Payment to ${supplierData?.cus_name || 'Supplier'} - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
+              payments: cashPaymentAmount,
+              updated_by: updated_by ? parseInt(updated_by) : null
+            }
+          });
+
+          // Update both accounts
+          await tx.customer.update({
+            where: { cus_id: credit_account_id },
+            data: { cus_balance: cashNewBalance }
+          });
         await tx.customer.update({
-          where: { cus_id: credit_account_id },
-          data: { cus_balance: creditNewBalance }
-        });
+            where: { cus_id: cus_id },
+            data: { cus_balance: supplierNewBalance }
+          });
+        }
       }
 
-      // Create ledger entry for main customer purchase (debit - customer owes money)
-      const purchaseBalance = currentBalance + net_total;
+      // Handle Bank Payment
+      if (bankPaymentAmount > 0) {
+        // For bank payments, use the selected customer from the bank dropdown
+        // The frontend should send the bank account ID in the request
+        let bankAccountId = null;
+        
+        // Check if a specific bank account was selected (from frontend)
+        if (body.bank_account_id) {
+          bankAccountId = body.bank_account_id;
+          console.log('🏦 Using selected bank account customer ID:', bankAccountId);
+        } else {
+          console.error('❌ No bank account customer selected for bank payment');
+          return errorResponse('Bank account customer is required for bank payment');
+        }
+        
+        console.log('🏦 Creating bank payment ledger entries for selected customer:', {
+          selectedBankCustomerId: bankAccountId,
+          payment: bankPaymentAmount,
+          supplierId: cus_id
+        });
+        // Bank Payment: Debit Selected Bank Customer, Credit Supplier Account
+        const bankAccountData = await tx.customer.findUnique({
+          where: { cus_id: bankAccountId },
+          select: { cus_balance: true, cus_name: true }
+        });
+        const bankCurrentBalance = parseFloat(bankAccountData?.cus_balance || 0);
+        const bankNewBalance = bankCurrentBalance - bankPaymentAmount;
+
+        // Debit Selected Bank Customer (Bank customer balance decreases when payment is made)
+        const bankLedgerEntry = await tx.ledger.create({
+          data: {
+            cus_id: bankAccountId,
+            opening_balance: bankCurrentBalance,
+            debit_amount: bankPaymentAmount,
+            credit_amount: 0,
+            closing_balance: bankNewBalance,
+            bill_no: newPurchase.pur_id.toString(),
+            trnx_type: 'BANK_TRANSFER',
+            details: `Bank Payment to ${bankAccountData?.cus_name || 'Selected Bank Customer'} - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
+            payments: bankPaymentAmount,
+            updated_by: updated_by ? parseInt(updated_by) : null
+          }
+        });
+        console.log('🏦 Bank ledger entry created:', bankLedgerEntry);
+
+        // Credit Supplier Account (Amount owed decreases when payment is made)
+        if (cus_id) {
+          const supplierData = await tx.customer.findUnique({
+            where: { cus_id: cus_id },
+            select: { cus_balance: true, cus_name: true }
+          });
+          const supplierCurrentBalance = parseFloat(supplierData?.cus_balance || 0);
+          const supplierNewBalance = supplierCurrentBalance - bankPaymentAmount;
+
       await tx.ledger.create({
         data: {
-          cus_id: parseInt(cus_id),
-          opening_balance: currentBalance,
-          debit_amount: net_total,
-          credit_amount: 0,
-          closing_balance: purchaseBalance,
-          bill_no: newPurchase.pur_id,
-          trnx_type: payment_type,
-          details: `Purchase - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
-          payments: 0,
+              cus_id: cus_id,
+              opening_balance: supplierCurrentBalance,
+              debit_amount: 0,
+              credit_amount: bankPaymentAmount,
+              closing_balance: supplierNewBalance,
+          bill_no: newPurchase.pur_id.toString(),
+              trnx_type: 'BANK_TRANSFER',
+              details: `Bank Payment to ${supplierData?.cus_name || 'Supplier'} - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
+              payments: bankPaymentAmount,
           updated_by: updated_by ? parseInt(updated_by) : null
         }
       });
 
-      // Create ledger entry for payment (credit - customer paid money)
-      if (parseFloat(payment) > 0) {
-        const paymentBalance = purchaseBalance - parseFloat(payment);
-        await tx.ledger.create({
-          data: {
-            cus_id: parseInt(cus_id),
-            opening_balance: purchaseBalance,
-            debit_amount: 0,
-            credit_amount: parseFloat(payment),
-            closing_balance: paymentBalance,
-            bill_no: newPurchase.pur_id,
-            trnx_type: payment_type,
-            details: `Payment - ${payment_type}`,
-            payments: parseFloat(payment),
-            updated_by: updated_by ? parseInt(updated_by) : null
-          }
-        });
+          // Update both accounts
+          console.log('🏦 Updating selected bank customer balance:', {
+            selectedBankCustomerId: bankAccountId,
+            bankNewBalance
+          });
+          await tx.customer.update({
+            where: { cus_id: bankAccountId },
+            data: { cus_balance: bankNewBalance }
+          });
+        await tx.customer.update({
+            where: { cus_id: cus_id },
+            data: { cus_balance: supplierNewBalance }
+          });
+        }
+      }
 
-        // Update customer balance
-        await tx.customer.update({
-          where: { cus_id },
-          data: { cus_balance: paymentBalance }
+      // 3. Final supplier balance update (accounting for all payments)
+      if (cus_id && totalPaymentAmount > 0) {
+        const finalSupplierData = await tx.customer.findUnique({
+          where: { cus_id: cus_id },
+          select: { cus_balance: true, cus_name: true }
         });
-      } else {
-        // Update customer balance with purchase amount only
+        const finalSupplierBalance = parseFloat(finalSupplierData?.cus_balance || 0) - totalPaymentAmount;
+        
         await tx.customer.update({
-          where: { cus_id },
-          data: { cus_balance: purchaseBalance }
+          where: { cus_id: cus_id },
+          data: { cus_balance: finalSupplierBalance }
+        });
+        
+        console.log('💰 Final supplier balance update:', {
+          supplier_id: cus_id,
+          previous_balance: finalSupplierData?.cus_balance,
+          total_payments: totalPaymentAmount,
+          final_balance: finalSupplierBalance
         });
       }
 
-      return newPurchase;
-    }, {
-      timeout: 15000 // 15 seconds timeout for complex transactions
-    });
+      return {
+        purchase: newPurchase,
+      };
+    }, { maxWait: 20000, timeout: 60000 });
 
     // Fetch the complete purchase with relations
     const completePurchase = await prisma.purchase.findUnique({
-      where: { pur_id: result.pur_id },
+      where: { pur_id: result.purchase.pur_id },
       include: {
         customer: true,
         updated_by_user: {
@@ -356,10 +590,13 @@ export async function PUT(request) {
       total_amount, 
       unloading_amount = 0, 
       fare_amount = 0, 
+      transport_amount = 0,
+      labour_amount = 0,
       discount = 0, 
       payment, 
       payment_type, 
       vehicle_no,
+      invoice_number,
       updated_by,
       purchase_details = []
     } = body;
@@ -372,8 +609,19 @@ export async function PUT(request) {
       return errorResponse('Valid payment type is required (CASH, CHEQUE, BANK_TRANSFER)');
     }
 
+    // Helper function to safely parse numbers and avoid NaN
+    const safeParseFloat = (value, defaultValue = 0) => {
+      const parsed = parseFloat(value);
+      return isNaN(parsed) ? defaultValue : parsed;
+    };
+
+    const safeParseInt = (value, defaultValue = null) => {
+      const parsed = parseInt(value);
+      return isNaN(parsed) ? defaultValue : parsed;
+    };
+
     // Calculate net total
-    const net_total = parseFloat(total_amount) + parseFloat(unloading_amount) + parseFloat(fare_amount) - parseFloat(discount);
+    const net_total = safeParseFloat(total_amount) + safeParseFloat(unloading_amount) + safeParseFloat(fare_amount) + safeParseFloat(transport_amount) + safeParseFloat(labour_amount) - safeParseFloat(discount);
 
     // Check if purchase exists
     const existingPurchase = await prisma.purchase.findUnique({
@@ -414,11 +662,14 @@ export async function PUT(request) {
           total_amount: parseFloat(total_amount),
           unloading_amount: parseFloat(unloading_amount),
           fare_amount: parseFloat(fare_amount),
+          transport_amount: parseFloat(transport_amount),
+          labour_amount: parseFloat(labour_amount),
           discount: parseFloat(discount),
           net_total: parseFloat(net_total),
           payment: parseFloat(payment),
           payment_type,
           vehicle_no: vehicle_no || null,
+          invoice_number: invoice_number || null,
           updated_by: updated_by || existingPurchase.updated_by
         }
       });
@@ -435,80 +686,166 @@ export async function PUT(request) {
           vehicle_no: vehicle_no || null,
           cus_id: parseInt(cus_id),
           pro_id: parseInt(detail.pro_id),
-          qnty: parseInt(detail.qnty) || 0,
-          unit: detail.unit,
-          unit_rate: parseFloat(detail.unit_rate),
+          qnty: parseInt(detail.qnty || detail.quantity || 1),
+          unit: detail.unit || 'pcs',
+          unit_rate: parseFloat(detail.unit_rate || detail.rate),
+          prate: parseFloat(detail.prate || detail.unit_rate || detail.rate),
+          crate: parseFloat(detail.crate || detail.unit_rate || detail.rate),
           total_amount: parseFloat(detail.total_amount),
-          net_total: parseFloat(detail.total_amount), // Use total_amount as net_total for now
+          net_total: parseFloat(detail.total_amount),
           updated_by: updated_by || existingPurchase.updated_by
         }));
 
-        await tx.purchaseDetail.createMany({
-          data: detailsData
+        await tx.purchaseDetail.createMany({ data: detailsData });
+
+        // Update store stock for each product
+        if (store_id) {
+          const storeStockUpdatePromises = detailsData.map(async detail => {
+            await updateStoreStock(store_id, detail.pro_id, detail.qnty, 'increment', updated_by, tx);
+          });
+          await Promise.all(storeStockUpdatePromises);
+        }
+      }
+
+      // Supplier debit entry for purchase amount
+      if (cus_id) {
+        const supplierData = await tx.customer.findUnique({
+          where: { cus_id: cus_id },
+          select: { cus_balance: true, cus_name: true }
+        });
+        const supplierCurrentBalance = parseFloat(supplierData?.cus_balance || 0);
+        const supplierNewBalance = supplierCurrentBalance + parseFloat(net_total || 0);
+
+        await tx.ledger.create({
+          data: {
+            cus_id: cus_id,
+            opening_balance: supplierCurrentBalance,
+            debit_amount: parseFloat(net_total || 0),
+            credit_amount: 0,
+            closing_balance: supplierNewBalance,
+            bill_no: id.toString(),
+            trnx_type: 'CASH',
+            details: `Purchase Update from ${supplierData?.cus_name || 'Supplier'} - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
+            payments: 0,
+            updated_by: updated_by || existingPurchase.updated_by,
+            customer: {
+              connect: { cus_id: cus_id }
+            }
+          }
+        });
+
+        // Update supplier balance
+        await tx.customer.update({
+          where: { cus_id: cus_id },
+          data: { cus_balance: supplierNewBalance }
         });
       }
 
-      // Delete existing ledger entries for this purchase
-      await tx.ledger.deleteMany({
-        where: { bill_no: id }
-      });
+      // Payments
+      if (payment_type === 'CASH' && credit_account_id && parseFloat(payment || 0) > 0) {
+        const cashAccountData = await tx.customer.findUnique({
+          where: { cus_id: credit_account_id },
+          select: { cus_balance: true, cus_name: true }
+        });
+        const cashCurrentBalance = parseFloat(cashAccountData?.cus_balance || 0);
+        const cashNewBalance = cashCurrentBalance - parseFloat(payment || 0);
 
-      // Create ledger entry for purchase (debit - customer owes money)
-      const purchaseBalance = currentBalance + net_total;
       await tx.ledger.create({
         data: {
-          cus_id: parseInt(cus_id),
-          opening_balance: currentBalance,
-          debit_amount: net_total,
+            cus_id: credit_account_id,
+            opening_balance: cashCurrentBalance,
+            debit_amount: parseFloat(payment || 0),
           credit_amount: 0,
-          closing_balance: purchaseBalance,
-          bill_no: id,
-          trnx_type: payment_type,
-          details: `Purchase Update - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
-          payments: 0,
+            closing_balance: cashNewBalance,
+          bill_no: id.toString(),
+            trnx_type: 'CASH',
+            details: `Cash Payment for Purchase Update - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
+            payments: parseFloat(payment || 0),
           updated_by: updated_by || existingPurchase.updated_by
         }
       });
 
-      // Create ledger entry for payment (credit - customer paid money)
-      if (parseFloat(payment) > 0) {
-        const paymentBalance = purchaseBalance - parseFloat(payment);
+        if (cus_id) {
+          const supplierData = await tx.customer.findUnique({
+            where: { cus_id: cus_id },
+            select: { cus_balance: true, cus_name: true }
+          });
+          const supplierCurrentBalance = parseFloat(supplierData?.cus_balance || 0);
+          const supplierNewBalance = supplierCurrentBalance - parseFloat(payment || 0);
+
+          await tx.ledger.create({
+            data: {
+              cus_id: cus_id,
+              opening_balance: supplierCurrentBalance,
+              debit_amount: 0,
+              credit_amount: parseFloat(payment || 0),
+              closing_balance: supplierNewBalance,
+              bill_no: id.toString(),
+              trnx_type: 'CASH',
+              details: `Cash Payment to ${supplierData?.cus_name || 'Supplier'} - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
+              payments: parseFloat(payment || 0),
+              updated_by: updated_by || existingPurchase.updated_by,
+              customer: {
+                connect: { cus_id: cus_id }
+              }
+            }
+          });
+
+          await tx.customer.update({ where: { cus_id: credit_account_id }, data: { cus_balance: cashNewBalance } });
+          await tx.customer.update({ where: { cus_id: cus_id }, data: { cus_balance: supplierNewBalance } });
+        }
+      } else if (payment_type === 'BANK_TRANSFER' && credit_account_id && parseFloat(payment || 0) > 0) {
+        const bankAccountData = await tx.customer.findUnique({ where: { cus_id: credit_account_id }, select: { cus_balance: true, cus_name: true } });
+        const bankCurrentBalance = parseFloat(bankAccountData?.cus_balance || 0);
+        const bankNewBalance = bankCurrentBalance - parseFloat(payment || 0);
+
         await tx.ledger.create({
           data: {
-            cus_id: parseInt(cus_id),
-            opening_balance: purchaseBalance,
-            debit_amount: 0,
-            credit_amount: parseFloat(payment),
-            closing_balance: paymentBalance,
-            bill_no: id,
-            trnx_type: payment_type,
-            details: `Payment Update - ${payment_type}`,
-            payments: parseFloat(payment),
+            cus_id: credit_account_id,
+            opening_balance: bankCurrentBalance,
+            debit_amount: parseFloat(payment || 0),
+            credit_amount: 0,
+            closing_balance: bankNewBalance,
+            bill_no: id.toString(),
+            trnx_type: 'BANK_TRANSFER',
+            details: `Bank Payment for Purchase Update - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
+            payments: parseFloat(payment || 0),
             updated_by: updated_by || existingPurchase.updated_by
           }
         });
 
-        // Update customer balance
-        await tx.customer.update({
-          where: { cus_id },
-          data: { cus_balance: paymentBalance }
-        });
-      } else {
-        // Update customer balance with purchase amount only
-        await tx.customer.update({
-          where: { cus_id },
-          data: { cus_balance: purchaseBalance }
-        });
+        if (cus_id) {
+          const supplierData = await tx.customer.findUnique({ where: { cus_id: cus_id }, select: { cus_balance: true, cus_name: true } });
+          const supplierCurrentBalance = parseFloat(supplierData?.cus_balance || 0);
+          const supplierNewBalance = supplierCurrentBalance - parseFloat(payment || 0);
+
+          await tx.ledger.create({
+            data: {
+              cus_id: cus_id,
+              opening_balance: supplierCurrentBalance,
+              debit_amount: 0,
+              credit_amount: parseFloat(payment || 0),
+              closing_balance: supplierNewBalance,
+              bill_no: id.toString(),
+              trnx_type: 'BANK_TRANSFER',
+              details: `Bank Payment to ${supplierData?.cus_name || 'Supplier'} - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
+              payments: parseFloat(payment || 0),
+              updated_by: updated_by || existingPurchase.updated_by,
+              customer: { connect: { cus_id: cus_id } }
+            }
+          });
+
+          await tx.customer.update({ where: { cus_id: credit_account_id }, data: { cus_balance: bankNewBalance } });
+          await tx.customer.update({ where: { cus_id: cus_id }, data: { cus_balance: supplierNewBalance } });
+        }
       }
 
-      return updatedPurchase;
-    }, {
-      timeout: 15000 // 15 seconds timeout for complex transactions
-    });
+      return { purchase: updatedPurchase };
+    }, { maxWait: 10000, timeout: 30000 });
 
     // Fetch the complete updated purchase with relations
     const completePurchase = await prisma.purchase.findUnique({
-      where: { pur_id: result.pur_id },
+      where: { pur_id: result.purchase.pur_id },
       include: {
         customer: true,
         updated_by_user: {

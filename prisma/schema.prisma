@@ -1,6 +1,3 @@
-// This is your Prisma schema file with NUMERIC AUTO-INCREMENT PRIMARY KEYS
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,7 +7,708 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Enums
+model Users {
+  user_id             Int                @id @default(autoincrement())
+  role                UserRole
+  full_name           String
+  email               String             @unique
+  password            String
+  is_verified         Boolean            @default(false)
+  status              UserStatus         @default(ACTIVE)
+  last_logged_in      DateTime?
+  created_at          DateTime           @default(now())
+  updated_at          DateTime           @updatedAt
+  cargo               Cargo[]
+  categories          Categories[]
+  cities              City[]
+  customer_categories CustomerCategory[]
+  customer_types      CustomerType[]
+  customers           Customer[]
+  day_ends            DayEnd[]
+  expenses            Expense[]
+  hold_bill_details   HoldBillDetail[]
+  hold_bills          HoldBill[]
+  journals_created    Journal[]          @relation("JournalCreatedBy")
+  journals_posted     Journal[]          @relation("JournalPostedBy")
+  ledger              Ledger[]
+  loaders             Loader[]
+  products            Product[]
+  purchase_details    PurchaseDetail[]
+  purchases           Purchase[]
+  sale_details        SaleDetail[]
+  sale_return_details SaleReturnDetail[]
+  sale_returns        SaleReturn[]
+  sales               Sale[]
+  sub_categories      SubCategory[]
+  vehicles            Vehicle[]
+  store_stocks        StoreStock[]
+
+  @@map("users")
+}
+
+model CustomerCategory {
+  cus_cat_id      Int        @id @default(autoincrement())
+  cus_cat_title   String
+  created_at      DateTime   @default(now())
+  updated_at      DateTime   @updatedAt
+  updated_by      Int?
+  updated_by_user Users?     @relation(fields: [updated_by], references: [user_id])
+  customers       Customer[]
+
+  @@index([updated_by], map: "customer_categories_updated_by_fkey")
+  @@map("customer_categories")
+}
+
+model CustomerType {
+  cus_type_id     Int        @id @default(autoincrement())
+  cus_type_title  String
+  created_at      DateTime   @default(now())
+  updated_at      DateTime   @updatedAt
+  updated_by      Int?
+  updated_by_user Users?     @relation(fields: [updated_by], references: [user_id])
+  customers       Customer[]
+
+  @@index([updated_by], map: "customer_types_updated_by_fkey")
+  @@map("customer_types")
+}
+
+model City {
+  city_id         Int        @id @default(autoincrement())
+  city_name       String
+  created_at      DateTime   @default(now())
+  updated_at      DateTime   @updatedAt
+  updated_by      Int?
+  updated_by_user Users?     @relation(fields: [updated_by], references: [user_id])
+  customers       Customer[]
+
+  @@index([updated_by], map: "cities_updated_by_fkey")
+  @@map("cities")
+}
+
+model Customer {
+  cus_id                Int                @id @default(autoincrement())
+  cus_category          Int
+  cus_type              Int
+  cus_name              String
+  cus_phone_no          String
+  cus_phone_no2         String?
+  cus_address           String
+  cus_reference         String?
+  cus_account_info      String?
+  other                 String?
+  cus_balance           Decimal            @default(0.000000000000000000000000000000)
+  CNIC                  String?
+  NTN_NO                String?
+  name_urdu             String?
+  city_id               Int?
+  created_at            DateTime           @default(now())
+  updated_at            DateTime           @updatedAt
+  updated_by            Int?
+  city                  City?              @relation(fields: [city_id], references: [city_id])
+  customer_category     CustomerCategory   @relation(fields: [cus_category], references: [cus_cat_id])
+  customer_type         CustomerType       @relation(fields: [cus_type], references: [cus_type_id])
+  updated_by_user       Users?             @relation(fields: [updated_by], references: [user_id])
+  hold_bill_details     HoldBillDetail[]
+  hold_bills_credit     HoldBill[]         @relation("HoldBillCreditAccount")
+  hold_bills            HoldBill[]
+  hold_bills_debit      HoldBill[]         @relation("HoldBillDebitAccount")
+  journal_details       JournalDetail[]
+  ledger                Ledger[]
+  purchase_details      PurchaseDetail[]
+  purchases_credit      Purchase[]         @relation("PurchaseCreditAccount")
+  purchases             Purchase[]         @relation("PurchaseCustomer")
+  purchases_debit       Purchase[]         @relation("PurchaseDebitAccount")
+  sale_details          SaleDetail[]
+  sale_return_details   SaleReturnDetail[]
+  sale_returns_credit   SaleReturn[]       @relation("SaleReturnCreditAccount")
+  sale_returns          SaleReturn[]
+  sale_returns_debit    SaleReturn[]       @relation("SaleReturnDebitAccount")
+  sales_credit          Sale[]             @relation("SaleCreditAccount")
+  sales                 Sale[]             @relation("SaleCustomer")
+  sales_debit           Sale[]             @relation("SaleDebitAccount")
+  split_payments_credit SplitPayment[]     @relation("SplitPaymentCreditAccount")
+  split_payments_debit  SplitPayment[]     @relation("SplitPaymentDebitAccount")
+
+  @@index([city_id], map: "customers_city_id_fkey")
+  @@index([cus_category], map: "customers_cus_category_fkey")
+  @@index([cus_type], map: "customers_cus_type_fkey")
+  @@index([updated_by], map: "customers_updated_by_fkey")
+  @@map("customers")
+}
+
+model Categories {
+  cat_id          Int           @id @default(autoincrement())
+  cat_name        String
+  cat_code        String        @unique
+  created_at      DateTime      @default(now())
+  updated_at      DateTime      @updatedAt
+  updated_by      Int?
+  updated_by_user Users?        @relation(fields: [updated_by], references: [user_id])
+  products        Product[]
+  sub_categories  SubCategory[]
+
+  @@index([updated_by], map: "categories_updated_by_fkey")
+  @@map("categories")
+}
+
+model SubCategory {
+  sub_cat_id      Int        @id @default(autoincrement())
+  cat_id          Int
+  sub_cat_name    String
+  sub_cat_code    String     @unique
+  created_at      DateTime   @default(now())
+  updated_at      DateTime   @updatedAt
+  updated_by      Int?
+  products        Product[]
+  category        Categories @relation(fields: [cat_id], references: [cat_id], onDelete: Cascade)
+  updated_by_user Users?     @relation(fields: [updated_by], references: [user_id])
+
+  @@index([cat_id], map: "sub_categories_cat_id_fkey")
+  @@index([updated_by], map: "sub_categories_updated_by_fkey")
+  @@map("sub_categories")
+}
+
+model Product {
+  pro_id              Int                @id @default(autoincrement())
+  cat_id              Int
+  sub_cat_id          Int
+  pro_title           String
+  pro_description     String
+  pro_cost_price      Decimal
+  pro_sale_price      Decimal
+  pro_baser_price     Decimal
+  pro_crate           Decimal?           @default(0.00) @db.Decimal(10, 2)
+  pro_stock_qnty      Int                @default(0)
+  pro_unit            String
+  pro_packing         String?
+  created_at          DateTime           @default(now())
+  updated_at          DateTime           @updatedAt
+  updated_by          Int?
+  hold_bill_details   HoldBillDetail[]
+  category            Categories         @relation(fields: [cat_id], references: [cat_id])
+  sub_category        SubCategory        @relation(fields: [sub_cat_id], references: [sub_cat_id])
+  updated_by_user     Users?             @relation(fields: [updated_by], references: [user_id])
+  purchase_details        PurchaseDetail[]
+  purchase_return_details PurchaseReturnDetail[]
+  sale_details            SaleDetail[]
+  sale_return_details     SaleReturnDetail[]
+  store_stocks            StoreStock[]
+
+  @@index([cat_id], map: "products_cat_id_fkey")
+  @@index([sub_cat_id], map: "products_sub_cat_id_fkey")
+  @@index([updated_by], map: "products_updated_by_fkey")
+  @@map("products")
+}
+
+model Ledger {
+  l_id            Int             @id @default(autoincrement())
+  cus_id          Int
+  opening_balance Decimal         @default(0.000000000000000000000000000000)
+  debit_amount    Decimal         @default(0.000000000000000000000000000000)
+  credit_amount   Decimal         @default(0.000000000000000000000000000000)
+  closing_balance Decimal         @default(0.000000000000000000000000000000)
+  bill_no         String?
+  trnx_type       TransactionType
+  details         String?
+  payments        Decimal         @default(0.000000000000000000000000000000)
+  updated_by      Int?
+  created_at      DateTime        @default(now())
+  updated_at      DateTime        @updatedAt
+  customer        Customer        @relation(fields: [cus_id], references: [cus_id])
+  updated_by_user Users?          @relation(fields: [updated_by], references: [user_id])
+
+  @@index([cus_id], map: "ledger_cus_id_fkey")
+  @@index([updated_by], map: "ledger_updated_by_fkey")
+  @@map("ledger")
+}
+
+model ExpenseTitle {
+  id         Int       @id @default(autoincrement())
+  title      String    @unique
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  expenses   Expense[]
+
+  @@map("expense_titles")
+}
+
+model Expense {
+  exp_id          Int          @id @default(autoincrement())
+  exp_title       String
+  exp_type        Int
+  exp_detail      String?
+  exp_amount      Decimal
+  created_at      DateTime     @default(now())
+  updated_at      DateTime     @updatedAt
+  updated_by      Int?
+  expense_title   ExpenseTitle @relation(fields: [exp_type], references: [id])
+  updated_by_user Users?       @relation(fields: [updated_by], references: [user_id])
+
+  @@index([exp_type], map: "expenses_exp_type_fkey")
+  @@index([updated_by], map: "expenses_updated_by_fkey")
+  @@map("expenses")
+}
+
+model Sale {
+  sale_id           Int            @id @default(autoincrement())
+  total_amount      Decimal
+  discount          Decimal        @default(0.000000000000000000000000000000)
+  cus_id            Int
+  payment           Decimal
+  payment_type      PaymentType
+  debit_account_id  Int?
+  credit_account_id Int?
+  loader_id         Int?
+  shipping_amount   Decimal        @default(0.000000000000000000000000000000)
+  bill_type         BillType
+  reference         String?
+  updated_by        Int?
+  created_at        DateTime       @default(now())
+  updated_at        DateTime       @updatedAt
+  sale_details      SaleDetail[]
+  sale_returns      SaleReturn[]
+  credit_account    Customer?      @relation("SaleCreditAccount", fields: [credit_account_id], references: [cus_id])
+  customer          Customer       @relation("SaleCustomer", fields: [cus_id], references: [cus_id])
+  debit_account     Customer?      @relation("SaleDebitAccount", fields: [debit_account_id], references: [cus_id])
+  loader            Loader?        @relation(fields: [loader_id], references: [loader_id])
+  updated_by_user   Users?         @relation(fields: [updated_by], references: [user_id])
+  split_payments    SplitPayment[]
+
+  @@index([credit_account_id], map: "sales_credit_account_id_fkey")
+  @@index([cus_id], map: "sales_cus_id_fkey")
+  @@index([debit_account_id], map: "sales_debit_account_id_fkey")
+  @@index([loader_id], map: "sales_loader_id_fkey")
+  @@index([updated_by], map: "sales_updated_by_fkey")
+  @@map("sales")
+}
+
+model SaleDetail {
+  sale_detail_id  Int      @id @default(autoincrement())
+  sale_id         Int
+  pro_id          Int
+  vehicle_no      String?
+  qnty            Int
+  unit            String
+  unit_rate       Decimal
+  total_amount    Decimal
+  discount        Decimal  @default(0.000000000000000000000000000000)
+  net_total       Decimal
+  cus_id          Int
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+  updated_by      Int?
+  customer        Customer @relation(fields: [cus_id], references: [cus_id])
+  product         Product  @relation(fields: [pro_id], references: [pro_id])
+  sale            Sale     @relation(fields: [sale_id], references: [sale_id], onDelete: Cascade)
+  updated_by_user Users?   @relation(fields: [updated_by], references: [user_id])
+
+  @@index([cus_id], map: "sale_details_cus_id_fkey")
+  @@index([pro_id], map: "sale_details_pro_id_fkey")
+  @@index([sale_id], map: "sale_details_sale_id_fkey")
+  @@index([updated_by], map: "sale_details_updated_by_fkey")
+  @@map("sale_details")
+}
+
+model SplitPayment {
+  split_payment_id  Int         @id @default(autoincrement())
+  sale_id           Int
+  amount            Decimal
+  payment_type      PaymentType
+  debit_account_id  Int?
+  credit_account_id Int?
+  reference         String?
+  created_at        DateTime    @default(now())
+  updated_at        DateTime    @updatedAt
+  credit_account    Customer?   @relation("SplitPaymentCreditAccount", fields: [credit_account_id], references: [cus_id])
+  debit_account     Customer?   @relation("SplitPaymentDebitAccount", fields: [debit_account_id], references: [cus_id])
+  sale              Sale        @relation(fields: [sale_id], references: [sale_id], onDelete: Cascade)
+
+  @@index([credit_account_id], map: "split_payments_credit_account_id_fkey")
+  @@index([debit_account_id], map: "split_payments_debit_account_id_fkey")
+  @@index([sale_id], map: "split_payments_sale_id_fkey")
+  @@map("split_payments")
+}
+
+model Purchase {
+  pur_id            Int              @id @default(autoincrement())
+  cus_id            Int
+  debit_account_id  Int?
+  credit_account_id Int?
+  total_amount      Decimal
+  unloading_amount  Decimal          @default(0.000000000000000000000000000000)
+  fare_amount       Decimal          @default(0.000000000000000000000000000000)
+  transport_amount  Decimal?         @default(0.00) @db.Decimal(10, 2)
+  labour_amount     Decimal?         @default(0.00) @db.Decimal(10, 2)
+  discount          Decimal          @default(0.000000000000000000000000000000)
+  net_total         Decimal
+  payment           Decimal
+  payment_type      PaymentType
+  vehicle_no        String?
+  invoice_number    String?          @db.VarChar(255)
+  created_at        DateTime         @default(now())
+  updated_at        DateTime         @updatedAt
+  updated_by        Int?
+  store_id          Int?
+  purchase_details  PurchaseDetail[]
+  purchase_returns  PurchaseReturn[]
+  credit_account    Customer?        @relation("PurchaseCreditAccount", fields: [credit_account_id], references: [cus_id])
+  customer          Customer         @relation("PurchaseCustomer", fields: [cus_id], references: [cus_id])
+  debit_account     Customer?        @relation("PurchaseDebitAccount", fields: [debit_account_id], references: [cus_id])
+  store             Store?           @relation(fields: [store_id], references: [storeid])
+  updated_by_user   Users?           @relation(fields: [updated_by], references: [user_id])
+
+  @@index([credit_account_id], map: "purchases_credit_account_id_fkey")
+  @@index([cus_id], map: "purchases_cus_id_fkey")
+  @@index([debit_account_id], map: "purchases_debit_account_id_fkey")
+  @@index([store_id], map: "purchases_store_id_fkey")
+  @@index([updated_by], map: "purchases_updated_by_fkey")
+  @@map("purchases")
+}
+
+model PurchaseDetail {
+  pur_detail_id   Int      @id @default(autoincrement())
+  pur_id          Int
+  vehicle_no      String?
+  cus_id          Int
+  pro_id          Int
+  qnty            Int
+  unit            String
+  unit_rate       Decimal
+  prate           Decimal? @default(0.00) @db.Decimal(10, 2)
+  crate           Decimal? @default(0.00) @db.Decimal(10, 2)
+  total_amount    Decimal
+  discount        Decimal  @default(0.000000000000000000000000000000)
+  net_total       Decimal
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+  updated_by      Int?
+  customer        Customer @relation(fields: [cus_id], references: [cus_id])
+  product         Product  @relation(fields: [pro_id], references: [pro_id])
+  purchase        Purchase @relation(fields: [pur_id], references: [pur_id], onDelete: Cascade)
+  updated_by_user Users?   @relation(fields: [updated_by], references: [user_id])
+
+  @@index([cus_id], map: "purchase_details_cus_id_fkey")
+  @@index([pro_id], map: "purchase_details_pro_id_fkey")
+  @@index([pur_id], map: "purchase_details_pur_id_fkey")
+  @@index([updated_by], map: "purchase_details_updated_by_fkey")
+  @@map("purchase_details")
+}
+
+model PurchaseReturn {
+  id                    Int                     @id @default(autoincrement())
+  purchase_id           Int
+  return_date           DateTime
+  return_reason         String
+  total_return_amount   Decimal                 @default(0.00) @db.Decimal(10, 2)
+  notes                 String?
+  status                String                  @default("COMPLETED")
+  created_at            DateTime                @default(now())
+  updated_at            DateTime                @updatedAt
+  purchase              Purchase                @relation(fields: [purchase_id], references: [pur_id], onDelete: Cascade)
+  return_details        PurchaseReturnDetail[]
+
+  @@index([purchase_id], map: "purchase_returns_purchase_id_fkey")
+  @@map("purchase_returns")
+}
+
+model PurchaseReturnDetail {
+  id              Int             @id @default(autoincrement())
+  return_id       Int
+  pro_id          Int
+  return_quantity Int
+  unit_rate       Decimal         @db.Decimal(10, 2)
+  return_amount   Decimal         @db.Decimal(10, 2)
+  created_at      DateTime        @default(now())
+  updated_at      DateTime        @updatedAt
+  purchase_return PurchaseReturn  @relation(fields: [return_id], references: [id], onDelete: Cascade)
+  product         Product         @relation(fields: [pro_id], references: [pro_id])
+
+  @@index([return_id], map: "purchase_return_details_return_id_fkey")
+  @@index([pro_id], map: "purchase_return_details_pro_id_fkey")
+  @@map("purchase_return_details")
+}
+
+model Vehicle {
+  v_id            Int      @id @default(autoincrement())
+  v_vehicle_no    String   @unique
+  v_driver_no     String?
+  v_driver_name   String?
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+  updated_by      Int?
+  updated_by_user Users?   @relation(fields: [updated_by], references: [user_id])
+
+  @@index([updated_by], map: "vehicles_updated_by_fkey")
+  @@map("vehicles")
+}
+
+model Loader {
+  loader_id       Int          @id @default(autoincrement())
+  loader_name     String
+  loader_number   String       @unique
+  loader_phone    String?
+  loader_balance  Decimal      @default(0.000000000000000000000000000000)
+  created_at      DateTime     @default(now())
+  updated_at      DateTime     @updatedAt
+  updated_by      Int?
+  hold_bills      HoldBill[]
+  updated_by_user Users?       @relation(fields: [updated_by], references: [user_id])
+  sale_returns    SaleReturn[]
+  sales           Sale[]
+
+  @@index([updated_by], map: "loaders_updated_by_fkey")
+  @@map("loaders")
+}
+
+model Cargo {
+  cargo_id         Int      @id @default(autoincrement())
+  vehicle_no       String
+  total_cargo_fare Decimal  @default(0.000000000000000000000000000000)
+  exp1             Decimal? @default(0.000000000000000000000000000000)
+  exp2             Decimal? @default(0.000000000000000000000000000000)
+  exp3             Decimal? @default(0.000000000000000000000000000000)
+  exp4             Decimal? @default(0.000000000000000000000000000000)
+  exp5             Decimal? @default(0.000000000000000000000000000000)
+  exp6             Decimal? @default(0.000000000000000000000000000000)
+  others           Decimal? @default(0.000000000000000000000000000000)
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+  updated_by       Int?
+  updated_by_user  Users?   @relation(fields: [updated_by], references: [user_id])
+
+  @@index([updated_by], map: "cargo_updated_by_fkey")
+  @@map("cargo")
+}
+
+model SaleReturn {
+  return_id         Int                @id @default(autoincrement())
+  sale_id           Int
+  cus_id            Int
+  total_amount      Decimal
+  discount          Decimal            @default(0.000000000000000000000000000000)
+  payment           Decimal
+  payment_type      PaymentType
+  debit_account_id  Int?
+  credit_account_id Int?
+  loader_id         Int?
+  shipping_amount   Decimal            @default(0.000000000000000000000000000000)
+  reason            String?
+  reference         String?
+  updated_by        Int?
+  created_at        DateTime           @default(now())
+  updated_at        DateTime           @updatedAt
+  return_details    SaleReturnDetail[]
+  credit_account    Customer?          @relation("SaleReturnCreditAccount", fields: [credit_account_id], references: [cus_id])
+  customer          Customer           @relation(fields: [cus_id], references: [cus_id])
+  debit_account     Customer?          @relation("SaleReturnDebitAccount", fields: [debit_account_id], references: [cus_id])
+  loader            Loader?            @relation(fields: [loader_id], references: [loader_id])
+  sale              Sale               @relation(fields: [sale_id], references: [sale_id])
+  updated_by_user   Users?             @relation(fields: [updated_by], references: [user_id])
+
+  @@index([credit_account_id], map: "sale_returns_credit_account_id_fkey")
+  @@index([cus_id], map: "sale_returns_cus_id_fkey")
+  @@index([debit_account_id], map: "sale_returns_debit_account_id_fkey")
+  @@index([loader_id], map: "sale_returns_loader_id_fkey")
+  @@index([sale_id], map: "sale_returns_sale_id_fkey")
+  @@index([updated_by], map: "sale_returns_updated_by_fkey")
+  @@map("sale_returns")
+}
+
+model SaleReturnDetail {
+  return_detail_id Int        @id @default(autoincrement())
+  return_id        Int
+  pro_id           Int
+  qnty             Int
+  unit             String
+  unit_rate        Decimal
+  total_amount     Decimal
+  discount         Decimal    @default(0.000000000000000000000000000000)
+  net_total        Decimal
+  cus_id           Int
+  created_at       DateTime   @default(now())
+  updated_at       DateTime   @updatedAt
+  updated_by       Int?
+  customer         Customer   @relation(fields: [cus_id], references: [cus_id])
+  product          Product    @relation(fields: [pro_id], references: [pro_id])
+  sale_return      SaleReturn @relation(fields: [return_id], references: [return_id], onDelete: Cascade)
+  updated_by_user  Users?     @relation(fields: [updated_by], references: [user_id])
+
+  @@index([cus_id], map: "sale_return_details_cus_id_fkey")
+  @@index([pro_id], map: "sale_return_details_pro_id_fkey")
+  @@index([return_id], map: "sale_return_details_return_id_fkey")
+  @@index([updated_by], map: "sale_return_details_updated_by_fkey")
+  @@map("sale_return_details")
+}
+
+model HoldBill {
+  hold_bill_id      Int              @id @default(autoincrement())
+  cus_id            Int
+  total_amount      Decimal
+  discount          Decimal          @default(0.000000000000000000000000000000)
+  payment           Decimal          @default(0.000000000000000000000000000000)
+  payment_type      PaymentType
+  debit_account_id  Int?
+  credit_account_id Int?
+  loader_id         Int?
+  shipping_amount   Decimal          @default(0.000000000000000000000000000000)
+  bill_type         BillType
+  status            HoldBillStatus   @default(DRAFT)
+  reference         String?
+  notes             String?
+  updated_by        Int?
+  created_at        DateTime         @default(now())
+  updated_at        DateTime         @updatedAt
+  hold_bill_details HoldBillDetail[]
+  credit_account    Customer?        @relation("HoldBillCreditAccount", fields: [credit_account_id], references: [cus_id])
+  customer          Customer         @relation(fields: [cus_id], references: [cus_id])
+  debit_account     Customer?        @relation("HoldBillDebitAccount", fields: [debit_account_id], references: [cus_id])
+  loader            Loader?          @relation(fields: [loader_id], references: [loader_id])
+  updated_by_user   Users?           @relation(fields: [updated_by], references: [user_id])
+
+  @@index([credit_account_id], map: "hold_bills_credit_account_id_fkey")
+  @@index([cus_id], map: "hold_bills_cus_id_fkey")
+  @@index([debit_account_id], map: "hold_bills_debit_account_id_fkey")
+  @@index([loader_id], map: "hold_bills_loader_id_fkey")
+  @@index([updated_by], map: "hold_bills_updated_by_fkey")
+  @@map("hold_bills")
+}
+
+model HoldBillDetail {
+  hold_bill_detail_id Int      @id @default(autoincrement())
+  hold_bill_id        Int
+  pro_id              Int
+  vehicle_no          String?
+  qnty                Int
+  unit                String
+  unit_rate           Decimal
+  total_amount        Decimal
+  discount            Decimal  @default(0.000000000000000000000000000000)
+  net_total           Decimal
+  cus_id              Int
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+  updated_by          Int?
+  customer            Customer @relation(fields: [cus_id], references: [cus_id])
+  hold_bill           HoldBill @relation(fields: [hold_bill_id], references: [hold_bill_id], onDelete: Cascade)
+  product             Product  @relation(fields: [pro_id], references: [pro_id])
+  updated_by_user     Users?   @relation(fields: [updated_by], references: [user_id])
+
+  @@index([cus_id], map: "hold_bill_details_cus_id_fkey")
+  @@index([hold_bill_id], map: "hold_bill_details_hold_bill_id_fkey")
+  @@index([pro_id], map: "hold_bill_details_pro_id_fkey")
+  @@index([updated_by], map: "hold_bill_details_updated_by_fkey")
+  @@map("hold_bill_details")
+}
+
+model DayEnd {
+  day_end_id      Int            @id @default(autoincrement())
+  business_date   DateTime       @unique @db.Date
+  opening_cash    Decimal        @default(0.000000000000000000000000000000)
+  closing_cash    Decimal?
+  total_sales     Decimal        @default(0.000000000000000000000000000000)
+  total_purchases Decimal        @default(0.000000000000000000000000000000)
+  total_expenses  Decimal        @default(0.000000000000000000000000000000)
+  total_receipts  Decimal        @default(0.000000000000000000000000000000)
+  total_payments  Decimal        @default(0.000000000000000000000000000000)
+  cash_in_hand    Decimal?
+  bank_balance    Decimal?
+  status          DayEndStatus   @default(OPEN)
+  notes           String?
+  closed_by       Int?
+  closed_at       DateTime?
+  created_at      DateTime       @default(now())
+  updated_at      DateTime       @updatedAt
+  day_end_details DayEndDetail[]
+  closed_by_user  Users?         @relation(fields: [closed_by], references: [user_id])
+
+  @@index([closed_by], map: "day_ends_closed_by_fkey")
+  @@map("day_ends")
+}
+
+model DayEndDetail {
+  day_end_detail_id Int         @id @default(autoincrement())
+  day_end_id        Int
+  transaction_type  String
+  transaction_id    Int
+  amount            Decimal
+  payment_type      PaymentType
+  description       String?
+  created_at        DateTime    @default(now())
+  day_end           DayEnd      @relation(fields: [day_end_id], references: [day_end_id], onDelete: Cascade)
+
+  @@index([day_end_id], map: "day_end_details_day_end_id_fkey")
+  @@map("day_end_details")
+}
+
+model Journal {
+  journal_id      Int             @id @default(autoincrement())
+  journal_date    DateTime        @db.Date
+  journal_type    JournalType
+  reference       String?
+  description     String?
+  total_amount    Decimal
+  status          JournalStatus   @default(DRAFT)
+  posted_by       Int?
+  posted_at       DateTime?
+  created_by      Int
+  created_at      DateTime        @default(now())
+  updated_at      DateTime        @updatedAt
+  journal_details JournalDetail[]
+  created_by_user Users           @relation("JournalCreatedBy", fields: [created_by], references: [user_id])
+  posted_by_user  Users?          @relation("JournalPostedBy", fields: [posted_by], references: [user_id])
+
+  @@index([created_by], map: "journals_created_by_fkey")
+  @@index([posted_by], map: "journals_posted_by_fkey")
+  @@map("journals")
+}
+
+model JournalDetail {
+  journal_detail_id Int      @id @default(autoincrement())
+  journal_id        Int
+  account_id        Int
+  debit_amount      Decimal  @default(0.000000000000000000000000000000)
+  credit_amount     Decimal  @default(0.000000000000000000000000000000)
+  description       String?
+  created_at        DateTime @default(now())
+  account           Customer @relation(fields: [account_id], references: [cus_id])
+  journal           Journal  @relation(fields: [journal_id], references: [journal_id], onDelete: Cascade)
+
+  @@index([account_id], map: "journal_details_account_id_fkey")
+  @@index([journal_id], map: "journal_details_journal_id_fkey")
+  @@map("journal_details")
+}
+
+model Store {
+  storeid       Int        @id @default(autoincrement())
+  store_name    String
+  store_address String?
+  created_at    DateTime   @default(now())
+  updated_at    DateTime   @updatedAt
+  purchases     Purchase[]
+  store_stocks  StoreStock[]
+
+  @@map("stores")
+}
+
+model StoreStock {
+  store_stock_id Int      @id @default(autoincrement())
+  store_id       Int
+  pro_id         Int
+  stock_quantity Int      @default(0)
+  min_stock      Int      @default(0)
+  max_stock      Int      @default(0)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  updated_by     Int?
+
+  store          Store    @relation(fields: [store_id], references: [storeid])
+  product        Product  @relation(fields: [pro_id], references: [pro_id])
+  updated_by_user Users?  @relation(fields: [updated_by], references: [user_id])
+
+  @@unique([store_id, pro_id])
+  @@map("store_stocks")
+}
+
 enum UserRole {
   SUPER_ADMIN
   ADMIN
@@ -26,6 +724,12 @@ enum TransactionType {
   CASH
   CHEQUE
   BANK_TRANSFER
+  PURCHASE
+  CASH_PAYMENT
+  BANK_PAYMENT
+  SALE
+  SALE_RETURN
+  PURCHASE_RETURN
 }
 
 enum PaymentType {
@@ -64,634 +768,3 @@ enum JournalStatus {
   POSTED
   CANCELLED
 }
-
-// Models
-model Users {
-  user_id      Int        @id @default(autoincrement())
-  role         UserRole
-  full_name    String
-  email        String     @unique
-  password     String
-  is_verified  Boolean    @default(false)
-  status       UserStatus @default(ACTIVE)
-  last_logged_in DateTime?
-  created_at   DateTime   @default(now())
-  updated_at   DateTime   @updatedAt
-
-  // Relations
-  products     Product[]
-  ledger       Ledger[]
-  expenses     Expense[]
-  sales        Sale[]
-  sale_details SaleDetail[]
-  purchases    Purchase[]
-  purchase_details PurchaseDetail[]
-  cargo        Cargo[]
-  categories   Categories[]
-  sub_categories SubCategory[]
-  customers    Customer[]
-  customer_categories CustomerCategory[]
-  customer_types CustomerType[]
-  cities       City[]
-  vehicles     Vehicle[]
-  loaders      Loader[]
-  sale_returns SaleReturn[]
-  sale_return_details SaleReturnDetail[]
-  hold_bills       HoldBill[]
-  hold_bill_details HoldBillDetail[]
-  day_ends         DayEnd[]
-  journals_created Journal[] @relation("JournalCreatedBy")
-  journals_posted  Journal[] @relation("JournalPostedBy")
-
-  @@map("users")
-}
-
-model CustomerCategory {
-  cus_cat_id   Int      @id @default(autoincrement())
-  cus_cat_title String
-  created_at   DateTime @default(now())
-  updated_at   DateTime @updatedAt
-  updated_by   Int?
-
-  // Relations
-  customers    Customer[]
-  updated_by_user Users? @relation(fields: [updated_by], references: [user_id])
-
-  @@map("customer_categories")
-}
-
-model CustomerType {
-  cus_type_id   Int      @id @default(autoincrement())
-  cus_type_title String
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
-  updated_by    Int?
-
-  // Relations
-  customers     Customer[]
-  updated_by_user Users? @relation(fields: [updated_by], references: [user_id])
-
-  @@map("customer_types")
-}
-
-model City {
-  city_id    Int      @id @default(autoincrement())
-  city_name  String
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-  updated_by Int?
-
-  // Relations
-  customers  Customer[]
-  updated_by_user Users? @relation(fields: [updated_by], references: [user_id])
-
-  @@map("cities")
-}
-
-model Customer {
-  cus_id           Int            @id @default(autoincrement())
-  cus_category     Int
-  cus_type         Int
-  cus_name         String
-  cus_phone_no     String
-  cus_phone_no2    String?
-  cus_address      String
-  cus_reference    String?
-  cus_account_info String?
-  other            String?
-  cus_balance      Decimal        @default(0)
-  CNIC             String?
-  NTN_NO           String?
-  name_urdu        String?
-  city_id          Int?
-  created_at       DateTime       @default(now())
-  updated_at       DateTime       @updatedAt
-  updated_by       Int?
-
-  // Relations
-  customer_category CustomerCategory @relation(fields: [cus_category], references: [cus_cat_id])
-  customer_type     CustomerType?    @relation(fields: [cus_type], references: [cus_type_id])
-  city              City?            @relation(fields: [city_id], references: [city_id])
-  ledger           Ledger[]
-  sales            Sale[]            @relation("SaleCustomer")
-  sales_debit      Sale[]            @relation("SaleDebitAccount")
-  sales_credit     Sale[]            @relation("SaleCreditAccount")
-  sale_details     SaleDetail[]
-  split_payments_debit  SplitPayment[] @relation("SplitPaymentDebitAccount")
-  split_payments_credit SplitPayment[] @relation("SplitPaymentCreditAccount")
-  purchases        Purchase[]       @relation("PurchaseCustomer")
-  purchases_debit  Purchase[]       @relation("PurchaseDebitAccount")
-  purchases_credit Purchase[]       @relation("PurchaseCreditAccount")
-  purchase_details PurchaseDetail[]
-  sale_returns     SaleReturn[]
-  sale_returns_debit SaleReturn[]   @relation("SaleReturnDebitAccount")
-  sale_returns_credit SaleReturn[]  @relation("SaleReturnCreditAccount")
-  sale_return_details SaleReturnDetail[]
-  hold_bills         HoldBill[]
-  hold_bills_debit   HoldBill[]     @relation("HoldBillDebitAccount")
-  hold_bills_credit  HoldBill[]     @relation("HoldBillCreditAccount")
-  hold_bill_details  HoldBillDetail[]
-  journal_details    JournalDetail[]
-  updated_by_user  Users? @relation(fields: [updated_by], references: [user_id])
-
-  @@map("customers")
-}
-
-model Categories {
-  cat_id     Int      @id @default(autoincrement())
-  cat_name   String
-  cat_code   String   @unique
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-  updated_by Int?
-
-  // Relations
-  sub_categories SubCategory[]
-  products       Product[]
-  updated_by_user Users? @relation(fields: [updated_by], references: [user_id])
-
-  @@map("categories")
-}
-
-model SubCategory {
-  sub_cat_id   Int       @id @default(autoincrement())
-  cat_id       Int
-  sub_cat_name String
-  sub_cat_code String    @unique
-  created_at   DateTime  @default(now())
-  updated_at   DateTime  @updatedAt
-  updated_by   Int?
-
-  // Relations
-  category     Categories @relation(fields: [cat_id], references: [cat_id], onDelete: Cascade)
-  products     Product[]
-  updated_by_user Users? @relation(fields: [updated_by], references: [user_id])
-
-  @@map("sub_categories")
-}
-
-model Product {
-  pro_id           Int       @id @default(autoincrement())
-  cat_id           Int
-  sub_cat_id       Int
-  pro_title        String
-  pro_description  String
-  pro_cost_price   Decimal
-  pro_sale_price   Decimal
-  pro_baser_price  Decimal
-  pro_stock_qnty   Int       @default(0)
-  pro_unit         String
-  pro_packing      String?
-  created_at       DateTime  @default(now())
-  updated_at       DateTime  @updatedAt
-  updated_by       Int?
-
-  // Relations
-  category         Categories  @relation(fields: [cat_id], references: [cat_id])
-  sub_category     SubCategory @relation(fields: [sub_cat_id], references: [sub_cat_id])
-  updated_by_user  Users?       @relation(fields: [updated_by], references: [user_id])
-  sale_details     SaleDetail[]
-  purchase_details PurchaseDetail[]
-  sale_return_details SaleReturnDetail[]
-  hold_bill_details HoldBillDetail[]
-
-  @@map("products")
-}
-
-model Ledger {
-  l_id             Int             @id @default(autoincrement())
-  cus_id           Int
-  opening_balance  Decimal         @default(0)
-  debit_amount     Decimal         @default(0)
-  credit_amount    Decimal         @default(0)
-  closing_balance  Decimal         @default(0)
-  bill_no          String?
-  trnx_type        TransactionType
-  details          String?
-  payments         Decimal         @default(0)
-  updated_by       Int?
-  created_at       DateTime        @default(now())
-  updated_at       DateTime        @updatedAt
-
-  // Relations
-  customer         Customer @relation(fields: [cus_id], references: [cus_id])
-  updated_by_user  Users?    @relation(fields: [updated_by], references: [user_id])
-
-  @@map("ledger")
-}
-
-model ExpenseTitle {
-  id         Int        @id @default(autoincrement())
-  title      String     @unique
-  created_at DateTime   @default(now())
-  updated_at DateTime   @updatedAt
-
-  // Relations
-  expenses   Expense[]
-
-  @@map("expense_titles")
-}
-
-model Expense {
-  exp_id     Int       @id @default(autoincrement())
-  exp_title  String
-  exp_type   Int
-  exp_detail String?
-  exp_amount Decimal
-  created_at DateTime  @default(now())
-  updated_at DateTime  @updatedAt
-  updated_by Int?
-
-  // Relations
-  expense_title ExpenseTitle @relation(fields: [exp_type], references: [id])
-  updated_by_user Users?      @relation(fields: [updated_by], references: [user_id])
-
-  @@map("expenses")
-}
-
-model Sale {
-  sale_id           Int         @id @default(autoincrement())
-  total_amount      Decimal
-  discount          Decimal     @default(0)
-  cus_id            Int
-  payment           Decimal
-  payment_type      PaymentType
-  debit_account_id  Int?
-  credit_account_id Int?
-  loader_id         Int?
-  shipping_amount   Decimal     @default(0)
-  bill_type         BillType
-  reference         String?
-  updated_by        Int?
-  created_at        DateTime    @default(now())
-  updated_at        DateTime    @updatedAt
-
-  // Relations
-  customer          Customer    @relation(fields: [cus_id], references: [cus_id], name: "SaleCustomer")
-  debit_account     Customer?   @relation(fields: [debit_account_id], references: [cus_id], name: "SaleDebitAccount")
-  credit_account    Customer?   @relation(fields: [credit_account_id], references: [cus_id], name: "SaleCreditAccount")
-  loader            Loader?     @relation(fields: [loader_id], references: [loader_id])
-  updated_by_user   Users?      @relation(fields: [updated_by], references: [user_id])
-  sale_details      SaleDetail[]
-  split_payments    SplitPayment[]
-  sale_returns      SaleReturn[]
-
-  @@map("sales")
-}
-
-model SaleDetail {
-  sale_detail_id Int       @id @default(autoincrement())
-  sale_id        Int
-  pro_id         Int
-  vehicle_no     String?
-  qnty           Int
-  unit           String
-  unit_rate      Decimal
-  total_amount   Decimal
-  discount       Decimal   @default(0)
-  net_total      Decimal
-  cus_id         Int
-  created_at     DateTime  @default(now())
-  updated_at     DateTime  @updatedAt
-  updated_by     Int?
-
-  // Relations
-  sale           Sale      @relation(fields: [sale_id], references: [sale_id], onDelete: Cascade)
-  product        Product   @relation(fields: [pro_id], references: [pro_id])
-  customer       Customer  @relation(fields: [cus_id], references: [cus_id])
-  updated_by_user Users?    @relation(fields: [updated_by], references: [user_id])
-
-  @@map("sale_details")
-}
-
-model SplitPayment {
-  split_payment_id  Int         @id @default(autoincrement())
-  sale_id           Int
-  amount            Decimal
-  payment_type      PaymentType
-  debit_account_id  Int?
-  credit_account_id Int?
-  reference         String?
-  created_at        DateTime     @default(now())
-  updated_at        DateTime     @updatedAt
-
-  // Relations
-  sale              Sale         @relation(fields: [sale_id], references: [sale_id], onDelete: Cascade)
-  debit_account     Customer?    @relation(fields: [debit_account_id], references: [cus_id], name: "SplitPaymentDebitAccount")
-  credit_account    Customer?    @relation(fields: [credit_account_id], references: [cus_id], name: "SplitPaymentCreditAccount")
-
-  @@map("split_payments")
-}
-
-model Purchase {
-  pur_id          Int         @id @default(autoincrement())
-  cus_id          Int
-  store_id        Int?
-  debit_account_id Int?
-  credit_account_id Int?
-  total_amount    Decimal
-  unloading_amount Decimal     @default(0)
-  fare_amount     Decimal      @default(0)
-  discount        Decimal      @default(0)
-  net_total       Decimal
-  payment         Decimal
-  payment_type    PaymentType
-  vehicle_no      String?
-  created_at      DateTime     @default(now())
-  updated_at      DateTime     @updatedAt
-  updated_by      Int?
-
-  // Relations
-  customer        Customer     @relation(fields: [cus_id], references: [cus_id], name: "PurchaseCustomer")
-  store           Store?       @relation(fields: [store_id], references: [storeid])
-  debit_account   Customer?    @relation(fields: [debit_account_id], references: [cus_id], name: "PurchaseDebitAccount")
-  credit_account  Customer?    @relation(fields: [credit_account_id], references: [cus_id], name: "PurchaseCreditAccount")
-  updated_by_user Users?       @relation(fields: [updated_by], references: [user_id])
-  purchase_details PurchaseDetail[]
-
-  @@map("purchases")
-}
-
-model PurchaseDetail {
-  pur_detail_id Int       @id @default(autoincrement())
-  pur_id        Int
-  vehicle_no    String?
-  cus_id        Int
-  pro_id        Int
-  qnty          Int
-  unit          String
-  unit_rate     Decimal
-  total_amount  Decimal
-  discount      Decimal   @default(0)
-  net_total     Decimal
-  created_at    DateTime  @default(now())
-  updated_at    DateTime  @updatedAt
-  updated_by    Int?
-
-  // Relations
-  purchase      Purchase  @relation(fields: [pur_id], references: [pur_id], onDelete: Cascade)
-  customer      Customer  @relation(fields: [cus_id], references: [cus_id])
-  product       Product   @relation(fields: [pro_id], references: [pro_id])
-  updated_by_user Users?   @relation(fields: [updated_by], references: [user_id])
-
-  @@map("purchase_details")
-}
-
-model Vehicle {
-  v_id          Int      @id @default(autoincrement())
-  v_vehicle_no  String   @unique
-  v_driver_no   String?
-  v_driver_name String?
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
-  updated_by    Int?
-
-  // Relations
-  updated_by_user Users? @relation(fields: [updated_by], references: [user_id])
-
-  @@map("vehicles")
-}
-
-model Loader {
-  loader_id      Int      @id @default(autoincrement())
-  loader_name    String
-  loader_number  String   @unique
-  loader_phone   String?
-  loader_balance Decimal  @default(0)
-  created_at     DateTime @default(now())
-  updated_at     DateTime @updatedAt
-  updated_by     Int?
-
-  // Relations
-  sales          Sale[]
-  sale_returns   SaleReturn[]
-  hold_bills     HoldBill[]
-  updated_by_user Users? @relation(fields: [updated_by], references: [user_id])
-
-  @@map("loaders")
-}
-
-model Cargo {
-  cargo_id           Int      @id @default(autoincrement())
-  vehicle_no         String
-  total_cargo_fare   Decimal  @default(0)
-  exp1               Decimal? @default(0)
-  exp2               Decimal? @default(0)
-  exp3               Decimal? @default(0)
-  exp4               Decimal? @default(0)
-  exp5               Decimal? @default(0)
-  exp6               Decimal? @default(0)
-  others             Decimal? @default(0)
-  created_at         DateTime @default(now())
-  updated_at         DateTime @updatedAt
-  updated_by         Int?
-
-  // Relations
-  updated_by_user    Users?    @relation(fields: [updated_by], references: [user_id])
-
-  @@map("cargo")
-}
-
-model SaleReturn {
-  return_id         Int         @id @default(autoincrement())
-  sale_id           Int
-  cus_id            Int
-  total_amount      Decimal
-  discount          Decimal     @default(0)
-  payment           Decimal
-  payment_type      PaymentType
-  debit_account_id  Int?
-  credit_account_id Int?
-  loader_id         Int?
-  shipping_amount   Decimal     @default(0)
-  reason            String?
-  reference         String?
-  updated_by        Int?
-  created_at        DateTime    @default(now())
-  updated_at        DateTime    @updatedAt
-
-  // Relations
-  sale              Sale        @relation(fields: [sale_id], references: [sale_id])
-  customer          Customer    @relation(fields: [cus_id], references: [cus_id])
-  debit_account     Customer?   @relation(fields: [debit_account_id], references: [cus_id], name: "SaleReturnDebitAccount")
-  credit_account    Customer?   @relation(fields: [credit_account_id], references: [cus_id], name: "SaleReturnCreditAccount")
-  loader            Loader?     @relation(fields: [loader_id], references: [loader_id])
-  updated_by_user   Users?      @relation(fields: [updated_by], references: [user_id])
-  return_details    SaleReturnDetail[]
-
-  @@map("sale_returns")
-}
-
-model SaleReturnDetail {
-  return_detail_id  Int         @id @default(autoincrement())
-  return_id         Int
-  pro_id            Int
-  qnty              Int
-  unit              String
-  unit_rate         Decimal
-  total_amount      Decimal
-  discount          Decimal     @default(0)
-  net_total         Decimal
-  cus_id            Int
-  created_at        DateTime    @default(now())
-  updated_at        DateTime    @updatedAt
-  updated_by        Int?
-
-  // Relations
-  sale_return       SaleReturn  @relation(fields: [return_id], references: [return_id], onDelete: Cascade)
-  product           Product     @relation(fields: [pro_id], references: [pro_id])
-  customer          Customer    @relation(fields: [cus_id], references: [cus_id])
-  updated_by_user   Users?      @relation(fields: [updated_by], references: [user_id])
-
-  @@map("sale_return_details")
-}
-
-model HoldBill {
-  hold_bill_id       Int            @id @default(autoincrement())
-  cus_id             Int
-  total_amount       Decimal
-  discount           Decimal        @default(0)
-  payment            Decimal        @default(0)
-  payment_type       PaymentType
-  debit_account_id   Int?
-  credit_account_id  Int?
-  loader_id          Int?
-  shipping_amount    Decimal        @default(0)
-  bill_type          BillType
-  status             HoldBillStatus @default(DRAFT)
-  reference          String?
-  notes              String?
-  updated_by         Int?
-  created_at         DateTime       @default(now())
-  updated_at         DateTime       @updatedAt
-
-  // Relations
-  customer           Customer       @relation(fields: [cus_id], references: [cus_id])
-  debit_account      Customer?      @relation(fields: [debit_account_id], references: [cus_id], name: "HoldBillDebitAccount")
-  credit_account     Customer?      @relation(fields: [credit_account_id], references: [cus_id], name: "HoldBillCreditAccount")
-  loader             Loader?        @relation(fields: [loader_id], references: [loader_id])
-  updated_by_user    Users?         @relation(fields: [updated_by], references: [user_id])
-  hold_bill_details  HoldBillDetail[]
-
-  @@map("hold_bills")
-}
-
-model HoldBillDetail {
-  hold_bill_detail_id Int       @id @default(autoincrement())
-  hold_bill_id        Int
-  pro_id              Int
-  vehicle_no          String?
-  qnty                Int
-  unit                String
-  unit_rate           Decimal
-  total_amount        Decimal
-  discount            Decimal   @default(0)
-  net_total           Decimal
-  cus_id              Int
-  created_at          DateTime  @default(now())
-  updated_at          DateTime  @updatedAt
-  updated_by          Int?
-
-  // Relations
-  hold_bill           HoldBill  @relation(fields: [hold_bill_id], references: [hold_bill_id], onDelete: Cascade)
-  product             Product   @relation(fields: [pro_id], references: [pro_id])
-  customer            Customer  @relation(fields: [cus_id], references: [cus_id])
-  updated_by_user     Users?    @relation(fields: [updated_by], references: [user_id])
-
-  @@map("hold_bill_details")
-}
-
-model DayEnd {
-  day_end_id        Int           @id @default(autoincrement())
-  business_date     DateTime      @db.Date
-  opening_cash      Decimal       @default(0)
-  closing_cash      Decimal?
-  total_sales       Decimal       @default(0)
-  total_purchases   Decimal       @default(0)
-  total_expenses    Decimal       @default(0)
-  total_receipts    Decimal       @default(0)
-  total_payments    Decimal       @default(0)
-  cash_in_hand      Decimal?
-  bank_balance      Decimal?
-  status            DayEndStatus  @default(OPEN)
-  notes             String?
-  closed_by         Int?
-  closed_at         DateTime?
-  created_at        DateTime      @default(now())
-  updated_at        DateTime      @updatedAt
-
-  // Relations
-  closed_by_user    Users?        @relation(fields: [closed_by], references: [user_id])
-  day_end_details   DayEndDetail[]
-
-  @@unique([business_date])
-  @@map("day_ends")
-}
-
-model DayEndDetail {
-  day_end_detail_id Int       @id @default(autoincrement())
-  day_end_id        Int
-  transaction_type  String    // 'SALE', 'PURCHASE', 'EXPENSE', 'RECEIPT', 'PAYMENT'
-  transaction_id    Int       // ID of the related transaction
-  amount            Decimal
-  payment_type      PaymentType
-  description       String?
-  created_at        DateTime  @default(now())
-
-  // Relations
-  day_end           DayEnd    @relation(fields: [day_end_id], references: [day_end_id], onDelete: Cascade)
-
-  @@map("day_end_details")
-}
-
-model Journal {
-  journal_id        Int           @id @default(autoincrement())
-  journal_date      DateTime      @db.Date
-  journal_type      JournalType
-  reference         String?
-  description       String?
-  total_amount      Decimal
-  status            JournalStatus @default(DRAFT)
-  posted_by         Int?
-  posted_at         DateTime?
-  created_by        Int
-  created_at        DateTime      @default(now())
-  updated_at        DateTime      @updatedAt
-
-  // Relations
-  created_by_user   Users         @relation(fields: [created_by], references: [user_id], name: "JournalCreatedBy")
-  posted_by_user    Users?        @relation(fields: [posted_by], references: [user_id], name: "JournalPostedBy")
-  journal_details   JournalDetail[]
-
-  @@map("journals")
-}
-
-model JournalDetail {
-  journal_detail_id Int       @id @default(autoincrement())
-  journal_id        Int
-  account_id        Int       // Customer ID (account)
-  debit_amount      Decimal   @default(0)
-  credit_amount     Decimal   @default(0)
-  description       String?
-  created_at        DateTime  @default(now())
-
-  // Relations
-  journal           Journal   @relation(fields: [journal_id], references: [journal_id], onDelete: Cascade)
-  account           Customer  @relation(fields: [account_id], references: [cus_id])
-
-  @@map("journal_details")
-}
-
-model Store {
-  storeid      Int      @id @default(autoincrement())
-  store_name   String
-  store_address String?
-  created_at   DateTime @default(now())
-  updated_at   DateTime @updatedAt
-
-  // Relations
-  purchases    Purchase[]
-
-  @@map("stores")
-}
-

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { updateStoreStock } from '../../../lib/storeStock';
 
 const prisma = new PrismaClient();
 
@@ -82,19 +83,12 @@ export async function POST(request) {
 
       await Promise.all(saleDetailPromises);
 
-      // Update product stock quantities
-      const stockUpdatePromises = holdBill.hold_bill_details.map(detail => 
-        tx.product.update({
-          where: { pro_id: detail.pro_id },
-          data: {
-            pro_stock_qnty: {
-              decrement: detail.qnty
-            }
-          }
-        })
-      );
+      // Update store stock quantities
+      const storeStockUpdatePromises = holdBill.hold_bill_details.map(async detail => {
+        await updateStoreStock(holdBill.store_id, detail.pro_id, detail.qnty, 'decrement', updated_by);
+      });
 
-      await Promise.all(stockUpdatePromises);
+      await Promise.all(storeStockUpdatePromises);
 
       // Create ledger entries
       // Debit entry for sale

@@ -402,6 +402,7 @@ export default function CustomerCategoryPage() {
               placeholder="Search categories..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+                    sx={{ minWidth: 300 }}
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -414,7 +415,7 @@ export default function CustomerCategoryPage() {
 
           {/* Sort By */}
                 <Grid item xs={12} md={4}>
-                  <FormControl fullWidth>
+                  <FormControl fullWidth sx={{ minWidth: 300 }}>
                     <InputLabel>Sort By</InputLabel>
                     <Select
               value={sortBy}
@@ -430,7 +431,7 @@ export default function CustomerCategoryPage() {
 
           {/* Sort Order */}
                 <Grid item xs={12} md={4}>
-                  <FormControl fullWidth>
+                  <FormControl fullWidth sx={{ minWidth: 300 }}>
                     <InputLabel>Order</InputLabel>
                     <Select
               value={sortOrder}
@@ -700,7 +701,7 @@ export default function CustomerCategoryPage() {
                       value={categoryForm.cus_cat_title}
                       onChange={handleCategoryFormChange}
                       placeholder="Enter category title (e.g., VIP Customers)"
-                  sx={{ mb: 3 }}
+                  sx={{ mb: 3, minWidth: 300 }}
                 />
               </Box>
             </DialogContent>

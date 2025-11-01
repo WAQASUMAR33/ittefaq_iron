@@ -1,6 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: ['@prisma/client']
+  serverExternalPackages: ['@prisma/client'],
+  experimental: {
+    optimizeCss: true,
+  },
+  optimizeFonts: true,
 };
 
 export default nextConfig;

@@ -42,7 +42,8 @@ import {
   Logout as LogoutIcon,
   CalendarToday as CalendarIcon,
   TrendingUp as TrendingUpIcon,
-  Store as StoreIcon
+  Store as StoreIcon,
+  AssignmentReturn as AssignmentReturnIcon
 } from '@mui/icons-material';
 
 export default function Sidebar({ 
@@ -86,6 +87,7 @@ export default function Sidebar({
     
     // Purchase Operations
     { id: 'purchases', name: 'Purchase Management', icon: ShoppingBagIcon, category: 'purchase-operations', parent: 'Purchase' },
+    { id: 'purchase-returns', name: 'Purchase Returns', icon: AssignmentReturnIcon, category: 'purchase-operations', parent: 'Purchase' },
     { id: 'vehicles', name: 'Vehicle Management', icon: LocalShippingIcon, category: 'purchase-operations', parent: 'Purchase' },
     { id: 'purchase-details', name: 'Purchase Details', icon: TableChartIcon, category: 'purchase-operations', parent: 'Purchase' },
     
@@ -104,7 +106,8 @@ export default function Sidebar({
     
     // System Management
     { id: 'usermanagement', name: 'User Management', icon: PersonIcon, category: 'system', parent: 'System' },
-    { id: 'stores', name: 'Store Management', icon: StoreIcon, category: 'system', parent: 'System' }
+    { id: 'stores', name: 'Store Management', icon: StoreIcon, category: 'system', parent: 'System' },
+    { id: 'store-stock', name: 'Store Stock', icon: InventoryIcon, category: 'system', parent: 'System' }
   ];
 
   const toggleDropdown = (category) => {
@@ -132,6 +135,8 @@ export default function Sidebar({
       router.push('/dashboard/products');
     } else if (itemId === 'purchases') {
       router.push('/dashboard/purchases');
+    } else if (itemId === 'purchase-returns') {
+      router.push('/dashboard/purchase-returns');
     } else if (itemId === 'vehicles') {
       router.push('/dashboard/vehicles');
     } else if (itemId === 'ledger') {
@@ -178,6 +183,8 @@ export default function Sidebar({
       router.push('/dashboard/reports/expenses-by-date');
     } else if (itemId === 'stores') {
       router.push('/dashboard/stores');
+    } else if (itemId === 'store-stock') {
+      router.push('/dashboard/store-stock');
     } else if (itemId === 'dashboard') {
       router.push('/dashboard');
     }

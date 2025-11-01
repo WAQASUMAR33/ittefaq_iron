@@ -89,6 +89,7 @@ export default function ProductsPage() {
     pro_cost_price: '',
     pro_sale_price: '',
     pro_baser_price: '',
+    pro_crate: '',
     pro_stock_qnty: '',
     pro_unit: '',
     pro_packing: '',
@@ -182,6 +183,7 @@ export default function ProductsPage() {
           pro_cost_price: '',
           pro_sale_price: '',
           pro_baser_price: '',
+          pro_crate: '',
           pro_stock_qnty: '',
           pro_unit: '',
           pro_packing: '',
@@ -221,6 +223,7 @@ export default function ProductsPage() {
       pro_cost_price: product.pro_cost_price || '',
       pro_sale_price: product.pro_sale_price || '',
       pro_baser_price: product.pro_baser_price || '',
+      pro_crate: product.pro_crate || '',
       pro_stock_qnty: product.pro_stock_qnty || '',
       pro_unit: product.pro_unit || '',
       pro_packing: product.pro_packing || '',
@@ -259,6 +262,7 @@ export default function ProductsPage() {
           pro_cost_price: '',
           pro_sale_price: '',
           pro_baser_price: '',
+          pro_crate: '',
           pro_stock_qnty: '',
           pro_unit: '',
           pro_packing: '',
@@ -376,6 +380,7 @@ export default function ProductsPage() {
           pro_cost_price: '',
           pro_sale_price: '',
           pro_baser_price: '',
+          pro_crate: '',
           pro_stock_qnty: '',
           pro_unit: '',
           pro_packing: '',
@@ -836,18 +841,27 @@ export default function ProductsPage() {
               <Table stickyHeader>
                 <TableHead>
                   <TableRow>
+                    <TableCell>No</TableCell>
                     <TableCell>Product</TableCell>
-                    <TableCell>Category</TableCell>
-                    <TableCell>Cost Price</TableCell>
-                    <TableCell>Sale Price</TableCell>
-                    <TableCell>Stock</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell align="center">Actions</TableCell>
+                    <TableCell>Store</TableCell>
+                    <TableCell>Qty</TableCell>
+                    <TableCell>CRATE</TableCell>
+                    <TableCell>Rate</TableCell>
+                    <TableCell>Total Amount</TableCell>
+                    <TableCell align="center">Action</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {filteredAndSortedProducts.map((product) => (
+                  {filteredAndSortedProducts.map((product, index) => (
                     <TableRow key={product.pro_id} hover>
+                      {/* S. No */}
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                          {index + 1}
+                        </Typography>
+                      </TableCell>
+                      
+                          {/* Product */}
                       <TableCell>
                         <Box>
                           <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
@@ -858,48 +872,40 @@ export default function ProductsPage() {
                           </Typography>
                         </Box>
                       </TableCell>
-                      <TableCell>
-                        <Box>
-                          <Chip 
-                            label={product.category?.cat_name || 'N/A'} 
-                            color="primary" 
-                            variant="outlined" 
-                            size="small"
-                            sx={{ mb: 0.5 }}
-                          />
-                          {product.subcategory && (
-                            <Chip 
-                              label={product.subcategory.sub_cat_name} 
-                              color="secondary" 
-                              variant="outlined" 
-                              size="small"
-                            />
-                          )}
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                          {parseFloat(product.pro_cost_price || 0).toFixed(2)}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                          {parseFloat(product.pro_sale_price || 0).toFixed(2)}
-                        </Typography>
-                      </TableCell>
+                      
+                      {/* Store */}
                       <TableCell>
                         <Typography variant="body2">
+                          All Stores
+                        </Typography>
+                      </TableCell>
+                      
+                      {/* Qty */}
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
                           {product.pro_stock_qnty} {product.pro_unit || 'units'}
                         </Typography>
                       </TableCell>
+                      
+                      {/* CRate */}
                       <TableCell>
-                        {product.pro_stock_qnty <= 0 ? (
-                          <Chip label="Out of Stock" color="error" size="small" />
-                        ) : product.pro_stock_qnty < 10 ? (
-                          <Chip label="Low Stock" color="warning" size="small" />
-                        ) : (
-                          <Chip label="In Stock" color="success" size="small" />
-                        )}
+                        <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                          {parseFloat(product.pro_crate || 0).toFixed(2)}
+                        </Typography>
+                      </TableCell>
+                      
+                      {/* Rate */}
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                          {parseFloat(product.pro_baser_price || 0).toFixed(2)}
+                        </Typography>
+                      </TableCell>
+                      
+                      {/* Amount (Rate × Qty) */}
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                          {(parseFloat(product.pro_baser_price || 0) * parseFloat(product.pro_stock_qnty || 0)).toFixed(2)}
+                        </Typography>
                       </TableCell>
                       <TableCell align="center">
                         <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
@@ -1144,6 +1150,24 @@ export default function ProductsPage() {
                       type="number"
                       inputProps={{ step: "0.01" }}
                         value={formData.pro_baser_price}
+                      onChange={handleFormChange}
+                        placeholder="0.00"
+                      InputProps={{
+                        startAdornment: <InputAdornment position="start"></InputAdornment>,
+                      }}
+                        sx={{ minWidth: 250 }}
+                      />
+                  </Grid>
+
+                    {/* CRate */}
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      fullWidth
+                      label="CRate"
+                        name="pro_crate"
+                        type="number"
+                      inputProps={{ step: "0.01" }}
+                        value={formData.pro_crate}
                       onChange={handleFormChange}
                         placeholder="0.00"
                       InputProps={{
