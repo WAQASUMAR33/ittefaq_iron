@@ -121,6 +121,8 @@ export default function PurchasesPage() {
     { id: 5, vehicle_no: 'JKL-345', driver_name: 'David Brown', vehicle_type: 'Truck' }
   ]);
   const [editingPurchase, setEditingPurchase] = useState(null);
+  const [viewingPurchase, setViewingPurchase] = useState(null);
+  const [viewDetailsDialogOpen, setViewDetailsDialogOpen] = useState(false);
   const [currentView, setCurrentView] = useState('list'); // 'list' or 'create'
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [snackbar, setSnackbar] = useState({
@@ -1330,6 +1332,16 @@ export default function PurchasesPage() {
                           {/* Actions */}
                           <div className="col-span-1 flex items-center">
                             <div className="flex items-center space-x-2">
+                              <button
+                                onClick={() => {
+                                  setViewingPurchase(purchase);
+                                  setViewDetailsDialogOpen(true);
+                                }}
+                                className="p-2 text-green-600 hover:text-green-900 hover:bg-green-50 rounded-lg transition-colors duration-200"
+                                title="View Details"
+                              >
+                                <EyeIcon />
+                              </button>
                               <button
                                 onClick={() => handleEdit(purchase)}
                                 className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-colors duration-200"
@@ -2574,6 +2586,201 @@ export default function PurchasesPage() {
             }}
           >
             {isSubmittingCustomer ? 'Adding...' : 'Add Supplier'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Purchase Details Dialog */}
+      <Dialog
+        open={viewDetailsDialogOpen}
+        onClose={() => setViewDetailsDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 2 }}>
+          <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+            Purchase Details #{viewingPurchase?.pur_id}
+          </Typography>
+          <IconButton onClick={() => setViewDetailsDialogOpen(false)} size="small">
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          {viewingPurchase && (
+            <Box sx={{ pt: 2 }}>
+              <Grid container spacing={3}>
+                {/* Purchase Information */}
+                <Grid item xs={12}>
+                  <Card variant="outlined" sx={{ p: 2, bgcolor: 'grey.50' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 2, color: 'text.secondary' }}>
+                      PURCHASE INFORMATION
+                    </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" color="text.secondary">Purchase ID:</Typography>
+                        <Typography variant="body1" sx={{ fontWeight: 'medium' }}>{viewingPurchase.pur_id}</Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" color="text.secondary">Date:</Typography>
+                        <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
+                          {new Date(viewingPurchase.created_at).toLocaleDateString()}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" color="text.secondary">Invoice Number:</Typography>
+                        <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
+                          {viewingPurchase.invoice_number || 'N/A'}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" color="text.secondary">Vehicle Number:</Typography>
+                        <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
+                          {viewingPurchase.vehicle_no || 'N/A'}
+                        </Typography>
+                      </Grid>
+                    </Grid>
+                  </Card>
+                </Grid>
+
+                {/* Supplier Information */}
+                <Grid item xs={12}>
+                  <Card variant="outlined" sx={{ p: 2, bgcolor: 'grey.50' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 2, color: 'text.secondary' }}>
+                      SUPPLIER INFORMATION
+                    </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" color="text.secondary">Supplier Name:</Typography>
+                        <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
+                          {viewingPurchase.customer?.cus_name || 'N/A'}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" color="text.secondary">Phone:</Typography>
+                        <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
+                          {viewingPurchase.customer?.cus_phone_no || 'N/A'}
+                        </Typography>
+                      </Grid>
+                    </Grid>
+                  </Card>
+                </Grid>
+
+                {/* Purchase Details Table */}
+                <Grid item xs={12}>
+                  <Card variant="outlined" sx={{ p: 2 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 2, color: 'text.secondary' }}>
+                      PRODUCTS ({viewingPurchase.purchase_details?.length || 0})
+                    </Typography>
+                    <TableContainer>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold' }}>#</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Product</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Quantity</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Unit Rate</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Crate</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Total</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {viewingPurchase.purchase_details && viewingPurchase.purchase_details.length > 0 ? (
+                            viewingPurchase.purchase_details.map((detail, index) => {
+                              const product = products.find(p => p.pro_id === detail.pro_id);
+                              return (
+                                <TableRow key={index}>
+                                  <TableCell>{index + 1}</TableCell>
+                                  <TableCell>
+                                    <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                                      {product?.pro_title || 'Unknown Product'}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell>{detail.qnty} {detail.unit || 'PCS'}</TableCell>
+                                  <TableCell>{parseFloat(detail.unit_rate || 0).toFixed(2)}</TableCell>
+                                  <TableCell>{parseFloat(detail.crate || 0).toFixed(2)}</TableCell>
+                                  <TableCell sx={{ fontWeight: 'medium' }}>
+                                    {parseFloat(detail.total_amount || 0).toFixed(2)}
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })
+                          ) : (
+                            <TableRow>
+                              <TableCell colSpan={6} align="center">
+                                <Typography variant="body2" color="text.secondary">
+                                  No products found
+                                </Typography>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Card>
+                </Grid>
+
+                {/* Financial Summary */}
+                <Grid item xs={12}>
+                  <Card variant="outlined" sx={{ p: 2, bgcolor: 'success.light', bgcolor: 'rgba(76, 175, 80, 0.1)' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 2, color: 'text.secondary' }}>
+                      FINANCIAL SUMMARY
+                    </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" color="text.secondary">Total Amount:</Typography>
+                        <Typography variant="h6" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                          {parseFloat(viewingPurchase.total_amount || 0).toFixed(2)}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" color="text.secondary">Unloading:</Typography>
+                        <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
+                          {parseFloat(viewingPurchase.unloading_amount || 0).toFixed(2)}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" color="text.secondary">Transport:</Typography>
+                        <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
+                          {parseFloat(viewingPurchase.transport_amount || 0).toFixed(2)}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" color="text.secondary">Fare:</Typography>
+                        <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
+                          {parseFloat(viewingPurchase.fare_amount || 0).toFixed(2)}
+                        </Typography>
+                      </Grid>
+                      {viewingPurchase.discount > 0 && (
+                        <Grid item xs={6}>
+                          <Typography variant="body2" color="text.secondary">Discount:</Typography>
+                          <Typography variant="body1" sx={{ fontWeight: 'medium', color: 'error.main' }}>
+                            -{parseFloat(viewingPurchase.discount || 0).toFixed(2)}
+                          </Typography>
+                        </Grid>
+                      )}
+                      <Grid item xs={12}>
+                        <Divider sx={{ my: 1 }} />
+                        <Typography variant="body2" color="text.secondary">Net Total:</Typography>
+                        <Typography variant="h5" sx={{ fontWeight: 'bold', color: 'success.main' }}>
+                          {parseFloat(viewingPurchase.net_total || 0).toFixed(2)}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={12}>
+                        <Typography variant="body2" color="text.secondary">Payment:</Typography>
+                        <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                          {parseFloat(viewingPurchase.payment || 0).toFixed(2)} ({viewingPurchase.payment_type})
+                        </Typography>
+                      </Grid>
+                    </Grid>
+                  </Card>
+                </Grid>
+              </Grid>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 3 }}>
+          <Button onClick={() => setViewDetailsDialogOpen(false)} variant="contained">
+            Close
           </Button>
         </DialogActions>
       </Dialog>
