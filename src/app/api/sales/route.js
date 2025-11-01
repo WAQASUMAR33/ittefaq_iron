@@ -265,32 +265,47 @@ export async function POST(request) {
           }
         });
       } catch (storeIdError) {
-        // If store_id column doesn't exist, try without it
+        // If store_id column doesn't exist, use raw SQL to create sale without store_id
         if (storeIdError.code === 'P2022' && storeIdError.message?.includes('store_id')) {
-          console.warn('⚠️ store_id column not found, creating sale without store_id. Please run migration!');
-          sale = await tx.sale.create({
-            data: {
-              cus_id,
-              // store_id omitted - column doesn't exist
-              total_amount: parseFloat(total_amount),
-              discount: parseFloat(discount || 0),
-              payment: parseFloat(payment),
-              payment_type,
-              debit_account_id: debit_account_id || null,
-              credit_account_id: credit_account_id || null,
-              loader_id: loader_id || null,
-              shipping_amount: parseFloat(shipping_amount || 0),
-              bill_type: bill_type || 'BILL',
-              reference: reference || null,
-              updated_by
-            }
-          });
+          console.warn('⚠️ store_id column not found, creating sale using raw SQL. Please run migration!');
+          
+          // Use raw SQL to insert sale without store_id column
+          await tx.$executeRaw`
+            INSERT INTO sales (
+              cus_id, total_amount, discount, payment, payment_type,
+              debit_account_id, credit_account_id, loader_id, shipping_amount,
+              bill_type, reference, updated_by, created_at, updated_at
+            ) VALUES (
+              ${cus_id}, ${parseFloat(total_amount)}, ${parseFloat(discount || 0)},
+              ${parseFloat(payment)}, ${payment_type},
+              ${debit_account_id || null}, ${credit_account_id || null},
+              ${loader_id || null}, ${parseFloat(shipping_amount || 0)},
+              ${bill_type || 'BILL'}, ${reference || null}, ${updated_by},
+              NOW(), NOW()
+            )
+          `;
+          
+          // Get the inserted sale using raw SQL
+          const insertedSales = await tx.$queryRaw`
+            SELECT * FROM sales 
+            WHERE cus_id = ${cus_id} 
+            AND total_amount = ${parseFloat(total_amount)}
+            AND payment = ${parseFloat(payment)}
+            AND created_at >= DATE_SUB(NOW(), INTERVAL 1 MINUTE)
+            ORDER BY sale_id DESC LIMIT 1
+          `;
+          
+          if (!insertedSales || insertedSales.length === 0) {
+            throw new Error('Failed to retrieve created sale');
+          }
+          
+          sale = insertedSales[0];
         } else {
           throw storeIdError;
         }
       }
 
-      // Create sale details - try with store_id first, fallback if column doesn't exist
+      // Create sale details - try with store_id first, fallback to raw SQL if column doesn't exist
       const saleDetailPromises = sale_details.map(async detail => {
         const detailData = {
           sale_id: sale.sale_id,
@@ -315,12 +330,39 @@ export async function POST(request) {
             }
           });
         } catch (storeIdError) {
-          // If store_id column doesn't exist, try without it
+          // If store_id column doesn't exist, use raw SQL
           if (storeIdError.code === 'P2022' && storeIdError.message?.includes('store_id')) {
-            console.warn('⚠️ store_id column not found in sale_details, creating without store_id');
-            return await tx.saleDetail.create({
-              data: detailData
-            });
+            console.warn('⚠️ store_id column not found in sale_details, creating using raw SQL');
+            
+            // Use raw SQL to insert sale_detail without store_id column
+            await tx.$executeRaw`
+              INSERT INTO sale_details (
+                sale_id, pro_id, vehicle_no, qnty, unit, unit_rate,
+                total_amount, discount, net_total, cus_id, updated_by
+              ) VALUES (
+                ${detailData.sale_id}, ${detailData.pro_id},
+                ${detailData.vehicle_no}, ${detailData.qnty},
+                ${detailData.unit}, ${detailData.unit_rate},
+                ${detailData.total_amount}, ${detailData.discount},
+                ${detailData.net_total}, ${detailData.cus_id},
+                ${detailData.updated_by}
+              )
+            `;
+            
+            // Return a mock object that matches the expected structure
+            return {
+              sale_id: detailData.sale_id,
+              pro_id: detailData.pro_id,
+              vehicle_no: detailData.vehicle_no,
+              qnty: detailData.qnty,
+              unit: detailData.unit,
+              unit_rate: detailData.unit_rate,
+              total_amount: detailData.total_amount,
+              discount: detailData.discount,
+              net_total: detailData.net_total,
+              cus_id: detailData.cus_id,
+              updated_by: detailData.updated_by
+            };
           } else {
             throw storeIdError;
           }
