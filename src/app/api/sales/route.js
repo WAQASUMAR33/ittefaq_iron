@@ -130,7 +130,7 @@ export async function GET(request) {
           
           // Fetch sale_details separately
           const saleDetails = await prisma.$queryRaw`
-            SELECT sd.*, p.pro_name, p.pro_stock_qnty
+            SELECT sd.*, p.pro_title, p.pro_stock_qnty
             FROM sale_details sd
             LEFT JOIN products p ON sd.pro_id = p.pro_id
             WHERE sd.sale_id = ${id}
@@ -243,7 +243,7 @@ export async function GET(request) {
               const placeholders = saleIds.map(() => '?').join(',');
               
               // Try with subcategories first, if it fails, try without
-              let query = `SELECT sd.*, p.pro_name, p.pro_stock_qnty, 
+              let query = `SELECT sd.*, p.pro_title, p.pro_stock_qnty, 
                 cat.cat_name, sub.sub_cat_name
                 FROM sale_details sd
                 LEFT JOIN products p ON sd.pro_id = p.pro_id
@@ -258,7 +258,7 @@ export async function GET(request) {
                 // If subcategories table doesn't exist, try without it
                 if (subcatError.message?.includes('subcategories')) {
                   console.warn('⚠️ subcategories table not found, fetching without it');
-                  query = `SELECT sd.*, p.pro_name, p.pro_stock_qnty, 
+                  query = `SELECT sd.*, p.pro_title, p.pro_stock_qnty, 
                     cat.cat_name, NULL as sub_cat_name
                     FROM sale_details sd
                     LEFT JOIN products p ON sd.pro_id = p.pro_id
@@ -307,9 +307,10 @@ export async function GET(request) {
                   discount: detail.discount ? Number(detail.discount) : 0,
                   net_total: detail.net_total ? Number(detail.net_total) : 0,
                   cus_id: detail.cus_id ? Number(detail.cus_id) : null,
-                  product: detail.pro_name ? {
+                  product: detail.pro_title ? {
                     pro_id: detail.pro_id ? Number(detail.pro_id) : null,
-                    pro_name: detail.pro_name,
+                    pro_title: detail.pro_title,
+                    pro_name: detail.pro_title, // Also include as pro_name for backward compatibility
                     pro_stock_qnty: detail.pro_stock_qnty ? Number(detail.pro_stock_qnty) : 0,
                     category: detail.cat_name ? { cat_name: detail.cat_name } : null,
                     sub_category: detail.sub_cat_name ? { sub_cat_name: detail.sub_cat_name } : null
