@@ -290,25 +290,42 @@ export async function POST(request) {
         }
       }
 
-      // Create sale details
-      const saleDetailPromises = sale_details.map(detail => 
-        tx.saleDetail.create({
-          data: {
-            sale_id: sale.sale_id,
-            store_id: parseInt(store_id), // Added store_id
-            pro_id: detail.pro_id,
-            vehicle_no: detail.vehicle_no || null,
-            qnty: parseInt(detail.qnty),
-            unit: detail.unit,
-            unit_rate: parseFloat(detail.unit_rate),
-            total_amount: parseFloat(detail.total_amount),
-            discount: parseFloat(detail.discount || 0),
-            net_total: parseFloat(detail.total_amount) - parseFloat(detail.discount || 0),
-            cus_id,
-            updated_by: updated_by || null
+      // Create sale details - try with store_id first, fallback if column doesn't exist
+      const saleDetailPromises = sale_details.map(async detail => {
+        const detailData = {
+          sale_id: sale.sale_id,
+          pro_id: detail.pro_id,
+          vehicle_no: detail.vehicle_no || null,
+          qnty: parseInt(detail.qnty),
+          unit: detail.unit,
+          unit_rate: parseFloat(detail.unit_rate),
+          total_amount: parseFloat(detail.total_amount),
+          discount: parseFloat(detail.discount || 0),
+          net_total: parseFloat(detail.total_amount) - parseFloat(detail.discount || 0),
+          cus_id,
+          updated_by: updated_by || null
+        };
+
+        // Try with store_id first
+        try {
+          return await tx.saleDetail.create({
+            data: {
+              ...detailData,
+              store_id: parseInt(store_id)
+            }
+          });
+        } catch (storeIdError) {
+          // If store_id column doesn't exist, try without it
+          if (storeIdError.code === 'P2022' && storeIdError.message?.includes('store_id')) {
+            console.warn('⚠️ store_id column not found in sale_details, creating without store_id');
+            return await tx.saleDetail.create({
+              data: detailData
+            });
+          } else {
+            throw storeIdError;
           }
-        })
-      );
+        }
+      });
 
       await Promise.all(saleDetailPromises);
 
@@ -625,7 +642,38 @@ export async function POST(request) {
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     console.error('Error creating sale:', error);
-    return NextResponse.json({ error: 'Failed to create sale' }, { status: 500 });
+    const errorMessage = error.message || 'Failed to create sale';
+
+    // Provide more specific error messages for store_id column missing
+    if (error.code === 'P2022' && error.message?.includes('store_id')) {
+      return NextResponse.json({
+        error: 'Database migration required: store_id column is missing',
+        details: 'Please run the migration SQL to add store_id column to sales and sale_details tables.',
+        instructions: [
+          '1. Open phpMyAdmin or your MySQL client',
+          '2. Select your database',
+          '3. Go to SQL tab',
+          '4. Run the SQL from ADD_STORE_ID_TO_SALES_SIMPLE.sql file',
+          '5. After migration, run: npx prisma generate',
+          '6. Restart your server'
+        ],
+        sql: `
+ALTER TABLE \`sales\` ADD COLUMN \`store_id\` INT NULL AFTER \`cus_id\`;
+ALTER TABLE \`sales\` ADD INDEX \`sales_store_id_fkey\` (\`store_id\`);
+ALTER TABLE \`sales\` ADD CONSTRAINT \`sales_store_id_fkey\` FOREIGN KEY (\`store_id\`) REFERENCES \`stores\` (\`storeid\`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+ALTER TABLE \`sale_details\` ADD COLUMN \`store_id\` INT NULL AFTER \`sale_id\`;
+ALTER TABLE \`sale_details\` ADD INDEX \`sale_details_store_id_fkey\` (\`store_id\`);
+ALTER TABLE \`sale_details\` ADD CONSTRAINT \`sale_details_store_id_fkey\` FOREIGN KEY (\`store_id\`) REFERENCES \`stores\` (\`storeid\`) ON DELETE SET NULL ON UPDATE CASCADE;
+        `.trim()
+      }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      error: errorMessage,
+      type: error.name || 'UnknownError',
+      code: error.code || 'UNKNOWN'
+    }, { status: 500 });
   }
 }
 
