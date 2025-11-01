@@ -244,24 +244,51 @@ export async function POST(request) {
         throw new Error('Customer not found');
       }
 
-      // Create sale
-      const sale = await tx.sale.create({
-        data: {
-          cus_id,
-          store_id: parseInt(store_id), // Added store_id
-          total_amount: parseFloat(total_amount),
-          discount: parseFloat(discount || 0),
-          payment: parseFloat(payment),
-          payment_type,
-          debit_account_id: debit_account_id || null,
-          credit_account_id: credit_account_id || null,
-          loader_id: loader_id || null,
-          shipping_amount: parseFloat(shipping_amount || 0),
-          bill_type: bill_type || 'BILL',
-          reference: reference || null,
-          updated_by
+      // Create sale - try with store_id first, fallback if column doesn't exist
+      let sale;
+      try {
+        sale = await tx.sale.create({
+          data: {
+            cus_id,
+            store_id: parseInt(store_id), // Added store_id
+            total_amount: parseFloat(total_amount),
+            discount: parseFloat(discount || 0),
+            payment: parseFloat(payment),
+            payment_type,
+            debit_account_id: debit_account_id || null,
+            credit_account_id: credit_account_id || null,
+            loader_id: loader_id || null,
+            shipping_amount: parseFloat(shipping_amount || 0),
+            bill_type: bill_type || 'BILL',
+            reference: reference || null,
+            updated_by
+          }
+        });
+      } catch (storeIdError) {
+        // If store_id column doesn't exist, try without it
+        if (storeIdError.code === 'P2022' && storeIdError.message?.includes('store_id')) {
+          console.warn('⚠️ store_id column not found, creating sale without store_id. Please run migration!');
+          sale = await tx.sale.create({
+            data: {
+              cus_id,
+              // store_id omitted - column doesn't exist
+              total_amount: parseFloat(total_amount),
+              discount: parseFloat(discount || 0),
+              payment: parseFloat(payment),
+              payment_type,
+              debit_account_id: debit_account_id || null,
+              credit_account_id: credit_account_id || null,
+              loader_id: loader_id || null,
+              shipping_amount: parseFloat(shipping_amount || 0),
+              bill_type: bill_type || 'BILL',
+              reference: reference || null,
+              updated_by
+            }
+          });
+        } else {
+          throw storeIdError;
         }
-      });
+      }
 
       // Create sale details
       const saleDetailPromises = sale_details.map(detail => 
