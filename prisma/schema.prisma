@@ -169,25 +169,25 @@ model SubCategory {
 }
 
 model Product {
-  pro_id              Int                @id @default(autoincrement())
-  cat_id              Int
-  sub_cat_id          Int
-  pro_title           String
-  pro_description     String
-  pro_cost_price      Decimal
-  pro_sale_price      Decimal
-  pro_baser_price     Decimal
-  pro_crate           Decimal?           @default(0.00) @db.Decimal(10, 2)
-  pro_stock_qnty      Int                @default(0)
-  pro_unit            String
-  pro_packing         String?
-  created_at          DateTime           @default(now())
-  updated_at          DateTime           @updatedAt
-  updated_by          Int?
-  hold_bill_details   HoldBillDetail[]
-  category            Categories         @relation(fields: [cat_id], references: [cat_id])
-  sub_category        SubCategory        @relation(fields: [sub_cat_id], references: [sub_cat_id])
-  updated_by_user     Users?             @relation(fields: [updated_by], references: [user_id])
+  pro_id                  Int                    @id @default(autoincrement())
+  cat_id                  Int
+  sub_cat_id              Int
+  pro_title               String
+  pro_description         String
+  pro_cost_price          Decimal
+  pro_sale_price          Decimal
+  pro_baser_price         Decimal
+  pro_crate               Decimal?               @default(0.00) @db.Decimal(10, 2)
+  pro_stock_qnty          Int                    @default(0)
+  pro_unit                String
+  pro_packing             String?
+  created_at              DateTime               @default(now())
+  updated_at              DateTime               @updatedAt
+  updated_by              Int?
+  hold_bill_details       HoldBillDetail[]
+  category                Categories             @relation(fields: [cat_id], references: [cat_id])
+  sub_category            SubCategory            @relation(fields: [sub_cat_id], references: [sub_cat_id])
+  updated_by_user         Users?                 @relation(fields: [updated_by], references: [user_id])
   purchase_details        PurchaseDetail[]
   purchase_return_details PurchaseReturnDetail[]
   sale_details            SaleDetail[]
@@ -254,6 +254,7 @@ model Sale {
   total_amount      Decimal
   discount          Decimal        @default(0.000000000000000000000000000000)
   cus_id            Int
+  store_id          Int?
   payment           Decimal
   payment_type      PaymentType
   debit_account_id  Int?
@@ -271,6 +272,7 @@ model Sale {
   customer          Customer       @relation("SaleCustomer", fields: [cus_id], references: [cus_id])
   debit_account     Customer?      @relation("SaleDebitAccount", fields: [debit_account_id], references: [cus_id])
   loader            Loader?        @relation(fields: [loader_id], references: [loader_id])
+  store             Store?         @relation(fields: [store_id], references: [storeid])
   updated_by_user   Users?         @relation(fields: [updated_by], references: [user_id])
   split_payments    SplitPayment[]
 
@@ -278,6 +280,7 @@ model Sale {
   @@index([cus_id], map: "sales_cus_id_fkey")
   @@index([debit_account_id], map: "sales_debit_account_id_fkey")
   @@index([loader_id], map: "sales_loader_id_fkey")
+  @@index([store_id], map: "sales_store_id_fkey")
   @@index([updated_by], map: "sales_updated_by_fkey")
   @@map("sales")
 }
@@ -285,6 +288,7 @@ model Sale {
 model SaleDetail {
   sale_detail_id  Int      @id @default(autoincrement())
   sale_id         Int
+  store_id        Int?
   pro_id          Int
   vehicle_no      String?
   qnty            Int
@@ -300,11 +304,13 @@ model SaleDetail {
   customer        Customer @relation(fields: [cus_id], references: [cus_id])
   product         Product  @relation(fields: [pro_id], references: [pro_id])
   sale            Sale     @relation(fields: [sale_id], references: [sale_id], onDelete: Cascade)
+  store           Store?   @relation(fields: [store_id], references: [storeid])
   updated_by_user Users?   @relation(fields: [updated_by], references: [user_id])
 
   @@index([cus_id], map: "sale_details_cus_id_fkey")
   @@index([pro_id], map: "sale_details_pro_id_fkey")
   @@index([sale_id], map: "sale_details_sale_id_fkey")
+  @@index([store_id], map: "sale_details_store_id_fkey")
   @@index([updated_by], map: "sale_details_updated_by_fkey")
   @@map("sale_details")
 }
@@ -395,33 +401,33 @@ model PurchaseDetail {
 }
 
 model PurchaseReturn {
-  id                    Int                     @id @default(autoincrement())
-  purchase_id           Int
-  return_date           DateTime
-  return_reason         String
-  total_return_amount   Decimal                 @default(0.00) @db.Decimal(10, 2)
-  notes                 String?
-  status                String                  @default("COMPLETED")
-  created_at            DateTime                @default(now())
-  updated_at            DateTime                @updatedAt
-  purchase              Purchase                @relation(fields: [purchase_id], references: [pur_id], onDelete: Cascade)
-  return_details        PurchaseReturnDetail[]
+  id                  Int                    @id @default(autoincrement())
+  purchase_id         Int
+  return_date         DateTime
+  return_reason       String
+  total_return_amount Decimal                @default(0.00) @db.Decimal(10, 2)
+  notes               String?
+  status              String                 @default("COMPLETED")
+  created_at          DateTime               @default(now())
+  updated_at          DateTime               @updatedAt
+  purchase            Purchase               @relation(fields: [purchase_id], references: [pur_id], onDelete: Cascade)
+  return_details      PurchaseReturnDetail[]
 
   @@index([purchase_id], map: "purchase_returns_purchase_id_fkey")
   @@map("purchase_returns")
 }
 
 model PurchaseReturnDetail {
-  id              Int             @id @default(autoincrement())
+  id              Int            @id @default(autoincrement())
   return_id       Int
   pro_id          Int
   return_quantity Int
-  unit_rate       Decimal         @db.Decimal(10, 2)
-  return_amount   Decimal         @db.Decimal(10, 2)
-  created_at      DateTime        @default(now())
-  updated_at      DateTime        @updatedAt
-  purchase_return PurchaseReturn  @relation(fields: [return_id], references: [id], onDelete: Cascade)
-  product         Product         @relation(fields: [pro_id], references: [pro_id])
+  unit_rate       Decimal        @db.Decimal(10, 2)
+  return_amount   Decimal        @db.Decimal(10, 2)
+  created_at      DateTime       @default(now())
+  updated_at      DateTime       @updatedAt
+  purchase_return PurchaseReturn @relation(fields: [return_id], references: [id], onDelete: Cascade)
+  product         Product        @relation(fields: [pro_id], references: [pro_id])
 
   @@index([return_id], map: "purchase_return_details_return_id_fkey")
   @@index([pro_id], map: "purchase_return_details_pro_id_fkey")
@@ -679,12 +685,14 @@ model JournalDetail {
 }
 
 model Store {
-  storeid       Int        @id @default(autoincrement())
+  storeid       Int          @id @default(autoincrement())
   store_name    String
   store_address String?
-  created_at    DateTime   @default(now())
-  updated_at    DateTime   @updatedAt
+  created_at    DateTime     @default(now())
+  updated_at    DateTime     @updatedAt
   purchases     Purchase[]
+  sales         Sale[]
+  sale_details  SaleDetail[]
   store_stocks  StoreStock[]
 
   @@map("stores")
@@ -701,8 +709,8 @@ model StoreStock {
   updated_at     DateTime @updatedAt
   updated_by     Int?
 
-  store          Store    @relation(fields: [store_id], references: [storeid])
-  product        Product  @relation(fields: [pro_id], references: [pro_id])
+  store           Store   @relation(fields: [store_id], references: [storeid])
+  product         Product @relation(fields: [pro_id], references: [pro_id])
   updated_by_user Users?  @relation(fields: [updated_by], references: [user_id])
 
   @@unique([store_id, pro_id])
