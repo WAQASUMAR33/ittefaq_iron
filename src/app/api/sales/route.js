@@ -287,18 +287,30 @@ export async function GET(request) {
             });
             
             // Group sale_details by sale_id and format properly
+            // Convert sale_ids to numbers for consistent matching
             const detailsBySaleId = {};
             if (saleDetails && saleDetails.length > 0) {
               saleDetails.forEach(detail => {
-                if (!detailsBySaleId[detail.sale_id]) {
-                  detailsBySaleId[detail.sale_id] = [];
+                const detailSaleId = Number(detail.sale_id);
+                if (!detailsBySaleId[detailSaleId]) {
+                  detailsBySaleId[detailSaleId] = [];
                 }
-                detailsBySaleId[detail.sale_id].push({
-                  ...detail,
+                detailsBySaleId[detailSaleId].push({
+                  sale_detail_id: detail.sale_detail_id ? Number(detail.sale_detail_id) : null,
+                  sale_id: detailSaleId,
+                  pro_id: detail.pro_id ? Number(detail.pro_id) : null,
+                  vehicle_no: detail.vehicle_no,
+                  qnty: detail.qnty ? Number(detail.qnty) : 0,
+                  unit: detail.unit,
+                  unit_rate: detail.unit_rate ? Number(detail.unit_rate) : 0,
+                  total_amount: detail.total_amount ? Number(detail.total_amount) : 0,
+                  discount: detail.discount ? Number(detail.discount) : 0,
+                  net_total: detail.net_total ? Number(detail.net_total) : 0,
+                  cus_id: detail.cus_id ? Number(detail.cus_id) : null,
                   product: detail.pro_name ? {
-                    pro_id: detail.pro_id,
+                    pro_id: detail.pro_id ? Number(detail.pro_id) : null,
                     pro_name: detail.pro_name,
-                    pro_stock_qnty: detail.pro_stock_qnty,
+                    pro_stock_qnty: detail.pro_stock_qnty ? Number(detail.pro_stock_qnty) : 0,
                     category: detail.cat_name ? { cat_name: detail.cat_name } : null,
                     sub_category: detail.sub_cat_name ? { sub_cat_name: detail.sub_cat_name } : null
                   } : null
@@ -308,9 +320,10 @@ export async function GET(request) {
             
             // Format sales to match Prisma structure
             const result = sales.map(sale => {
+              const saleIdNum = Number(sale.sale_id);
               // Handle BigInt values (like sale_id, total_amount) by converting to Number
               const formattedSale = {
-                sale_id: Number(sale.sale_id),
+                sale_id: saleIdNum,
                 total_amount: Number(sale.total_amount) || 0,
                 discount: Number(sale.discount) || 0,
                 payment: Number(sale.payment) || 0,
@@ -335,7 +348,7 @@ export async function GET(request) {
                   cus_reference: sale.cus_reference,
                   customer_category: sale.cus_category && categoriesMap[sale.cus_category] ? categoriesMap[sale.cus_category] : null
                 } : null,
-                sale_details: detailsBySaleId[sale.sale_id] || [],
+                sale_details: detailsBySaleId[saleIdNum] || [],
                 loader: null,
                 debit_account: null,
                 credit_account: null,
@@ -343,6 +356,8 @@ export async function GET(request) {
               };
               return formattedSale;
             });
+            
+            console.log('📊 Sample formatted sale:', JSON.stringify(result[0], null, 2));
             
             console.log('✅ Formatted sales result count:', result.length);
             return NextResponse.json(result);
