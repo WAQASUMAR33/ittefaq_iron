@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import DashboardLayout from '../components/dashboard-layout';
 
 // Material-UI imports
@@ -349,7 +349,8 @@ export default function SalesPage() {
   const calculateSubtotal = () => {
     const productTotal = calculateTotalAmount();
     const transportTotal = calculateTransportTotal();
-    return productTotal + transportTotal;
+    const subtotal = productTotal + transportTotal;
+    return subtotal;
   };
 
   // Calculate grand total (subtotal + labour + delivery - discount)
@@ -600,7 +601,11 @@ export default function SalesPage() {
   };
 
   const calculateTransportTotal = () => {
-    return transportOptions.reduce((total, transport) => total + transport.amount, 0);
+    const total = transportOptions.reduce((sum, transport) => {
+      const amount = parseFloat(transport.amount) || 0;
+      return sum + amount;
+    }, 0);
+    return total;
   };
 
   // Customer creation functions
@@ -1355,8 +1360,8 @@ export default function SalesPage() {
                         <TableCell colSpan={5} sx={{ py: 2, fontWeight: 'bold', textAlign: 'right' }}>
                           Total Amount:
                         </TableCell>
-                        <TableCell sx={{ py: 2, fontWeight: 'bold', fontSize: '1.1rem' }}>
-                          {calculateSubtotal().toFixed(2)}
+                        <TableCell sx={{ py: 2, fontWeight: 'bold', fontSize: '1.1rem' }} key={`table-total-${calculateSubtotal()}-${transportOptions.length}`}>
+                          {Number(calculateSubtotal()).toFixed(2)}
                         </TableCell>
                         <TableCell sx={{ py: 2 }}></TableCell>
                       </TableRow>
@@ -1566,9 +1571,12 @@ export default function SalesPage() {
                         <TextField
                           size="small"
                           type="number"
-                          value={calculateSubtotal().toFixed(2)}
+                          value={Number(calculateSubtotal()).toFixed(2)}
                           sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' }, flex: 1 }}
                           disabled
+                          inputProps={{
+                            readOnly: true
+                          }}
                         />
                       </Box>
 
