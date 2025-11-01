@@ -239,16 +239,37 @@ export async function GET(request) {
             let saleDetails = [];
             if (saleIds.length > 0) {
               // Build IN clause manually for raw SQL
+              // Check if subcategories table exists, if not, don't join it
               const placeholders = saleIds.map(() => '?').join(',');
-              const query = `SELECT sd.*, p.pro_name, p.pro_stock_qnty, 
+              
+              // Try with subcategories first, if it fails, try without
+              let query = `SELECT sd.*, p.pro_name, p.pro_stock_qnty, 
                 cat.cat_name, sub.sub_cat_name
                 FROM sale_details sd
                 LEFT JOIN products p ON sd.pro_id = p.pro_id
                 LEFT JOIN categories cat ON p.cat_id = cat.cat_id
                 LEFT JOIN subcategories sub ON p.sub_cat_id = sub.sub_cat_id
                 WHERE sd.sale_id IN (${placeholders})`;
-              saleDetails = await prisma.$queryRawUnsafe(query, ...saleIds);
-              console.log('📊 Sale details fetched:', saleDetails?.length || 0);
+              
+              try {
+                saleDetails = await prisma.$queryRawUnsafe(query, ...saleIds);
+                console.log('📊 Sale details fetched:', saleDetails?.length || 0);
+              } catch (subcatError) {
+                // If subcategories table doesn't exist, try without it
+                if (subcatError.message?.includes('subcategories')) {
+                  console.warn('⚠️ subcategories table not found, fetching without it');
+                  query = `SELECT sd.*, p.pro_name, p.pro_stock_qnty, 
+                    cat.cat_name, NULL as sub_cat_name
+                    FROM sale_details sd
+                    LEFT JOIN products p ON sd.pro_id = p.pro_id
+                    LEFT JOIN categories cat ON p.cat_id = cat.cat_id
+                    WHERE sd.sale_id IN (${placeholders})`;
+                  saleDetails = await prisma.$queryRawUnsafe(query, ...saleIds);
+                  console.log('📊 Sale details fetched (without subcategories):', saleDetails?.length || 0);
+                } else {
+                  throw subcatError;
+                }
+              }
             }
             
             // Fetch customer categories for nested structure
