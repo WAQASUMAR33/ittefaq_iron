@@ -357,9 +357,14 @@ export async function GET(request) {
               return formattedSale;
             });
             
-            console.log('📊 Sample formatted sale:', JSON.stringify(result[0], null, 2));
+            if (result.length > 0) {
+              console.log('📊 Sample formatted sale:', JSON.stringify(result[0], null, 2));
+              console.log('📊 Sample sale keys:', Object.keys(result[0]));
+              console.log('📊 Sample sale customer:', result[0].customer);
+            }
             
             console.log('✅ Formatted sales result count:', result.length);
+            console.log('✅ Response ready to send');
             return NextResponse.json(result);
           } catch (rawSqlError) {
             console.error('❌ Raw SQL error:', rawSqlError);

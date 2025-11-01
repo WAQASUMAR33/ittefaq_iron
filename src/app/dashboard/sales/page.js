@@ -724,19 +724,40 @@ export default function SalesPage() {
       // Fetch sales data first and separately to ensure it's not affected by other API failures
       try {
         const salesRes = await fetch('/api/sales');
+        console.log('📡 Sales API response status:', salesRes.status, salesRes.statusText);
+        
         if (salesRes.ok) {
           const salesData = await salesRes.json();
           console.log('🔍 Sales API response:', salesData);
           console.log('🔍 Sales count:', salesData.length);
           console.log('🔍 Sales data type:', typeof salesData);
           console.log('🔍 Sales is array:', Array.isArray(salesData));
-          setSales(salesData);
+          
+          if (Array.isArray(salesData) && salesData.length > 0) {
+            console.log('🔍 First sale structure:', {
+              sale_id: salesData[0].sale_id,
+              hasCustomer: !!salesData[0].customer,
+              customerName: salesData[0].customer?.cus_name,
+              total_amount: salesData[0].total_amount,
+              keys: Object.keys(salesData[0])
+            });
+          }
+          
+          if (!Array.isArray(salesData)) {
+            console.error('❌ Sales data is not an array!', salesData);
+            setSales([]);
+          } else {
+            setSales(salesData);
+          }
         } else {
+          const errorText = await salesRes.text();
           console.error('❌ Sales API error:', salesRes.status, salesRes.statusText);
+          console.error('❌ Error response:', errorText);
           setSales([]);
         }
       } catch (salesError) {
         console.error('❌ Sales fetch error:', salesError);
+        console.error('❌ Error stack:', salesError.stack);
         setSales([]);
       }
       
