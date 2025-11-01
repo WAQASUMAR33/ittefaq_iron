@@ -873,48 +873,60 @@ export default function SalesPage() {
   };
 
   // Filter sales based on search criteria
-  const filteredSales = sales.filter(sale => {
-    console.log('🔍 Filtering sale:', sale.sale_id, 'Total sales:', sales.length);
+  const filteredSales = useMemo(() => {
+    console.log('🔍 Starting filter with sales count:', sales.length);
+    console.log('🔍 Sales is array?', Array.isArray(sales));
+    console.log('🔍 Filter criteria:', { searchTerm, filterCustomer, filterBillType, dateFrom, dateTo });
     
     // Check if sales array has data
-    if (sales.length === 0) {
-      console.log('🔍 No sales to filter');
-      return false;
+    if (!Array.isArray(sales) || sales.length === 0) {
+      console.log('🔍 No sales to filter - returning empty array');
+      return [];
     }
     
-    // All filters are empty by default, so all sales should match
-    const matchesSearch = searchTerm === '' || 
-      sale.sale_id.toString().includes(searchTerm) ||
-      sale.customer?.cus_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      sale.reference?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesCustomer = filterCustomer === '' || 
-      sale.customer?.cus_id.toString() === filterCustomer;
-    
-    const matchesBillType = filterBillType === '' || 
-      sale.bill_type === filterBillType;
-    
-    const matchesDateFrom = dateFrom === '' || 
-      (dateFrom && new Date(sale.created_at) >= new Date(dateFrom));
-    
-    const matchesDateTo = dateTo === '' || 
-      (dateTo && new Date(sale.created_at) <= new Date(dateTo));
-    
-    const result = matchesSearch && matchesCustomer && matchesBillType && matchesDateFrom && matchesDateTo;
-    console.log('🔍 Sale', sale.sale_id, 'matches:', result, {
-      matchesSearch,
-      matchesCustomer,
-      matchesBillType,
-      matchesDateFrom,
-      matchesDateTo,
-      searchTerm,
-      filterCustomer,
-      filterBillType,
-      dateFrom,
-      dateTo
+    console.log('🔍 Filtering', sales.length, 'sales...');
+    const filtered = sales.filter(sale => {
+      // All filters are empty by default, so all sales should match
+      const matchesSearch = searchTerm === '' || 
+        sale.sale_id?.toString().includes(searchTerm) ||
+        sale.customer?.cus_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        sale.reference?.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesCustomer = filterCustomer === '' || 
+        sale.customer?.cus_id?.toString() === filterCustomer;
+      
+      const matchesBillType = filterBillType === '' || 
+        sale.bill_type === filterBillType;
+      
+      const matchesDateFrom = dateFrom === '' || 
+        (dateFrom && sale.created_at && new Date(sale.created_at) >= new Date(dateFrom));
+      
+      const matchesDateTo = dateTo === '' || 
+        (dateTo && sale.created_at && new Date(sale.created_at) <= new Date(dateTo));
+      
+      const result = matchesSearch && matchesCustomer && matchesBillType && matchesDateFrom && matchesDateTo;
+      
+      if (!result) {
+        console.log('🔍 Sale', sale.sale_id, 'filtered out:', {
+          matchesSearch,
+          matchesCustomer,
+          matchesBillType,
+          matchesDateFrom,
+          matchesDateTo,
+          hasCustomer: !!sale.customer,
+          saleData: { sale_id: sale.sale_id, total_amount: sale.total_amount }
+        });
+      }
+      
+      return result;
     });
-    return result;
-  });
+    
+    console.log('🔍 Filtered sales count:', filtered.length, 'out of', sales.length);
+    if (filtered.length > 0) {
+      console.log('🔍 First filtered sale:', filtered[0]);
+    }
+    return filtered;
+  }, [sales, searchTerm, filterCustomer, filterBillType, dateFrom, dateTo]);
   
   console.log('🔍 Filtered sales count:', filteredSales.length);
   console.log('🔍 Sales state:', sales);
