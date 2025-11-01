@@ -1356,7 +1356,7 @@ export default function SalesPage() {
                           Total Amount:
                         </TableCell>
                         <TableCell sx={{ py: 2, fontWeight: 'bold', fontSize: '1.1rem' }}>
-                          {calculateTotalAmount().toFixed(2)}
+                          {calculateSubtotal().toFixed(2)}
                         </TableCell>
                         <TableCell sx={{ py: 2 }}></TableCell>
                       </TableRow>
@@ -1566,7 +1566,7 @@ export default function SalesPage() {
                         <TextField
                           size="small"
                           type="number"
-                          value={calculateTotalAmount().toFixed(2)}
+                          value={calculateSubtotal().toFixed(2)}
                           sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' }, flex: 1 }}
                           disabled
                         />
