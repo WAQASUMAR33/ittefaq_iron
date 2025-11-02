@@ -2614,19 +2614,21 @@ export default function SalesPage() {
                   {selectedBill.customer?.cus_address && (
                     <Typography variant="body2">
                       <strong>Address:</strong> {selectedBill.customer.cus_address}
-                  </Typography>
+                    </Typography>
                   )}
                 </Grid>
                 <Grid item xs={12} md={6}>
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    <strong>Invoice No:</strong> <strong>#{selectedBill.sale_id}</strong>
-                  </Typography>
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    <strong>Invoice Date:</strong> <strong>{new Date(selectedBill.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
-                  </Typography>
-                  <Typography variant="body2">
-                    <strong>Invoice Time:</strong> <strong>{new Date(selectedBill.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
-                  </Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                    <Typography variant="body2" sx={{ mb: 0.5, textAlign: 'right' }}>
+                      <strong>Invoice No:</strong> <strong>#{selectedBill.sale_id}</strong>
+                    </Typography>
+                    <Typography variant="body2" sx={{ mb: 0.5, textAlign: 'right' }}>
+                      <strong>Invoice Date:</strong> <strong>{new Date(selectedBill.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
+                    </Typography>
+                    <Typography variant="body2" sx={{ textAlign: 'right' }}>
+                      <strong>Invoice Time:</strong> <strong>{new Date(selectedBill.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
+                    </Typography>
+                  </Box>
                 </Grid>
               </Grid>
 
@@ -2719,7 +2721,7 @@ export default function SalesPage() {
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: 'none', fontSize: '0.875rem' }}>{parseFloat(selectedBill.shipping_amount || 0).toFixed(2)}</TableCell>
                           </TableRow>
                           <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: 'none', fontSize: '0.875rem' }}>كل رقم</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: 'none', fontSize: '0.875rem', textAlign: 'right' }}>كل رقم</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: 'none', fontSize: '0.875rem' }}>
                               {(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.discount || 0) + parseFloat(selectedBill.shipping_amount || 0)).toFixed(2)}
                             </TableCell>
