@@ -161,9 +161,6 @@ export async function POST(request) {
     // Calculate net total
     const netTotal = parseFloat(total_amount) - parseFloat(discount || 0);
 
-    // Check if this is a quotation return (skip financial transactions for quotations)
-    const isQuotation = bill_type === 'QUOTATION';
-
     // Use transaction to ensure data consistency
     const result = await prisma.$transaction(async (tx) => {
       // Get the original sale to get store_id and verify bill_type
