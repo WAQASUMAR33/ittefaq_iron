@@ -2704,8 +2704,8 @@ export default function SalesPage() {
                   </Grid>
 
                   {/* Right Side - Payment Summary (aligned with Qty, Rate, Amount columns) */}
-                  <Grid item xs={12} md={8}>
-                    <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000' }}>
+                  <Grid item xs={12} md={8} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', maxWidth: 'fit-content', ml: 'auto' }}>
                       <Table size="small">
                         <TableBody>
                           <TableRow>
