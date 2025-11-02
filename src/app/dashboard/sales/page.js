@@ -2521,14 +2521,35 @@ export default function SalesPage() {
       <Dialog
         open={viewBillDialog}
         onClose={handleCloseBillDialog}
-        maxWidth="md"
+        maxWidth="lg"
         fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.12)'
+          }
+        }}
       >
-        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h6" sx={{ fontWeight: 'semibold' }}>
-            Bill Details - #{selectedBill?.sale_id}
-          </Typography>
-          <IconButton onClick={handleCloseBillDialog} size="small">
+        <DialogTitle sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          bgcolor: 'primary.main',
+          color: 'white',
+          py: 2,
+          px: 3
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <ReceiptIcon />
+            <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+              Bill Details - #{selectedBill?.sale_id}
+            </Typography>
+          </Box>
+          <IconButton 
+            onClick={handleCloseBillDialog} 
+            size="small"
+            sx={{ color: 'white', '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' } }}
+          >
             <CloseIcon />
           </IconButton>
         </DialogTitle>
@@ -2536,63 +2557,121 @@ export default function SalesPage() {
           {selectedBill && (
             <Box>
               {/* Bill Header */}
-              <Grid container spacing={2} sx={{ mb: 3 }}>
+              <Grid container spacing={3} sx={{ mb: 4 }}>
                 <Grid item xs={12} md={6}>
-                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                    Customer Information
-                  </Typography>
-                  <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
-                    {selectedBill.customer?.cus_name || 'N/A'}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Phone: {selectedBill.customer?.cus_phone_no || 'N/A'}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Category: {selectedBill.customer?.customer_category?.cus_cat_title || 'N/A'}
-                  </Typography>
+                  <Card variant="outlined" sx={{ p: 2, bgcolor: 'grey.50' }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1.5, color: 'primary.main' }}>
+                      Customer Information
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                      <Typography variant="body1" sx={{ fontWeight: 'medium', fontSize: '1.1rem' }}>
+                        {selectedBill.customer?.cus_name || 'N/A'}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        <strong>Phone:</strong> {selectedBill.customer?.cus_phone_no || 'N/A'}
+                      </Typography>
+                      {selectedBill.customer?.cus_address && (
+                        <Typography variant="body2" color="text.secondary">
+                          <strong>Address:</strong> {selectedBill.customer.cus_address}
+                        </Typography>
+                      )}
+                      <Typography variant="body2" color="text.secondary">
+                        <strong>Category:</strong> {selectedBill.customer?.customer_category?.cus_cat_title || 'N/A'}
+                      </Typography>
+                    </Box>
+                  </Card>
                 </Grid>
                 <Grid item xs={12} md={6}>
-                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                    Bill Information
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Bill ID: #{selectedBill.sale_id}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Date: {new Date(selectedBill.created_at).toLocaleDateString()}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Type: {selectedBill.bill_type || 'N/A'}
-                  </Typography>
+                  <Card variant="outlined" sx={{ p: 2, bgcolor: 'grey.50' }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1.5, color: 'primary.main' }}>
+                      Bill Information
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        <strong>Bill ID:</strong> #{selectedBill.sale_id}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        <strong>Date:</strong> {new Date(selectedBill.created_at).toLocaleDateString('en-US', { 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        <strong>Type:</strong> {selectedBill.bill_type || 'N/A'}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        <strong>Payment Type:</strong> {selectedBill.payment_type || 'N/A'}
+                      </Typography>
+                      {selectedBill.reference && (
+                        <Typography variant="body2" color="text.secondary">
+                          <strong>Reference:</strong> {selectedBill.reference}
+                        </Typography>
+                      )}
+                    </Box>
+                  </Card>
                 </Grid>
               </Grid>
 
               {/* Bill Items */}
-              <Typography variant="subtitle2" color="text.secondary" gutterBottom sx={{ mb: 2 }}>
+              <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, color: 'primary.main' }}>
                 Items
               </Typography>
-              <TableContainer component={Paper} variant="outlined">
-                <Table size="small">
+              <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
+                <Table size="medium">
                   <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 'bold' }}>Product</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold' }} align="right">Quantity</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold' }} align="right">Rate</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold' }} align="right">Amount</TableCell>
+                    <TableRow sx={{ bgcolor: 'primary.light' }}>
+                      <TableCell sx={{ fontWeight: 'bold', color: 'white' }}>S.No</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: 'white' }}>Product Name</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: 'white' }} align="right">Quantity</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: 'white' }} align="right">Unit Rate</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: 'white' }} align="right">Discount</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: 'white' }} align="right">Amount</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {selectedBill.sale_details?.map((detail, index) => (
-                      <TableRow key={index}>
-                        <TableCell>{detail.product?.prod_name || 'N/A'}</TableCell>
-                        <TableCell align="right">{detail.qnty || 0}</TableCell>
-                        <TableCell align="right">{parseFloat(detail.unit_rate || 0).toFixed(2)}</TableCell>
-                        <TableCell align="right">{parseFloat(detail.total_amount || 0).toFixed(2)}</TableCell>
-                      </TableRow>
-                    )) || (
+                    {selectedBill.sale_details && selectedBill.sale_details.length > 0 ? (
+                      selectedBill.sale_details.map((detail, index) => (
+                        <TableRow key={detail.sale_detail_id || index} sx={{ 
+                          '&:hover': { bgcolor: 'grey.50' },
+                          '&:nth-of-type(even)': { bgcolor: 'grey.25' }
+                        }}>
+                          <TableCell>{index + 1}</TableCell>
+                          <TableCell sx={{ fontWeight: 'medium' }}>
+                            {detail.product?.pro_title || detail.product?.pro_name || detail.product?.prod_name || 'N/A'}
+                            {detail.product?.category?.cat_name && (
+                              <Typography variant="caption" color="text.secondary" display="block">
+                                {detail.product.category.cat_name}
+                              </Typography>
+                            )}
+                          </TableCell>
+                          <TableCell align="right">{detail.qnty || 0} {detail.unit || 'PCS'}</TableCell>
+                          <TableCell align="right">Rs. {parseFloat(detail.unit_rate || 0).toFixed(2)}</TableCell>
+                          <TableCell align="right">Rs. {parseFloat(detail.discount || 0).toFixed(2)}</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                            Rs. {parseFloat(detail.total_amount || 0).toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
                       <TableRow>
-                        <TableCell colSpan={4} align="center">
-                          No items found
+                        <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
+                          <Typography variant="body2" color="text.secondary">
+                            No items found
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {selectedBill.sale_details && selectedBill.sale_details.length > 0 && (
+                      <TableRow sx={{ bgcolor: 'grey.100', borderTop: '2px solid #dee2e6' }}>
+                        <TableCell colSpan={5} sx={{ fontWeight: 'bold', textAlign: 'right' }}>
+                          Total:
+                        </TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
+                          Rs. {selectedBill.sale_details.reduce((sum, detail) => 
+                            sum + parseFloat(detail.total_amount || 0), 0).toFixed(2)}
                         </TableCell>
                       </TableRow>
                     )}
@@ -2601,50 +2680,72 @@ export default function SalesPage() {
               </TableContainer>
 
               {/* Bill Summary */}
-              <Box sx={{ mt: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+              <Card variant="outlined" sx={{ bgcolor: 'primary.light', color: 'white', p: 3 }}>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, color: 'white' }}>
+                  Payment Summary
+                </Typography>
                 <Grid container spacing={2}>
                   <Grid item xs={6}>
-                    <Typography variant="body2" color="text.secondary">
-                      Total Amount:
+                    <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                      Subtotal:
                     </Typography>
                   </Grid>
                   <Grid item xs={6}>
                     <Typography variant="body2" align="right" sx={{ fontWeight: 'medium' }}>
-                      {parseFloat(selectedBill.total_amount || 0).toFixed(2)}
+                      Rs. {parseFloat(selectedBill.total_amount || 0).toFixed(2)}
                     </Typography>
                   </Grid>
+                  
                   <Grid item xs={6}>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{ opacity: 0.9 }}>
                       Discount:
                     </Typography>
                   </Grid>
                   <Grid item xs={6}>
                     <Typography variant="body2" align="right">
-                      {parseFloat(selectedBill.discount || 0).toFixed(2)}
+                      - Rs. {parseFloat(selectedBill.discount || 0).toFixed(2)}
                     </Typography>
                   </Grid>
+                  
                   <Grid item xs={6}>
-                    <Typography variant="body2" color="text.secondary">
-                      Shipping:
+                    <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                      Shipping/Transport:
                     </Typography>
                   </Grid>
                   <Grid item xs={6}>
                     <Typography variant="body2" align="right">
-                      {parseFloat(selectedBill.shipping_amount || 0).toFixed(2)}
+                      + Rs. {parseFloat(selectedBill.shipping_amount || 0).toFixed(2)}
+                    </Typography>
+                  </Grid>
+                  
+                  <Grid item xs={6}>
+                    <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                      Grand Total:
                     </Typography>
                   </Grid>
                   <Grid item xs={6}>
-                    <Typography variant="body2" color="text.secondary">
-                      Payment:
+                    <Typography variant="body2" align="right" sx={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
+                      Rs. {(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.discount || 0) + parseFloat(selectedBill.shipping_amount || 0)).toFixed(2)}
+                    </Typography>
+                  </Grid>
+                  
+                  <Grid item xs={12}>
+                    <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.3)', pt: 2, mt: 1 }} />
+                  </Grid>
+                  
+                  <Grid item xs={6}>
+                    <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                      Payment Received:
                     </Typography>
                   </Grid>
                   <Grid item xs={6}>
                     <Typography variant="body2" align="right" sx={{ fontWeight: 'medium' }}>
-                      {parseFloat(selectedBill.payment || 0).toFixed(2)}
+                      Rs. {parseFloat(selectedBill.payment || 0).toFixed(2)}
                     </Typography>
                   </Grid>
+                  
                   <Grid item xs={6}>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
                       Balance:
                     </Typography>
                   </Grid>
@@ -2654,24 +2755,37 @@ export default function SalesPage() {
                       align="right" 
                       sx={{ 
                         fontWeight: 'bold',
-                        color: (parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.discount || 0) + parseFloat(selectedBill.shipping_amount || 0) - parseFloat(selectedBill.payment || 0)) > 0 ? 'error.main' : 'success.main'
+                        fontSize: '1.2rem',
+                        color: (() => {
+                          const balance = parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.discount || 0) + parseFloat(selectedBill.shipping_amount || 0) - parseFloat(selectedBill.payment || 0);
+                          return balance > 0 ? '#ffcdd2' : balance < 0 ? '#c8e6c9' : 'white';
+                        })()
                       }}
                     >
-                      {(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.discount || 0) + parseFloat(selectedBill.shipping_amount || 0) - parseFloat(selectedBill.payment || 0)).toFixed(2)}
+                      Rs. {(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.discount || 0) + parseFloat(selectedBill.shipping_amount || 0) - parseFloat(selectedBill.payment || 0)).toFixed(2)}
                     </Typography>
                   </Grid>
                 </Grid>
-              </Box>
+              </Card>
             </Box>
           )}
         </DialogContent>
-        <DialogActions sx={{ p: 3 }}>
-          <Button onClick={handleCloseBillDialog} variant="outlined">
+        <DialogActions sx={{ p: 3, bgcolor: 'grey.50', borderTop: '1px solid #e0e0e0' }}>
+          <Button 
+            onClick={handleCloseBillDialog} 
+            variant="outlined"
+            sx={{ minWidth: 100 }}
+          >
             Close
           </Button>
           <Button 
             variant="contained" 
             startIcon={<PrintIcon />}
+            sx={{ 
+              minWidth: 150,
+              bgcolor: 'primary.main',
+              '&:hover': { bgcolor: 'primary.dark' }
+            }}
             onClick={() => {
               // TODO: Implement print functionality
               console.log('Print bill:', selectedBill?.sale_id);
