@@ -2623,61 +2623,61 @@ export default function SalesPage() {
                 </Grid>
               </Grid>
 
-              {/* Product Table and Payment Summary */}
+              {/* Product Table and Payment Summary - Side by Side */}
               <Grid container spacing={2} sx={{ px: 3, py: 2 }}>
-                {/* Left Side - Product Table and Balance */}
+                {/* Left Side - Product Table */}
                 <Grid item xs={12} md={8}>
                   {/* Product Details Table */}
                   <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
-                <Table size="small">
-                  <TableHead>
+                    <Table size="small">
+                      <TableHead>
                         <TableRow sx={{ bgcolor: '#9e9e9e' }}>
-                          <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1 }}>S#</TableCell>
-                          <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1 }}>Product Name</TableCell>
-                          <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1 }} align="right">Qty</TableCell>
-                          <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1 }} align="right">Rate</TableCell>
-                          <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1 }} align="right">Amount</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
+                          <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }}>S#</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }}>Product Name</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Qty</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Rate</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Amount</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
                         {selectedBill.sale_details && selectedBill.sale_details.length > 0 ? (
                           selectedBill.sale_details.map((detail, index) => (
                             <TableRow key={detail.sale_detail_id || index}>
-                              <TableCell>{index + 1}</TableCell>
-                              <TableCell>{detail.product?.pro_title || detail.product?.pro_name || detail.product?.prod_name || 'N/A'}</TableCell>
-                        <TableCell align="right">{detail.qnty || 0}</TableCell>
-                        <TableCell align="right">{parseFloat(detail.unit_rate || 0).toFixed(2)}</TableCell>
-                        <TableCell align="right">{parseFloat(detail.total_amount || 0).toFixed(2)}</TableCell>
-                      </TableRow>
+                              <TableCell sx={{ px: 1 }}>{index + 1}</TableCell>
+                              <TableCell sx={{ px: 1 }}>{detail.product?.pro_title || detail.product?.pro_name || detail.product?.prod_name || 'N/A'}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{detail.qnty || 0}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.unit_rate || 0).toFixed(2)}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.total_amount || 0).toFixed(2)}</TableCell>
+                            </TableRow>
                           ))
                         ) : (
-                      <TableRow>
+                          <TableRow>
                             <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
-                          No items found
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+                              No items found
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
 
                   {/* Balance Section (Left Side Below Table) */}
-                  <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+                  <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, maxWidth: '400px' }}>
                     <Table size="small">
                       <TableBody>
                         <TableRow>
-                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl' }}>سابقہ بقایا</TableCell>
-                          <TableCell align="right">{parseFloat(selectedBill.customer?.cus_balance || 0).toFixed(2)}</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: 'none' }}>سابقہ بقایا</TableCell>
+                          <TableCell align="right" sx={{ px: 1, py: 0.5, border: 'none' }}>{parseFloat(selectedBill.customer?.cus_balance || 0).toFixed(2)}</TableCell>
                         </TableRow>
                         <TableRow>
-                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl' }}>موجوده بقایا</TableCell>
-                          <TableCell align="right">
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: 'none' }}>موجوده بقایا</TableCell>
+                          <TableCell align="right" sx={{ px: 1, py: 0.5, border: 'none' }}>
                             {(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.discount || 0) + parseFloat(selectedBill.shipping_amount || 0) - parseFloat(selectedBill.payment || 0)).toFixed(2)}
                           </TableCell>
                         </TableRow>
                         <TableRow>
-                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl' }}>كل بقايا</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: 'none' }}>كل بقايا</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: 'none' }}>
                             {(parseFloat(selectedBill.customer?.cus_balance || 0) + parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.discount || 0) + parseFloat(selectedBill.shipping_amount || 0) - parseFloat(selectedBill.payment || 0)).toFixed(2)}
                           </TableCell>
                         </TableRow>
@@ -2686,61 +2686,61 @@ export default function SalesPage() {
                   </TableContainer>
 
                   {/* Notes Section */}
-                  <Box sx={{ mt: 2 }}>
-                    <Typography variant="body2">
+                  <Box sx={{ mt: 1 }}>
+                    <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
                       <strong>Notes:</strong> {selectedBill.notes || ''}
                     </Typography>
                   </Box>
-                  </Grid>
+                </Grid>
 
-                {/* Right Side - Payment Summary */}
+                {/* Right Side - Payment Summary (Top Aligned) */}
                 <Grid item xs={12} md={4}>
-                  <TableContainer component={Paper} variant="outlined">
+                  <TableContainer component={Paper} variant="outlined" sx={{ width: '100%' }}>
                     <Table size="small">
                       <TableBody>
                         <TableRow>
-                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl' }}>رقم بل</TableCell>
-                          <TableCell align="right">{parseFloat(selectedBill.total_amount || 0).toFixed(2)}</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: 'none', fontSize: '0.875rem' }}>رقم بل</TableCell>
+                          <TableCell align="right" sx={{ px: 1, py: 0.5, border: 'none', fontSize: '0.875rem' }}>{parseFloat(selectedBill.total_amount || 0).toFixed(2)}</TableCell>
                         </TableRow>
                         <TableRow>
-                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl' }}>مزدوری</TableCell>
-                          <TableCell align="right">{parseFloat(selectedBill.labour || 0).toFixed(2)}</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: 'none', fontSize: '0.875rem' }}>مزدوری</TableCell>
+                          <TableCell align="right" sx={{ px: 1, py: 0.5, border: 'none', fontSize: '0.875rem' }}>{parseFloat(selectedBill.labour || 0).toFixed(2)}</TableCell>
                         </TableRow>
                         <TableRow>
-                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl' }}>کرایہ</TableCell>
-                          <TableCell align="right">{parseFloat(selectedBill.shipping_amount || 0).toFixed(2)}</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: 'none', fontSize: '0.875rem' }}>کرایہ</TableCell>
+                          <TableCell align="right" sx={{ px: 1, py: 0.5, border: 'none', fontSize: '0.875rem' }}>{parseFloat(selectedBill.shipping_amount || 0).toFixed(2)}</TableCell>
                         </TableRow>
                         <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl' }}>كل رقم</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: 'none', fontSize: '0.875rem' }}>كل رقم</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: 'none', fontSize: '0.875rem' }}>
                             {(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.discount || 0) + parseFloat(selectedBill.shipping_amount || 0)).toFixed(2)}
                           </TableCell>
                         </TableRow>
                         <TableRow>
-                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl' }}>نقد كيش</TableCell>
-                          <TableCell align="right">{parseFloat(selectedBill.payment || 0).toFixed(2)}</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: 'none', fontSize: '0.875rem' }}>نقد كيش</TableCell>
+                          <TableCell align="right" sx={{ px: 1, py: 0.5, border: 'none', fontSize: '0.875rem' }}>{parseFloat(selectedBill.payment || 0).toFixed(2)}</TableCell>
                         </TableRow>
                         <TableRow>
-                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl' }}>بینک : {selectedBill.payment_type === 'BANK' ? 'Bank Transfer' : 'Easy Paisa'}</TableCell>
-                          <TableCell align="right">0.00</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: 'none', fontSize: '0.875rem' }}>بینک : {selectedBill.payment_type === 'BANK' ? 'Bank Transfer' : 'Easy Paisa'}</TableCell>
+                          <TableCell align="right" sx={{ px: 1, py: 0.5, border: 'none', fontSize: '0.875rem' }}>0.00</TableCell>
                         </TableRow>
                         <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl' }}>كل رقم وصول</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                      {parseFloat(selectedBill.payment || 0).toFixed(2)}
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: 'none', fontSize: '0.875rem' }}>كل رقم وصول</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: 'none', fontSize: '0.875rem' }}>
+                            {parseFloat(selectedBill.payment || 0).toFixed(2)}
                           </TableCell>
                         </TableRow>
                         <TableRow sx={{ bgcolor: '#e0e0e0' }}>
-                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl' }}>بقايا رقم</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                      {(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.discount || 0) + parseFloat(selectedBill.shipping_amount || 0) - parseFloat(selectedBill.payment || 0)).toFixed(2)}
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: 'none', fontSize: '0.875rem' }}>بقايا رقم</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: 'none', fontSize: '0.875rem' }}>
+                            {(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.discount || 0) + parseFloat(selectedBill.shipping_amount || 0) - parseFloat(selectedBill.payment || 0)).toFixed(2)}
                           </TableCell>
                         </TableRow>
                       </TableBody>
                     </Table>
                   </TableContainer>
-                  </Grid>
                 </Grid>
+              </Grid>
             </Box>
           )}
         </DialogContent>
