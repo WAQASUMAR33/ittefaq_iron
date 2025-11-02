@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import { updateStoreStock, getStoreStock, checkStockAvailability } from '@/lib/storeStock';
 
 // Helper function to get special accounts
@@ -238,48 +239,45 @@ export async function GET(request) {
             }
             
             // Fetch sale_details for all sales
-            const saleIds = sales.map(s => s.sale_id).filter(id => id != null);
+            const saleIds = sales.map(s => Number(s.sale_id)).filter(id => id != null && !isNaN(id));
             console.log('📊 Sale IDs to fetch details for:', saleIds);
             let saleDetails = [];
             if (saleIds.length > 0) {
-              // Build IN clause manually for raw SQL
-              // Check if subcategories table exists, if not, don't join it
-              const placeholders = saleIds.map(() => '?').join(',');
-              
-              // Try with subcategories first, if it fails, try without
-              // Explicitly select columns to avoid invalid datetime issues
-              let query = `SELECT 
-                sd.sale_detail_id, sd.sale_id, sd.pro_id, sd.vehicle_no, 
-                sd.qnty, sd.unit, sd.unit_rate, sd.total_amount, sd.discount, 
-                sd.net_total, sd.cus_id,
-                p.pro_title, p.pro_stock_qnty, 
-                cat.cat_name, sub.sub_cat_name
-                FROM sale_details sd
-                LEFT JOIN products p ON sd.pro_id = p.pro_id
-                LEFT JOIN categories cat ON p.cat_id = cat.cat_id
-                LEFT JOIN subcategories sub ON p.sub_cat_id = sub.sub_cat_id
-                WHERE sd.sale_id IN (${placeholders})`;
-              
               try {
-                saleDetails = await prisma.$queryRawUnsafe(query, ...saleIds);
-                console.log('📊 Sale details fetched:', saleDetails?.length || 0);
-              } catch (subcatError) {
-                // If subcategories table doesn't exist, try without it
-                if (subcatError.message?.includes('subcategories')) {
-                  console.warn('⚠️ subcategories table not found, fetching without it');
-                  query = `SELECT 
+                // Try with subcategories first - use Prisma.join for safe IN clause
+                saleDetails = await prisma.$queryRaw`
+                  SELECT 
                     sd.sale_detail_id, sd.sale_id, sd.pro_id, sd.vehicle_no, 
                     sd.qnty, sd.unit, sd.unit_rate, sd.total_amount, sd.discount, 
                     sd.net_total, sd.cus_id,
                     p.pro_title, p.pro_stock_qnty, 
-                    cat.cat_name, NULL as sub_cat_name
+                    cat.cat_name, sub.sub_cat_name
+                  FROM sale_details sd
+                  LEFT JOIN products p ON sd.pro_id = p.pro_id
+                  LEFT JOIN categories cat ON p.cat_id = cat.cat_id
+                  LEFT JOIN subcategories sub ON p.sub_cat_id = sub.sub_cat_id
+                  WHERE sd.sale_id IN (${Prisma.join(saleIds)})
+                `;
+                console.log('📊 Sale details fetched:', saleDetails?.length || 0);
+              } catch (subcatError) {
+                // If subcategories table doesn't exist, try without it
+                if (subcatError.message?.includes('subcategories') || subcatError.message?.includes("doesn't exist") || subcatError.code === '1146') {
+                  console.warn('⚠️ subcategories table not found, fetching without it');
+                  saleDetails = await prisma.$queryRaw`
+                    SELECT 
+                      sd.sale_detail_id, sd.sale_id, sd.pro_id, sd.vehicle_no, 
+                      sd.qnty, sd.unit, sd.unit_rate, sd.total_amount, sd.discount, 
+                      sd.net_total, sd.cus_id,
+                      p.pro_title, p.pro_stock_qnty, 
+                      cat.cat_name, NULL as sub_cat_name
                     FROM sale_details sd
                     LEFT JOIN products p ON sd.pro_id = p.pro_id
                     LEFT JOIN categories cat ON p.cat_id = cat.cat_id
-                    WHERE sd.sale_id IN (${placeholders})`;
-                  saleDetails = await prisma.$queryRawUnsafe(query, ...saleIds);
+                    WHERE sd.sale_id IN (${Prisma.join(saleIds)})
+                  `;
                   console.log('📊 Sale details fetched (without subcategories):', saleDetails?.length || 0);
                 } else {
+                  console.error('❌ Error fetching sale details:', subcatError);
                   throw subcatError;
                 }
               }
@@ -292,10 +290,13 @@ export async function GET(request) {
             
             if (customerCategoryIds.length > 0) {
               try {
-                const catPlaceholders = customerCategoryIds.map(() => '?').join(',');
-                // Use correct column name: cus_cat_id
-                const catQuery = `SELECT cus_cat_id, cus_cat_title FROM customer_categories WHERE cus_cat_id IN (${catPlaceholders})`;
-                customerCategories = await prisma.$queryRawUnsafe(catQuery, ...customerCategoryIds);
+                // Use correct column name: cus_cat_id - convert to numbers
+                const numericCatIds = customerCategoryIds.map(id => Number(id)).filter(id => !isNaN(id));
+                customerCategories = await prisma.$queryRaw`
+                  SELECT cus_cat_id, cus_cat_title 
+                  FROM customer_categories 
+                  WHERE cus_cat_id IN (${Prisma.join(numericCatIds)})
+                `;
                 console.log('📊 Customer categories fetched:', customerCategories?.length || 0);
                 
                 // Map categories
