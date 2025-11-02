@@ -84,6 +84,27 @@ export default function SalesPage() {
   const [selectedBill, setSelectedBill] = useState(null);
   const [currentView, setCurrentView] = useState('list');
   
+  // Sale return state
+  const [returnDialogOpen, setReturnDialogOpen] = useState(false);
+  const [selectedSaleForReturn, setSelectedSaleForReturn] = useState(null);
+  const [returnFormData, setReturnFormData] = useState({
+    sale_id: '',
+    cus_id: '',
+    total_amount: '',
+    discount: '',
+    payment: '',
+    payment_type: 'CASH',
+    debit_account_id: '',
+    credit_account_id: '',
+    loader_id: '',
+    shipping_amount: '',
+    reason: '',
+    reference: '',
+    return_details: []
+  });
+  const [debitAccountSearchTerm, setDebitAccountSearchTerm] = useState('');
+  const [creditAccountSearchTerm, setCreditAccountSearchTerm] = useState('');
+  
   // Form state for sales creation
   const [formSelectedCustomer, setFormSelectedCustomer] = useState(null);
   const [formSelectedProduct, setFormSelectedProduct] = useState(null);
@@ -864,6 +885,171 @@ export default function SalesPage() {
   const handleViewBill = (sale) => {
     setSelectedBill(sale);
     setViewBillDialog(true);
+  };
+
+  // Handle opening return dialog
+  const handleOpenReturnDialog = async (sale) => {
+    try {
+      // Fetch full sale details with related data
+      const response = await fetch(`/api/sales?id=${sale.sale_id}`);
+      if (!response.ok) throw new Error('Failed to fetch sale details');
+      const saleData = await response.json();
+      const fullSale = Array.isArray(saleData) ? saleData[0] : saleData;
+      
+      setSelectedSaleForReturn(fullSale);
+      
+      // Populate return form with sale data
+      setReturnFormData({
+        sale_id: fullSale.sale_id,
+        cus_id: fullSale.cus_id,
+        total_amount: fullSale.total_amount?.toString() || '',
+        discount: fullSale.discount?.toString() || '0',
+        payment: fullSale.payment?.toString() || '0',
+        payment_type: fullSale.payment_type || 'CASH',
+        debit_account_id: fullSale.credit_account_id || '',
+        credit_account_id: fullSale.debit_account_id || '',
+        loader_id: fullSale.loader_id || '',
+        shipping_amount: fullSale.shipping_amount?.toString() || '0',
+        reason: '',
+        reference: fullSale.reference || '',
+        return_details: fullSale.sale_details ? fullSale.sale_details.map(detail => ({
+          pro_id: detail.pro_id,
+          qnty: detail.qnty,
+          unit: detail.unit,
+          unit_rate: detail.unit_rate?.toString() || '0',
+          total_amount: detail.total_amount?.toString() || '0',
+          discount: detail.discount?.toString() || '0'
+        })) : []
+      });
+      
+      // Set account search terms
+      if (fullSale.credit_account) {
+        setDebitAccountSearchTerm(fullSale.credit_account.cus_name);
+      }
+      if (fullSale.debit_account) {
+        setCreditAccountSearchTerm(fullSale.debit_account.cus_name);
+      }
+      
+      setReturnDialogOpen(true);
+    } catch (error) {
+      console.error('Error opening return dialog:', error);
+      showSnackbar('Failed to load sale details', 'error');
+    }
+  };
+
+  // Handle closing return dialog
+  const handleCloseReturnDialog = () => {
+    setReturnDialogOpen(false);
+    setSelectedSaleForReturn(null);
+    setReturnFormData({
+      sale_id: '',
+      cus_id: '',
+      total_amount: '',
+      discount: '',
+      payment: '',
+      payment_type: 'CASH',
+      debit_account_id: '',
+      credit_account_id: '',
+      loader_id: '',
+      shipping_amount: '',
+      reason: '',
+      reference: '',
+      return_details: []
+    });
+    setDebitAccountSearchTerm('');
+    setCreditAccountSearchTerm('');
+  };
+
+  // Calculate return totals
+  const calculateReturnTotal = () => {
+    return returnFormData.return_details.reduce((sum, detail) => 
+      sum + parseFloat(detail.total_amount || 0), 0
+    );
+  };
+
+  const calculateReturnNetTotal = () => {
+    const totalAmount = calculateReturnTotal();
+    const discount = parseFloat(returnFormData.discount || 0);
+    return totalAmount - discount;
+  };
+
+  // Handle return form input changes
+  const handleReturnInputChange = (e) => {
+    const { name, value } = e.target;
+    setReturnFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  // Remove return detail
+  const removeReturnDetail = (index) => {
+    setReturnFormData(prev => ({
+      ...prev,
+      return_details: prev.return_details.filter((_, i) => i !== index)
+    }));
+  };
+
+  // Update return detail quantity
+  const updateReturnDetailQty = (index, newQty) => {
+    setReturnFormData(prev => {
+      const updated = [...prev.return_details];
+      updated[index] = {
+        ...updated[index],
+        qnty: parseInt(newQty) || 0,
+        total_amount: (parseFloat(updated[index].unit_rate || 0) * parseInt(newQty || 0)).toFixed(2)
+      };
+      return { ...prev, return_details: updated };
+    });
+  };
+
+  // Handle return submission
+  const handleSubmitReturn = async () => {
+    try {
+      // Validation
+      if (!returnFormData.sale_id) {
+        showSnackbar('Please select a sale to return', 'error');
+        return;
+      }
+      
+      if (returnFormData.return_details.length === 0) {
+        showSnackbar('Please add at least one product to return', 'error');
+        return;
+      }
+
+      if (!returnFormData.reason || !returnFormData.reason.trim()) {
+        showSnackbar('Please enter a reason for the return', 'error');
+        return;
+      }
+
+      const calculatedTotalAmount = calculateReturnTotal();
+      
+      const body = { 
+        ...returnFormData, 
+        total_amount: calculatedTotalAmount.toString(),
+        updated_by: 1 // TODO: Get from auth context
+      };
+
+      const response = await fetch('/api/sale-returns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      if (response.ok) {
+        showSnackbar('Sale return processed successfully', 'success');
+        handleCloseReturnDialog();
+        // Refresh sales list
+        const salesResponse = await fetch('/api/sales');
+        if (salesResponse.ok) {
+          const salesData = await salesResponse.json();
+          setSales(Array.isArray(salesData) ? salesData : []);
+        }
+      } else {
+        const errorData = await response.json();
+        showSnackbar('Error: ' + (errorData.error || 'Failed to process return'), 'error');
+      }
+    } catch (error) {
+      console.error('Error processing sale return:', error);
+      showSnackbar('Error processing sale return', 'error');
+    }
   };
 
   // Handle closing bill view dialog
@@ -2125,6 +2311,14 @@ export default function SalesPage() {
                             >
                               <PrintIcon fontSize="small" />
                             </IconButton>
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => handleOpenReturnDialog(sale)}
+                              title="Return Sale"
+                            >
+                              <TrendingDownIcon fontSize="small" />
+                            </IconButton>
                           </TableCell>
                         </TableRow>
                       );
@@ -2670,7 +2864,7 @@ export default function SalesPage() {
 
                 {/* Payment Summary - Below Product Details */}
                 <Box sx={{ mt: 2, width: '100%' }}>
-                  <Grid container spacing={2}>
+                <Grid container spacing={2}>
                     {/* Left Side - Balance Section */}
                     <Grid item xs={12} md={6}>
                       <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, border: '1px solid #000', width: '100%' }}>
@@ -2702,9 +2896,9 @@ export default function SalesPage() {
                       <Box sx={{ mt: 1 }}>
                         <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
                           <strong>Notes:</strong> {selectedBill.notes || ''}
-                        </Typography>
+                    </Typography>
                       </Box>
-                    </Grid>
+                  </Grid>
 
                     {/* Right Side - Payment Summary */}
                     <Grid item xs={12} md={6}>
@@ -2764,7 +2958,7 @@ export default function SalesPage() {
                           </TableBody>
                         </Table>
                       </TableContainer>
-                    </Grid>
+                  </Grid>
                   </Grid>
                 </Box>
               </Box>
@@ -2914,6 +3108,210 @@ export default function SalesPage() {
           }
         }
       `}</style>
+
+      {/* Sale Return Dialog */}
+      <Dialog
+        open={returnDialogOpen}
+        onClose={handleCloseReturnDialog}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          bgcolor: 'error.main',
+          color: 'white',
+          py: 2,
+          px: 3
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <TrendingDownIcon />
+            <Typography variant="h6">Process Sale Return</Typography>
+          </Box>
+          <IconButton
+            onClick={handleCloseReturnDialog}
+            sx={{ color: 'white' }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ p: 3 }}>
+          {selectedSaleForReturn && (
+            <Box>
+              {/* Sale Information */}
+              <Card sx={{ mb: 3, bgcolor: 'info.light', p: 2 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
+                  Sale Information
+                    </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={6}>
+                    <Typography variant="body2"><strong>Sale ID:</strong> #{selectedSaleForReturn.sale_id}</Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2"><strong>Customer:</strong> {selectedSaleForReturn.customer?.cus_name || 'N/A'}</Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2"><strong>Total Amount:</strong> {parseFloat(selectedSaleForReturn.total_amount || 0).toFixed(2)}</Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2"><strong>Date:</strong> {new Date(selectedSaleForReturn.created_at).toLocaleDateString()}</Typography>
+                  </Grid>
+                  </Grid>
+              </Card>
+
+              {/* Return Products */}
+              <Typography variant="h6" sx={{ mb: 2 }}>Products to Return</Typography>
+              <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: 'grey.200' }}>
+                      <TableCell>Product</TableCell>
+                      <TableCell align="right">Qty</TableCell>
+                      <TableCell align="right">Rate</TableCell>
+                      <TableCell align="right">Amount</TableCell>
+                      <TableCell align="center">Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {returnFormData.return_details.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} align="center">No products selected</TableCell>
+                      </TableRow>
+                    ) : (
+                      returnFormData.return_details.map((detail, index) => {
+                        const product = products.find(p => p.pro_id === detail.pro_id);
+                        return (
+                          <TableRow key={index}>
+                            <TableCell>{product?.pro_title || 'N/A'}</TableCell>
+                            <TableCell align="right">
+                              <TextField
+                                type="number"
+                                size="small"
+                                value={detail.qnty}
+                                onChange={(e) => updateReturnDetailQty(index, e.target.value)}
+                                sx={{ width: 80 }}
+                                inputProps={{ min: 0 }}
+                              />
+                            </TableCell>
+                            <TableCell align="right">{parseFloat(detail.unit_rate || 0).toFixed(2)}</TableCell>
+                            <TableCell align="right">{parseFloat(detail.total_amount || 0).toFixed(2)}</TableCell>
+                            <TableCell align="center">
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => removeReturnDetail(index)}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+
+              {/* Return Form */}
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Return Reason *"
+                    name="reason"
+                    value={returnFormData.reason}
+                    onChange={handleReturnInputChange}
+                    multiline
+                    rows={3}
+                    required
+                    sx={{ mb: 2 }}
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Total Amount"
+                    value={calculateReturnTotal().toFixed(2)}
+                    disabled
+                    sx={{ mb: 2 }}
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Discount"
+                    name="discount"
+                    type="number"
+                    value={returnFormData.discount}
+                    onChange={handleReturnInputChange}
+                    sx={{ mb: 2 }}
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Net Total"
+                    value={calculateReturnNetTotal().toFixed(2)}
+                    disabled
+                    sx={{ mb: 2 }}
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Refund Amount *"
+                    name="payment"
+                    type="number"
+                    value={returnFormData.payment}
+                    onChange={handleReturnInputChange}
+                    required
+                    sx={{ mb: 2 }}
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <FormControl fullWidth sx={{ mb: 2 }}>
+                    <InputLabel>Payment Type</InputLabel>
+                    <Select
+                      name="payment_type"
+                      value={returnFormData.payment_type}
+                      onChange={handleReturnInputChange}
+                      label="Payment Type"
+                    >
+                      <MenuItem value="CASH">Cash</MenuItem>
+                      <MenuItem value="CHEQUE">Cheque</MenuItem>
+                      <MenuItem value="BANK">Bank Transfer</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Reference"
+                    name="reference"
+                    value={returnFormData.reference}
+                    onChange={handleReturnInputChange}
+                    sx={{ mb: 2 }}
+                  />
+                  </Grid>
+                </Grid>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 3, borderTop: 1, borderColor: 'divider' }}>
+          <Button onClick={handleCloseReturnDialog} color="inherit">
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleSubmitReturn} 
+            variant="contained" 
+            color="error"
+            disabled={returnFormData.return_details.length === 0 || !returnFormData.reason}
+          >
+            Process Return
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 }
