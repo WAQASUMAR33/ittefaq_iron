@@ -128,9 +128,13 @@ export async function GET(request) {
             return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
           }
           
-          // Fetch sale_details separately
+          // Fetch sale_details separately - explicitly select columns to avoid datetime issues
           const saleDetails = await prisma.$queryRaw`
-            SELECT sd.*, p.pro_title, p.pro_stock_qnty
+            SELECT 
+              sd.sale_detail_id, sd.sale_id, sd.pro_id, sd.vehicle_no, 
+              sd.qnty, sd.unit, sd.unit_rate, sd.total_amount, sd.discount, 
+              sd.net_total, sd.cus_id,
+              p.pro_title, p.pro_stock_qnty
             FROM sale_details sd
             LEFT JOIN products p ON sd.pro_id = p.pro_id
             WHERE sd.sale_id = ${id}
@@ -243,7 +247,12 @@ export async function GET(request) {
               const placeholders = saleIds.map(() => '?').join(',');
               
               // Try with subcategories first, if it fails, try without
-              let query = `SELECT sd.*, p.pro_title, p.pro_stock_qnty, 
+              // Explicitly select columns to avoid invalid datetime issues
+              let query = `SELECT 
+                sd.sale_detail_id, sd.sale_id, sd.pro_id, sd.vehicle_no, 
+                sd.qnty, sd.unit, sd.unit_rate, sd.total_amount, sd.discount, 
+                sd.net_total, sd.cus_id,
+                p.pro_title, p.pro_stock_qnty, 
                 cat.cat_name, sub.sub_cat_name
                 FROM sale_details sd
                 LEFT JOIN products p ON sd.pro_id = p.pro_id
@@ -258,7 +267,11 @@ export async function GET(request) {
                 // If subcategories table doesn't exist, try without it
                 if (subcatError.message?.includes('subcategories')) {
                   console.warn('⚠️ subcategories table not found, fetching without it');
-                  query = `SELECT sd.*, p.pro_title, p.pro_stock_qnty, 
+                  query = `SELECT 
+                    sd.sale_detail_id, sd.sale_id, sd.pro_id, sd.vehicle_no, 
+                    sd.qnty, sd.unit, sd.unit_rate, sd.total_amount, sd.discount, 
+                    sd.net_total, sd.cus_id,
+                    p.pro_title, p.pro_stock_qnty, 
                     cat.cat_name, NULL as sub_cat_name
                     FROM sale_details sd
                     LEFT JOIN products p ON sd.pro_id = p.pro_id
