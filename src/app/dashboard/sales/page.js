@@ -1385,7 +1385,24 @@ export default function SalesPage() {
                     </Typography>
                   </Box>
                 </Grid>
-                <Grid item xs={12} md={3.5}>
+                <Grid item xs={12} md={2}>
+                  <Box>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
+                      BILL TYPE
+                    </Typography>
+                    <FormControl fullWidth size="small">
+                      <Select
+                        value={billType}
+                        onChange={(e) => setBillType(e.target.value)}
+                        sx={{ bgcolor: 'white', '& .MuiSelect-select': { fontWeight: 'bold' } }}
+                      >
+                        <MenuItem value="BILL">Bill</MenuItem>
+                        <MenuItem value="QUOTATION">Quotation</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} md={1.5}>
                   <Box>
                     <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
                       REFERENCE
