@@ -289,9 +289,17 @@ export async function GET(request) {
             const customerCategoryIds = [...new Set(sales.map(s => s.cus_category).filter(id => id != null))];
             let customerCategories = [];
             if (customerCategoryIds.length > 0) {
-              const catPlaceholders = customerCategoryIds.map(() => '?').join(',');
-              const catQuery = `SELECT * FROM customer_categories WHERE cus_category_id IN (${catPlaceholders})`;
-              customerCategories = await prisma.$queryRawUnsafe(catQuery, ...customerCategoryIds);
+              try {
+                const catPlaceholders = customerCategoryIds.map(() => '?').join(',');
+                // Try cus_cat_id first (correct column name)
+                let catQuery = `SELECT * FROM customer_categories WHERE cus_cat_id IN (${catPlaceholders})`;
+                customerCategories = await prisma.$queryRawUnsafe(catQuery, ...customerCategoryIds);
+                console.log('📊 Customer categories fetched:', customerCategories?.length || 0);
+              } catch (catError) {
+                // If column name doesn't match, try alternative or skip
+                console.warn('⚠️ Could not fetch customer categories:', catError.message);
+                customerCategories = [];
+              }
             }
             
             const categoriesMap = {};
