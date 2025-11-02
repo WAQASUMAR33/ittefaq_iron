@@ -473,7 +473,11 @@ export async function POST(request) {
     // Calculate net total (including shipping amount)
     const netTotal = parseFloat(total_amount) - parseFloat(discount || 0) + parseFloat(shipping_amount || 0);
 
-    // Check stock availability for all products in the store
+    // Check if this is a quotation (skip stock check for quotations)
+    const isQuotation = bill_type === 'QUOTATION';
+
+    // Check stock availability for all products in the store (skip for quotations)
+    if (!isQuotation) {
     for (const detail of sale_details) {
       const hasStock = await checkStockAvailability(store_id, detail.pro_id, parseInt(detail.qnty));
       if (!hasStock) {
@@ -481,6 +485,7 @@ export async function POST(request) {
         return NextResponse.json({ 
           error: `Insufficient stock for product ${detail.pro_id}. Available: ${currentStock}, Required: ${detail.qnty}` 
         }, { status: 400 });
+        }
       }
     }
 
@@ -639,9 +644,7 @@ export async function POST(request) {
         await Promise.all(splitPaymentPromises);
       }
 
-      // Check if this is a quotation (skip financial transactions for quotations)
-      const isQuotation = bill_type === 'QUOTATION';
-
+      // isQuotation is already defined above (before transaction)
       // Update store stock quantities (instead of global product stock) - Skip for quotations
       if (!isQuotation && store_id) {
         const storeStockUpdatePromises = sale_details.map(async detail => {
@@ -660,217 +663,217 @@ export async function POST(request) {
       const ledgerEntries = [];
       
       if (!isQuotation) {
-        // Calculate net amount owed by customer (total - payment received)
-        const customerNetAmount = netTotal - parseFloat(payment);
+      // Calculate net amount owed by customer (total - payment received)
+      const customerNetAmount = netTotal - parseFloat(payment);
 
-        // 1. Customer Bill Entry - Debit Customer Account
-        ledgerEntries.push({
-            cus_id,
-            opening_balance: customer.cus_balance,
-            debit_amount: netTotal,
+      // 1. Customer Bill Entry - Debit Customer Account
+      ledgerEntries.push({
+          cus_id,
+          opening_balance: customer.cus_balance,
+          debit_amount: netTotal,
+          credit_amount: 0,
+          closing_balance: customer.cus_balance + netTotal,
+          bill_no: sale.sale_id.toString(),
+          trnx_type: 'CASH',
+        details: `Sale Bill - ${bill_type || 'BILL'} - Customer Account (Debit)`,
+          payments: 0,
+          updated_by
+      });
+
+      // 2. Cash/Bank Account - CREDIT (when payment is received)
+      if (parseFloat(payment) > 0) {
+
+        // 3. Payment Entry - Debit Cash/Bank Account
+        const paymentAccount = payment_type === 'CASH' ? specialAccounts.cash : specialAccounts.bank;
+        if (paymentAccount) {
+          ledgerEntries.push({
+            cus_id: paymentAccount.cus_id,
+            opening_balance: paymentAccount.cus_balance,
+            debit_amount: parseFloat(payment),
             credit_amount: 0,
-            closing_balance: customer.cus_balance + netTotal,
+            closing_balance: paymentAccount.cus_balance + parseFloat(payment),
             bill_no: sale.sale_id.toString(),
-            trnx_type: 'CASH',
-          details: `Sale Bill - ${bill_type || 'BILL'} - Customer Account (Debit)`,
-            payments: 0,
+            trnx_type: payment_type,
+            details: `Payment Received - ${bill_type || 'BILL'} - ${payment_type} Account (Debit)`,
+            payments: parseFloat(payment),
             updated_by
+          });
+        }
+      }
+
+      // 4. Transporter Entry (if loader_id is provided)
+      if (loader_id) {
+        const loader = await tx.loader.findUnique({
+          where: { loader_id }
         });
 
-        // 2. Cash/Bank Account - CREDIT (when payment is received)
-        if (parseFloat(payment) > 0) {
+        if (loader) {
+          // Debit Transporter Account
+          ledgerEntries.push({
+            cus_id: loader_id,
+            opening_balance: loader.loader_balance,
+            debit_amount: parseFloat(shipping_amount || 0),
+            credit_amount: 0,
+            closing_balance: loader.loader_balance + parseFloat(shipping_amount || 0),
+            bill_no: sale.sale_id.toString(),
+            trnx_type: 'CASH',
+                details: `Transporter Charges - ${bill_type || 'BILL'} - Transport Account (Debit)`,
+            payments: 0,
+            updated_by
+          });
 
-          // 3. Payment Entry - Debit Cash/Bank Account
-          const paymentAccount = payment_type === 'CASH' ? specialAccounts.cash : specialAccounts.bank;
-          if (paymentAccount) {
+          // Credit Sundry Debtors Account
+          if (specialAccounts.sundryDebtors) {
             ledgerEntries.push({
-              cus_id: paymentAccount.cus_id,
-              opening_balance: paymentAccount.cus_balance,
-              debit_amount: parseFloat(payment),
-              credit_amount: 0,
-              closing_balance: paymentAccount.cus_balance + parseFloat(payment),
+              cus_id: specialAccounts.sundryDebtors.cus_id,
+              opening_balance: specialAccounts.sundryDebtors.cus_balance,
+              debit_amount: 0,
+              credit_amount: parseFloat(shipping_amount || 0),
+              closing_balance: specialAccounts.sundryDebtors.cus_balance - parseFloat(shipping_amount || 0),
               bill_no: sale.sale_id.toString(),
-              trnx_type: payment_type,
-              details: `Payment Received - ${bill_type || 'BILL'} - ${payment_type} Account (Debit)`,
-              payments: parseFloat(payment),
+              trnx_type: 'CASH',
+                  details: `Transporter Charges - ${bill_type || 'BILL'} - Sundry Debtors (Credit)`,
+              payments: 0,
               updated_by
             });
           }
         }
+      }
 
-        // 4. Transporter Entry (if loader_id is provided)
-        if (loader_id) {
-          const loader = await tx.loader.findUnique({
-            where: { loader_id }
-          });
-
-          if (loader) {
-            // Debit Transporter Account
-            ledgerEntries.push({
-              cus_id: loader_id,
-              opening_balance: loader.loader_balance,
-              debit_amount: parseFloat(shipping_amount || 0),
-              credit_amount: 0,
-              closing_balance: loader.loader_balance + parseFloat(shipping_amount || 0),
-              bill_no: sale.sale_id.toString(),
-              trnx_type: 'CASH',
-                  details: `Transporter Charges - ${bill_type || 'BILL'} - Transport Account (Debit)`,
-              payments: 0,
-              updated_by
+      // 5. Split Payment Entries (if any)
+      if (split_payments && split_payments.length > 0) {
+        for (const splitPayment of split_payments) {
+          const splitAmount = parseFloat(splitPayment.amount);
+          
+          // Debit Split Payment Account
+          if (splitPayment.debit_account_id) {
+            const debitAccount = await tx.customer.findUnique({
+              where: { cus_id: splitPayment.debit_account_id }
             });
-
-            // Credit Sundry Debtors Account
-            if (specialAccounts.sundryDebtors) {
+            
+            if (debitAccount) {
               ledgerEntries.push({
-                cus_id: specialAccounts.sundryDebtors.cus_id,
-                opening_balance: specialAccounts.sundryDebtors.cus_balance,
-                debit_amount: 0,
-                credit_amount: parseFloat(shipping_amount || 0),
-                closing_balance: specialAccounts.sundryDebtors.cus_balance - parseFloat(shipping_amount || 0),
+                cus_id: splitPayment.debit_account_id,
+                opening_balance: debitAccount.cus_balance,
+                debit_amount: splitAmount,
+                credit_amount: 0,
+                closing_balance: debitAccount.cus_balance + splitAmount,
                 bill_no: sale.sale_id.toString(),
-                trnx_type: 'CASH',
-                    details: `Transporter Charges - ${bill_type || 'BILL'} - Sundry Debtors (Credit)`,
-                payments: 0,
+                trnx_type: splitPayment.payment_type,
+                details: `Split Payment - ${bill_type || 'BILL'} - Debit Account`,
+                payments: splitAmount,
+                updated_by
+              });
+            }
+          }
+
+          // Credit Split Payment Account
+          if (splitPayment.credit_account_id) {
+            const creditAccount = await tx.customer.findUnique({
+              where: { cus_id: splitPayment.credit_account_id }
+            });
+            
+            if (creditAccount) {
+              ledgerEntries.push({
+                cus_id: splitPayment.credit_account_id,
+                opening_balance: creditAccount.cus_balance,
+                debit_amount: 0,
+                credit_amount: splitAmount,
+                closing_balance: creditAccount.cus_balance - splitAmount,
+                bill_no: sale.sale_id.toString(),
+                trnx_type: splitPayment.payment_type,
+                details: `Split Payment - ${bill_type || 'BILL'} - Credit Account`,
+                payments: splitAmount,
                 updated_by
               });
             }
           }
         }
-
-        // 5. Split Payment Entries (if any)
-        if (split_payments && split_payments.length > 0) {
-          for (const splitPayment of split_payments) {
-            const splitAmount = parseFloat(splitPayment.amount);
-            
-            // Debit Split Payment Account
-            if (splitPayment.debit_account_id) {
-              const debitAccount = await tx.customer.findUnique({
-                where: { cus_id: splitPayment.debit_account_id }
-              });
-              
-              if (debitAccount) {
-                ledgerEntries.push({
-                  cus_id: splitPayment.debit_account_id,
-                  opening_balance: debitAccount.cus_balance,
-                  debit_amount: splitAmount,
-                  credit_amount: 0,
-                  closing_balance: debitAccount.cus_balance + splitAmount,
-                  bill_no: sale.sale_id.toString(),
-                  trnx_type: splitPayment.payment_type,
-                  details: `Split Payment - ${bill_type || 'BILL'} - Debit Account`,
-                  payments: splitAmount,
-                  updated_by
-                });
-              }
-            }
-
-            // Credit Split Payment Account
-            if (splitPayment.credit_account_id) {
-              const creditAccount = await tx.customer.findUnique({
-                where: { cus_id: splitPayment.credit_account_id }
-              });
-              
-              if (creditAccount) {
-                ledgerEntries.push({
-                  cus_id: splitPayment.credit_account_id,
-                  opening_balance: creditAccount.cus_balance,
-                  debit_amount: 0,
-                  credit_amount: splitAmount,
-                  closing_balance: creditAccount.cus_balance - splitAmount,
-                  bill_no: sale.sale_id.toString(),
-                  trnx_type: splitPayment.payment_type,
-                  details: `Split Payment - ${bill_type || 'BILL'} - Credit Account`,
-                  payments: splitAmount,
-                  updated_by
-                });
-              }
-            }
-          }
-        }
+      }
       } // End of if (!isQuotation) for ledger entries
 
       // Create all ledger entries (skip for quotations)
       if (!isQuotation) {
-        for (const entry of ledgerEntries) {
-          await createLedgerEntry(tx, entry);
-        }
+      for (const entry of ledgerEntries) {
+        await createLedgerEntry(tx, entry);
+      }
 
         // Update customer balance (skip for quotations)
-        await tx.customer.update({
-          where: { cus_id },
-          data: {
-            cus_balance: customer.cus_balance + netTotal - parseFloat(payment)
-          }
-        });
+      await tx.customer.update({
+        where: { cus_id },
+        data: {
+          cus_balance: customer.cus_balance + netTotal - parseFloat(payment)
+        }
+      });
 
         // Update special account balances (skip for quotations)
         if (parseFloat(payment) > 0 && specialAccounts) {
-          const paymentAccount = payment_type === 'CASH' ? specialAccounts.cash : specialAccounts.bank;
-          if (paymentAccount) {
-            await tx.customer.update({
-              where: { cus_id: paymentAccount.cus_id },
-          data: {
-            cus_balance: paymentAccount.cus_balance + parseFloat(payment)
-          }
-            });
-          }
+        const paymentAccount = payment_type === 'CASH' ? specialAccounts.cash : specialAccounts.bank;
+        if (paymentAccount) {
+          await tx.customer.update({
+            where: { cus_id: paymentAccount.cus_id },
+        data: {
+          cus_balance: paymentAccount.cus_balance + parseFloat(payment)
         }
-
-        // Update transporter balance (skip for quotations)
-        if (loader_id && parseFloat(shipping_amount || 0) > 0) {
-          await tx.loader.update({
-            where: { loader_id },
-            data: {
-              loader_balance: {
-                increment: parseFloat(shipping_amount || 0)
-              }
-            }
           });
         }
+      }
+
+        // Update transporter balance (skip for quotations)
+      if (loader_id && parseFloat(shipping_amount || 0) > 0) {
+        await tx.loader.update({
+          where: { loader_id },
+          data: {
+            loader_balance: {
+              increment: parseFloat(shipping_amount || 0)
+            }
+          }
+        });
+      }
 
         // Update sundry debtors balance (skip for quotations)
         if (loader_id && specialAccounts && specialAccounts.sundryDebtors && parseFloat(shipping_amount || 0) > 0) {
-          await tx.customer.update({
-            where: { cus_id: specialAccounts.sundryDebtors.cus_id },
-            data: {
-              cus_balance: {
-                decrement: parseFloat(shipping_amount || 0)
-              }
-            }
-          });
-        }
-
-        // Update split payment account balances (skip for quotations)
-        if (split_payments && split_payments.length > 0) {
-          for (const splitPayment of split_payments) {
-            const splitAmount = parseFloat(splitPayment.amount);
-            
-            if (splitPayment.debit_account_id) {
-              await tx.customer.update({
-                where: { cus_id: splitPayment.debit_account_id },
-                data: {
-                  cus_balance: {
-                    increment: splitAmount
-                  }
-                }
-              });
-            }
-
-            if (splitPayment.credit_account_id) {
-              await tx.customer.update({
-                where: { cus_id: splitPayment.credit_account_id },
-                data: {
-                  cus_balance: {
-                    decrement: splitAmount
-                  }
-                }
-              });
+        await tx.customer.update({
+          where: { cus_id: specialAccounts.sundryDebtors.cus_id },
+          data: {
+            cus_balance: {
+              decrement: parseFloat(shipping_amount || 0)
             }
           }
+        });
+      }
+
+        // Update split payment account balances (skip for quotations)
+      if (split_payments && split_payments.length > 0) {
+        for (const splitPayment of split_payments) {
+          const splitAmount = parseFloat(splitPayment.amount);
+          
+          if (splitPayment.debit_account_id) {
+            await tx.customer.update({
+              where: { cus_id: splitPayment.debit_account_id },
+              data: {
+                cus_balance: {
+                  increment: splitAmount
+                }
+              }
+            });
+          }
+
+          if (splitPayment.credit_account_id) {
+            await tx.customer.update({
+              where: { cus_id: splitPayment.credit_account_id },
+              data: {
+                cus_balance: {
+                  decrement: splitAmount
+                }
+              }
+            });
+          }
         }
+      }
 
         // 6. Transport Entries (if any) - Skip for quotations
-        if (transport_details && transport_details.length > 0) {
+      if (transport_details && transport_details.length > 0) {
         for (const transport of transport_details) {
           const transportAmount = parseFloat(transport.amount);
           
