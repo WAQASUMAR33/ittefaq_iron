@@ -285,31 +285,35 @@ export async function GET(request) {
               }
             }
             
-            // Fetch customer categories for nested structure
+            // Fetch customer categories for nested structure (optional - don't fail if this fails)
             const customerCategoryIds = [...new Set(sales.map(s => s.cus_category).filter(id => id != null))];
             let customerCategories = [];
+            const categoriesMap = {};
+            
             if (customerCategoryIds.length > 0) {
               try {
                 const catPlaceholders = customerCategoryIds.map(() => '?').join(',');
-                // Try cus_cat_id first (correct column name)
-                let catQuery = `SELECT * FROM customer_categories WHERE cus_cat_id IN (${catPlaceholders})`;
+                // Use correct column name: cus_cat_id
+                const catQuery = `SELECT cus_cat_id, cus_cat_title FROM customer_categories WHERE cus_cat_id IN (${catPlaceholders})`;
                 customerCategories = await prisma.$queryRawUnsafe(catQuery, ...customerCategoryIds);
                 console.log('📊 Customer categories fetched:', customerCategories?.length || 0);
+                
+                // Map categories
+                customerCategories.forEach(cat => {
+                  const catId = cat.cus_cat_id;
+                  if (catId) {
+                    categoriesMap[catId] = {
+                      cus_cat_id: cat.cus_cat_id,
+                      cus_cat_title: cat.cus_cat_title
+                    };
+                  }
+                });
               } catch (catError) {
-                // If column name doesn't match, try alternative or skip
-                console.warn('⚠️ Could not fetch customer categories:', catError.message);
-                customerCategories = [];
+                // Silently skip customer categories if there's an error - not critical for sales display
+                console.warn('⚠️ Could not fetch customer categories (non-critical):', catError.message);
+                // Continue without categories - sales will still work
               }
             }
-            
-            const categoriesMap = {};
-            customerCategories.forEach(cat => {
-              // Map by cus_cat_id (the actual column name)
-              const catId = cat.cus_cat_id || cat.cus_category_id;
-              if (catId) {
-                categoriesMap[catId] = cat;
-              }
-            });
             
             // Group sale_details by sale_id and format properly
             // Convert sale_ids to numbers for consistent matching
