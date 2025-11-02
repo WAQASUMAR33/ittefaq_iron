@@ -144,6 +144,9 @@ export default function SalesPage() {
     notes: ''
   });
 
+  // Bill type state
+  const [billType, setBillType] = useState('BILL');
+
   // Customer creation popup state
   const [customerPopupOpen, setCustomerPopupOpen] = useState(false);
   const [customerCategories, setCustomerCategories] = useState([]);
@@ -445,7 +448,7 @@ export default function SalesPage() {
         credit_account_id: null,
         loader_id: null,
         shipping_amount: totalShippingAmount, // Include both transport and delivery charges
-        bill_type: 'BILL',
+        bill_type: billType || 'BILL',
         reference: paymentData.notes || null,
         sale_details: productTableData.map(product => ({
           pro_id: product.pro_id,
