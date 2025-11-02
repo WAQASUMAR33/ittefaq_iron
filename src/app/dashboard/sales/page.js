@@ -872,6 +872,11 @@ export default function SalesPage() {
     setSelectedBill(null);
   };
 
+  // Handle print bill
+  const handlePrintBill = () => {
+    window.print();
+  };
+
   // Filter sales based on search criteria
   const filteredSales = useMemo(() => {
     console.log('🔍 Starting filter with sales count:', sales.length);
@@ -2555,7 +2560,7 @@ export default function SalesPage() {
         </DialogTitle>
         <DialogContent sx={{ p: 0, bgcolor: 'white' }}>
           {selectedBill && (
-            <Box sx={{ width: '100%', bgcolor: 'white' }}>
+            <Box id="printable-invoice" sx={{ width: '100%', bgcolor: 'white' }}>
               {/* Company Header */}
               <Box sx={{ textAlign: 'center', py: 3, borderBottom: '2px solid #000' }}>
                 <Typography variant="h4" sx={{ 
@@ -2739,7 +2744,7 @@ export default function SalesPage() {
             </Box>
           )}
         </DialogContent>
-        <DialogActions sx={{ p: 3, bgcolor: 'grey.50', borderTop: '1px solid #e0e0e0' }}>
+        <DialogActions sx={{ p: 3, bgcolor: 'grey.50', borderTop: '1px solid #e0e0e0' }} className="no-print">
           <Button 
             onClick={handleCloseBillDialog} 
             variant="outlined"
@@ -2755,15 +2760,98 @@ export default function SalesPage() {
               bgcolor: 'primary.main',
               '&:hover': { bgcolor: 'primary.dark' }
             }}
-            onClick={() => {
-              // TODO: Implement print functionality
-              console.log('Print bill:', selectedBill?.sale_id);
-            }}
+            onClick={handlePrintBill}
           >
             Print Bill
           </Button>
         </DialogActions>
       </Dialog>
+      
+      {/* Print Styles */}
+      <style jsx global>{`
+        @media print {
+          @page {
+            size: A4;
+            margin: 0.5cm;
+          }
+          
+          body {
+            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact;
+          }
+          
+          /* Hide everything by default */
+          body * {
+            visibility: hidden;
+          }
+          
+          /* Show only the printable invoice */
+          #printable-invoice,
+          #printable-invoice * {
+            visibility: visible !important;
+          }
+          
+          /* Position invoice at top */
+          #printable-invoice {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            background: white;
+          }
+          
+          /* Hide dialog wrapper elements */
+          .MuiDialog-root,
+          .MuiDialog-container,
+          .MuiDialog-paper,
+          .MuiDialogTitle-root,
+          .no-print,
+          .no-print * {
+            visibility: hidden !important;
+            display: none !important;
+          }
+          
+          /* Show dialog content */
+          .MuiDialogContent-root {
+            visibility: visible !important;
+            display: block !important;
+            padding: 0 !important;
+            overflow: visible !important;
+            height: auto !important;
+            max-height: none !important;
+          }
+          
+          /* Table styles for print */
+          table {
+            page-break-inside: auto;
+            border-collapse: collapse;
+            width: 100%;
+          }
+          
+          tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+          }
+          
+          thead {
+            display: table-header-group;
+          }
+          
+          tbody {
+            display: table-row-group;
+          }
+          
+          /* Ensure proper spacing */
+          .MuiBox-root {
+            page-break-inside: avoid;
+          }
+          
+          /* Remove shadows and rounded corners */
+          .MuiPaper-root {
+            box-shadow: none !important;
+          }
+        }
+      `}</style>
     </>
   );
 }
