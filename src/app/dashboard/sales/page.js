@@ -2682,85 +2682,87 @@ export default function SalesPage() {
                 </TableContainer>
               </Grid>
 
-              {/* Right Side - Payment Summary (Vertical Format) */}
+              {/* Right Side - Payment Summary (Below Table) */}
               <Grid item xs={12} md={4}>
-                <Card variant="outlined" sx={{ bgcolor: 'primary.light', color: 'white', p: 3, position: 'sticky', top: 20 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 3, color: 'white', textAlign: 'center' }}>
-                    Payment Summary
-                  </Typography>
-                  
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    {/* Subtotal */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
-                      <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                        Subtotal:
-                      </Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                        Rs. {parseFloat(selectedBill.total_amount || 0).toFixed(2)}
-                      </Typography>
-                    </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'flex-end' }}>
+                  <Card variant="outlined" sx={{ bgcolor: 'primary.light', color: 'white', p: 3 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 3, color: 'white', textAlign: 'center' }}>
+                      Payment Summary
+                    </Typography>
                     
-                    {/* Discount */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
-                      <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                        Discount:
-                      </Typography>
-                      <Typography variant="body2">
-                        - Rs. {parseFloat(selectedBill.discount || 0).toFixed(2)}
-                      </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {/* Subtotal */}
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
+                        <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                          Subtotal:
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                          Rs. {parseFloat(selectedBill.total_amount || 0).toFixed(2)}
+                        </Typography>
+                      </Box>
+                      
+                      {/* Discount */}
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
+                        <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                          Discount:
+                        </Typography>
+                        <Typography variant="body2">
+                          - Rs. {parseFloat(selectedBill.discount || 0).toFixed(2)}
+                        </Typography>
+                      </Box>
+                      
+                      {/* Shipping/Transport */}
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
+                        <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                          Shipping/Transport:
+                        </Typography>
+                        <Typography variant="body2">
+                          + Rs. {parseFloat(selectedBill.shipping_amount || 0).toFixed(2)}
+                        </Typography>
+                      </Box>
+                      
+                      {/* Grand Total */}
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 2, borderTop: '2px solid rgba(255,255,255,0.5)', borderBottom: '2px solid rgba(255,255,255,0.5)', mt: 1 }}>
+                        <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
+                          Grand Total:
+                        </Typography>
+                        <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '1.2rem' }}>
+                          Rs. {(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.discount || 0) + parseFloat(selectedBill.shipping_amount || 0)).toFixed(2)}
+                        </Typography>
+                      </Box>
+                      
+                      {/* Payment Received */}
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 2, pb: 1, borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
+                        <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                          Payment Received:
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                          Rs. {parseFloat(selectedBill.payment || 0).toFixed(2)}
+                        </Typography>
+                      </Box>
+                      
+                      {/* Balance */}
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 2 }}>
+                        <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
+                          Balance:
+                        </Typography>
+                        <Typography 
+                          variant="body1" 
+                          sx={{ 
+                            fontWeight: 'bold',
+                            fontSize: '1.3rem',
+                            color: (() => {
+                              const balance = parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.discount || 0) + parseFloat(selectedBill.shipping_amount || 0) - parseFloat(selectedBill.payment || 0);
+                              return balance > 0 ? '#ffcdd2' : balance < 0 ? '#c8e6c9' : 'white';
+                            })()
+                          }}
+                        >
+                          Rs. {(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.discount || 0) + parseFloat(selectedBill.shipping_amount || 0) - parseFloat(selectedBill.payment || 0)).toFixed(2)}
+                        </Typography>
+                      </Box>
                     </Box>
-                    
-                    {/* Shipping/Transport */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
-                      <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                        Shipping/Transport:
-                      </Typography>
-                      <Typography variant="body2">
-                        + Rs. {parseFloat(selectedBill.shipping_amount || 0).toFixed(2)}
-                      </Typography>
-                    </Box>
-                    
-                    {/* Grand Total */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 2, borderTop: '2px solid rgba(255,255,255,0.5)', borderBottom: '2px solid rgba(255,255,255,0.5)', mt: 1 }}>
-                      <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
-                        Grand Total:
-                      </Typography>
-                      <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '1.2rem' }}>
-                        Rs. {(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.discount || 0) + parseFloat(selectedBill.shipping_amount || 0)).toFixed(2)}
-                      </Typography>
-                    </Box>
-                    
-                    {/* Payment Received */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 2, pb: 1, borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
-                      <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                        Payment Received:
-                      </Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                        Rs. {parseFloat(selectedBill.payment || 0).toFixed(2)}
-                      </Typography>
-                    </Box>
-                    
-                    {/* Balance */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 2 }}>
-                      <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
-                        Balance:
-                      </Typography>
-                      <Typography 
-                        variant="body1" 
-                        sx={{ 
-                          fontWeight: 'bold',
-                          fontSize: '1.3rem',
-                          color: (() => {
-                            const balance = parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.discount || 0) + parseFloat(selectedBill.shipping_amount || 0) - parseFloat(selectedBill.payment || 0);
-                            return balance > 0 ? '#ffcdd2' : balance < 0 ? '#c8e6c9' : 'white';
-                          })()
-                        }}
-                      >
-                        Rs. {(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.discount || 0) + parseFloat(selectedBill.shipping_amount || 0) - parseFloat(selectedBill.payment || 0)).toFixed(2)}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </Card>
+                  </Card>
+                </Box>
               </Grid>
             </Grid>
           )}
