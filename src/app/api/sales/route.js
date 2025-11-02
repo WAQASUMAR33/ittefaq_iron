@@ -304,7 +304,11 @@ export async function GET(request) {
             
             const categoriesMap = {};
             customerCategories.forEach(cat => {
-              categoriesMap[cat.cus_category_id] = cat;
+              // Map by cus_cat_id (the actual column name)
+              const catId = cat.cus_cat_id || cat.cus_category_id;
+              if (catId) {
+                categoriesMap[catId] = cat;
+              }
             });
             
             // Group sale_details by sale_id and format properly
@@ -368,7 +372,10 @@ export async function GET(request) {
                   cus_balance: Number(sale.cus_balance) || 0,
                   cus_address: sale.cus_address,
                   cus_reference: sale.cus_reference,
-                  customer_category: sale.cus_category && categoriesMap[sale.cus_category] ? categoriesMap[sale.cus_category] : null
+                  customer_category: sale.cus_category && categoriesMap[sale.cus_category] ? {
+                    cus_cat_id: categoriesMap[sale.cus_category].cus_cat_id || categoriesMap[sale.cus_category].cus_category_id,
+                    cus_cat_title: categoriesMap[sale.cus_category].cus_cat_title || categoriesMap[sale.cus_category].title
+                  } : null
                 } : null,
                 sale_details: detailsBySaleId[saleIdNum] || [],
                 loader: null,
