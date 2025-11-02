@@ -98,6 +98,7 @@ export default function SalesPage() {
     credit_account_id: '',
     loader_id: '',
     shipping_amount: '',
+    bill_type: 'BILL',
     reason: '',
     reference: '',
     return_details: []
@@ -913,6 +914,7 @@ export default function SalesPage() {
         credit_account_id: fullSale.debit_account_id || '',
         loader_id: fullSale.loader_id || '',
         shipping_amount: fullSale.shipping_amount?.toString() || '0',
+        bill_type: fullSale.bill_type || 'BILL',
         reason: '',
         reference: fullSale.reference || '',
         return_details: fullSale.sale_details ? fullSale.sale_details.map(detail => ({
@@ -955,6 +957,7 @@ export default function SalesPage() {
       credit_account_id: '',
       loader_id: '',
       shipping_amount: '',
+      bill_type: 'BILL',
       reason: '',
       reference: '',
       return_details: []
@@ -3177,6 +3180,9 @@ export default function SalesPage() {
                   <Grid item xs={6}>
                     <Typography variant="body2"><strong>Date:</strong> {new Date(selectedSaleForReturn.created_at).toLocaleDateString()}</Typography>
                   </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2"><strong>Bill Type:</strong> {selectedSaleForReturn.bill_type || 'BILL'}</Typography>
+                  </Grid>
                   </Grid>
               </Card>
 
@@ -3235,6 +3241,31 @@ export default function SalesPage() {
 
               {/* Return Form */}
               <Grid container spacing={2}>
+                <Grid item xs={12} md={6}>
+                  <FormControl fullWidth sx={{ mb: 2 }}>
+                    <InputLabel>Bill Type</InputLabel>
+                    <Select
+                      name="bill_type"
+                      value={returnFormData.bill_type}
+                      onChange={handleReturnInputChange}
+                      label="Bill Type"
+                      disabled
+                    >
+                      <MenuItem value="BILL">Bill</MenuItem>
+                      <MenuItem value="QUOTATION">Quotation</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Reference"
+                    name="reference"
+                    value={returnFormData.reference}
+                    onChange={handleReturnInputChange}
+                    sx={{ mb: 2 }}
+                  />
+                </Grid>
                 <Grid item xs={12}>
                   <TextField
                     fullWidth
@@ -3303,16 +3334,6 @@ export default function SalesPage() {
                       <MenuItem value="BANK">Bank Transfer</MenuItem>
                     </Select>
                   </FormControl>
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    label="Reference"
-                    name="reference"
-                    value={returnFormData.reference}
-                    onChange={handleReturnInputChange}
-                    sx={{ mb: 2 }}
-                  />
                   </Grid>
                 </Grid>
             </Box>

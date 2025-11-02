@@ -146,6 +146,7 @@ export async function POST(request) {
       credit_account_id,
       loader_id,
       shipping_amount,
+      bill_type,
       reason,
       reference,
       return_details,
@@ -160,8 +161,25 @@ export async function POST(request) {
     // Calculate net total
     const netTotal = parseFloat(total_amount) - parseFloat(discount || 0);
 
+    // Check if this is a quotation return (skip financial transactions for quotations)
+    const isQuotation = bill_type === 'QUOTATION';
+
     // Use transaction to ensure data consistency
     const result = await prisma.$transaction(async (tx) => {
+      // Get the original sale to get store_id and verify bill_type
+      const sale = await tx.sale.findUnique({
+        where: { sale_id },
+        select: { store_id: true, bill_type: true }
+      });
+
+      if (!sale) {
+        throw new Error('Sale not found');
+      }
+
+      // Use bill_type from sale if not provided in body
+      const finalBillType = bill_type || sale.bill_type || 'BILL';
+      const isQuotationReturn = finalBillType === 'QUOTATION';
+
       // Get customer's current balance
       const customer = await tx.customer.findUnique({
         where: { cus_id }
@@ -210,71 +228,76 @@ export async function POST(request) {
 
       await Promise.all(returnDetailPromises);
 
-      // Restore store stock quantities
-      const storeStockRestorePromises = return_details.map(async detail => {
-        await updateStoreStock(sale.store_id, detail.pro_id, parseInt(detail.qnty), 'increment', updated_by);
-      });
+      // Skip financial transactions for quotation returns
+      if (!isQuotationReturn) {
+        // Restore store stock quantities (skip for quotations)
+        if (sale.store_id) {
+          const storeStockRestorePromises = return_details.map(async detail => {
+            await updateStoreStock(sale.store_id, detail.pro_id, parseInt(detail.qnty), 'increment', updated_by);
+          });
 
-      await Promise.all(storeStockRestorePromises);
-
-      // Create ledger entries (reverse of sale)
-      // Credit entry for return (reduce customer debt)
-      await tx.ledger.create({
-        data: {
-          cus_id,
-          opening_balance: customer.cus_balance,
-          debit_amount: 0,
-          credit_amount: netTotal,
-          closing_balance: customer.cus_balance - netTotal,
-          bill_no: saleReturn.return_id,
-          trnx_type: 'CASH',
-          details: `Sale Return - ${reason || 'Return'}`,
-          payments: 0,
-          updated_by
+          await Promise.all(storeStockRestorePromises);
         }
-      });
 
-      // Debit entry for payment refund (if payment > 0)
-      if (parseFloat(payment) > 0) {
+        // Create ledger entries (reverse of sale) - Skip for quotations
+        // Credit entry for return (reduce customer debt)
         await tx.ledger.create({
           data: {
             cus_id,
-            opening_balance: customer.cus_balance - netTotal,
-            debit_amount: parseFloat(payment),
-            credit_amount: 0,
-            closing_balance: customer.cus_balance - netTotal + parseFloat(payment),
+            opening_balance: customer.cus_balance,
+            debit_amount: 0,
+            credit_amount: netTotal,
+            closing_balance: customer.cus_balance - netTotal,
             bill_no: saleReturn.return_id,
-            trnx_type: payment_type,
-            details: `Refund - Sale Return`,
-            payments: parseFloat(payment),
+            trnx_type: 'CASH',
+            details: `Sale Return - ${finalBillType} - ${reason || 'Return'}`,
+            payments: 0,
             updated_by
           }
         });
-      }
 
-      // Update customer balance (reduce balance for return)
-      await tx.customer.update({
-        where: { cus_id },
-        data: {
-          cus_balance: customer.cus_balance - netTotal + parseFloat(payment)
-        }
-      });
-
-      // If loader is involved, subtract shipping amount from loader balance
-      if (loader_id && parseFloat(shipping_amount || 0) > 0) {
-        const loader = await tx.loader.findUnique({
-          where: { loader_id }
-        });
-
-        if (loader) {
-          await tx.loader.update({
-            where: { loader_id },
+        // Debit entry for payment refund (if payment > 0)
+        if (parseFloat(payment) > 0) {
+          await tx.ledger.create({
             data: {
-              loader_balance: loader.loader_balance - parseFloat(shipping_amount)
+              cus_id,
+              opening_balance: customer.cus_balance - netTotal,
+              debit_amount: parseFloat(payment),
+              credit_amount: 0,
+              closing_balance: customer.cus_balance - netTotal + parseFloat(payment),
+              bill_no: saleReturn.return_id,
+              trnx_type: payment_type,
+              details: `Refund - Sale Return ${finalBillType}`,
+              payments: parseFloat(payment),
+              updated_by
             }
           });
         }
-      }
+
+        // Update customer balance (reduce balance for return) - Skip for quotations
+        await tx.customer.update({
+          where: { cus_id },
+          data: {
+            cus_balance: customer.cus_balance - netTotal + parseFloat(payment)
+          }
+        });
+
+        // If loader is involved, subtract shipping amount from loader balance - Skip for quotations
+        if (loader_id && parseFloat(shipping_amount || 0) > 0) {
+          const loader = await tx.loader.findUnique({
+            where: { loader_id }
+          });
+
+          if (loader) {
+            await tx.loader.update({
+              where: { loader_id },
+              data: {
+                loader_balance: loader.loader_balance - parseFloat(shipping_amount)
+              }
+            });
+          }
+        }
+      } // End of if (!isQuotationReturn)
 
       return saleReturn;
     }, {
