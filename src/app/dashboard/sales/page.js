@@ -2531,7 +2531,14 @@ export default function SalesPage() {
         PaperProps={{
           sx: {
             borderRadius: 2,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.12)'
+            boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+            width: '210mm', // A4 width
+            maxWidth: '210mm',
+            '@media print': {
+              width: '210mm',
+              maxWidth: '210mm',
+              margin: '0 auto'
+            }
           }
         }}
       >
@@ -2774,12 +2781,14 @@ export default function SalesPage() {
         @media print {
           @page {
             size: A4;
-            margin: 0.5cm;
+            margin: 0.5cm 1cm;
           }
           
           body {
             print-color-adjust: exact;
             -webkit-print-color-adjust: exact;
+            margin: 0;
+            padding: 0;
           }
           
           /* Hide everything by default */
@@ -2798,8 +2807,12 @@ export default function SalesPage() {
             position: absolute;
             left: 0;
             top: 0;
-            width: 100%;
+            width: 21cm;
+            min-height: 29.7cm;
+            max-width: 21cm;
             background: white;
+            padding: 0;
+            margin: 0;
           }
           
           /* Hide dialog wrapper elements */
@@ -2821,6 +2834,8 @@ export default function SalesPage() {
             overflow: visible !important;
             height: auto !important;
             max-height: none !important;
+            width: 21cm !important;
+            max-width: 21cm !important;
           }
           
           /* Table styles for print */
@@ -2828,6 +2843,7 @@ export default function SalesPage() {
             page-break-inside: auto;
             border-collapse: collapse;
             width: 100%;
+            font-size: 12px;
           }
           
           tr {
@@ -2851,6 +2867,32 @@ export default function SalesPage() {
           /* Remove shadows and rounded corners */
           .MuiPaper-root {
             box-shadow: none !important;
+          }
+          
+          /* Typography adjustments for A4 */
+          .MuiTypography-root {
+            font-size: 12px !important;
+          }
+          
+          .MuiTypography-h4 {
+            font-size: 24px !important;
+          }
+          
+          .MuiTypography-h6 {
+            font-size: 16px !important;
+          }
+          
+          .MuiTypography-body2 {
+            font-size: 12px !important;
+          }
+          
+          /* Grid and spacing */
+          .MuiGrid-container {
+            margin: 0 !important;
+          }
+          
+          .MuiGrid-item {
+            padding: 8px !important;
           }
         }
       `}</style>
