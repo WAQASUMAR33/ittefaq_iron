@@ -747,7 +747,7 @@ export default function SalesPage() {
             console.error('❌ Sales data is not an array!', salesData);
             setSales([]);
           } else {
-            setSales(salesData);
+          setSales(salesData);
           }
         } else {
           const errorText = await salesRes.text();
@@ -886,40 +886,40 @@ export default function SalesPage() {
     
     console.log('🔍 Filtering', sales.length, 'sales...');
     const filtered = sales.filter(sale => {
-      // All filters are empty by default, so all sales should match
-      const matchesSearch = searchTerm === '' || 
+    // All filters are empty by default, so all sales should match
+    const matchesSearch = searchTerm === '' || 
         sale.sale_id?.toString().includes(searchTerm) ||
-        sale.customer?.cus_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        sale.reference?.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const matchesCustomer = filterCustomer === '' || 
+      sale.customer?.cus_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      sale.reference?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesCustomer = filterCustomer === '' || 
         sale.customer?.cus_id?.toString() === filterCustomer;
-      
-      const matchesBillType = filterBillType === '' || 
-        sale.bill_type === filterBillType;
-      
-      const matchesDateFrom = dateFrom === '' || 
+    
+    const matchesBillType = filterBillType === '' || 
+      sale.bill_type === filterBillType;
+    
+    const matchesDateFrom = dateFrom === '' || 
         (dateFrom && sale.created_at && new Date(sale.created_at) >= new Date(dateFrom));
-      
-      const matchesDateTo = dateTo === '' || 
+    
+    const matchesDateTo = dateTo === '' || 
         (dateTo && sale.created_at && new Date(sale.created_at) <= new Date(dateTo));
-      
-      const result = matchesSearch && matchesCustomer && matchesBillType && matchesDateFrom && matchesDateTo;
+    
+    const result = matchesSearch && matchesCustomer && matchesBillType && matchesDateFrom && matchesDateTo;
       
       if (!result) {
         console.log('🔍 Sale', sale.sale_id, 'filtered out:', {
-          matchesSearch,
-          matchesCustomer,
-          matchesBillType,
-          matchesDateFrom,
-          matchesDateTo,
+      matchesSearch,
+      matchesCustomer,
+      matchesBillType,
+      matchesDateFrom,
+      matchesDateTo,
           hasCustomer: !!sale.customer,
           saleData: { sale_id: sale.sale_id, total_amount: sale.total_amount }
         });
       }
       
-      return result;
-    });
+    return result;
+  });
     
     console.log('🔍 Filtered sales count:', filtered.length, 'out of', sales.length);
     if (filtered.length > 0) {
@@ -2542,8 +2542,8 @@ export default function SalesPage() {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <ReceiptIcon />
             <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-              Bill Details - #{selectedBill?.sale_id}
-            </Typography>
+            Bill Details - #{selectedBill?.sale_id}
+          </Typography>
           </Box>
           <IconButton 
             onClick={handleCloseBillDialog} 
@@ -2553,218 +2553,190 @@ export default function SalesPage() {
             <CloseIcon />
           </IconButton>
         </DialogTitle>
-        <DialogContent sx={{ p: 3 }}>
+        <DialogContent sx={{ p: 0, bgcolor: 'white' }}>
           {selectedBill && (
-            <Grid container spacing={3}>
-              {/* Left Side - Bill Details */}
-              <Grid item xs={12} md={8}>
-                {/* Bill Header */}
-                <Grid container spacing={3} sx={{ mb: 3 }}>
-                  <Grid item xs={12} md={6}>
-                    <Card variant="outlined" sx={{ p: 2, bgcolor: 'grey.50' }}>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1.5, color: 'primary.main' }}>
-                        Customer Information
-                      </Typography>
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                        <Typography variant="body1" sx={{ fontWeight: 'medium', fontSize: '1.1rem' }}>
-                          {selectedBill.customer?.cus_name || 'N/A'}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          <strong>Phone:</strong> {selectedBill.customer?.cus_phone_no || 'N/A'}
-                        </Typography>
-                        {selectedBill.customer?.cus_address && (
-                          <Typography variant="body2" color="text.secondary">
-                            <strong>Address:</strong> {selectedBill.customer.cus_address}
-                          </Typography>
-                        )}
-                        <Typography variant="body2" color="text.secondary">
-                          <strong>Category:</strong> {selectedBill.customer?.customer_category?.cus_cat_title || 'N/A'}
-                        </Typography>
-                      </Box>
-                    </Card>
+            <Box sx={{ width: '100%', bgcolor: 'white' }}>
+              {/* Company Header */}
+              <Box sx={{ textAlign: 'center', py: 3, borderBottom: '2px solid #000' }}>
+                <Typography variant="h4" sx={{ 
+                  fontWeight: 'bold', 
+                  mb: 1,
+                  fontFamily: 'Arial, sans-serif',
+                  fontSize: { xs: '1.5rem', md: '2rem' },
+                  direction: 'rtl'
+                }}>
+                  اتفاق آئرن اینڈ سیمنٹ سٹور
+                  </Typography>
+                <Typography variant="body2" sx={{ 
+                  mb: 1,
+                  fontSize: { xs: '0.75rem', md: '0.9rem' },
+                  direction: 'rtl'
+                }}>
+                  گجرات سرگودھا روڈ، پاہڑیانوالی
+                  </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 1 }}>
+                  <PhoneIcon sx={{ color: '#25D366', fontSize: '1rem' }} />
+                  <Typography variant="body2">
+                    Ph:- 0346-7560306, 0300-7560306
+                  </Typography>
+                </Box>
+                <Typography variant="h6" sx={{ 
+                  fontWeight: 'bold', 
+                  textTransform: 'uppercase',
+                  letterSpacing: 1,
+                  mt: 2
+                }}>
+                  SALE INVOICE
+                  </Typography>
+              </Box>
+
+              {/* Customer and Invoice Details */}
+              <Grid container spacing={2} sx={{ px: 3, py: 2, borderBottom: '1px solid #ddd' }}>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
+                    <strong>Customer Name:</strong> {selectedBill.customer?.cus_name || 'N/A'}
+                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
+                    <strong>Phone No:</strong> {selectedBill.customer?.cus_phone_no || 'N/A'}
+                  </Typography>
+                  {selectedBill.customer?.cus_address && (
+                    <Typography variant="body2">
+                      <strong>Address:</strong> {selectedBill.customer.cus_address}
+                  </Typography>
+                  )}
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
+                    <strong>Invoice No:</strong> <strong>#{selectedBill.sale_id}</strong>
+                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
+                    <strong>Invoice Date:</strong> <strong>{new Date(selectedBill.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
+                  </Typography>
+                  <Typography variant="body2">
+                    <strong>Invoice Time:</strong> <strong>{new Date(selectedBill.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
+                  </Typography>
+                </Grid>
+              </Grid>
+
+              {/* Product Table and Payment Summary */}
+              <Grid container spacing={2} sx={{ px: 3, py: 2 }}>
+                {/* Left Side - Product Table and Balance */}
+                <Grid item xs={12} md={8}>
+                  {/* Product Details Table */}
+                  <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+                <Table size="small">
+                  <TableHead>
+                        <TableRow sx={{ bgcolor: '#9e9e9e' }}>
+                          <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1 }}>S#</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1 }}>Product Name</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1 }} align="right">Qty</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1 }} align="right">Rate</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1 }} align="right">Amount</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                        {selectedBill.sale_details && selectedBill.sale_details.length > 0 ? (
+                          selectedBill.sale_details.map((detail, index) => (
+                            <TableRow key={detail.sale_detail_id || index}>
+                              <TableCell>{index + 1}</TableCell>
+                              <TableCell>{detail.product?.pro_title || detail.product?.pro_name || detail.product?.prod_name || 'N/A'}</TableCell>
+                        <TableCell align="right">{detail.qnty || 0}</TableCell>
+                        <TableCell align="right">{parseFloat(detail.unit_rate || 0).toFixed(2)}</TableCell>
+                        <TableCell align="right">{parseFloat(detail.total_amount || 0).toFixed(2)}</TableCell>
+                      </TableRow>
+                          ))
+                        ) : (
+                      <TableRow>
+                            <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                          No items found
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+
+                  {/* Balance Section (Left Side Below Table) */}
+                  <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+                    <Table size="small">
+                      <TableBody>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl' }}>سابقہ بقایا</TableCell>
+                          <TableCell align="right">{parseFloat(selectedBill.customer?.cus_balance || 0).toFixed(2)}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl' }}>موجوده بقایا</TableCell>
+                          <TableCell align="right">
+                            {(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.discount || 0) + parseFloat(selectedBill.shipping_amount || 0) - parseFloat(selectedBill.payment || 0)).toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl' }}>كل بقايا</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                            {(parseFloat(selectedBill.customer?.cus_balance || 0) + parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.discount || 0) + parseFloat(selectedBill.shipping_amount || 0) - parseFloat(selectedBill.payment || 0)).toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+
+                  {/* Notes Section */}
+                  <Box sx={{ mt: 2 }}>
+                    <Typography variant="body2">
+                      <strong>Notes:</strong> {selectedBill.notes || ''}
+                    </Typography>
+                  </Box>
                   </Grid>
-                  <Grid item xs={12} md={6}>
-                    <Card variant="outlined" sx={{ p: 2, bgcolor: 'grey.50' }}>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1.5, color: 'primary.main' }}>
-                        Bill Information
-                      </Typography>
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                        <Typography variant="body2" color="text.secondary">
-                          <strong>Bill ID:</strong> #{selectedBill.sale_id}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          <strong>Date:</strong> {new Date(selectedBill.created_at).toLocaleDateString('en-US', { 
-                            year: 'numeric', 
-                            month: 'long', 
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          <strong>Type:</strong> {selectedBill.bill_type || 'N/A'}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          <strong>Payment Type:</strong> {selectedBill.payment_type || 'N/A'}
-                        </Typography>
-                        {selectedBill.reference && (
-                          <Typography variant="body2" color="text.secondary">
-                            <strong>Reference:</strong> {selectedBill.reference}
-                          </Typography>
-                        )}
-                      </Box>
-                    </Card>
+
+                {/* Right Side - Payment Summary */}
+                <Grid item xs={12} md={4}>
+                  <TableContainer component={Paper} variant="outlined">
+                    <Table size="small">
+                      <TableBody>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl' }}>رقم بل</TableCell>
+                          <TableCell align="right">{parseFloat(selectedBill.total_amount || 0).toFixed(2)}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl' }}>مزدوری</TableCell>
+                          <TableCell align="right">{parseFloat(selectedBill.labour || 0).toFixed(2)}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl' }}>کرایہ</TableCell>
+                          <TableCell align="right">{parseFloat(selectedBill.shipping_amount || 0).toFixed(2)}</TableCell>
+                        </TableRow>
+                        <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl' }}>كل رقم</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                            {(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.discount || 0) + parseFloat(selectedBill.shipping_amount || 0)).toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl' }}>نقد كيش</TableCell>
+                          <TableCell align="right">{parseFloat(selectedBill.payment || 0).toFixed(2)}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl' }}>بینک : {selectedBill.payment_type === 'BANK' ? 'Bank Transfer' : 'Easy Paisa'}</TableCell>
+                          <TableCell align="right">0.00</TableCell>
+                        </TableRow>
+                        <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl' }}>كل رقم وصول</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                      {parseFloat(selectedBill.payment || 0).toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                        <TableRow sx={{ bgcolor: '#e0e0e0' }}>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl' }}>بقايا رقم</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                      {(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.discount || 0) + parseFloat(selectedBill.shipping_amount || 0) - parseFloat(selectedBill.payment || 0)).toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
                   </Grid>
                 </Grid>
-
-                {/* Bill Items */}
-                <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, color: 'primary.main' }}>
-                  Items
-                </Typography>
-                <TableContainer component={Paper} variant="outlined">
-                  <Table size="medium">
-                    <TableHead>
-                      <TableRow sx={{ bgcolor: 'primary.light' }}>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white' }}>S.No</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white' }}>Product Name</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white' }} align="right">Quantity</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white' }} align="right">Unit Rate</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white' }} align="right">Discount</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white' }} align="right">Amount</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {selectedBill.sale_details && selectedBill.sale_details.length > 0 ? (
-                        selectedBill.sale_details.map((detail, index) => (
-                          <TableRow key={detail.sale_detail_id || index} sx={{ 
-                            '&:hover': { bgcolor: 'grey.50' },
-                            '&:nth-of-type(even)': { bgcolor: 'grey.25' }
-                          }}>
-                            <TableCell>{index + 1}</TableCell>
-                            <TableCell sx={{ fontWeight: 'medium' }}>
-                              {detail.product?.pro_title || detail.product?.pro_name || detail.product?.prod_name || 'N/A'}
-                              {detail.product?.category?.cat_name && (
-                                <Typography variant="caption" color="text.secondary" display="block">
-                                  {detail.product.category.cat_name}
-                                </Typography>
-                              )}
-                            </TableCell>
-                            <TableCell align="right">{detail.qnty || 0} {detail.unit || 'PCS'}</TableCell>
-                            <TableCell align="right">Rs. {parseFloat(detail.unit_rate || 0).toFixed(2)}</TableCell>
-                            <TableCell align="right">Rs. {parseFloat(detail.discount || 0).toFixed(2)}</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                              Rs. {parseFloat(detail.total_amount || 0).toFixed(2)}
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
-                            <Typography variant="body2" color="text.secondary">
-                              No items found
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                      {selectedBill.sale_details && selectedBill.sale_details.length > 0 && (
-                        <TableRow sx={{ bgcolor: 'grey.100', borderTop: '2px solid #dee2e6' }}>
-                          <TableCell colSpan={5} sx={{ fontWeight: 'bold', textAlign: 'right' }}>
-                            Total:
-                          </TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
-                            Rs. {selectedBill.sale_details.reduce((sum, detail) => 
-                              sum + parseFloat(detail.total_amount || 0), 0).toFixed(2)}
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Grid>
-
-              {/* Right Side - Payment Summary (Aligned Below Table) */}
-              <Grid item xs={12} md={4}>
-                <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
-                  <Card variant="outlined" sx={{ bgcolor: 'primary.light', color: 'white', p: 3 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 3, color: 'white', textAlign: 'center' }}>
-                      Payment Summary
-                    </Typography>
-                    
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      {/* Subtotal */}
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
-                        <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                          Subtotal:
-                        </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                          Rs. {parseFloat(selectedBill.total_amount || 0).toFixed(2)}
-                        </Typography>
-                      </Box>
-                      
-                      {/* Discount */}
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
-                        <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                          Discount:
-                        </Typography>
-                        <Typography variant="body2">
-                          - Rs. {parseFloat(selectedBill.discount || 0).toFixed(2)}
-                        </Typography>
-                      </Box>
-                      
-                      {/* Shipping/Transport */}
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
-                        <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                          Shipping/Transport:
-                        </Typography>
-                        <Typography variant="body2">
-                          + Rs. {parseFloat(selectedBill.shipping_amount || 0).toFixed(2)}
-                        </Typography>
-                      </Box>
-                      
-                      {/* Grand Total */}
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 2, borderTop: '2px solid rgba(255,255,255,0.5)', borderBottom: '2px solid rgba(255,255,255,0.5)', mt: 1 }}>
-                        <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
-                          Grand Total:
-                        </Typography>
-                        <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '1.2rem' }}>
-                          Rs. {(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.discount || 0) + parseFloat(selectedBill.shipping_amount || 0)).toFixed(2)}
-                        </Typography>
-                      </Box>
-                      
-                      {/* Payment Received */}
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 2, pb: 1, borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
-                        <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                          Payment Received:
-                        </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                          Rs. {parseFloat(selectedBill.payment || 0).toFixed(2)}
-                        </Typography>
-                      </Box>
-                      
-                      {/* Balance */}
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 2 }}>
-                        <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
-                          Balance:
-                        </Typography>
-                        <Typography 
-                          variant="body1" 
-                          sx={{ 
-                            fontWeight: 'bold',
-                            fontSize: '1.3rem',
-                            color: (() => {
-                              const balance = parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.discount || 0) + parseFloat(selectedBill.shipping_amount || 0) - parseFloat(selectedBill.payment || 0);
-                              return balance > 0 ? '#ffcdd2' : balance < 0 ? '#c8e6c9' : 'white';
-                            })()
-                          }}
-                        >
-                          Rs. {(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.discount || 0) + parseFloat(selectedBill.shipping_amount || 0) - parseFloat(selectedBill.payment || 0)).toFixed(2)}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Card>
-                </Box>
-              </Grid>
-            </Grid>
+            </Box>
           )}
         </DialogContent>
         <DialogActions sx={{ p: 3, bgcolor: 'grey.50', borderTop: '1px solid #e0e0e0' }}>
