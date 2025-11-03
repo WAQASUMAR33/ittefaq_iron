@@ -405,6 +405,13 @@ export default function SalesPage() {
   // Save bill to database
   const handleSaveBill = async () => {
     try {
+      // If bill type is SALE_RETURN, guide user to proper return flow
+      if (billType === 'SALE_RETURN') {
+        showSnackbar('Use Return Sale from the list to process sale returns.', 'info');
+        setCurrentView('list');
+        return;
+      }
+
       // Validation
       if (!formSelectedCustomer) {
         showSnackbar('Please select a customer', 'error');
@@ -1321,6 +1328,24 @@ export default function SalesPage() {
                 <Grid item xs={12} md={2}>
                   <Box>
                     <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
+                      BILL TYPE
+                    </Typography>
+                    <FormControl fullWidth size="small">
+                      <Select
+                        value={billType}
+                        onChange={(e) => setBillType(e.target.value)}
+                        sx={{ bgcolor: 'white', minWidth: 200, '& .MuiSelect-select': { fontWeight: 'bold' } }}
+                      >
+                        <MenuItem value="BILL">Bill</MenuItem>
+                        <MenuItem value="QUOTATION">Quotation</MenuItem>
+                        <MenuItem value="SALE_RETURN">Sale Return</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} md={2}>
+                  <Box>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
                       DATE:
                     </Typography>
                     <TextField
@@ -1386,23 +1411,6 @@ export default function SalesPage() {
                     <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
                       Debug: {customers.length} total customers, {customers.filter(c => c.customer_type?.cus_type_title?.toLowerCase().includes('customer')).length} customers (filtered)
                     </Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={12} md={2}>
-                  <Box>
-                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
-                      BILL TYPE
-                    </Typography>
-                    <FormControl fullWidth size="small">
-                      <Select
-                        value={billType}
-                        onChange={(e) => setBillType(e.target.value)}
-                        sx={{ bgcolor: 'white', '& .MuiSelect-select': { fontWeight: 'bold' } }}
-                      >
-                        <MenuItem value="BILL">Bill</MenuItem>
-                        <MenuItem value="QUOTATION">Quotation</MenuItem>
-                      </Select>
-                    </FormControl>
                   </Box>
                 </Grid>
                 <Grid item xs={12} md={1.5}>

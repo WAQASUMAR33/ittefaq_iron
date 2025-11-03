@@ -4,6 +4,27 @@ import { updateStoreStock } from '@/lib/storeStock';
 
 const prisma = new PrismaClient();
 
+// Helper: get special accounts (Cash, Bank, Sundry Debtors/Creditors)
+async function getSpecialAccounts(tx) {
+  const specialAccounts = await tx.customer.findMany({
+    where: {
+      cus_name: {
+        in: ['Cash Account', 'Bank Account', 'Sundry Creditors', 'Sundry Debtors']
+      }
+    }
+  });
+
+  const accounts = {};
+  specialAccounts.forEach(account => {
+    if (account.cus_name === 'Cash Account') accounts.cash = account;
+    if (account.cus_name === 'Bank Account') accounts.bank = account;
+    if (account.cus_name === 'Sundry Creditors') accounts.sundryCreditors = account;
+    if (account.cus_name === 'Sundry Debtors') accounts.sundryDebtors = account;
+  });
+
+  return accounts;
+}
+
 // GET - Fetch all sale returns with related data
 export async function GET(request) {
   try {
@@ -158,15 +179,18 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Calculate net total
-    const netTotal = parseFloat(total_amount) - parseFloat(discount || 0);
+    // Calculate totals from return_details for safety and consistency
+    const computedTotal = Array.isArray(return_details)
+      ? return_details.reduce((sum, d) => sum + (parseFloat(d.total_amount) || 0), 0)
+      : 0;
+    const netTotal = computedTotal - parseFloat(discount || 0);
 
     // Use transaction to ensure data consistency
     const result = await prisma.$transaction(async (tx) => {
       // Get the original sale to get store_id and verify bill_type
       const sale = await tx.sale.findUnique({
         where: { sale_id },
-        select: { store_id: true, bill_type: true }
+        include: { sale_details: true }
       });
 
       if (!sale) {
@@ -176,6 +200,22 @@ export async function POST(request) {
       // Use bill_type from sale if not provided in body
       const finalBillType = bill_type || sale.bill_type || 'BILL';
       const isQuotationReturn = finalBillType === 'QUOTATION';
+
+      // Validate each return detail does not exceed sold quantity
+      const qtyByProduct = new Map();
+      for (const d of sale.sale_details) {
+        qtyByProduct.set(d.pro_id, (qtyByProduct.get(d.pro_id) || 0) + Number(d.qnty || 0));
+      }
+      for (const rd of return_details) {
+        const soldQty = qtyByProduct.get(rd.pro_id) || 0;
+        const returnQty = parseInt(rd.qnty) || 0;
+        if (returnQty <= 0) {
+          throw new Error(`Invalid return quantity for product ${rd.pro_id}`);
+        }
+        if (returnQty > soldQty) {
+          throw new Error(`Return qty (${returnQty}) exceeds sold qty (${soldQty}) for product ${rd.pro_id}`);
+        }
+      }
 
       // Get customer's current balance
       const customer = await tx.customer.findUnique({
@@ -191,9 +231,9 @@ export async function POST(request) {
         data: {
           sale_id,
           cus_id,
-          total_amount: parseFloat(total_amount),
+          total_amount: computedTotal,
           discount: parseFloat(discount || 0),
-          payment: parseFloat(payment),
+          payment: parseFloat(payment || 0),
           payment_type,
           debit_account_id: debit_account_id || null,
           credit_account_id: credit_account_id || null,
@@ -253,29 +293,51 @@ export async function POST(request) {
           }
         });
 
-        // Debit entry for payment refund (if payment > 0)
-        if (parseFloat(payment) > 0) {
+        // Handle payment refund ledger for cash/bank (if payment > 0)
+        const refundAmount = parseFloat(payment || 0);
+        if (refundAmount > 0) {
+          // 1) Customer side: optional debit to reflect refund paid
           await tx.ledger.create({
             data: {
               cus_id,
               opening_balance: customer.cus_balance - netTotal,
-              debit_amount: parseFloat(payment),
+              debit_amount: refundAmount,
               credit_amount: 0,
-              closing_balance: customer.cus_balance - netTotal + parseFloat(payment),
+              closing_balance: customer.cus_balance - netTotal + refundAmount,
               bill_no: saleReturn.return_id,
               trnx_type: payment_type,
               details: `Refund - Sale Return ${finalBillType}`,
-              payments: parseFloat(payment),
+              payments: refundAmount,
               updated_by
             }
           });
+
+          // 2) Cash/Bank account side: credit (cash/bank goes down)
+          const specialAccounts = await getSpecialAccounts(tx);
+          const refundAccount = payment_type === 'CASH' ? specialAccounts.cash : specialAccounts.bank;
+          if (refundAccount) {
+            await tx.ledger.create({
+              data: {
+                cus_id: refundAccount.cus_id,
+                opening_balance: refundAccount.cus_balance,
+                debit_amount: 0,
+                credit_amount: refundAmount,
+                closing_balance: refundAccount.cus_balance - refundAmount,
+                bill_no: saleReturn.return_id,
+                trnx_type: payment_type,
+                details: `Refund Paid - Sale Return ${finalBillType} - ${payment_type} Account (Credit)`,
+                payments: refundAmount,
+                updated_by
+              }
+            });
+          }
         }
 
         // Update customer balance (reduce balance for return) - Skip for quotations
         await tx.customer.update({
           where: { cus_id },
           data: {
-            cus_balance: customer.cus_balance - netTotal + parseFloat(payment)
+            cus_balance: customer.cus_balance - netTotal + (parseFloat(payment || 0))
           }
         });
 
@@ -290,6 +352,20 @@ export async function POST(request) {
               where: { loader_id },
               data: {
                 loader_balance: loader.loader_balance - parseFloat(shipping_amount)
+              }
+            });
+          }
+        }
+
+        // Update cash/bank balances to reflect refund outflow
+        if (parseFloat(payment || 0) > 0) {
+          const specialAccounts = await getSpecialAccounts(tx);
+          const refundAccount = payment_type === 'CASH' ? specialAccounts.cash : specialAccounts.bank;
+          if (refundAccount) {
+            await tx.customer.update({
+              where: { cus_id: refundAccount.cus_id },
+              data: {
+                cus_balance: refundAccount.cus_balance - parseFloat(payment)
               }
             });
           }

@@ -1013,6 +1013,9 @@ export async function PUT(request) {
     // Calculate net total (including shipping amount)
     const netTotal = parseFloat(total_amount) - parseFloat(discount || 0) + parseFloat(shipping_amount || 0);
 
+    // Determine if this update is for a quotation (skip finance/stock)
+    const isQuotationFromBody = bill_type === 'QUOTATION';
+
     // Use transaction to ensure data consistency
     const result = await prisma.$transaction(async (tx) => {
       // Get existing sale
@@ -1041,7 +1044,7 @@ export async function PUT(request) {
         where: { sale_id: id }
       });
 
-      // Delete existing ledger entries for this sale
+      // Delete existing ledger entries for this sale (cleanup if previously generated)
       await tx.ledger.deleteMany({
         where: { bill_no: id }
       });
@@ -1119,9 +1122,10 @@ export async function PUT(request) {
         await Promise.all(splitPaymentPromises);
       }
 
-      // Update store stock quantities - use new store_id if provided, otherwise use existing
+      // Update store stock quantities - skip for quotations
       const finalStoreIdForStock = store_id ? parseInt(store_id) : existingSale.store_id;
-      if (finalStoreIdForStock) {
+      const isQuotation = isQuotationFromBody || existingSale.bill_type === 'QUOTATION';
+      if (!isQuotation && finalStoreIdForStock) {
         // Check stock availability before updating
         for (const detail of sale_details) {
           const hasStock = await checkStockAvailability(finalStoreIdForStock, detail.pro_id, parseInt(detail.qnty));
@@ -1130,24 +1134,25 @@ export async function PUT(request) {
             throw new Error(`Insufficient stock for product ${detail.pro_id}. Available: ${currentStock}, Required: ${detail.qnty}`);
           }
         }
-        
+
         const storeStockUpdatePromises = sale_details.map(async detail => {
           await updateStoreStock(finalStoreIdForStock, detail.pro_id, parseInt(detail.qnty), 'decrement', updated_by);
         });
         await Promise.all(storeStockUpdatePromises);
       }
 
-      // Get special accounts
-      const specialAccounts = await getSpecialAccounts(tx);
+      // Get special accounts only if not quotation
+      const specialAccounts = isQuotation ? null : await getSpecialAccounts(tx);
 
-      // Create comprehensive ledger entries
+      // Create comprehensive ledger entries (skip for quotations)
       const ledgerEntries = [];
       
       // Calculate net amount owed by customer (total - payment received)
       const customerNetAmount = netTotal - parseFloat(payment);
 
-      // 1. Customer Bill Entry - Debit Customer Account
-      ledgerEntries.push({
+      // 1. Customer Bill Entry - Debit Customer Account (skip for quotations)
+      if (!isQuotation) {
+        ledgerEntries.push({
           cus_id,
           opening_balance: customer.cus_balance,
           debit_amount: netTotal,
@@ -1155,13 +1160,14 @@ export async function PUT(request) {
           closing_balance: customer.cus_balance + netTotal,
           bill_no: sale.sale_id.toString(),
           trnx_type: 'CASH',
-        details: `Sale Bill - ${bill_type || 'BILL'} - Customer Account (Debit)`,
+          details: `Sale Bill - ${bill_type || 'BILL'} - Customer Account (Debit)`,
           payments: 0,
           updated_by
-      });
+        });
+      }
 
       // 2. Cash/Bank Account - CREDIT (when payment is received)
-      if (parseFloat(payment) > 0) {
+      if (!isQuotation && parseFloat(payment) > 0) {
 
         // 3. Payment Entry - Debit Cash/Bank Account
         const paymentAccount = payment_type === 'CASH' ? specialAccounts.cash : specialAccounts.bank;
@@ -1182,7 +1188,7 @@ export async function PUT(request) {
       }
 
       // 4. Transporter Entry (if loader_id is provided)
-      if (loader_id) {
+      if (!isQuotation && loader_id) {
         const loader = await tx.loader.findUnique({
           where: { loader_id }
         });
@@ -1203,7 +1209,7 @@ export async function PUT(request) {
           });
 
           // Credit Sundry Debtors Account
-          if (specialAccounts.sundryDebtors) {
+          if (specialAccounts && specialAccounts.sundryDebtors) {
             ledgerEntries.push({
               cus_id: specialAccounts.sundryDebtors.cus_id,
               opening_balance: specialAccounts.sundryDebtors.cus_balance,
@@ -1221,7 +1227,7 @@ export async function PUT(request) {
       }
 
       // 5. Split Payment Entries (if any)
-      if (split_payments && split_payments.length > 0) {
+      if (!isQuotation && split_payments && split_payments.length > 0) {
         for (const splitPayment of split_payments) {
           const splitAmount = parseFloat(splitPayment.amount);
           
@@ -1271,21 +1277,25 @@ export async function PUT(request) {
         }
       }
 
-      // Create all ledger entries
-      for (const entry of ledgerEntries) {
-        await createLedgerEntry(tx, entry);
+      // Create all ledger entries (skip for quotations)
+      if (!isQuotation) {
+        for (const entry of ledgerEntries) {
+          await createLedgerEntry(tx, entry);
+        }
       }
 
-      // Update customer balance
-      await tx.customer.update({
-        where: { cus_id },
-        data: {
-          cus_balance: customer.cus_balance + netTotal - parseFloat(payment)
-        }
-      });
+      // Update customer balance (skip for quotations)
+      if (!isQuotation) {
+        await tx.customer.update({
+          where: { cus_id },
+          data: {
+            cus_balance: customer.cus_balance + netTotal - parseFloat(payment)
+          }
+        });
+      }
 
       // Update special account balances
-      if (parseFloat(payment) > 0) {
+      if (!isQuotation && parseFloat(payment) > 0) {
         const paymentAccount = payment_type === 'CASH' ? specialAccounts.cash : specialAccounts.bank;
         if (paymentAccount) {
           await tx.customer.update({
@@ -1298,7 +1308,7 @@ export async function PUT(request) {
       }
 
       // Update transporter balance
-      if (loader_id && parseFloat(shipping_amount || 0) > 0) {
+      if (!isQuotation && loader_id && parseFloat(shipping_amount || 0) > 0) {
         await tx.loader.update({
           where: { loader_id },
           data: {
@@ -1310,7 +1320,7 @@ export async function PUT(request) {
       }
 
       // Update sundry debtors balance
-      if (loader_id && specialAccounts.sundryDebtors && parseFloat(shipping_amount || 0) > 0) {
+      if (!isQuotation && loader_id && specialAccounts && specialAccounts.sundryDebtors && parseFloat(shipping_amount || 0) > 0) {
         await tx.customer.update({
           where: { cus_id: specialAccounts.sundryDebtors.cus_id },
           data: {
@@ -1322,7 +1332,7 @@ export async function PUT(request) {
       }
 
       // Update split payment account balances
-      if (split_payments && split_payments.length > 0) {
+      if (!isQuotation && split_payments && split_payments.length > 0) {
         for (const splitPayment of split_payments) {
           const splitAmount = parseFloat(splitPayment.amount);
           
