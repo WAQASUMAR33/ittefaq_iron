@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '../components/dashboard-layout';
 
 // Material-UI imports
@@ -64,6 +65,8 @@ import {
 } from '@mui/icons-material';
 
 export default function SalesPage() {
+  const searchParams = useSearchParams();
+  
   // State management
   const [sales, setSales] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -88,6 +91,14 @@ export default function SalesPage() {
   const [viewBillDialog, setViewBillDialog] = useState(false);
   const [selectedBill, setSelectedBill] = useState(null);
   const [currentView, setCurrentView] = useState('list');
+  
+  // Handle URL query parameter for view
+  useEffect(() => {
+    const viewParam = searchParams?.get('view');
+    if (viewParam === 'create') {
+      setCurrentView('create');
+    }
+  }, [searchParams]);
   
   // Sale return state
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
