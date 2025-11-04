@@ -76,6 +76,11 @@ export default function SalesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCustomer, setFilterCustomer] = useState('');
   const [filterBillType, setFilterBillType] = useState('');
+  const [filterStore, setFilterStore] = useState('');
+  const [filterPaymentType, setFilterPaymentType] = useState('');
+  const [filterMinAmount, setFilterMinAmount] = useState('');
+  const [filterMaxAmount, setFilterMaxAmount] = useState('');
+  const [filterBalanceStatus, setFilterBalanceStatus] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   
@@ -255,7 +260,8 @@ export default function SalesPage() {
         .filter(r => r.pro_id === productId && r.storeid === storeId)
         .reduce((sum, r) => sum + (parseFloat(r.qnty ?? r.quantity ?? 0) || 0), 0);
 
-      const available = Math.max(0, (isNaN(stockQty) ? 0 : stockQty) - reservedQty);
+      // Allow negative stock - removed Math.max constraint
+      const available = (isNaN(stockQty) ? 0 : stockQty) - reservedQty;
       console.log('📦 Store stock normalized:', { stockQty, reservedQty, available });
 
       setProductFormData(prev => ({ ...prev, stock: available }));
@@ -378,13 +384,15 @@ export default function SalesPage() {
     return subtotal;
   };
 
-  // Calculate grand total (subtotal + labour + delivery - discount)
+  // Calculate grand total (products + labour + delivery (including transport) - discount)
   const calculateGrandTotal = () => {
-    const subtotal = calculateSubtotal();
+    const productTotal = calculateTotalAmount();
     const labour = parseFloat(paymentData.labour) || 0;
     const deliveryCharges = parseFloat(paymentData.deliveryCharges) || 0;
+    const transportTotal = calculateTransportTotal();
+    const totalDelivery = deliveryCharges + transportTotal; // Transport added to delivery
     const discount = parseFloat(paymentData.discount) || 0;
-    return subtotal + labour + deliveryCharges - discount;
+    return productTotal + labour + totalDelivery - discount;
   };
 
   // Calculate balance (grand total - total cash received)
@@ -517,7 +525,7 @@ export default function SalesPage() {
             unit_rate: product.rate,
             total_amount: product.amount,
             product: {
-              pro_title: product.name || 'N/A'
+              pro_title: product.pro_title || 'N/A'
             }
           })),
           labour: parseFloat(paymentData.labour) || 0,
@@ -1198,7 +1206,7 @@ export default function SalesPage() {
       
       // Small delay to ensure DOM is ready
       setTimeout(() => {
-        window.print();
+    window.print();
         setTimeout(() => {
           // Restore original styles
           printableContainer.style.position = originalStyles.position;
@@ -1229,7 +1237,7 @@ export default function SalesPage() {
   const filteredSales = useMemo(() => {
     console.log('🔍 Starting filter with sales count:', sales.length);
     console.log('🔍 Sales is array?', Array.isArray(sales));
-    console.log('🔍 Filter criteria:', { searchTerm, filterCustomer, filterBillType, dateFrom, dateTo });
+    console.log('🔍 Filter criteria:', { searchTerm, filterCustomer, filterBillType, filterStore, filterPaymentType, filterMinAmount, filterMaxAmount, filterBalanceStatus, dateFrom, dateTo });
     
     // Check if sales array has data
     if (!Array.isArray(sales) || sales.length === 0) {
@@ -1251,19 +1259,51 @@ export default function SalesPage() {
     const matchesBillType = filterBillType === '' || 
       sale.bill_type === filterBillType;
     
+    // Store filter - check if any sale detail has the store
+    const matchesStore = filterStore === '' || 
+      (sale.sale_details && sale.sale_details.some(detail => 
+        detail.store?.storeid?.toString() === filterStore || 
+        detail.store_id?.toString() === filterStore
+      ));
+    
+    // Payment type filter
+    const matchesPaymentType = filterPaymentType === '' || 
+      sale.payment_type === filterPaymentType;
+    
+    // Amount range filters
+    const totalAmount = parseFloat(sale.total_amount || 0);
+    const matchesMinAmount = filterMinAmount === '' || 
+      totalAmount >= parseFloat(filterMinAmount);
+    const matchesMaxAmount = filterMaxAmount === '' || 
+      totalAmount <= parseFloat(filterMaxAmount);
+    
+    // Balance status filter
+    const balance = parseFloat(sale.total_amount) - parseFloat(sale.discount || 0) + parseFloat(sale.shipping_amount || 0) - parseFloat(sale.payment || 0);
+    const matchesBalanceStatus = filterBalanceStatus === '' || 
+      (filterBalanceStatus === 'with_balance' && balance > 0) ||
+      (filterBalanceStatus === 'without_balance' && balance <= 0) ||
+      (filterBalanceStatus === 'overpaid' && balance < 0);
+    
     const matchesDateFrom = dateFrom === '' || 
         (dateFrom && sale.created_at && new Date(sale.created_at) >= new Date(dateFrom));
     
     const matchesDateTo = dateTo === '' || 
         (dateTo && sale.created_at && new Date(sale.created_at) <= new Date(dateTo));
     
-    const result = matchesSearch && matchesCustomer && matchesBillType && matchesDateFrom && matchesDateTo;
+    const result = matchesSearch && matchesCustomer && matchesBillType && matchesStore && 
+                   matchesPaymentType && matchesMinAmount && matchesMaxAmount && 
+                   matchesBalanceStatus && matchesDateFrom && matchesDateTo;
       
       if (!result) {
         console.log('🔍 Sale', sale.sale_id, 'filtered out:', {
       matchesSearch,
       matchesCustomer,
       matchesBillType,
+      matchesStore,
+      matchesPaymentType,
+      matchesMinAmount,
+      matchesMaxAmount,
+      matchesBalanceStatus,
       matchesDateFrom,
       matchesDateTo,
           hasCustomer: !!sale.customer,
@@ -1279,7 +1319,7 @@ export default function SalesPage() {
       console.log('🔍 First filtered sale:', filtered[0]);
     }
     return filtered;
-  }, [sales, searchTerm, filterCustomer, filterBillType, dateFrom, dateTo]);
+  }, [sales, searchTerm, filterCustomer, filterBillType, filterStore, filterPaymentType, filterMinAmount, filterMaxAmount, filterBalanceStatus, dateFrom, dateTo]);
   
   console.log('🔍 Filtered sales count:', filteredSales.length);
   console.log('🔍 Sales state:', sales);
@@ -1421,8 +1461,8 @@ export default function SalesPage() {
   // Render Sales Create View
   const renderSalesCreateView = () => (
     <DashboardLayout>
-      <Container maxWidth="xl" sx={{ py: 3 }}>
-        <Stack spacing={3}>
+      <Container maxWidth="xl" sx={{ py: 1 }}>
+        <Stack spacing={2}>
           {/* Header */}
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -1471,9 +1511,9 @@ export default function SalesPage() {
 
           {/* Main Form */}
           <Card>
-            <CardContent sx={{ p: 3 }}>
+            <CardContent sx={{ p: 2 }}>
               {/* First Row - Date, Customer, Reference */}
-              <Grid container spacing={2} sx={{ mb: 3 }}>
+              <Grid container spacing={2} sx={{ mb: 2 }}>
                 <Grid item xs={12} md={2}>
                   <Box>
                     <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
@@ -1515,7 +1555,7 @@ export default function SalesPage() {
                       {formSelectedCustomer && (
                         <Typography variant="body2" sx={{ 
                           fontWeight: 'bold', 
-                          color: 'primary.main',
+                          color: 'white',
                           fontSize: '0.875rem',
                           bgcolor: 'primary.light',
                           px: 1,
@@ -1578,7 +1618,7 @@ export default function SalesPage() {
 
 
               {/* Product Selection Row */}
-              <Grid container spacing={2} sx={{ mb: 3 }}>
+              <Grid container spacing={2} sx={{ mb: 2 }}>
                 <Grid item xs={12} md={3}>
                   <Box>
                     <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
@@ -1697,7 +1737,7 @@ export default function SalesPage() {
                   </Box>
                 </Grid>
                 <Grid item xs={12} md={1}>
-                  <Box sx={{ mt: 3 }}>
+                  <Box sx={{ mt: 2 }}>
                     <Button
                       variant="contained"
                       onClick={handleAddProductToTable}
@@ -1716,7 +1756,7 @@ export default function SalesPage() {
               </Grid>
 
               {/* Product Table */}
-              <TableContainer component={Paper} sx={{ mb: 3, border: '1px solid #e9ecef' }}>
+              <TableContainer component={Paper} sx={{ mb: 2, border: '1px solid #e9ecef' }}>
                 <Table size="small">
                   <TableHead>
                     <TableRow sx={{ bgcolor: '#f8f9fa' }}>
@@ -1744,7 +1784,39 @@ export default function SalesPage() {
                           <TableCell sx={{ py: 1 }}>{index + 1}</TableCell>
                           <TableCell sx={{ py: 1 }}>{product.store_name}</TableCell>
                           <TableCell sx={{ py: 1 }}>{product.pro_title}</TableCell>
-                          <TableCell sx={{ py: 1 }}>{product.quantity}</TableCell>
+                          <TableCell sx={{ py: 1 }}>
+                            <TextField
+                              size="small"
+                              type="number"
+                              value={product.quantity}
+                              onChange={(e) => {
+                                const newQuantity = parseFloat(e.target.value) || 0;
+                                if (newQuantity > 0) {
+                                  const updatedData = productTableData.map((p) =>
+                                    p.id === product.id
+                                      ? {
+                                          ...p,
+                                          quantity: newQuantity,
+                                          amount: newQuantity * p.rate
+                                        }
+                                      : p
+                                  );
+                                  setProductTableData(updatedData);
+                                }
+                              }}
+                              sx={{
+                                width: 80,
+                                '& .MuiInputBase-input': {
+                                  padding: '4px 8px',
+                                  textAlign: 'center'
+                                }
+                              }}
+                              inputProps={{
+                                min: 0.01,
+                                step: 0.01
+                              }}
+                            />
+                          </TableCell>
                           <TableCell sx={{ py: 1 }}>{product.rate.toFixed(2)}</TableCell>
                           <TableCell sx={{ py: 1 }}>{product.amount.toFixed(2)}</TableCell>
                           <TableCell sx={{ py: 1 }}>
@@ -1764,8 +1836,8 @@ export default function SalesPage() {
                         <TableCell colSpan={5} sx={{ py: 2, fontWeight: 'bold', textAlign: 'right' }}>
                           Total Amount:
                         </TableCell>
-                        <TableCell sx={{ py: 2, fontWeight: 'bold', fontSize: '1.1rem' }} key={`table-total-${calculateSubtotal()}-${transportOptions.length}`}>
-                          {Number(calculateSubtotal()).toFixed(2)}
+                        <TableCell sx={{ py: 2, fontWeight: 'bold', fontSize: '1.1rem' }} key={`table-total-${calculateTotalAmount()}-${transportOptions.length}`}>
+                          {Number(calculateTotalAmount()).toFixed(2)}
                         </TableCell>
                         <TableCell sx={{ py: 2 }}></TableCell>
                       </TableRow>
@@ -1775,13 +1847,13 @@ export default function SalesPage() {
               </TableContainer>
 
               {/* Transport Section */}
-              <Box sx={{ mb: 3 }}>
+              <Box sx={{ mb: 2 }}>
                 <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold', color: 'text.primary' }}>
                   Transport Options
                 </Typography>
                 
                 {/* Transport Input Fields */}
-                <Grid container spacing={2} sx={{ mb: 3 }}>
+                <Grid container spacing={2} sx={{ mb: 2 }}>
                   <Grid item xs={12} md={6}>
                     <FormControl fullWidth size="small">
                       <InputLabel>Transport Account</InputLabel>
@@ -1975,7 +2047,7 @@ export default function SalesPage() {
                         <TextField
                           size="small"
                           type="number"
-                          value={Number(calculateSubtotal()).toFixed(2)}
+                          value={Number(calculateTotalAmount()).toFixed(2)}
                           sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' }, flex: 1 }}
                           disabled
                           inputProps={{
@@ -1999,7 +2071,7 @@ export default function SalesPage() {
                         />
                       </Box>
 
-                      {/* DELIVERY CHARGES */}
+                      {/* DELIVERY CHARGES (total including transport) */}
                       <Box sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
                         <Typography variant="body2" sx={{ fontWeight: 'medium', color: 'text.secondary', minWidth: '140px' }}>
                           DELIVERY CHARGES
@@ -2007,11 +2079,22 @@ export default function SalesPage() {
                         <TextField
                           size="small"
                           type="number"
-                          value={paymentData.deliveryCharges}
-                          onChange={(e) => handlePaymentDataChange('deliveryCharges', e.target.value)}
-                          sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' }, flex: 1 }}
+                          value={(parseFloat(paymentData.deliveryCharges || 0) + calculateTransportTotal()).toFixed(2)}
+                          onChange={(e) => {
+                            // Calculate delivery charges by subtracting transport from total
+                            const totalValue = parseFloat(e.target.value) || 0;
+                            const transportTotal = calculateTransportTotal();
+                            const deliveryOnly = totalValue - transportTotal;
+                            handlePaymentDataChange('deliveryCharges', deliveryOnly >= 0 ? deliveryOnly : 0);
+                          }}
+                          sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px', fontWeight: 'bold' }, flex: 1 }}
                           placeholder="0"
                         />
+                        {calculateTransportTotal() > 0 && (
+                          <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
+                            (includes Transport: {calculateTransportTotal().toFixed(2)})
+                          </Typography>
+                        )}
                       </Box>
 
                       {/* DISCOUNT */}
@@ -2216,8 +2299,8 @@ export default function SalesPage() {
               </Box>
 
               {/* Customer and Invoice Details */}
-              <Grid container spacing={2} sx={{ px: 3, py: 2, borderBottom: '1px solid #ddd' }}>
-                <Grid item xs={12} md={6}>
+              <Box sx={{ px: 3, py: 2, borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between' }}>
+                <Box sx={{ flex: '0 0 50%' }}>
                   <Typography variant="body2" sx={{ mb: 0.5 }}>
                     <strong>Customer Name:</strong> {currentBillData.customer?.cus_name || 'N/A'}
                   </Typography>
@@ -2229,24 +2312,22 @@ export default function SalesPage() {
                       <strong>Address:</strong> {currentBillData.customer.cus_address}
                     </Typography>
                   )}
-                </Grid>
-                <Grid item xs={12} md={6} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                    <Typography variant="body2" sx={{ mb: 0.5 }}>
-                      <strong>Invoice No:</strong> <strong>#{currentBillData.sale_id}</strong>
-                    </Typography>
-                    <Typography variant="body2" sx={{ mb: 0.5 }}>
-                      <strong>Bill Type:</strong> <strong>{currentBillData.bill_type || 'BILL'}</strong>
-                    </Typography>
-                    <Typography variant="body2" sx={{ mb: 0.5 }}>
-                      <strong>Invoice Date:</strong> <strong>{new Date(currentBillData.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
-                    </Typography>
-                    <Typography variant="body2">
-                      <strong>Invoice Time:</strong> <strong>{new Date(currentBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
-                    </Typography>
-                  </Box>
-                </Grid>
-              </Grid>
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right', flex: '0 0 50%' }}>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
+                    <strong>Invoice No:</strong> <strong>#{currentBillData.sale_id}</strong>
+                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
+                    <strong>Time:</strong> <strong>{new Date(currentBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
+                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
+                    <strong>Date:</strong> <strong>{new Date(currentBillData.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
+                  </Typography>
+                  <Typography variant="body2">
+                    <strong>Bill Type:</strong> <strong>{currentBillData.bill_type || 'BILL'}</strong>
+                  </Typography>
+                </Box>
+              </Box>
 
               {/* Product Table */}
               <Box sx={{ px: 3, py: 2 }}>
@@ -2284,43 +2365,42 @@ export default function SalesPage() {
                 </TableContainer>
 
                 {/* Payment Summary */}
-                <Box sx={{ mt: 2, width: '100%' }}>
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} md={6}>
-                      <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, border: '1px solid #000', width: '100%' }}>
-                        <Table size="small">
-                          <TableBody>
-                            <TableRow>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
-                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                {parseFloat(currentBillData.customer?.cus_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </TableCell>
-                            </TableRow>
-                            <TableRow>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</TableCell>
-                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.discount || 0) + parseFloat(currentBillData.shipping_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </TableCell>
-                            </TableRow>
-                            <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                {(parseFloat(currentBillData.customer?.cus_balance || 0) + parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.discount || 0) + parseFloat(currentBillData.shipping_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </TableCell>
-                            </TableRow>
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
-                      {currentBillData.notes && (
-                        <Box sx={{ mt: 1 }}>
-                          <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
-                            <strong>Notes:</strong> {currentBillData.notes}
-                          </Typography>
-                        </Box>
-                      )}
-                    </Grid>
-                    <Grid item xs={12} md={6}>
-                      <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%' }}>
+                <Box sx={{ mt: 2, width: '100%', display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                  <Box sx={{ flex: '0 0 48%' }}>
+                    <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, border: '1px solid #000', width: '100%' }}>
+                      <Table size="small">
+                        <TableBody>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                              {parseFloat(currentBillData.customer?.cus_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                              {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                              {(parseFloat(currentBillData.customer?.cus_balance || 0) + parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                    {currentBillData.notes && (
+                      <Box sx={{ mt: 1 }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
+                          <strong>Notes:</strong> {currentBillData.notes}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+                  <Box sx={{ flex: '0 0 48%', display: 'flex', justifyContent: 'flex-end' }}>
+                    <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%', maxWidth: '100%' }}>
                         <Table size="small">
                           <TableBody>
                             <TableRow>
@@ -2344,7 +2424,7 @@ export default function SalesPage() {
                             <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم</TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.discount || 0) + parseFloat(currentBillData.shipping_amount || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {parseFloat(currentBillData.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </TableCell>
                             </TableRow>
                             <TableRow>
@@ -2370,14 +2450,13 @@ export default function SalesPage() {
                             <TableRow sx={{ bgcolor: '#d0d0d0' }}>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>بقايا رقم</TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.discount || 0) + parseFloat(currentBillData.shipping_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </TableCell>
                             </TableRow>
                           </TableBody>
                         </Table>
                       </TableContainer>
-                    </Grid>
-                  </Grid>
+                    </Box>
                 </Box>
               </Box>
             </Box>
@@ -2428,7 +2507,7 @@ export default function SalesPage() {
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', borderTop: '1px dashed #000', mt: 0.5, pt: 0.5 }}>
                   <Typography sx={{ fontSize: '11px' }}>Grand Total</Typography>
                   <Typography sx={{ fontSize: '11px' }}>
-                    {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.discount || 0) + parseFloat(currentBillData.shipping_amount || 0)).toFixed(2)}
+                    {parseFloat(currentBillData.total_amount || 0).toFixed(2)}
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -2438,7 +2517,7 @@ export default function SalesPage() {
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                   <Typography sx={{ fontSize: '10px' }}>Balance</Typography>
                   <Typography sx={{ fontSize: '10px' }}>
-                    {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.discount || 0) + parseFloat(currentBillData.shipping_amount || 0) - parseFloat(currentBillData.payment || 0)).toFixed(2)}
+                    {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toFixed(2)}
                   </Typography>
                 </Box>
               </Box>
@@ -2510,8 +2589,8 @@ export default function SalesPage() {
                 </Box>
 
                 {/* Customer and Invoice Details */}
-                <Grid container spacing={2} sx={{ px: 2, py: 2, borderBottom: '1px solid #ddd' }}>
-                  <Grid item xs={12} md={6}>
+                <Box sx={{ px: 2, py: 2, borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between' }}>
+                  <Box sx={{ flex: '0 0 50%' }}>
                     <Typography variant="body2" sx={{ mb: 0.5 }}>
                       <strong>Customer Name:</strong> {currentBillData.customer?.cus_name || 'N/A'}
                     </Typography>
@@ -2523,24 +2602,22 @@ export default function SalesPage() {
                         <strong>Address:</strong> {currentBillData.customer.cus_address}
                       </Typography>
                     )}
-                  </Grid>
-                  <Grid item xs={12} md={6} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                      <Typography variant="body2" sx={{ mb: 0.5 }}>
-                        <strong>Invoice No:</strong> <strong>#{currentBillData.sale_id}</strong>
-                      </Typography>
-                      <Typography variant="body2" sx={{ mb: 0.5 }}>
-                        <strong>Bill Type:</strong> <strong>{currentBillData.bill_type || 'BILL'}</strong>
-                      </Typography>
-                      <Typography variant="body2" sx={{ mb: 0.5 }}>
-                        <strong>Invoice Date:</strong> <strong>{new Date(currentBillData.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
-                      </Typography>
-                      <Typography variant="body2">
-                        <strong>Invoice Time:</strong> <strong>{new Date(currentBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
-                      </Typography>
-                    </Box>
-                  </Grid>
-                </Grid>
+                  </Box>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right', flex: '0 0 50%' }}>
+                    <Typography variant="body2" sx={{ mb: 0.5 }}>
+                      <strong>Invoice No:</strong> <strong>#{currentBillData.sale_id}</strong>
+                    </Typography>
+                    <Typography variant="body2" sx={{ mb: 0.5 }}>
+                      <strong>Time:</strong> <strong>{new Date(currentBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
+                    </Typography>
+                    <Typography variant="body2" sx={{ mb: 0.5 }}>
+                      <strong>Date:</strong> <strong>{new Date(currentBillData.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Bill Type:</strong> <strong>{currentBillData.bill_type || 'BILL'}</strong>
+                    </Typography>
+                  </Box>
+                </Box>
 
                 {/* Product Table */}
                 <Box sx={{ px: 2, py: 2 }}>
@@ -2578,43 +2655,42 @@ export default function SalesPage() {
                   </TableContainer>
 
                   {/* Payment Summary */}
-                  <Box sx={{ mt: 2, width: '100%' }}>
-                    <Grid container spacing={2}>
-                      <Grid item xs={12} md={6}>
-                        <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, border: '1px solid #000', width: '100%' }}>
-                          <Table size="small">
-                            <TableBody>
-                              <TableRow>
-                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
-                                <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                  {parseFloat(currentBillData.customer?.cus_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                </TableCell>
-                              </TableRow>
-                              <TableRow>
-                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</TableCell>
-                                <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                  {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.discount || 0) + parseFloat(currentBillData.shipping_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                </TableCell>
-                              </TableRow>
-                              <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                  {(parseFloat(currentBillData.customer?.cus_balance || 0) + parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.discount || 0) + parseFloat(currentBillData.shipping_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                </TableCell>
-                              </TableRow>
-                            </TableBody>
-                          </Table>
-                        </TableContainer>
-                        {currentBillData.notes && (
-                          <Box sx={{ mt: 1 }}>
-                            <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
-                              <strong>Notes:</strong> {currentBillData.notes}
-                            </Typography>
-                          </Box>
-                        )}
-                      </Grid>
-                      <Grid item xs={12} md={6}>
-                        <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%' }}>
+                  <Box sx={{ mt: 2, width: '100%', display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                    <Box sx={{ flex: '0 0 48%' }}>
+                      <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, border: '1px solid #000', width: '100%' }}>
+                        <Table size="small">
+                          <TableBody>
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
+                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                {parseFloat(currentBillData.customer?.cus_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</TableCell>
+                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                            <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                {(parseFloat(currentBillData.customer?.cus_balance || 0) + parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                      {currentBillData.notes && (
+                        <Box sx={{ mt: 1 }}>
+                          <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
+                            <strong>Notes:</strong> {currentBillData.notes}
+                          </Typography>
+                        </Box>
+                      )}
+                    </Box>
+                    <Box sx={{ flex: '0 0 48%', display: 'flex', justifyContent: 'flex-end' }}>
+                      <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%', maxWidth: '100%' }}>
                           <Table size="small">
                             <TableBody>
                               <TableRow>
@@ -2638,7 +2714,7 @@ export default function SalesPage() {
                               <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                                 <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم</TableCell>
                                 <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                  {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.discount || 0) + parseFloat(currentBillData.shipping_amount || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  {parseFloat(currentBillData.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </TableCell>
                               </TableRow>
                               <TableRow>
@@ -2664,14 +2740,13 @@ export default function SalesPage() {
                               <TableRow sx={{ bgcolor: '#d0d0d0' }}>
                                 <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>بقايا رقم</TableCell>
                                 <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                  {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.discount || 0) + parseFloat(currentBillData.shipping_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </TableCell>
                               </TableRow>
                             </TableBody>
                           </Table>
                         </TableContainer>
-                      </Grid>
-                    </Grid>
+                    </Box>
                   </Box>
                 </Box>
               </Box>
@@ -2907,7 +2982,7 @@ export default function SalesPage() {
 
           {/* Sales Filter */}
           <Card sx={{ mb: 3 }}>
-            <CardContent sx={{ p: 3 }}>
+            <CardContent sx={{ p: 2 }}>
               <Typography variant="h6" sx={{ mb: 2, fontWeight: 'semibold' }}>
                 Filter Sales
               </Typography>
@@ -2971,10 +3046,46 @@ export default function SalesPage() {
                     >
                       <MenuItem value="">All Types</MenuItem>
                       <MenuItem value="BILL">Bill</MenuItem>
-                      <MenuItem value="QUOTE">Quote</MenuItem>
+                      <MenuItem value="QUOTATION">Quotation</MenuItem>
+                      <MenuItem value="SALE_RETURN">Sale Return</MenuItem>
                     </Select>
                   </FormControl>
                 </Grid>
+                <Grid item xs={12} md={3}>
+                  <Autocomplete
+                    fullWidth
+                    size="small"
+                    options={stores}
+                    getOptionLabel={(option) => option.store_name || ''}
+                    value={stores.find(s => s.storeid.toString() === filterStore) || null}
+                    onChange={(event, newValue) => {
+                      setFilterStore(newValue ? newValue.storeid.toString() : '');
+                    }}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Store"
+                        placeholder="Select store"
+                      />
+                    )}
+                  />
+                </Grid>
+                <Grid item xs={12} md={2}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Payment Type</InputLabel>
+                    <Select
+                      value={filterPaymentType}
+                      onChange={(e) => setFilterPaymentType(e.target.value)}
+                      label="Payment Type"
+                    >
+                      <MenuItem value="">All Types</MenuItem>
+                      <MenuItem value="CASH">Cash</MenuItem>
+                      <MenuItem value="BANK">Bank</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </Grid>
+              <Grid container spacing={2} sx={{ mt: 1 }}>
                 <Grid item xs={12} md={2}>
                   <TextField
                     fullWidth
@@ -2997,6 +3108,49 @@ export default function SalesPage() {
                     InputLabelProps={{ shrink: true }}
                   />
                 </Grid>
+                <Grid item xs={12} md={2}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    type="number"
+                    label="Min Amount"
+                    placeholder="0"
+                    value={filterMinAmount}
+                    onChange={(e) => setFilterMinAmount(e.target.value)}
+                    InputProps={{
+                      startAdornment: <InputAdornment position="start">Rs</InputAdornment>,
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={12} md={2}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    type="number"
+                    label="Max Amount"
+                    placeholder="0"
+                    value={filterMaxAmount}
+                    onChange={(e) => setFilterMaxAmount(e.target.value)}
+                    InputProps={{
+                      startAdornment: <InputAdornment position="start">Rs</InputAdornment>,
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={12} md={2}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Balance Status</InputLabel>
+                    <Select
+                      value={filterBalanceStatus}
+                      onChange={(e) => setFilterBalanceStatus(e.target.value)}
+                      label="Balance Status"
+                    >
+                      <MenuItem value="">All</MenuItem>
+                      <MenuItem value="with_balance">With Balance</MenuItem>
+                      <MenuItem value="without_balance">Without Balance</MenuItem>
+                      <MenuItem value="overpaid">Overpaid</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
               </Grid>
               <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
                 <Button
@@ -3006,6 +3160,11 @@ export default function SalesPage() {
                     setSearchTerm('');
                     setFilterCustomer('');
                     setFilterBillType('');
+                    setFilterStore('');
+                    setFilterPaymentType('');
+                    setFilterMinAmount('');
+                    setFilterMaxAmount('');
+                    setFilterBalanceStatus('');
                     setDateFrom('');
                     setDateTo('');
                   }}
@@ -3594,8 +3753,8 @@ export default function SalesPage() {
               </Box>
 
               {/* Customer and Invoice Details */}
-              <Grid container spacing={2} sx={{ px: 3, py: 2, borderBottom: '1px solid #ddd' }}>
-                <Grid item xs={12} md={6}>
+              <Box sx={{ px: 3, py: 2, borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between' }}>
+                <Box sx={{ flex: '0 0 50%' }}>
                   <Typography variant="body2" sx={{ mb: 0.5 }}>
                     <strong>Customer Name:</strong> {selectedBill.customer?.cus_name || 'N/A'}
                   </Typography>
@@ -3607,21 +3766,22 @@ export default function SalesPage() {
                       <strong>Address:</strong> {selectedBill.customer.cus_address}
                   </Typography>
                   )}
-                </Grid>
-                <Grid item xs={12} md={6} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right', flex: '0 0 50%' }}>
                     <Typography variant="body2" sx={{ mb: 0.5 }}>
                       <strong>Invoice No:</strong> <strong>#{selectedBill.sale_id}</strong>
                   </Typography>
                     <Typography variant="body2" sx={{ mb: 0.5 }}>
-                      <strong>Invoice Date:</strong> <strong>{new Date(selectedBill.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
+                    <strong>Time:</strong> <strong>{new Date(selectedBill.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
+                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
+                    <strong>Date:</strong> <strong>{new Date(selectedBill.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
                     </Typography>
                     <Typography variant="body2">
-                      <strong>Invoice Time:</strong> <strong>{new Date(selectedBill.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
+                    <strong>Bill Type:</strong> <strong>{selectedBill.bill_type || 'BILL'}</strong>
                     </Typography>
                   </Box>
-                </Grid>
-              </Grid>
+              </Box>
 
               {/* Product Table and Payment Summary - Full Width */}
               <Box sx={{ px: 3, py: 2 }}>
@@ -3660,10 +3820,9 @@ export default function SalesPage() {
               </TableContainer>
 
                 {/* Payment Summary - Below Product Details */}
-                <Box sx={{ mt: 2, width: '100%' }}>
-                <Grid container spacing={2}>
+                <Box sx={{ mt: 2, width: '100%', display: 'flex', justifyContent: 'space-between', gap: 2 }}>
                     {/* Left Side - Balance Section */}
-                    <Grid item xs={12} md={6}>
+                    <Box sx={{ flex: '0 0 48%' }}>
                       <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, border: '1px solid #000', width: '100%' }}>
                         <Table size="small">
                           <TableBody>
@@ -3676,13 +3835,13 @@ export default function SalesPage() {
                             <TableRow>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</TableCell>
                               <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                {(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.discount || 0) + parseFloat(selectedBill.shipping_amount || 0) - parseFloat(selectedBill.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </TableCell>
                             </TableRow>
                             <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                {(parseFloat(selectedBill.customer?.cus_balance || 0) + parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.discount || 0) + parseFloat(selectedBill.shipping_amount || 0) - parseFloat(selectedBill.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {(parseFloat(selectedBill.customer?.cus_balance || 0) + parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </TableCell>
                             </TableRow>
                           </TableBody>
@@ -3695,11 +3854,11 @@ export default function SalesPage() {
                           <strong>Notes:</strong> {selectedBill.notes || ''}
                     </Typography>
                       </Box>
-                  </Grid>
+                    </Box>
 
                     {/* Right Side - Payment Summary */}
-                    <Grid item xs={12} md={6}>
-                      <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%' }}>
+                    <Box sx={{ flex: '0 0 48%', display: 'flex', justifyContent: 'flex-end' }}>
+                      <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%', maxWidth: '100%' }}>
                         <Table size="small">
                           <TableBody>
                             <TableRow>
@@ -3723,7 +3882,7 @@ export default function SalesPage() {
                             <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم</TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.discount || 0) + parseFloat(selectedBill.shipping_amount || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {parseFloat(selectedBill.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </TableCell>
                             </TableRow>
                             <TableRow>
@@ -3749,14 +3908,13 @@ export default function SalesPage() {
                             <TableRow sx={{ bgcolor: '#d0d0d0' }}>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>بقايا رقم</TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.discount || 0) + parseFloat(selectedBill.shipping_amount || 0) - parseFloat(selectedBill.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </TableCell>
                             </TableRow>
                           </TableBody>
                         </Table>
                       </TableContainer>
-                  </Grid>
-                  </Grid>
+                    </Box>
                 </Box>
               </Box>
             </Box>

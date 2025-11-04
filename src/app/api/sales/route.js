@@ -476,18 +476,18 @@ export async function POST(request) {
     // Check if this is a quotation (skip stock check for quotations)
     const isQuotation = bill_type === 'QUOTATION';
 
-    // Check stock availability for all products in the store (skip for quotations)
-    if (!isQuotation) {
-    for (const detail of sale_details) {
-      const hasStock = await checkStockAvailability(store_id, detail.pro_id, parseInt(detail.qnty));
-      if (!hasStock) {
-        const currentStock = await getStoreStock(store_id, detail.pro_id);
-        return NextResponse.json({ 
-          error: `Insufficient stock for product ${detail.pro_id}. Available: ${currentStock}, Required: ${detail.qnty}` 
-        }, { status: 400 });
-        }
-      }
-    }
+    // Stock validation removed - allow negative stock
+    // if (!isQuotation) {
+    // for (const detail of sale_details) {
+    //   const hasStock = await checkStockAvailability(store_id, detail.pro_id, parseInt(detail.qnty));
+    //   if (!hasStock) {
+    //     const currentStock = await getStoreStock(store_id, detail.pro_id);
+    //     return NextResponse.json({ 
+    //       error: `Insufficient stock for product ${detail.pro_id}. Available: ${currentStock}, Required: ${detail.qnty}` 
+    //     }, { status: 400 });
+    //     }
+    //   }
+    // }
 
     // Use transaction to ensure data consistency
     const result = await prisma.$transaction(async (tx) => {
@@ -1126,14 +1126,14 @@ export async function PUT(request) {
       const finalStoreIdForStock = store_id ? parseInt(store_id) : existingSale.store_id;
       const isQuotation = isQuotationFromBody || existingSale.bill_type === 'QUOTATION';
       if (!isQuotation && finalStoreIdForStock) {
-        // Check stock availability before updating
-        for (const detail of sale_details) {
-          const hasStock = await checkStockAvailability(finalStoreIdForStock, detail.pro_id, parseInt(detail.qnty));
-          if (!hasStock) {
-            const currentStock = await getStoreStock(finalStoreIdForStock, detail.pro_id);
-            throw new Error(`Insufficient stock for product ${detail.pro_id}. Available: ${currentStock}, Required: ${detail.qnty}`);
-          }
-        }
+        // Stock validation removed - allow negative stock
+        // for (const detail of sale_details) {
+        //   const hasStock = await checkStockAvailability(finalStoreIdForStock, detail.pro_id, parseInt(detail.qnty));
+        //   if (!hasStock) {
+        //     const currentStock = await getStoreStock(finalStoreIdForStock, detail.pro_id);
+        //     throw new Error(`Insufficient stock for product ${detail.pro_id}. Available: ${currentStock}, Required: ${detail.qnty}`);
+        //   }
+        // }
 
         const storeStockUpdatePromises = sale_details.map(async detail => {
           await updateStoreStock(finalStoreIdForStock, detail.pro_id, parseInt(detail.qnty), 'decrement', updated_by);
