@@ -59,3 +59,4 @@ ADD INDEX IF NOT EXISTS `purchase_details_store_id_fkey` (`store_id`),
 ADD CONSTRAINT IF NOT EXISTS `purchase_details_store_id_fkey` FOREIGN KEY (`store_id`) REFERENCES `stores` (`storeid`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 
+

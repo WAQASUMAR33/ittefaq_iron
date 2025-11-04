@@ -71,3 +71,4 @@ sx={{
 The purchase page now automatically selects the first available store by default, providing immediate functionality while maintaining the ability for users to change the selection. The selected store is clearly indicated with bold text and primary color styling! 🎉
 
 
+

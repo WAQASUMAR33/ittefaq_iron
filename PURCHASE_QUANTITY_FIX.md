@@ -63,3 +63,4 @@ File: `src/app/dashboard/purchases/page.js`
 The purchase table now correctly displays the quantity column when products are added to the grid! 🎉
 
 
+

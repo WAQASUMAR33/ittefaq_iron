@@ -90,3 +90,4 @@ DESCRIBE `sale_details`;
 - Foreign keys reference the `stores` table's `storeid` column
 - If constraints already exist, you may see errors - just ignore them and continue
 
+

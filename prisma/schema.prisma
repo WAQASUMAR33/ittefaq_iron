@@ -42,6 +42,8 @@ model Users {
   sub_categories      SubCategory[]
   vehicles            Vehicle[]
   store_stocks        StoreStock[]
+  packages            Package[]
+  subscriptions       Subscription[]
 
   @@map("users")
 }
@@ -128,6 +130,7 @@ model Customer {
   sales_debit           Sale[]             @relation("SaleDebitAccount")
   split_payments_credit SplitPayment[]     @relation("SplitPaymentCreditAccount")
   split_payments_debit  SplitPayment[]     @relation("SplitPaymentDebitAccount")
+  subscriptions        Subscription[]
 
   @@index([city_id], map: "customers_city_id_fkey")
   @@index([cus_category], map: "customers_cus_category_fkey")
@@ -717,6 +720,47 @@ model StoreStock {
   @@map("store_stocks")
 }
 
+model Package {
+  package_id        Int            @id @default(autoincrement())
+  package_name      String
+  package_description String?
+  price             Decimal
+  duration_days     Int
+  features          String?
+  is_active         Boolean        @default(true)
+  created_at        DateTime       @default(now())
+  updated_at        DateTime       @updatedAt
+  updated_by        Int?
+  subscriptions    Subscription[]
+  updated_by_user   Users?         @relation(fields: [updated_by], references: [user_id])
+
+  @@index([updated_by], map: "packages_updated_by_fkey")
+  @@map("packages")
+}
+
+model Subscription {
+  subscription_id   Int            @id @default(autoincrement())
+  cus_id            Int
+  package_id        Int
+  amount            Decimal
+  status            SubscriptionStatus @default(ACTIVE)
+  start_date        DateTime
+  end_date          DateTime
+  payment_method    SubscriptionPaymentMethod @default(BALANCE)
+  reference         String?
+  created_at        DateTime       @default(now())
+  updated_at        DateTime       @updatedAt
+  updated_by        Int?
+  customer          Customer       @relation(fields: [cus_id], references: [cus_id])
+  package           Package        @relation(fields: [package_id], references: [package_id])
+  updated_by_user   Users?         @relation(fields: [updated_by], references: [user_id])
+
+  @@index([cus_id], map: "subscriptions_cus_id_fkey")
+  @@index([package_id], map: "subscriptions_package_id_fkey")
+  @@index([updated_by], map: "subscriptions_updated_by_fkey")
+  @@map("subscriptions")
+}
+
 enum UserRole {
   SUPER_ADMIN
   ADMIN
@@ -775,4 +819,16 @@ enum JournalStatus {
   DRAFT
   POSTED
   CANCELLED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum SubscriptionPaymentMethod {
+  BALANCE
+  CASH
+  BANK_TRANSFER
 }

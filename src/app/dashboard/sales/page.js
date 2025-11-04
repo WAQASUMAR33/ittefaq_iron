@@ -496,6 +496,38 @@ export default function SalesPage() {
         const result = await response.json();
         showSnackbar('Bill saved successfully!', 'success');
         
+        // Store bill data for printing
+        const billDataForPrint = {
+          sale_id: result.sale_id,
+          cus_id: formSelectedCustomer.cus_id,
+          total_amount: grandTotal,
+          discount: parseFloat(paymentData.discount) || 0,
+          payment: totalCashReceived,
+          payment_type: 'CASH',
+          shipping_amount: totalShippingAmount,
+          bill_type: billType || 'BILL',
+          reference: paymentData.notes || null,
+          created_at: new Date().toISOString(),
+          customer: formSelectedCustomer,
+          sale_details: productTableData.map((product, index) => ({
+            sale_detail_id: index + 1,
+            pro_id: product.pro_id,
+            qnty: product.quantity,
+            unit: 'PCS',
+            unit_rate: product.rate,
+            total_amount: product.amount,
+            product: {
+              pro_title: product.name || 'N/A'
+            }
+          })),
+          labour: parseFloat(paymentData.labour) || 0,
+          notes: paymentData.notes || ''
+        };
+        setCurrentBillData(billDataForPrint);
+        
+        // Open receipt dialog
+        setReceiptDialogOpen(true);
+        
         // Reset form
         setFormSelectedCustomer(null);
         setFormSelectedProduct(null);
@@ -533,6 +565,20 @@ export default function SalesPage() {
   useEffect(() => {
     console.log('🔍 Component mounted, calling fetchData...');
     fetchData();
+  }, []);
+
+  // Open create view preconfigured for Sale Return when flagged (from /dashboard/sale-returns)
+  useEffect(() => {
+    try {
+      const flag = typeof window !== 'undefined' ? localStorage.getItem('openSaleReturnCreate') : null;
+      if (flag === '1') {
+        setCurrentView('create');
+        setBillType('SALE_RETURN');
+        localStorage.removeItem('openSaleReturnCreate');
+      }
+    } catch (e) {
+      // ignore
+    }
   }, []);
 
   // Auto-calculate total cash received when cash or bank changes
@@ -1071,9 +1117,112 @@ export default function SalesPage() {
     setSelectedBill(null);
   };
 
-  // Handle print bill
-  const handlePrintBill = () => {
-    window.print();
+  // Current bill data for printing (from create view)
+  const [currentBillData, setCurrentBillData] = useState(null);
+  const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
+
+  // Handle print bill with mode (A4 or Thermal)
+  const handlePrintBill = (mode = 'A4', fromDialog = false) => {
+    try {
+      const className = mode === 'THERMAL' ? 'print-thermal' : 'print-a4';
+      const isThermal = mode === 'THERMAL';
+      
+      // Get the printable container
+      const printableContainer = mode === 'THERMAL' 
+        ? document.getElementById('printable-invoice-thermal')
+        : document.getElementById('printable-invoice-a4');
+      
+      if (!printableContainer) {
+        console.error('Printable container not found');
+        return;
+      }
+      
+      // If printing from dialog, copy receipt preview content
+      if (fromDialog) {
+        const receiptPreview = document.getElementById('receipt-preview');
+        if (receiptPreview && printableContainer) {
+          printableContainer.innerHTML = receiptPreview.innerHTML;
+        }
+      }
+      
+      // Move container to visible position temporarily for print
+      const originalParent = printableContainer.parentElement;
+      const originalStyles = {
+        position: printableContainer.style.position,
+        left: printableContainer.style.left,
+        top: printableContainer.style.top,
+        visibility: printableContainer.style.visibility,
+        display: printableContainer.style.display
+      };
+      
+      // Make container visible and position it for print
+      printableContainer.style.position = 'fixed';
+      printableContainer.style.left = '0';
+      printableContainer.style.top = '0';
+      printableContainer.style.visibility = 'visible';
+      printableContainer.style.display = 'block';
+      printableContainer.style.zIndex = '9999';
+      printableContainer.style.backgroundColor = 'white';
+      
+      // Add dynamic style for thermal page size
+      let styleId = 'dynamic-print-style';
+      let styleElement = document.getElementById(styleId);
+      
+      if (isThermal) {
+        if (!styleElement) {
+          styleElement = document.createElement('style');
+          styleElement.id = styleId;
+          document.head.appendChild(styleElement);
+        }
+        styleElement.textContent = `
+          @media print {
+            @page {
+              size: 80mm auto;
+              margin: 5mm;
+            }
+          }
+        `;
+      } else if (styleElement) {
+        styleElement.textContent = `
+          @media print {
+            @page {
+              size: A4;
+              margin: 0.5cm 1cm;
+            }
+          }
+        `;
+      }
+      
+      // Add body class for print styling
+      document.body.classList.add(className);
+      
+      // Small delay to ensure DOM is ready
+      setTimeout(() => {
+        window.print();
+        setTimeout(() => {
+          // Restore original styles
+          printableContainer.style.position = originalStyles.position;
+          printableContainer.style.left = originalStyles.left;
+          printableContainer.style.top = originalStyles.top;
+          printableContainer.style.visibility = originalStyles.visibility;
+          printableContainer.style.display = originalStyles.display;
+          printableContainer.style.zIndex = '';
+          printableContainer.style.backgroundColor = '';
+          
+          // Remove body class
+          document.body.classList.remove('print-thermal');
+          document.body.classList.remove('print-a4');
+          
+          // Remove dynamic style
+          if (styleElement && isThermal) {
+            styleElement.remove();
+          }
+        }, 100);
+      }, 100);
+    } catch (e) {
+      console.error('Print error:', e);
+      window.print();
+    }
   };
 
   // Filter sales based on search criteria
@@ -1927,6 +2076,24 @@ export default function SalesPage() {
                       color: '#5a6268'
                     }
                   }}
+                  onClick={() => {
+                    setCurrentBillData(null);
+                    setFormSelectedCustomer(null);
+                    setFormSelectedProduct(null);
+                    setFormSelectedStore(null);
+                    setProductTableData([]);
+                    setPaymentData({
+                      cash: 0,
+                      bank: 0,
+                      bankAccountId: '',
+                      totalCashReceived: 0,
+                      discount: 0,
+                      labour: 0,
+                      deliveryCharges: 0,
+                      notes: ''
+                    });
+                    setTransportOptions([]);
+                  }}
                 >
                   New
                 </Button>
@@ -1946,25 +2113,31 @@ export default function SalesPage() {
                 </Button>
                 <Button
                   variant="contained"
+                  startIcon={<PrintIcon />}
                   sx={{ 
                     bgcolor: '#fd7e14',
                     color: 'white',
                     borderRadius: 2,
                     '&:hover': { bgcolor: '#e8690b' }
                   }}
+                  onClick={() => handlePrintBill('A4')}
+                  disabled={!currentBillData}
                 >
-                  Print
+                  Print A4
                 </Button>
                 <Button
                   variant="contained"
+                  startIcon={<PrintIcon />}
                   sx={{ 
                     bgcolor: '#fd7e14',
                     color: 'white',
                     borderRadius: 2,
                     '&:hover': { bgcolor: '#e8690b' }
                   }}
+                  onClick={() => handlePrintBill('THERMAL')}
+                  disabled={!currentBillData}
                 >
-                  Thermal
+                  Print Thermal
                 </Button>
                 <Button
                   variant="contained"
@@ -2002,6 +2175,599 @@ export default function SalesPage() {
             </CardContent>
           </Card>
         </Stack>
+
+        {/* Printable Bill Content - Hidden but accessible for printing */}
+        {currentBillData && (
+          <Box sx={{ position: 'absolute', left: '-9999px', top: '-9999px', width: '21cm', overflow: 'hidden' }}>
+            {/* A4 Printable Container */}
+            <Box id="printable-invoice-a4" sx={{ width: '100%', bgcolor: 'white' }}>
+              {/* Company Header */}
+              <Box sx={{ textAlign: 'center', py: 3, borderBottom: '2px solid #000' }}>
+                <Typography variant="h4" sx={{ 
+                  fontWeight: 'bold', 
+                  mb: 1,
+                  fontFamily: 'Arial, sans-serif',
+                  fontSize: { xs: '1.5rem', md: '2rem' },
+                  direction: 'rtl'
+                }}>
+                  اتفاق آئرن اینڈ سیمنٹ سٹور
+                </Typography>
+                <Typography variant="body2" sx={{ 
+                  mb: 1,
+                  fontSize: { xs: '0.75rem', md: '0.9rem' },
+                  direction: 'rtl'
+                }}>
+                  گجرات سرگودھا روڈ، پاہڑیانوالی
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 1 }}>
+                  <PhoneIcon sx={{ color: '#25D366', fontSize: '1rem' }} />
+                  <Typography variant="body2">
+                    Ph:- 0346-7560306, 0300-7560306
+                  </Typography>
+                </Box>
+                <Typography variant="h6" sx={{ 
+                  fontWeight: 'bold', 
+                  textTransform: 'uppercase',
+                  letterSpacing: 1,
+                  mt: 2
+                }}>
+                  SALE INVOICE
+                </Typography>
+              </Box>
+
+              {/* Customer and Invoice Details */}
+              <Grid container spacing={2} sx={{ px: 3, py: 2, borderBottom: '1px solid #ddd' }}>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
+                    <strong>Customer Name:</strong> {currentBillData.customer?.cus_name || 'N/A'}
+                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
+                    <strong>Phone No:</strong> {currentBillData.customer?.cus_phone_no || 'N/A'}
+                  </Typography>
+                  {currentBillData.customer?.cus_address && (
+                    <Typography variant="body2">
+                      <strong>Address:</strong> {currentBillData.customer.cus_address}
+                    </Typography>
+                  )}
+                </Grid>
+                <Grid item xs={12} md={6} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                    <Typography variant="body2" sx={{ mb: 0.5 }}>
+                      <strong>Invoice No:</strong> <strong>#{currentBillData.sale_id}</strong>
+                    </Typography>
+                    <Typography variant="body2" sx={{ mb: 0.5 }}>
+                      <strong>Bill Type:</strong> <strong>{currentBillData.bill_type || 'BILL'}</strong>
+                    </Typography>
+                    <Typography variant="body2" sx={{ mb: 0.5 }}>
+                      <strong>Invoice Date:</strong> <strong>{new Date(currentBillData.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Invoice Time:</strong> <strong>{new Date(currentBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
+                    </Typography>
+                  </Box>
+                </Grid>
+              </Grid>
+
+              {/* Product Table */}
+              <Box sx={{ px: 3, py: 2 }}>
+                <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: '#9e9e9e' }}>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }}>S#</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }}>Product Name</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Qty</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Rate</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Amount</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {currentBillData.sale_details && currentBillData.sale_details.length > 0 ? (
+                        currentBillData.sale_details.map((detail, index) => (
+                          <TableRow key={detail.sale_detail_id || index}>
+                            <TableCell sx={{ px: 1 }}>{index + 1}</TableCell>
+                            <TableCell sx={{ px: 1 }}>{detail.product?.pro_title || 'N/A'}</TableCell>
+                            <TableCell sx={{ px: 1 }} align="right">{detail.qnty || 0}</TableCell>
+                            <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.unit_rate || 0).toFixed(2)}</TableCell>
+                            <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.total_amount || 0).toFixed(2)}</TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                            No items found
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+
+                {/* Payment Summary */}
+                <Box sx={{ mt: 2, width: '100%' }}>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} md={6}>
+                      <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, border: '1px solid #000', width: '100%' }}>
+                        <Table size="small">
+                          <TableBody>
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
+                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                {parseFloat(currentBillData.customer?.cus_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</TableCell>
+                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.discount || 0) + parseFloat(currentBillData.shipping_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                            <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                {(parseFloat(currentBillData.customer?.cus_balance || 0) + parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.discount || 0) + parseFloat(currentBillData.shipping_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                      {currentBillData.notes && (
+                        <Box sx={{ mt: 1 }}>
+                          <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
+                            <strong>Notes:</strong> {currentBillData.notes}
+                          </Typography>
+                        </Box>
+                      )}
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%' }}>
+                        <Table size="small">
+                          <TableBody>
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رقم بل</TableCell>
+                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                {parseFloat(currentBillData.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>مزدوری</TableCell>
+                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                {parseFloat(currentBillData.labour || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>کرایہ</TableCell>
+                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                {parseFloat(currentBillData.shipping_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                            <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.discount || 0) + parseFloat(currentBillData.shipping_amount || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>نقد كيش</TableCell>
+                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                {parseFloat(currentBillData.payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                {currentBillData.payment_type === 'BANK' ? 'بینک' : 'easy paisa بينک'}
+                              </TableCell>
+                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                {currentBillData.payment_type === 'BANK' ? parseFloat(currentBillData.payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                              </TableCell>
+                            </TableRow>
+                            <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم وصول</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                {parseFloat(currentBillData.payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                            <TableRow sx={{ bgcolor: '#d0d0d0' }}>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>بقايا رقم</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.discount || 0) + parseFloat(currentBillData.shipping_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </Grid>
+                  </Grid>
+                </Box>
+              </Box>
+            </Box>
+
+            {/* Thermal Printable Container */}
+            <Box id="printable-invoice-thermal" sx={{ width: '80mm', bgcolor: 'white', mx: 'auto', p: 1 }}>
+              <Box sx={{ textAlign: 'center', pb: 1, borderBottom: '1px solid #000' }}>
+                <Typography sx={{ fontSize: '12px', fontWeight: 'bold' }}>اتفاق آئرن اینڈ سیمنٹ سٹور</Typography>
+                <Typography sx={{ fontSize: '10px' }}>گجرات سرگودھا روڈ، پاہڑیانوالی</Typography>
+                <Typography sx={{ fontSize: '10px' }}>Ph: 0346-7560306, 0300-7560306</Typography>
+                <Typography sx={{ mt: 0.5, fontSize: '11px', fontWeight: 'bold' }}>SALE RECEIPT</Typography>
+              </Box>
+              <Box sx={{ py: 1 }}>
+                <Typography sx={{ fontSize: '10px' }}>Inv#: #{currentBillData.sale_id}</Typography>
+                <Typography sx={{ fontSize: '10px' }}>Type: {currentBillData.bill_type || 'BILL'}</Typography>
+                <Typography sx={{ fontSize: '10px' }}>Date: {new Date(currentBillData.created_at).toLocaleDateString('en-GB')}</Typography>
+                <Typography sx={{ fontSize: '10px' }}>Time: {new Date(currentBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</Typography>
+                <Typography sx={{ fontSize: '10px' }}>Cust: {currentBillData.customer?.cus_name || 'N/A'}</Typography>
+              </Box>
+              <Box sx={{ borderTop: '1px dashed #000', borderBottom: '1px dashed #000', py: 1 }}>
+                {currentBillData.sale_details && currentBillData.sale_details.length > 0 ? (
+                  currentBillData.sale_details.map((d, i) => (
+                    <Box key={d.sale_detail_id || i} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                      <Box sx={{ pr: 1, flex: 1 }}>
+                        <Typography sx={{ fontSize: '10px' }}>{d.product?.pro_title || 'Item'}</Typography>
+                        <Typography sx={{ fontSize: '9px', color: 'text.secondary' }}>Qty: {d.qnty} x {parseFloat(d.unit_rate || 0).toFixed(2)}</Typography>
+                      </Box>
+                      <Typography sx={{ fontSize: '10px', minWidth: '35mm', textAlign: 'right' }}>{parseFloat(d.total_amount || 0).toFixed(2)}</Typography>
+                    </Box>
+                  ))
+                ) : (
+                  <Typography sx={{ fontSize: '10px', textAlign: 'center' }}>No items</Typography>
+                )}
+              </Box>
+              <Box sx={{ pt: 1 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography sx={{ fontSize: '10px' }}>Subtotal</Typography>
+                  <Typography sx={{ fontSize: '10px' }}>{parseFloat(currentBillData.total_amount || 0).toFixed(2)}</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography sx={{ fontSize: '10px' }}>Discount</Typography>
+                  <Typography sx={{ fontSize: '10px' }}>{parseFloat(currentBillData.discount || 0).toFixed(2)}</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography sx={{ fontSize: '10px' }}>Shipping</Typography>
+                  <Typography sx={{ fontSize: '10px' }}>{parseFloat(currentBillData.shipping_amount || 0).toFixed(2)}</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', borderTop: '1px dashed #000', mt: 0.5, pt: 0.5 }}>
+                  <Typography sx={{ fontSize: '11px' }}>Grand Total</Typography>
+                  <Typography sx={{ fontSize: '11px' }}>
+                    {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.discount || 0) + parseFloat(currentBillData.shipping_amount || 0)).toFixed(2)}
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography sx={{ fontSize: '10px' }}>Paid</Typography>
+                  <Typography sx={{ fontSize: '10px' }}>{parseFloat(currentBillData.payment || 0).toFixed(2)}</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography sx={{ fontSize: '10px' }}>Balance</Typography>
+                  <Typography sx={{ fontSize: '10px' }}>
+                    {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.discount || 0) + parseFloat(currentBillData.shipping_amount || 0) - parseFloat(currentBillData.payment || 0)).toFixed(2)}
+                  </Typography>
+                </Box>
+              </Box>
+              <Box sx={{ textAlign: 'center', borderTop: '1px solid #000', mt: 1, pt: 1 }}>
+                <Typography sx={{ fontSize: '9px' }}>Thank you for your business!</Typography>
+              </Box>
+            </Box>
+          </Box>
+        )}
+
+        {/* Receipt Dialog */}
+        <Dialog
+          open={receiptDialogOpen}
+          onClose={() => setReceiptDialogOpen(false)}
+          maxWidth="md"
+          fullWidth
+          PaperProps={{
+            sx: {
+              bgcolor: 'white',
+              borderRadius: 2
+            }
+          }}
+        >
+          <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+              Receipt - Bill #{currentBillData?.sale_id}
+            </Typography>
+            <IconButton 
+              onClick={() => setReceiptDialogOpen(false)} 
+              size="small"
+              sx={{ color: 'white', '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' } }}
+            >
+              <CloseIcon />
+            </IconButton>
+          </DialogTitle>
+          <DialogContent sx={{ p: 0, bgcolor: 'white' }}>
+            {currentBillData && (
+              <Box id="receipt-preview" sx={{ width: '100%', bgcolor: 'white', p: 3 }}>
+                {/* Company Header */}
+                <Box sx={{ textAlign: 'center', py: 2, borderBottom: '2px solid #000' }}>
+                  <Typography variant="h5" sx={{ 
+                    fontWeight: 'bold', 
+                    mb: 1,
+                    fontFamily: 'Arial, sans-serif',
+                    direction: 'rtl'
+                  }}>
+                    اتفاق آئرن اینڈ سیمنٹ سٹور
+                  </Typography>
+                  <Typography variant="body2" sx={{ 
+                    mb: 1,
+                    direction: 'rtl'
+                  }}>
+                    گجرات سرگودھا روڈ، پاہڑیانوالی
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 1 }}>
+                    <PhoneIcon sx={{ color: '#25D366', fontSize: '1rem' }} />
+                    <Typography variant="body2">
+                      Ph:- 0346-7560306, 0300-7560306
+                    </Typography>
+                  </Box>
+                  <Typography variant="h6" sx={{ 
+                    fontWeight: 'bold', 
+                    textTransform: 'uppercase',
+                    letterSpacing: 1,
+                    mt: 1
+                  }}>
+                    SALE INVOICE
+                  </Typography>
+                </Box>
+
+                {/* Customer and Invoice Details */}
+                <Grid container spacing={2} sx={{ px: 2, py: 2, borderBottom: '1px solid #ddd' }}>
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="body2" sx={{ mb: 0.5 }}>
+                      <strong>Customer Name:</strong> {currentBillData.customer?.cus_name || 'N/A'}
+                    </Typography>
+                    <Typography variant="body2" sx={{ mb: 0.5 }}>
+                      <strong>Phone No:</strong> {currentBillData.customer?.cus_phone_no || 'N/A'}
+                    </Typography>
+                    {currentBillData.customer?.cus_address && (
+                      <Typography variant="body2">
+                        <strong>Address:</strong> {currentBillData.customer.cus_address}
+                      </Typography>
+                    )}
+                  </Grid>
+                  <Grid item xs={12} md={6} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                      <Typography variant="body2" sx={{ mb: 0.5 }}>
+                        <strong>Invoice No:</strong> <strong>#{currentBillData.sale_id}</strong>
+                      </Typography>
+                      <Typography variant="body2" sx={{ mb: 0.5 }}>
+                        <strong>Bill Type:</strong> <strong>{currentBillData.bill_type || 'BILL'}</strong>
+                      </Typography>
+                      <Typography variant="body2" sx={{ mb: 0.5 }}>
+                        <strong>Invoice Date:</strong> <strong>{new Date(currentBillData.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>Invoice Time:</strong> <strong>{new Date(currentBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
+                      </Typography>
+                    </Box>
+                  </Grid>
+                </Grid>
+
+                {/* Product Table */}
+                <Box sx={{ px: 2, py: 2 }}>
+                  <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow sx={{ bgcolor: '#9e9e9e' }}>
+                          <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }}>S#</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }}>Product Name</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Qty</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Rate</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Amount</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {currentBillData.sale_details && currentBillData.sale_details.length > 0 ? (
+                          currentBillData.sale_details.map((detail, index) => (
+                            <TableRow key={detail.sale_detail_id || index}>
+                              <TableCell sx={{ px: 1 }}>{index + 1}</TableCell>
+                              <TableCell sx={{ px: 1 }}>{detail.product?.pro_title || 'N/A'}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{detail.qnty || 0}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.unit_rate || 0).toFixed(2)}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.total_amount || 0).toFixed(2)}</TableCell>
+                            </TableRow>
+                          ))
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                              No items found
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+
+                  {/* Payment Summary */}
+                  <Box sx={{ mt: 2, width: '100%' }}>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} md={6}>
+                        <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, border: '1px solid #000', width: '100%' }}>
+                          <Table size="small">
+                            <TableBody>
+                              <TableRow>
+                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
+                                <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                  {parseFloat(currentBillData.customer?.cus_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </TableCell>
+                              </TableRow>
+                              <TableRow>
+                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</TableCell>
+                                <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                  {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.discount || 0) + parseFloat(currentBillData.shipping_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </TableCell>
+                              </TableRow>
+                              <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                  {(parseFloat(currentBillData.customer?.cus_balance || 0) + parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.discount || 0) + parseFloat(currentBillData.shipping_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </TableCell>
+                              </TableRow>
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                        {currentBillData.notes && (
+                          <Box sx={{ mt: 1 }}>
+                            <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
+                              <strong>Notes:</strong> {currentBillData.notes}
+                            </Typography>
+                          </Box>
+                        )}
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%' }}>
+                          <Table size="small">
+                            <TableBody>
+                              <TableRow>
+                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رقم بل</TableCell>
+                                <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                  {parseFloat(currentBillData.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </TableCell>
+                              </TableRow>
+                              <TableRow>
+                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>مزدوری</TableCell>
+                                <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                  {parseFloat(currentBillData.labour || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </TableCell>
+                              </TableRow>
+                              <TableRow>
+                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>کرایہ</TableCell>
+                                <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                  {parseFloat(currentBillData.shipping_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </TableCell>
+                              </TableRow>
+                              <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                  {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.discount || 0) + parseFloat(currentBillData.shipping_amount || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </TableCell>
+                              </TableRow>
+                              <TableRow>
+                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>نقد كيش</TableCell>
+                                <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                  {parseFloat(currentBillData.payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </TableCell>
+                              </TableRow>
+                              <TableRow>
+                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                  {currentBillData.payment_type === 'BANK' ? 'بینک' : 'easy paisa بينک'}
+                                </TableCell>
+                                <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                  {currentBillData.payment_type === 'BANK' ? parseFloat(currentBillData.payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                                </TableCell>
+                              </TableRow>
+                              <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم وصول</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                  {parseFloat(currentBillData.payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </TableCell>
+                              </TableRow>
+                              <TableRow sx={{ bgcolor: '#d0d0d0' }}>
+                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>بقايا رقم</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                  {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.discount || 0) + parseFloat(currentBillData.shipping_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </TableCell>
+                              </TableRow>
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      </Grid>
+                    </Grid>
+                  </Box>
+                </Box>
+              </Box>
+            )}
+          </DialogContent>
+          <DialogActions sx={{ p: 3, bgcolor: 'grey.50', borderTop: '1px solid #e0e0e0' }} className="no-print">
+            <Button 
+              onClick={() => setReceiptDialogOpen(false)} 
+              variant="outlined"
+              sx={{ minWidth: 100 }}
+            >
+              Close
+            </Button>
+            <Button 
+              variant="contained" 
+              startIcon={<PrintIcon />}
+              sx={{ 
+                minWidth: 150,
+                bgcolor: 'primary.main',
+                '&:hover': { bgcolor: 'primary.dark' }
+              }}
+              onClick={() => handlePrintBill('A4', true)}
+            >
+              Print A4
+            </Button>
+            <Button 
+              variant="contained" 
+              startIcon={<PrintIcon />}
+              sx={{ 
+                minWidth: 150,
+                bgcolor: '#fd7e14',
+                '&:hover': { bgcolor: '#e8690b' }
+              }}
+              onClick={() => handlePrintBill('THERMAL', true)}
+            >
+              Print Thermal
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Print Styles for Create View */}
+        <style jsx global>{`
+          @media print {
+            /* Hide UI chrome when printing */
+            .no-print, 
+            .MuiDialog-root,
+            .MuiDialog-container,
+            .MuiDialog-paper,
+            .MuiDialogTitle-root,
+            .MuiDialogActions-root { 
+              display: none !important; 
+            }
+            header, nav, footer { 
+              display: none !important; 
+            }
+            
+            /* Hide everything by default when printing */
+            body.print-a4 *,
+            body.print-thermal * {
+              visibility: hidden !important;
+            }
+            
+            /* Show printable content */
+            body.print-a4 #printable-invoice-a4,
+            body.print-a4 #printable-invoice-a4 *,
+            body.print-thermal #printable-invoice-thermal,
+            body.print-thermal #printable-invoice-thermal * {
+              visibility: visible !important;
+            }
+            
+            /* Position and style printable containers */
+            body.print-a4 #printable-invoice-a4 {
+              position: fixed !important;
+              left: 0 !important;
+              top: 0 !important;
+              width: 100% !important;
+              max-width: 100% !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              z-index: 9999 !important;
+              background: white !important;
+            }
+            
+            body.print-thermal #printable-invoice-thermal {
+              position: fixed !important;
+              left: 50% !important;
+              top: 0 !important;
+              transform: translateX(-50%) !important;
+              width: 80mm !important;
+              max-width: 80mm !important;
+              margin: 0 !important;
+              z-index: 9999 !important;
+              background: white !important;
+            }
+          }
+        `}</style>
       </Container>
     </DashboardLayout>
   );

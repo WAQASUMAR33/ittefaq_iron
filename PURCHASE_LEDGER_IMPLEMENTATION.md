@@ -102,3 +102,4 @@ All entries follow proper double-entry bookkeeping principles with balanced debi
 4. **Review transaction history** in the ledger
 
 
+
