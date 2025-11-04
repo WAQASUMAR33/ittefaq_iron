@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '../components/dashboard-layout';
 
@@ -64,7 +64,7 @@ import {
   Business as BusinessIcon
 } from '@mui/icons-material';
 
-export default function SalesPage() {
+function SalesPageContent() {
   const searchParams = useSearchParams();
   
   // State management
@@ -4297,5 +4297,21 @@ export default function SalesPage() {
         </DialogActions>
       </Dialog>
     </>
+  );
+}
+
+export default function SalesPage() {
+  return (
+    <Suspense fallback={
+      <DashboardLayout>
+        <Container maxWidth="xl" sx={{ py: 4 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+            <CircularProgress />
+          </Box>
+        </Container>
+      </DashboardLayout>
+    }>
+      <SalesPageContent />
+    </Suspense>
   );
 }
