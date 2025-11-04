@@ -215,18 +215,32 @@ export async function GET(request) {
       return NextResponse.json(sales);
       } catch (prismaError) {
         console.error('❌ Prisma error:', prismaError.code, prismaError.message);
-        // If store_id column doesn't exist, use raw SQL
-        if (prismaError.code === 'P2022' && prismaError.message?.includes('store_id')) {
-          console.warn('⚠️ store_id column not found in GET, using raw SQL fallback');
+        // If datetime parsing error or store_id column doesn't exist, use raw SQL
+        if (prismaError.code === 'P2020' || (prismaError.code === 'P2022' && prismaError.message?.includes('store_id'))) {
+          console.warn('⚠️ Prisma error detected (P2020/P2022), using raw SQL fallback to avoid datetime parsing issues');
           try {
             const sales = await prisma.$queryRaw`
-              SELECT s.*, 
-                c.cus_id, c.cus_name, 
-                c.cus_phone_no, c.cus_category,
-                c.cus_type, c.cus_balance,
-                c.cus_address, c.cus_reference
+              SELECT 
+                s.sale_id, s.total_amount, s.discount, s.payment, s.payment_type,
+                s.shipping_amount, s.bill_type, s.reference, s.cus_id, s.loader_id,
+                s.debit_account_id, s.credit_account_id, s.store_id,
+                CASE 
+                  WHEN s.created_at IS NULL OR s.created_at = '0000-00-00 00:00:00' THEN NULL
+                  ELSE DATE_FORMAT(s.created_at, '%Y-%m-%d %H:%i:%s')
+                END as created_at,
+                CASE 
+                  WHEN s.updated_at IS NULL OR s.updated_at = '0000-00-00 00:00:00' THEN NULL
+                  ELSE DATE_FORMAT(s.updated_at, '%Y-%m-%d %H:%i:%s')
+                END as updated_at,
+                c.cus_id as customer_cus_id, c.cus_name as customer_cus_name, 
+                c.cus_phone_no as customer_cus_phone_no, c.cus_category as customer_cus_category,
+                c.cus_type as customer_cus_type, c.cus_balance as customer_cus_balance,
+                c.cus_address as customer_cus_address, c.cus_reference as customer_cus_reference
               FROM sales s
               LEFT JOIN customers c ON s.cus_id = c.cus_id
+              WHERE s.created_at IS NOT NULL 
+                AND s.created_at != '0000-00-00 00:00:00'
+                AND YEAR(s.created_at) > 1970
               ORDER BY s.created_at DESC
             `;
             
@@ -284,7 +298,7 @@ export async function GET(request) {
             }
             
             // Fetch customer categories for nested structure (optional - don't fail if this fails)
-            const customerCategoryIds = [...new Set(sales.map(s => s.cus_category).filter(id => id != null))];
+            const customerCategoryIds = [...new Set(sales.map(s => s.customer_cus_category).filter(id => id != null))];
             let customerCategories = [];
             const categoriesMap = {};
             
@@ -368,18 +382,18 @@ export async function GET(request) {
                 loader_id: sale.loader_id ? Number(sale.loader_id) : null,
                 debit_account_id: sale.debit_account_id ? Number(sale.debit_account_id) : null,
                 credit_account_id: sale.credit_account_id ? Number(sale.credit_account_id) : null,
-                customer: sale.cus_name ? {
-                  cus_id: Number(sale.cus_id),
-                  cus_name: sale.cus_name,
-                  cus_phone_no: sale.cus_phone_no,
-                  cus_category: sale.cus_category ? Number(sale.cus_category) : null,
-                  cus_type: sale.cus_type ? Number(sale.cus_type) : null,
-                  cus_balance: Number(sale.cus_balance) || 0,
-                  cus_address: sale.cus_address,
-                  cus_reference: sale.cus_reference,
-                  customer_category: sale.cus_category && categoriesMap[sale.cus_category] ? {
-                    cus_cat_id: categoriesMap[sale.cus_category].cus_cat_id || categoriesMap[sale.cus_category].cus_category_id,
-                    cus_cat_title: categoriesMap[sale.cus_category].cus_cat_title || categoriesMap[sale.cus_category].title
+                customer: sale.customer_cus_name ? {
+                  cus_id: Number(sale.customer_cus_id),
+                  cus_name: sale.customer_cus_name,
+                  cus_phone_no: sale.customer_cus_phone_no,
+                  cus_category: sale.customer_cus_category ? Number(sale.customer_cus_category) : null,
+                  cus_type: sale.customer_cus_type ? Number(sale.customer_cus_type) : null,
+                  cus_balance: Number(sale.customer_cus_balance) || 0,
+                  cus_address: sale.customer_cus_address,
+                  cus_reference: sale.customer_cus_reference,
+                  customer_category: sale.customer_cus_category && categoriesMap[sale.customer_cus_category] ? {
+                    cus_cat_id: categoriesMap[sale.customer_cus_category].cus_cat_id || categoriesMap[sale.customer_cus_category].cus_category_id,
+                    cus_cat_title: categoriesMap[sale.customer_cus_category].cus_cat_title || categoriesMap[sale.customer_cus_category].title
                   } : null
                 } : null,
                 sale_details: detailsBySaleId[saleIdNum] || [],
