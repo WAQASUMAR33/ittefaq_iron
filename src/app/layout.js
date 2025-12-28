@@ -11,8 +11,8 @@ const poppins = Poppins({
 });
 
 export const metadata = {
-  title: "RapidTechPro - POS System",
-  description: "Professional Point of Sale System by RapidTechPro",
+  title: "Ittefaq Iron and Cement Store",
+  description: "Ittefaq Iron and Cement Store - Point of Sale System",
 };
 
 export default function RootLayout({ children }) {

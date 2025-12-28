@@ -451,7 +451,7 @@ export default function StoreStockPage() {
 
         {/* Filter Section */}
         <Card sx={{ mb: 3 }} className="no-print">
-          <CardContent>
+            <CardContent>
             <Typography variant="h6" sx={{ mb: 2, fontWeight: 'semibold', display: 'flex', alignItems: 'center', gap: 1 }}>
               <FilterIcon />
               Filter Stock
@@ -550,14 +550,14 @@ export default function StoreStockPage() {
             </Typography>
             <Typography variant="body2" sx={{ fontSize: '12px' }}>
               Ph: 0346-7560306, 0300-7560306
-            </Typography>
+                </Typography>
             <Typography variant="h6" sx={{ 
               mt: 1, 
               fontWeight: 'bold',
               fontSize: '16px'
             }}>
               STOCK REPORT
-            </Typography>
+                </Typography>
           </Box>
           
           {/* Report Details */}

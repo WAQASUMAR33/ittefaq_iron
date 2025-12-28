@@ -3,9 +3,9 @@ import prisma from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { updateStoreStock, getStoreStock, checkStockAvailability } from '@/lib/storeStock';
 
-// Helper function to get special accounts
-async function getSpecialAccounts(tx) {
-  const specialAccounts = await tx.customer.findMany({
+// Helper function to get special accounts (moved outside transaction for better performance)
+async function getSpecialAccounts() {
+  const specialAccounts = await prisma.customer.findMany({
     where: {
       cus_name: {
         in: ['Cash Account', 'Bank Account', 'Sundry Creditors', 'Sundry Debtors']
@@ -110,6 +110,16 @@ export async function GET(request) {
         return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
       }
 
+      // Log payment fields to verify they're being returned
+      console.log('📤 API returning sale with payment fields:', {
+        sale_id: sale.sale_id,
+        cash_payment: sale.cash_payment,
+        bank_payment: sale.bank_payment,
+        bank_title: sale.bank_title,
+        payment: sale.payment,
+        payment_type: sale.payment_type
+      });
+
       return NextResponse.json(sale);
       } catch (prismaError) {
         // If store_id column doesn't exist, use raw SQL
@@ -141,9 +151,42 @@ export async function GET(request) {
             WHERE sd.sale_id = ${id}
           `;
           
+          // Fetch split_payments separately for this sale
+          const splitPayments = await prisma.$queryRaw`
+            SELECT 
+              sp.split_payment_id, sp.sale_id, sp.amount, sp.payment_type,
+              sp.debit_account_id, sp.credit_account_id, sp.reference,
+              debit.cus_id as debit_cus_id, debit.cus_name as debit_cus_name,
+              credit.cus_id as credit_cus_id, credit.cus_name as credit_cus_name
+            FROM split_payments sp
+            LEFT JOIN customers debit ON sp.debit_account_id = debit.cus_id
+            LEFT JOIN customers credit ON sp.credit_account_id = credit.cus_id
+            WHERE sp.sale_id = ${id}
+          `;
+          
+          // Transform split_payments to match Prisma format
+          const transformedSplitPayments = splitPayments.map(sp => ({
+            split_payment_id: sp.split_payment_id,
+            sale_id: sp.sale_id,
+            amount: sp.amount,
+            payment_type: sp.payment_type,
+            debit_account_id: sp.debit_account_id,
+            credit_account_id: sp.credit_account_id,
+            reference: sp.reference,
+            debit_account: sp.debit_account_id ? {
+              cus_id: sp.debit_cus_id,
+              cus_name: sp.debit_cus_name
+            } : null,
+            credit_account: sp.credit_account_id ? {
+              cus_id: sp.credit_cus_id,
+              cus_name: sp.credit_cus_name
+            } : null
+          }));
+          
           const result = {
             ...sale[0],
-            sale_details: saleDetails || []
+            sale_details: saleDetails || [],
+            split_payments: transformedSplitPayments || []
           };
           
           return NextResponse.json(result);
@@ -222,6 +265,7 @@ export async function GET(request) {
             const sales = await prisma.$queryRaw`
               SELECT 
                 s.sale_id, s.total_amount, s.discount, s.payment, s.payment_type,
+                s.cash_payment, s.bank_payment, s.bank_title,
                 s.shipping_amount, s.bill_type, s.reference, s.cus_id, s.loader_id,
                 s.debit_account_id, s.credit_account_id, s.store_id,
                 CASE 
@@ -363,6 +407,54 @@ export async function GET(request) {
               });
             }
             
+            // Fetch split_payments for all sales
+            let splitPayments = [];
+            const splitPaymentsBySaleId = {};
+            if (saleIds.length > 0) {
+              try {
+                splitPayments = await prisma.$queryRaw`
+                  SELECT 
+                    sp.split_payment_id, sp.sale_id, sp.amount, sp.payment_type,
+                    sp.debit_account_id, sp.credit_account_id, sp.reference,
+                    debit.cus_id as debit_cus_id, debit.cus_name as debit_cus_name,
+                    credit.cus_id as credit_cus_id, credit.cus_name as credit_cus_name
+                  FROM split_payments sp
+                  LEFT JOIN customers debit ON sp.debit_account_id = debit.cus_id
+                  LEFT JOIN customers credit ON sp.credit_account_id = credit.cus_id
+                  WHERE sp.sale_id IN (${Prisma.join(saleIds)})
+                `;
+                console.log('📊 Split payments fetched:', splitPayments?.length || 0);
+                
+                // Group split_payments by sale_id
+                splitPayments.forEach(sp => {
+                  const spSaleId = Number(sp.sale_id);
+                  if (!splitPaymentsBySaleId[spSaleId]) {
+                    splitPaymentsBySaleId[spSaleId] = [];
+                  }
+                  splitPaymentsBySaleId[spSaleId].push({
+                    split_payment_id: sp.split_payment_id ? Number(sp.split_payment_id) : null,
+                    sale_id: spSaleId,
+                    amount: Number(sp.amount) || 0,
+                    payment_type: sp.payment_type,
+                    debit_account_id: sp.debit_account_id ? Number(sp.debit_account_id) : null,
+                    credit_account_id: sp.credit_account_id ? Number(sp.credit_account_id) : null,
+                    reference: sp.reference,
+                    debit_account: sp.debit_account_id ? {
+                      cus_id: Number(sp.debit_cus_id),
+                      cus_name: sp.debit_cus_name
+                    } : null,
+                    credit_account: sp.credit_account_id ? {
+                      cus_id: Number(sp.credit_cus_id),
+                      cus_name: sp.credit_cus_name
+                    } : null
+                  });
+                });
+              } catch (splitError) {
+                console.warn('⚠️ Could not fetch split_payments (non-critical):', splitError.message);
+                // Continue without split_payments - sales will still work
+              }
+            }
+            
             // Format sales to match Prisma structure
             const result = sales.map(sale => {
               const saleIdNum = Number(sale.sale_id);
@@ -373,6 +465,9 @@ export async function GET(request) {
                 discount: Number(sale.discount) || 0,
                 payment: Number(sale.payment) || 0,
                 payment_type: sale.payment_type,
+                cash_payment: Number(sale.cash_payment) || 0,
+                bank_payment: Number(sale.bank_payment) || 0,
+                bank_title: sale.bank_title || null,
                 shipping_amount: Number(sale.shipping_amount) || 0,
                 bill_type: sale.bill_type,
                 reference: sale.reference,
@@ -400,7 +495,7 @@ export async function GET(request) {
                 loader: null,
                 debit_account: null,
                 credit_account: null,
-                split_payments: []
+                split_payments: splitPaymentsBySaleId[saleIdNum] || []
               };
               return formattedSale;
             });
@@ -454,6 +549,9 @@ export async function POST(request) {
       discount,
       payment,
       payment_type,
+      cash_payment,
+      bank_payment,
+      bank_title,
       debit_account_id,
       credit_account_id,
       loader_id,
@@ -468,6 +566,11 @@ export async function POST(request) {
 
     // Validate required fields
     console.log('🔍 Sales API - Validating fields:', { cus_id, store_id, total_amount, payment, sale_details });
+    console.log('💰💰💰 SPLIT PAYMENTS IN REQUEST:', split_payments);
+    console.log('💰💰💰 SPLIT PAYMENTS TYPE:', typeof split_payments);
+    console.log('💰💰💰 SPLIT PAYMENTS IS ARRAY:', Array.isArray(split_payments));
+    console.log('💰💰💰 SPLIT PAYMENTS LENGTH:', split_payments?.length);
+    
     if (!cus_id || !store_id || !total_amount || payment === undefined || payment === null || !sale_details || sale_details.length === 0) {
       console.log('❌ Sales API - Missing required fields:', { cus_id, store_id, total_amount, payment, sale_details });
       return NextResponse.json({ error: 'Missing required fields including store_id' }, { status: 400 });
@@ -503,7 +606,10 @@ export async function POST(request) {
     //   }
     // }
 
-    // Use transaction to ensure data consistency
+    // Get special accounts BEFORE transaction (for better performance)
+    const specialAccounts = isQuotation ? null : await getSpecialAccounts();
+
+    // Use transaction to ensure data consistency with increased timeout (30 seconds)
     const result = await prisma.$transaction(async (tx) => {
       // Get customer's current balance
       const customer = await tx.customer.findUnique({
@@ -525,6 +631,9 @@ export async function POST(request) {
           discount: parseFloat(discount || 0),
           payment: parseFloat(payment),
           payment_type,
+          cash_payment: parseFloat(cash_payment || 0),
+          bank_payment: parseFloat(bank_payment || 0),
+          bank_title: bank_title || null,
           debit_account_id: debit_account_id || null,
           credit_account_id: credit_account_id || null,
           loader_id: loader_id || null,
@@ -543,11 +652,13 @@ export async function POST(request) {
           await tx.$executeRaw`
             INSERT INTO sales (
               cus_id, total_amount, discount, payment, payment_type,
+              cash_payment, bank_payment, bank_title,
               debit_account_id, credit_account_id, loader_id, shipping_amount,
               bill_type, reference, updated_by, created_at, updated_at
             ) VALUES (
               ${cus_id}, ${parseFloat(total_amount)}, ${parseFloat(discount || 0)},
               ${parseFloat(payment)}, ${payment_type},
+              ${parseFloat(cash_payment || 0)}, ${parseFloat(bank_payment || 0)}, ${bank_title || null},
               ${debit_account_id || null}, ${credit_account_id || null},
               ${loader_id || null}, ${parseFloat(shipping_amount || 0)},
               ${bill_type || 'BILL'}, ${reference || null}, ${updated_by},
@@ -642,9 +753,20 @@ export async function POST(request) {
       await Promise.all(saleDetailPromises);
 
       // Create split payments if provided
+      console.log('💰 Split payments received:', split_payments);
+      console.log('💰 Split payments length:', split_payments?.length);
+      
       if (split_payments && split_payments.length > 0) {
-        const splitPaymentPromises = split_payments.map(splitPayment => 
-          tx.splitPayment.create({
+        console.log('✅ Creating split payments for sale:', sale.sale_id);
+        
+        const splitPaymentPromises = split_payments.map((splitPayment, index) => {
+          console.log(`   Split payment ${index + 1}:`, {
+            amount: splitPayment.amount,
+            type: splitPayment.payment_type,
+            debit_account_id: splitPayment.debit_account_id
+          });
+          
+          return tx.splitPayment.create({
             data: {
               sale_id: sale.sale_id,
               amount: parseFloat(splitPayment.amount),
@@ -653,9 +775,13 @@ export async function POST(request) {
               credit_account_id: splitPayment.credit_account_id || null,
               reference: splitPayment.reference || null
             }
-          })
-        );
-        await Promise.all(splitPaymentPromises);
+          });
+        });
+        
+        const createdSplitPayments = await Promise.all(splitPaymentPromises);
+        console.log('✅ Split payments created:', createdSplitPayments.length);
+      } else {
+        console.log('⚠️ No split payments to create - array is', split_payments === null ? 'NULL' : split_payments === undefined ? 'UNDEFINED' : 'EMPTY');
       }
 
       // isQuotation is already defined above (before transaction)
@@ -667,12 +793,7 @@ export async function POST(request) {
         await Promise.all(storeStockUpdatePromises);
       }
 
-      // Get special accounts (only needed if not a quotation)
-      let specialAccounts = null;
-      if (!isQuotation) {
-        specialAccounts = await getSpecialAccounts(tx);
-      }
-
+      // Special accounts already fetched before transaction
       // Create comprehensive ledger entries (only for non-quotations)
       const ledgerEntries = [];
       
@@ -813,10 +934,13 @@ export async function POST(request) {
       }
 
         // Update customer balance (skip for quotations)
+      const currentBalance = parseFloat(customer.cus_balance) || 0;
+      const newBalance = currentBalance + parseFloat(netTotal) - parseFloat(payment);
+      
       await tx.customer.update({
         where: { cus_id },
         data: {
-          cus_balance: customer.cus_balance + netTotal - parseFloat(payment)
+          cus_balance: newBalance
         }
       });
 
@@ -824,10 +948,13 @@ export async function POST(request) {
         if (parseFloat(payment) > 0 && specialAccounts) {
         const paymentAccount = payment_type === 'CASH' ? specialAccounts.cash : specialAccounts.bank;
         if (paymentAccount) {
+          const accountCurrentBalance = parseFloat(paymentAccount.cus_balance) || 0;
+          const accountNewBalance = accountCurrentBalance + parseFloat(payment);
+          
           await tx.customer.update({
             where: { cus_id: paymentAccount.cus_id },
         data: {
-          cus_balance: paymentAccount.cus_balance + parseFloat(payment)
+          cus_balance: accountNewBalance
         }
           });
         }
@@ -956,7 +1083,7 @@ export async function POST(request) {
 
       return sale;
     }, {
-      timeout: 15000 // 15 seconds timeout for complex transactions
+      timeout: 120000 // 120 seconds (2 minutes) timeout for complex transactions with ledger entries
     });
 
     return NextResponse.json(result, { status: 201 });
@@ -1030,7 +1157,10 @@ export async function PUT(request) {
     // Determine if this update is for a quotation (skip finance/stock)
     const isQuotationFromBody = bill_type === 'QUOTATION';
 
-    // Use transaction to ensure data consistency
+    // Get special accounts BEFORE transaction (for better performance)
+    const specialAccounts = isQuotationFromBody ? null : await getSpecialAccounts();
+
+    // Use transaction to ensure data consistency with increased timeout (30 seconds)
     const result = await prisma.$transaction(async (tx) => {
       // Get existing sale
       const existingSale = await tx.sale.findUnique({
@@ -1155,9 +1285,7 @@ export async function PUT(request) {
         await Promise.all(storeStockUpdatePromises);
       }
 
-      // Get special accounts only if not quotation
-      const specialAccounts = isQuotation ? null : await getSpecialAccounts(tx);
-
+      // Special accounts already fetched before transaction
       // Create comprehensive ledger entries (skip for quotations)
       const ledgerEntries = [];
       
@@ -1300,10 +1428,13 @@ export async function PUT(request) {
 
       // Update customer balance (skip for quotations)
       if (!isQuotation) {
+        const currentBalance = parseFloat(customer.cus_balance) || 0;
+        const newBalance = currentBalance + parseFloat(netTotal) - parseFloat(payment);
+        
         await tx.customer.update({
           where: { cus_id },
           data: {
-            cus_balance: customer.cus_balance + netTotal - parseFloat(payment)
+            cus_balance: newBalance
           }
         });
       }
@@ -1312,10 +1443,13 @@ export async function PUT(request) {
       if (!isQuotation && parseFloat(payment) > 0) {
         const paymentAccount = payment_type === 'CASH' ? specialAccounts.cash : specialAccounts.bank;
         if (paymentAccount) {
+          const accountCurrentBalance = parseFloat(paymentAccount.cus_balance) || 0;
+          const accountNewBalance = accountCurrentBalance + parseFloat(payment);
+          
           await tx.customer.update({
             where: { cus_id: paymentAccount.cus_id },
         data: {
-          cus_balance: paymentAccount.cus_balance + parseFloat(payment)
+          cus_balance: accountNewBalance
         }
           });
         }
@@ -1376,7 +1510,7 @@ export async function PUT(request) {
 
       return sale;
     }, {
-      timeout: 15000 // 15 seconds timeout for complex transactions
+      timeout: 120000 // 120 seconds (2 minutes) timeout for complex transactions with ledger entries
     });
 
     return NextResponse.json(result);
@@ -1433,7 +1567,7 @@ export async function DELETE(request) {
         where: { sale_id: id }
       });
     }, {
-      timeout: 15000 // 15 seconds timeout for complex transactions
+      timeout: 120000 // 120 seconds (2 minutes) timeout for complex transactions with ledger entries
     });
 
     return NextResponse.json({ message: 'Sale deleted successfully' });

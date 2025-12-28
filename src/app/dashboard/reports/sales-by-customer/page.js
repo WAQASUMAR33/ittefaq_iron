@@ -48,7 +48,7 @@ export default function SalesByCustomerReport() {
   const handleExport = () => {
     if (!reportData) return;
 
-    let csv = 'Itefaq Builders\n';
+    let csv = 'Ittefaq Iron and Cement Store\n';
     csv += 'Address: Parianwali\n';
     csv += 'Phone: +92 346 7560306\n\n';
     csv += 'Sales Report (Customer Wise)\n';
@@ -138,7 +138,7 @@ export default function SalesByCustomerReport() {
             {/* Print Header */}
             <div className="hidden print:block mb-6 border-b-2 border-gray-800 pb-4">
               <div className="text-center">
-                <h1 className="text-4xl font-bold text-gray-900 mb-2">Itefaq Builders</h1>
+                <h1 className="text-4xl font-bold text-gray-900 mb-2">Ittefaq Iron and Cement Store</h1>
                 <p className="text-gray-700 text-lg">Address: Parianwali</p>
                 <p className="text-gray-700 text-lg">Phone: +92 346 7560306</p>
                 <div className="mt-4 pt-4 border-t border-gray-300">
@@ -252,7 +252,7 @@ export default function SalesByCustomerReport() {
             {/* Print Footer */}
             <div className="hidden print:block mt-8 pt-4 border-t-2 border-gray-800">
               <div className="text-center">
-                <p className="text-gray-700 font-semibold">Itefaq Builders</p>
+                <p className="text-gray-700 font-semibold">Ittefaq Iron and Cement Store</p>
                 <p className="text-gray-600 text-sm">Address: Parianwali | Phone: +92 346 7560306</p>
                 <p className="text-gray-500 text-xs mt-2">
                   This is a computer-generated report. No signature required.

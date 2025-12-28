@@ -464,13 +464,48 @@ function SalesPageContent() {
       const deliveryCharges = parseFloat(paymentData.deliveryCharges) || 0;
       const totalShippingAmount = transportTotal + deliveryCharges;
       
+      // Build split payments array for cash and bank
+      const splitPayments = [];
+      const cashAmount = parseFloat(paymentData.cash) || 0;
+      const bankAmount = parseFloat(paymentData.bank) || 0;
+      
+      // Add cash payment if there's any cash
+      if (cashAmount > 0) {
+        splitPayments.push({
+          amount: cashAmount,
+          payment_type: 'CASH',
+          debit_account_id: null,
+          credit_account_id: null,
+          reference: 'Cash payment'
+        });
+      }
+      
+      // Add bank payment if there's any bank payment
+      if (bankAmount > 0 && paymentData.bankAccountId) {
+        splitPayments.push({
+          amount: bankAmount,
+          payment_type: 'BANK_TRANSFER',
+          debit_account_id: paymentData.bankAccountId,
+          credit_account_id: null,
+          reference: 'Bank payment'
+        });
+      }
+      
+      // Get bank account name for bank_title
+      const selectedBankAccount = paymentData.bankAccountId 
+        ? bankAccounts.find(acc => acc.cus_id === paymentData.bankAccountId)
+        : null;
+      
       const saleData = {
         cus_id: formSelectedCustomer.cus_id,
         store_id: formSelectedStore.storeid, // Added store_id for multi-store functionality
         total_amount: grandTotal, // Use grand total instead of just product total
         discount: parseFloat(paymentData.discount) || 0,
         payment: totalCashReceived,
-        payment_type: 'CASH', // Default payment type
+        payment_type: splitPayments.length > 0 ? splitPayments[0].payment_type : 'CASH', // Use first payment type or default to CASH
+        cash_payment: cashAmount, // Store cash payment in sale record
+        bank_payment: bankAmount, // Store bank payment in sale record
+        bank_title: selectedBankAccount?.cus_name || null, // Store bank account name (optional)
         debit_account_id: paymentData.bankAccountId || null,
         credit_account_id: null,
         loader_id: null,
@@ -492,7 +527,7 @@ function SalesPageContent() {
           amount: transport.amount,
           description: transport.description || 'Transport charges'
         })),
-        split_payments: [],
+        split_payments: splitPayments, // Keep split_payments for backward compatibility
         updated_by: 1 // Default user ID, should be from auth context
       };
 
@@ -958,9 +993,31 @@ function SalesPageContent() {
   };
 
   // Handle viewing a bill
-  const handleViewBill = (sale) => {
-    setSelectedBill(sale);
-    setViewBillDialog(true);
+  const handleViewBill = async (sale) => {
+    console.log('📋 Viewing bill:', sale);
+    
+    try {
+      // Fetch fresh sale data with all payment details
+      const response = await fetch(`/api/sales?id=${sale.sale_id}`);
+      if (!response.ok) throw new Error('Failed to fetch sale details');
+      const saleData = await response.json();
+      
+      console.log('💰 Sale data with payments:', {
+        cash_payment: saleData.cash_payment,
+        bank_payment: saleData.bank_payment,
+        bank_title: saleData.bank_title,
+        payment: saleData.payment,
+        split_payments: saleData.split_payments
+      });
+      
+      setSelectedBill(saleData);
+      setViewBillDialog(true);
+    } catch (error) {
+      console.error('Error fetching sale details:', error);
+      // Fallback to using the data from the list if API call fails
+      setSelectedBill(sale);
+      setViewBillDialog(true);
+    }
   };
 
   // Handle opening return dialog
@@ -1699,6 +1756,24 @@ function SalesPageContent() {
                             type="number"
                       value={productFormData.quantity}
                       onChange={(e) => handleQuantityChange(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          // If rate is already filled, add product directly
+                          if (productFormData.rate > 0) {
+                            handleAddProductToTable();
+                          } else {
+                            // Focus on rate field if rate is not filled
+                            setTimeout(() => {
+                              const rateInputs = document.querySelectorAll('input[type="number"]');
+                              // Find the rate input (it's the next number input after quantity)
+                              if (rateInputs.length > 1) {
+                                rateInputs[1].focus();
+                              }
+                            }, 0);
+                          }
+                        }
+                      }}
                       sx={{ bgcolor: 'white', width: 100, minWidth: 100 }}
                     />
                   </Box>
@@ -1714,6 +1789,13 @@ function SalesPageContent() {
                       type="number"
                       value={productFormData.rate}
                       onChange={(e) => handleRateChange(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          // Add product to table when Enter is pressed in rate field
+                          handleAddProductToTable();
+                        }
+                      }}
                       sx={{ bgcolor: 'white', width: 150, minWidth: 150 }}
                     />
                   </Box>
@@ -1828,7 +1910,39 @@ function SalesPageContent() {
                               }}
                             />
                           </TableCell>
-                          <TableCell sx={{ py: 1 }}>{product.rate.toFixed(2)}</TableCell>
+                          <TableCell sx={{ py: 1 }}>
+                            <TextField
+                              size="small"
+                              type="number"
+                              value={product.rate}
+                              onChange={(e) => {
+                                const newRate = parseFloat(e.target.value) || 0;
+                                if (newRate >= 0) {
+                                  const updatedData = productTableData.map((p) =>
+                                    p.id === product.id
+                                      ? {
+                                          ...p,
+                                          rate: newRate,
+                                          amount: p.quantity * newRate
+                                        }
+                                      : p
+                                  );
+                                  setProductTableData(updatedData);
+                                }
+                              }}
+                              sx={{
+                                width: 100,
+                                '& .MuiInputBase-input': {
+                                  padding: '4px 8px',
+                                  textAlign: 'center'
+                                }
+                              }}
+                              inputProps={{
+                                min: 0,
+                                step: 0.01
+                              }}
+                            />
+                          </TableCell>
                           <TableCell sx={{ py: 1 }}>{product.amount.toFixed(2)}</TableCell>
                           <TableCell sx={{ py: 1 }}>
                             <IconButton
@@ -2438,20 +2552,24 @@ function SalesPageContent() {
                                 {parseFloat(currentBillData.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </TableCell>
                             </TableRow>
+                            {/* Always show cash payment */}
                             <TableRow>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>نقد كيش</TableCell>
                               <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {parseFloat(currentBillData.payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {parseFloat(currentBillData.cash_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </TableCell>
                             </TableRow>
-                            <TableRow>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {currentBillData.payment_type === 'BANK' ? 'بینک' : 'easy paisa بينک'}
-                              </TableCell>
-                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {currentBillData.payment_type === 'BANK' ? parseFloat(currentBillData.payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
-                              </TableCell>
-                            </TableRow>
+                            {/* Show bank payment with account name if bank payment exists */}
+                            {currentBillData.bank_payment > 0 && (
+                              <TableRow>
+                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                  {currentBillData.bank_title || 'بینک'}
+                                </TableCell>
+                                <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                  {parseFloat(currentBillData.bank_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </TableCell>
+                              </TableRow>
+                            )}
                             <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم وصول</TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
@@ -2521,8 +2639,22 @@ function SalesPageContent() {
                     {parseFloat(currentBillData.total_amount || 0).toFixed(2)}
                   </Typography>
                 </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography sx={{ fontSize: '10px' }}>Paid</Typography>
+                {/* Cash Payment */}
+                {currentBillData.cash_payment > 0 && (
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography sx={{ fontSize: '10px' }}>Cash Payment</Typography>
+                    <Typography sx={{ fontSize: '10px' }}>{parseFloat(currentBillData.cash_payment || 0).toFixed(2)}</Typography>
+                  </Box>
+                )}
+                {/* Bank Payment */}
+                {currentBillData.bank_payment > 0 && (
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography sx={{ fontSize: '10px' }}>Bank Payment ({currentBillData.bank_title || 'Bank'})</Typography>
+                    <Typography sx={{ fontSize: '10px' }}>{parseFloat(currentBillData.bank_payment || 0).toFixed(2)}</Typography>
+                  </Box>
+                )}
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
+                  <Typography sx={{ fontSize: '10px' }}>Total Paid</Typography>
                   <Typography sx={{ fontSize: '10px' }}>{parseFloat(currentBillData.payment || 0).toFixed(2)}</Typography>
                 </Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -2728,20 +2860,24 @@ function SalesPageContent() {
                                   {parseFloat(currentBillData.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </TableCell>
                               </TableRow>
+                              {/* Always show cash payment */}
                               <TableRow>
                                 <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>نقد كيش</TableCell>
                                 <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                  {parseFloat(currentBillData.payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  {parseFloat(currentBillData.cash_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </TableCell>
                               </TableRow>
-                              <TableRow>
-                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                  {currentBillData.payment_type === 'BANK' ? 'بینک' : 'easy paisa بينک'}
-                                </TableCell>
-                                <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                  {currentBillData.payment_type === 'BANK' ? parseFloat(currentBillData.payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
-                                </TableCell>
-                              </TableRow>
+                              {/* Show bank payment with account name if bank payment exists */}
+                              {currentBillData.bank_payment > 0 && (
+                                <TableRow>
+                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                    {currentBillData.bank_title || 'بینک'}
+                                  </TableCell>
+                                  <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                    {parseFloat(currentBillData.bank_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </TableCell>
+                                </TableRow>
+                              )}
                               <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                                 <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم وصول</TableCell>
                                 <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
@@ -3896,20 +4032,72 @@ function SalesPageContent() {
                                 {parseFloat(selectedBill.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </TableCell>
                             </TableRow>
-                            <TableRow>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>نقد كيش</TableCell>
-                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {parseFloat(selectedBill.payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </TableCell>
-                            </TableRow>
-                            <TableRow>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {selectedBill.payment_type === 'BANK' ? 'بینک' : 'easy paisa بينک'}
-                              </TableCell>
-                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {selectedBill.payment_type === 'BANK' ? parseFloat(selectedBill.payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
-                              </TableCell>
-                            </TableRow>
+                            {/* Show payment details - use cash_payment and bank_payment fields */}
+                            {(() => {
+                              console.log('🧾 Receipt - Payment Details:', {
+                                has_cash_payment: selectedBill.hasOwnProperty('cash_payment'),
+                                has_bank_payment: selectedBill.hasOwnProperty('bank_payment'),
+                                has_bank_title: selectedBill.hasOwnProperty('bank_title'),
+                                cash_payment: selectedBill.cash_payment,
+                                bank_payment: selectedBill.bank_payment,
+                                bank_title: selectedBill.bank_title,
+                                total_payment: selectedBill.payment,
+                                payment_type: selectedBill.payment_type
+                              });
+                              return null;
+                            })()}
+                            
+                            {/* Determine cash and bank amounts - handle both new and old sales */}
+                            {(() => {
+                              // For new sales, use cash_payment and bank_payment fields
+                              // For old sales, use payment and payment_type fields
+                              let cashAmount = 0;
+                              let bankAmount = 0;
+                              let bankName = '';
+                              
+                              if (selectedBill.hasOwnProperty('cash_payment') && selectedBill.hasOwnProperty('bank_payment')) {
+                                // NEW SALE: Has payment split fields
+                                cashAmount = parseFloat(selectedBill.cash_payment || 0);
+                                bankAmount = parseFloat(selectedBill.bank_payment || 0);
+                                bankName = selectedBill.bank_title || selectedBill.debit_account?.cus_name || 'بینک';
+                              } else {
+                                // OLD SALE: Use legacy payment field
+                                if (selectedBill.payment_type === 'CASH' || !selectedBill.payment_type) {
+                                  cashAmount = parseFloat(selectedBill.payment || 0);
+                                  bankAmount = 0;
+                                } else {
+                                  cashAmount = 0;
+                                  bankAmount = parseFloat(selectedBill.payment || 0);
+                                  bankName = selectedBill.debit_account?.cus_name || 'بینک';
+                                }
+                              }
+                              
+                              return (
+                                <>
+                                  {/* Always show cash payment row */}
+                                  <TableRow>
+                                    <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                      نقد كيش
+                                    </TableCell>
+                                    <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                      {cashAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </TableCell>
+                                  </TableRow>
+                                  
+                                  {/* Show bank payment row if bank payment exists */}
+                                  {bankAmount > 0 && (
+                                    <TableRow>
+                                      <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                        {bankName}
+                                      </TableCell>
+                                      <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                        {bankAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      </TableCell>
+                                    </TableRow>
+                                  )}
+                                </>
+                              );
+                            })()}
                             <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم وصول</TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>

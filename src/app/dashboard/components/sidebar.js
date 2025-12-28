@@ -43,7 +43,8 @@ import {
   CalendarToday as CalendarIcon,
   TrendingUp as TrendingUpIcon,
   Store as StoreIcon,
-  AssignmentReturn as AssignmentReturnIcon
+  AssignmentReturn as AssignmentReturnIcon,
+  SwapHoriz as SwapHorizIcon
 } from '@mui/icons-material';
 
 export default function Sidebar({ 
@@ -107,7 +108,8 @@ export default function Sidebar({
     // System Management
     { id: 'usermanagement', name: 'User Management', icon: PersonIcon, category: 'system', parent: 'System' },
     { id: 'stores', name: 'Store Management', icon: StoreIcon, category: 'system', parent: 'System' },
-    { id: 'store-stock', name: 'Store Stock', icon: InventoryIcon, category: 'system', parent: 'System' }
+    { id: 'store-stock', name: 'Store Stock', icon: InventoryIcon, category: 'system', parent: 'System' },
+    { id: 'stock-transfer', name: 'Stock Transfer', icon: SwapHorizIcon, category: 'system', parent: 'System' }
   ];
 
   const toggleDropdown = (category) => {
@@ -185,6 +187,8 @@ export default function Sidebar({
       router.push('/dashboard/stores');
     } else if (itemId === 'store-stock') {
       router.push('/dashboard/store-stock');
+    } else if (itemId === 'stock-transfer') {
+      router.push('/dashboard/stock-transfer');
     } else if (itemId === 'dashboard') {
       router.push('/dashboard');
     }
@@ -291,7 +295,7 @@ export default function Sidebar({
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
             }}>
-              Itefaq Builders
+              Ittefaq Iron and Cement Store
             </Typography>
             <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>
               POS System

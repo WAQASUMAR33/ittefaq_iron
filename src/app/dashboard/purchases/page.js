@@ -57,7 +57,7 @@ import {
   ShoppingCart as ShoppingCartIcon,
   CalendarToday as CalendarIcon,
   TrendingUp as TrendingUpIcon,
-  AlertCircle as AlertCircleIcon,
+  Error as AlertCircleIcon,
   Visibility as EyeIcon,
   BarChart as BarChartIcon,
   LocalShipping as TruckIcon,

@@ -60,3 +60,8 @@ ADD CONSTRAINT IF NOT EXISTS `purchase_details_store_id_fkey` FOREIGN KEY (`stor
 
 
 
+
+
+
+
+

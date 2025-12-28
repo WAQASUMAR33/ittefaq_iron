@@ -64,3 +64,8 @@ The purchase table now correctly displays the quantity column when products are 
 
 
 
+
+
+
+
+

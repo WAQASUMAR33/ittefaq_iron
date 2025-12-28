@@ -170,7 +170,7 @@ export default function LoginPage() {
 
         {/* Enhanced Footer */}
         <div className="text-center mt-4 text-gray-500 text-sm">
-          <p className="font-medium">&copy; 2024 RapidTechPro. All rights reserved.</p>
+          <p className="font-medium">&copy; 2024 Ittefaq Iron and Cement Store. All rights reserved.</p>
         </div>
       </div>
     </div>

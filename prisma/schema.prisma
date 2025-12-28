@@ -44,6 +44,7 @@ model Users {
   store_stocks        StoreStock[]
   packages            Package[]
   subscriptions       Subscription[]
+  stock_transfers     StockTransfer[]
 
   @@map("users")
 }
@@ -98,7 +99,7 @@ model Customer {
   cus_reference         String?
   cus_account_info      String?
   other                 String?
-  cus_balance           Decimal            @default(0.000000000000000000000000000000)
+  cus_balance           Float              @default(0)
   CNIC                  String?
   NTN_NO                String?
   name_urdu             String?
@@ -194,8 +195,9 @@ model Product {
   purchase_details        PurchaseDetail[]
   purchase_return_details PurchaseReturnDetail[]
   sale_details            SaleDetail[]
-  sale_return_details     SaleReturnDetail[]
-  store_stocks            StoreStock[]
+  sale_return_details      SaleReturnDetail[]
+  store_stocks             StoreStock[]
+  stock_transfer_details   StockTransferDetail[]
 
   @@index([cat_id], map: "products_cat_id_fkey")
   @@index([sub_cat_id], map: "products_sub_cat_id_fkey")
@@ -206,14 +208,14 @@ model Product {
 model Ledger {
   l_id            Int             @id @default(autoincrement())
   cus_id          Int
-  opening_balance Decimal         @default(0.000000000000000000000000000000)
-  debit_amount    Decimal         @default(0.000000000000000000000000000000)
-  credit_amount   Decimal         @default(0.000000000000000000000000000000)
-  closing_balance Decimal         @default(0.000000000000000000000000000000)
+  opening_balance Float           @default(0)
+  debit_amount    Float           @default(0)
+  credit_amount   Float           @default(0)
+  closing_balance Float           @default(0)
   bill_no         String?
   trnx_type       TransactionType
   details         String?
-  payments        Decimal         @default(0.000000000000000000000000000000)
+  payments        Float           @default(0)
   updated_by      Int?
   created_at      DateTime        @default(now())
   updated_at      DateTime        @updatedAt
@@ -260,6 +262,9 @@ model Sale {
   store_id          Int?
   payment           Decimal
   payment_type      PaymentType
+  cash_payment      Float          @default(0)
+  bank_payment      Float          @default(0)
+  bank_title        String?
   debit_account_id  Int?
   credit_account_id Int?
   loader_id         Int?
@@ -696,7 +701,9 @@ model Store {
   purchases     Purchase[]
   sales         Sale[]
   sale_details  SaleDetail[]
-  store_stocks  StoreStock[]
+  store_stocks       StoreStock[]
+  stock_transfers_from StockTransfer[] @relation("StockTransferFrom")
+  stock_transfers_to   StockTransfer[] @relation("StockTransferTo")
 
   @@map("stores")
 }
@@ -759,6 +766,42 @@ model Subscription {
   @@index([package_id], map: "subscriptions_package_id_fkey")
   @@index([updated_by], map: "subscriptions_updated_by_fkey")
   @@map("subscriptions")
+}
+
+model StockTransfer {
+  transfer_id      Int                 @id @default(autoincrement())
+  transfer_no      String?             @unique
+  transfer_date    DateTime            @db.Date
+  from_store_id    Int
+  to_store_id      Int
+  notes            String?
+  created_at       DateTime            @default(now())
+  updated_at       DateTime            @updatedAt
+  updated_by       Int?
+  from_store       Store               @relation("StockTransferFrom", fields: [from_store_id], references: [storeid])
+  to_store          Store               @relation("StockTransferTo", fields: [to_store_id], references: [storeid])
+  updated_by_user   Users?              @relation(fields: [updated_by], references: [user_id])
+  transfer_details StockTransferDetail[]
+
+  @@index([from_store_id], map: "stock_transfers_from_store_id_fkey")
+  @@index([to_store_id], map: "stock_transfers_to_store_id_fkey")
+  @@index([updated_by], map: "stock_transfers_updated_by_fkey")
+  @@map("stock_transfers")
+}
+
+model StockTransferDetail {
+  transfer_detail_id Int          @id @default(autoincrement())
+  transfer_id        Int
+  pro_id             Int
+  quantity           Int
+  packing            Int?         @default(0)
+  created_at         DateTime     @default(now())
+  transfer           StockTransfer @relation(fields: [transfer_id], references: [transfer_id], onDelete: Cascade)
+  product            Product      @relation(fields: [pro_id], references: [pro_id])
+
+  @@index([transfer_id], map: "stock_transfer_details_transfer_id_fkey")
+  @@index([pro_id], map: "stock_transfer_details_pro_id_fkey")
+  @@map("stock_transfer_details")
 }
 
 enum UserRole {

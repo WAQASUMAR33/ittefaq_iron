@@ -91,3 +91,8 @@ DESCRIBE `sale_details`;
 - If constraints already exist, you may see errors - just ignore them and continue
 
 
+
+
+
+
+
