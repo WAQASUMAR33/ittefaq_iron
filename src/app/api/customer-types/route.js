@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 // GET - Fetch all customer types
 export async function GET() {
@@ -16,7 +14,7 @@ export async function GET() {
   } catch (error) {
     console.error('Error fetching customer types:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch customer types' },
+      { error: error.message || 'Failed to fetch customer types' },
       { status: 500 }
     );
   }

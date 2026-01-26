@@ -33,7 +33,7 @@ async function createLedgerEntry(tx, data) {
       debit_amount: data.debit_amount || 0,
       credit_amount: data.credit_amount || 0,
       closing_balance: data.closing_balance,
-      bill_no: data.bill_no,
+      bill_no: data.bill_no ? String(data.bill_no) : null,
       trnx_type: data.trnx_type,
       details: data.details,
       payments: data.payments || 0,
@@ -51,76 +51,76 @@ export async function GET(request) {
     if (id) {
       // Fetch single sale
       try {
-      const sale = await prisma.sale.findUnique({
-        where: { sale_id: id },
-        include: {
-          customer: {
-            include: {
-              customer_category: true
-            }
-          },
-          sale_details: {
-            include: {
-              product: {
-                include: {
-                  category: true,
-                  sub_category: true
+        const sale = await prisma.sale.findUnique({
+          where: { sale_id: id },
+          include: {
+            customer: {
+              include: {
+                customer_category: true
+              }
+            },
+            sale_details: {
+              include: {
+                product: {
+                  include: {
+                    category: true,
+                    sub_category: true
+                  }
                 }
               }
-            }
-          },
-          debit_account: {
-            select: {
-              cus_id: true,
-              cus_name: true,
-              cus_phone_no: true
-            }
-          },
-          credit_account: {
-            select: {
-              cus_id: true,
-              cus_name: true,
-              cus_phone_no: true
-            }
-          },
-          loader: {
-            select: {
-              loader_id: true,
-              loader_name: true,
-              loader_number: true,
-              loader_phone: true
-            }
-          },
-          split_payments: {
-            include: {
-              debit_account: true,
-              credit_account: true
-            }
-          },
-          updated_by_user: {
-            select: {
-              full_name: true,
-              role: true
+            },
+            debit_account: {
+              select: {
+                cus_id: true,
+                cus_name: true,
+                cus_phone_no: true
+              }
+            },
+            credit_account: {
+              select: {
+                cus_id: true,
+                cus_name: true,
+                cus_phone_no: true
+              }
+            },
+            loader: {
+              select: {
+                loader_id: true,
+                loader_name: true,
+                loader_number: true,
+                loader_phone: true
+              }
+            },
+            split_payments: {
+              include: {
+                debit_account: true,
+                credit_account: true
+              }
+            },
+            updated_by_user: {
+              select: {
+                full_name: true,
+                role: true
+              }
             }
           }
+        });
+
+        if (!sale) {
+          return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
         }
-      });
 
-      if (!sale) {
-        return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
-      }
+        // Log payment fields to verify they're being returned
+        console.log('📤 API returning sale with payment fields:', {
+          sale_id: sale.sale_id,
+          cash_payment: sale.cash_payment,
+          bank_payment: sale.bank_payment,
+          bank_title: sale.bank_title,
+          payment: sale.payment,
+          payment_type: sale.payment_type
+        });
 
-      // Log payment fields to verify they're being returned
-      console.log('📤 API returning sale with payment fields:', {
-        sale_id: sale.sale_id,
-        cash_payment: sale.cash_payment,
-        bank_payment: sale.bank_payment,
-        bank_title: sale.bank_title,
-        payment: sale.payment,
-        payment_type: sale.payment_type
-      });
-
-      return NextResponse.json(sale);
+        return NextResponse.json(sale);
       } catch (prismaError) {
         // If store_id column doesn't exist, use raw SQL
         if (prismaError.code === 'P2022' && prismaError.message?.includes('store_id')) {
@@ -134,11 +134,11 @@ export async function GET(request) {
             WHERE s.sale_id = ${id}
             LIMIT 1
           `;
-          
+
           if (!sale || sale.length === 0) {
             return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
           }
-          
+
           // Fetch sale_details separately - explicitly select columns to avoid datetime issues
           const saleDetails = await prisma.$queryRaw`
             SELECT 
@@ -150,7 +150,7 @@ export async function GET(request) {
             LEFT JOIN products p ON sd.pro_id = p.pro_id
             WHERE sd.sale_id = ${id}
           `;
-          
+
           // Fetch split_payments separately for this sale
           const splitPayments = await prisma.$queryRaw`
             SELECT 
@@ -163,7 +163,7 @@ export async function GET(request) {
             LEFT JOIN customers credit ON sp.credit_account_id = credit.cus_id
             WHERE sp.sale_id = ${id}
           `;
-          
+
           // Transform split_payments to match Prisma format
           const transformedSplitPayments = splitPayments.map(sp => ({
             split_payment_id: sp.split_payment_id,
@@ -182,13 +182,13 @@ export async function GET(request) {
               cus_name: sp.credit_cus_name
             } : null
           }));
-          
+
           const result = {
             ...sale[0],
             sale_details: saleDetails || [],
             split_payments: transformedSplitPayments || []
           };
-          
+
           return NextResponse.json(result);
         } else {
           throw prismaError;
@@ -197,65 +197,65 @@ export async function GET(request) {
     } else {
       // Fetch all sales
       try {
-      const sales = await prisma.sale.findMany({
-        include: {
-          customer: {
-            include: {
-              customer_category: true
-            }
-          },
-          sale_details: {
-            include: {
-              product: {
-                include: {
-                  category: true,
-                  sub_category: true
+        const sales = await prisma.sale.findMany({
+          include: {
+            customer: {
+              include: {
+                customer_category: true
+              }
+            },
+            sale_details: {
+              include: {
+                product: {
+                  include: {
+                    category: true,
+                    sub_category: true
+                  }
                 }
+              }
+            },
+            debit_account: {
+              select: {
+                cus_id: true,
+                cus_name: true,
+                cus_phone_no: true
+              }
+            },
+            credit_account: {
+              select: {
+                cus_id: true,
+                cus_name: true,
+                cus_phone_no: true
+              }
+            },
+            loader: {
+              select: {
+                loader_id: true,
+                loader_name: true,
+                loader_number: true,
+                loader_phone: true
+              }
+            },
+            split_payments: {
+              include: {
+                debit_account: true,
+                credit_account: true
+              }
+            },
+            updated_by_user: {
+              select: {
+                full_name: true,
+                role: true
               }
             }
           },
-          debit_account: {
-            select: {
-              cus_id: true,
-              cus_name: true,
-              cus_phone_no: true
-            }
-          },
-          credit_account: {
-            select: {
-              cus_id: true,
-              cus_name: true,
-              cus_phone_no: true
-            }
-          },
-          loader: {
-            select: {
-              loader_id: true,
-              loader_name: true,
-              loader_number: true,
-              loader_phone: true
-            }
-          },
-          split_payments: {
-            include: {
-              debit_account: true,
-              credit_account: true
-            }
-          },
-          updated_by_user: {
-            select: {
-              full_name: true,
-              role: true
-            }
+          orderBy: {
+            created_at: 'desc'
           }
-        },
-        orderBy: {
-          created_at: 'desc'
-        }
-      });
+        });
 
         console.log('✅ Sales fetched via Prisma:', sales.length);
-      return NextResponse.json(sales);
+        return NextResponse.json(sales);
       } catch (prismaError) {
         console.error('❌ Prisma error:', prismaError.code, prismaError.message);
         // If datetime parsing error or store_id column doesn't exist, use raw SQL
@@ -287,15 +287,15 @@ export async function GET(request) {
                 AND YEAR(s.created_at) > 1970
               ORDER BY s.created_at DESC
             `;
-            
+
             console.log('📊 Raw SQL sales count:', sales?.length || 0);
             console.log('📊 Raw SQL sales data:', JSON.stringify(sales?.slice(0, 2), null, 2));
-            
+
             if (!sales || sales.length === 0) {
               console.warn('⚠️ No sales found in database');
               return NextResponse.json([]);
             }
-            
+
             // Fetch sale_details for all sales
             const saleIds = sales.map(s => Number(s.sale_id)).filter(id => id != null && !isNaN(id));
             console.log('📊 Sale IDs to fetch details for:', saleIds);
@@ -340,12 +340,12 @@ export async function GET(request) {
                 }
               }
             }
-            
+
             // Fetch customer categories for nested structure (optional - don't fail if this fails)
             const customerCategoryIds = [...new Set(sales.map(s => s.customer_cus_category).filter(id => id != null))];
             let customerCategories = [];
             const categoriesMap = {};
-            
+
             if (customerCategoryIds.length > 0) {
               try {
                 // Use correct column name: cus_cat_id - convert to numbers
@@ -356,7 +356,7 @@ export async function GET(request) {
                   WHERE cus_cat_id IN (${Prisma.join(numericCatIds)})
                 `;
                 console.log('📊 Customer categories fetched:', customerCategories?.length || 0);
-                
+
                 // Map categories
                 customerCategories.forEach(cat => {
                   const catId = cat.cus_cat_id;
@@ -373,7 +373,7 @@ export async function GET(request) {
                 // Continue without categories - sales will still work
               }
             }
-            
+
             // Group sale_details by sale_id and format properly
             // Convert sale_ids to numbers for consistent matching
             const detailsBySaleId = {};
@@ -406,7 +406,7 @@ export async function GET(request) {
                 });
               });
             }
-            
+
             // Fetch split_payments for all sales
             let splitPayments = [];
             const splitPaymentsBySaleId = {};
@@ -424,7 +424,7 @@ export async function GET(request) {
                   WHERE sp.sale_id IN (${Prisma.join(saleIds)})
                 `;
                 console.log('📊 Split payments fetched:', splitPayments?.length || 0);
-                
+
                 // Group split_payments by sale_id
                 splitPayments.forEach(sp => {
                   const spSaleId = Number(sp.sale_id);
@@ -454,7 +454,7 @@ export async function GET(request) {
                 // Continue without split_payments - sales will still work
               }
             }
-            
+
             // Format sales to match Prisma structure
             const result = sales.map(sale => {
               const saleIdNum = Number(sale.sale_id);
@@ -499,13 +499,13 @@ export async function GET(request) {
               };
               return formattedSale;
             });
-            
+
             if (result.length > 0) {
               console.log('📊 Sample formatted sale:', JSON.stringify(result[0], null, 2));
               console.log('📊 Sample sale keys:', Object.keys(result[0]));
               console.log('📊 Sample sale customer:', result[0].customer);
             }
-            
+
             console.log('✅ Formatted sales result count:', result.length);
             console.log('✅ Response ready to send');
             return NextResponse.json(result);
@@ -520,7 +520,7 @@ export async function GET(request) {
     }
   } catch (error) {
     console.error('Error fetching sales:', error);
-    
+
     // Provide helpful error message for store_id issues
     if (error.code === 'P2022' && error.message?.includes('store_id')) {
       return NextResponse.json({
@@ -528,10 +528,10 @@ export async function GET(request) {
         details: 'Please run the migration SQL to add store_id column. See ADD_STORE_ID_TO_SALES_SIMPLE.sql'
       }, { status: 500 });
     }
-    
-    return NextResponse.json({ 
+
+    return NextResponse.json({
       error: 'Failed to fetch sales',
-      details: error.message 
+      details: error.message
     }, { status: 500 });
   }
 }
@@ -541,7 +541,7 @@ export async function POST(request) {
   try {
     const body = await request.json();
     console.log('🔍 Sales API - Received data:', body);
-    
+
     const {
       cus_id,
       store_id, // Added store_id for multi-store functionality
@@ -570,7 +570,7 @@ export async function POST(request) {
     console.log('💰💰💰 SPLIT PAYMENTS TYPE:', typeof split_payments);
     console.log('💰💰💰 SPLIT PAYMENTS IS ARRAY:', Array.isArray(split_payments));
     console.log('💰💰💰 SPLIT PAYMENTS LENGTH:', split_payments?.length);
-    
+
     if (!cus_id || !store_id || !total_amount || payment === undefined || payment === null || !sale_details || sale_details.length === 0) {
       console.log('❌ Sales API - Missing required fields:', { cus_id, store_id, total_amount, payment, sale_details });
       return NextResponse.json({ error: 'Missing required fields including store_id' }, { status: 400 });
@@ -590,8 +590,8 @@ export async function POST(request) {
     // Calculate net total (including shipping amount)
     const netTotal = parseFloat(total_amount) - parseFloat(discount || 0) + parseFloat(shipping_amount || 0);
 
-    // Check if this is a quotation (skip stock check for quotations)
-    const isQuotation = bill_type === 'QUOTATION';
+    // Check if this is a quotation or order (skip stock check for quotations and orders)
+    const isQuotation = bill_type === 'QUOTATION' || bill_type === 'ORDER';
 
     // Stock validation removed - allow negative stock
     // if (!isQuotation) {
@@ -624,30 +624,30 @@ export async function POST(request) {
       let sale;
       try {
         sale = await tx.sale.create({
-        data: {
-          cus_id,
-          store_id: parseInt(store_id), // Added store_id
-          total_amount: parseFloat(total_amount),
-          discount: parseFloat(discount || 0),
-          payment: parseFloat(payment),
-          payment_type,
-          cash_payment: parseFloat(cash_payment || 0),
-          bank_payment: parseFloat(bank_payment || 0),
-          bank_title: bank_title || null,
-          debit_account_id: debit_account_id || null,
-          credit_account_id: credit_account_id || null,
-          loader_id: loader_id || null,
-          shipping_amount: parseFloat(shipping_amount || 0),
-          bill_type: bill_type || 'BILL',
-          reference: reference || null,
-          updated_by
-        }
-      });
+          data: {
+            cus_id,
+            store_id: parseInt(store_id), // Added store_id
+            total_amount: parseFloat(total_amount),
+            discount: parseFloat(discount || 0),
+            payment: parseFloat(payment),
+            payment_type,
+            cash_payment: parseFloat(cash_payment || 0),
+            bank_payment: parseFloat(bank_payment || 0),
+            bank_title: bank_title || null,
+            debit_account_id: debit_account_id || null,
+            credit_account_id: credit_account_id || null,
+            loader_id: loader_id || null,
+            shipping_amount: parseFloat(shipping_amount || 0),
+            bill_type: bill_type || 'BILL',
+            reference: reference || null,
+            updated_by
+          }
+        });
       } catch (storeIdError) {
         // If store_id column doesn't exist, use raw SQL to create sale without store_id
         if (storeIdError.code === 'P2022' && storeIdError.message?.includes('store_id')) {
           console.warn('⚠️ store_id column not found, creating sale using raw SQL. Please run migration!');
-          
+
           // Use raw SQL to insert sale without store_id column
           await tx.$executeRaw`
             INSERT INTO sales (
@@ -665,7 +665,7 @@ export async function POST(request) {
               NOW(), NOW()
             )
           `;
-          
+
           // Get the inserted sale using raw SQL
           const insertedSales = await tx.$queryRaw`
             SELECT * FROM sales 
@@ -675,11 +675,11 @@ export async function POST(request) {
             AND created_at >= DATE_SUB(NOW(), INTERVAL 1 MINUTE)
             ORDER BY sale_id DESC LIMIT 1
           `;
-          
+
           if (!insertedSales || insertedSales.length === 0) {
             throw new Error('Failed to retrieve created sale');
           }
-          
+
           sale = insertedSales[0];
         } else {
           throw storeIdError;
@@ -689,17 +689,17 @@ export async function POST(request) {
       // Create sale details - try with store_id first, fallback to raw SQL if column doesn't exist
       const saleDetailPromises = sale_details.map(async detail => {
         const detailData = {
-            sale_id: sale.sale_id,
-            pro_id: detail.pro_id,
-            vehicle_no: detail.vehicle_no || null,
-            qnty: parseInt(detail.qnty),
-            unit: detail.unit,
-            unit_rate: parseFloat(detail.unit_rate),
-            total_amount: parseFloat(detail.total_amount),
-            discount: parseFloat(detail.discount || 0),
-            net_total: parseFloat(detail.total_amount) - parseFloat(detail.discount || 0),
-            cus_id,
-            updated_by: updated_by || null
+          sale_id: sale.sale_id,
+          pro_id: detail.pro_id,
+          vehicle_no: detail.vehicle_no || null,
+          qnty: parseInt(detail.qnty),
+          unit: detail.unit,
+          unit_rate: parseFloat(detail.unit_rate),
+          total_amount: parseFloat(detail.total_amount),
+          discount: parseFloat(detail.discount || 0),
+          net_total: parseFloat(detail.total_amount) - parseFloat(detail.discount || 0),
+          cus_id,
+          updated_by: updated_by || null
         };
 
         // Try with store_id first
@@ -714,7 +714,7 @@ export async function POST(request) {
           // If store_id column doesn't exist, use raw SQL
           if (storeIdError.code === 'P2022' && storeIdError.message?.includes('store_id')) {
             console.warn('⚠️ store_id column not found in sale_details, creating using raw SQL');
-            
+
             // Use raw SQL to insert sale_detail without store_id column
             await tx.$executeRaw`
               INSERT INTO sale_details (
@@ -729,7 +729,7 @@ export async function POST(request) {
                 ${detailData.updated_by}
               )
             `;
-            
+
             // Return a mock object that matches the expected structure
             return {
               sale_id: detailData.sale_id,
@@ -755,17 +755,17 @@ export async function POST(request) {
       // Create split payments if provided
       console.log('💰 Split payments received:', split_payments);
       console.log('💰 Split payments length:', split_payments?.length);
-      
+
       if (split_payments && split_payments.length > 0) {
         console.log('✅ Creating split payments for sale:', sale.sale_id);
-        
+
         const splitPaymentPromises = split_payments.map((splitPayment, index) => {
           console.log(`   Split payment ${index + 1}:`, {
             amount: splitPayment.amount,
             type: splitPayment.payment_type,
             debit_account_id: splitPayment.debit_account_id
           });
-          
+
           return tx.splitPayment.create({
             data: {
               sale_id: sale.sale_id,
@@ -777,7 +777,7 @@ export async function POST(request) {
             }
           });
         });
-        
+
         const createdSplitPayments = await Promise.all(splitPaymentPromises);
         console.log('✅ Split payments created:', createdSplitPayments.length);
       } else {
@@ -796,13 +796,13 @@ export async function POST(request) {
       // Special accounts already fetched before transaction
       // Create comprehensive ledger entries (only for non-quotations)
       const ledgerEntries = [];
-      
-      if (!isQuotation) {
-      // Calculate net amount owed by customer (total - payment received)
-      const customerNetAmount = netTotal - parseFloat(payment);
 
-      // 1. Customer Bill Entry - Debit Customer Account
-      ledgerEntries.push({
+      if (!isQuotation) {
+        // Calculate net amount owed by customer (total - payment received)
+        const customerNetAmount = netTotal - parseFloat(payment);
+
+        // 1. Customer Bill Entry - Debit Customer Account
+        ledgerEntries.push({
           cus_id,
           opening_balance: customer.cus_balance,
           debit_amount: netTotal,
@@ -810,275 +810,275 @@ export async function POST(request) {
           closing_balance: customer.cus_balance + netTotal,
           bill_no: sale.sale_id.toString(),
           trnx_type: 'CASH',
-        details: `Sale Bill - ${bill_type || 'BILL'} - Customer Account (Debit)`,
+          details: `Sale Bill - ${bill_type || 'BILL'} - Customer Account (Debit)`,
           payments: 0,
           updated_by
-      });
-
-      // 2. Cash/Bank Account - CREDIT (when payment is received)
-      if (parseFloat(payment) > 0) {
-
-        // 3. Payment Entry - Debit Cash/Bank Account
-        const paymentAccount = payment_type === 'CASH' ? specialAccounts.cash : specialAccounts.bank;
-        if (paymentAccount) {
-          ledgerEntries.push({
-            cus_id: paymentAccount.cus_id,
-            opening_balance: paymentAccount.cus_balance,
-            debit_amount: parseFloat(payment),
-            credit_amount: 0,
-            closing_balance: paymentAccount.cus_balance + parseFloat(payment),
-            bill_no: sale.sale_id.toString(),
-            trnx_type: payment_type,
-            details: `Payment Received - ${bill_type || 'BILL'} - ${payment_type} Account (Debit)`,
-            payments: parseFloat(payment),
-            updated_by
-          });
-        }
-      }
-
-      // 4. Transporter Entry (if loader_id is provided)
-      if (loader_id) {
-        const loader = await tx.loader.findUnique({
-          where: { loader_id }
         });
 
-        if (loader) {
-          // Debit Transporter Account
-          ledgerEntries.push({
-            cus_id: loader_id,
-            opening_balance: loader.loader_balance,
-            debit_amount: parseFloat(shipping_amount || 0),
-            credit_amount: 0,
-            closing_balance: loader.loader_balance + parseFloat(shipping_amount || 0),
-            bill_no: sale.sale_id.toString(),
-            trnx_type: 'CASH',
-                details: `Transporter Charges - ${bill_type || 'BILL'} - Transport Account (Debit)`,
-            payments: 0,
-            updated_by
-          });
+        // 2. Cash/Bank Account - CREDIT (when payment is received)
+        if (parseFloat(payment) > 0) {
 
-          // Credit Sundry Debtors Account
-          if (specialAccounts.sundryDebtors) {
+          // 3. Payment Entry - Debit Cash/Bank Account
+          const paymentAccount = payment_type === 'CASH' ? specialAccounts.cash : specialAccounts.bank;
+          if (paymentAccount) {
             ledgerEntries.push({
-              cus_id: specialAccounts.sundryDebtors.cus_id,
-              opening_balance: specialAccounts.sundryDebtors.cus_balance,
-              debit_amount: 0,
-              credit_amount: parseFloat(shipping_amount || 0),
-              closing_balance: specialAccounts.sundryDebtors.cus_balance - parseFloat(shipping_amount || 0),
+              cus_id: paymentAccount.cus_id,
+              opening_balance: paymentAccount.cus_balance,
+              debit_amount: parseFloat(payment),
+              credit_amount: 0,
+              closing_balance: paymentAccount.cus_balance + parseFloat(payment),
               bill_no: sale.sale_id.toString(),
-              trnx_type: 'CASH',
-                  details: `Transporter Charges - ${bill_type || 'BILL'} - Sundry Debtors (Credit)`,
-              payments: 0,
+              trnx_type: payment_type,
+              details: `Payment Received - ${bill_type || 'BILL'} - ${payment_type} Account (Debit)`,
+              payments: parseFloat(payment),
               updated_by
             });
           }
         }
-      }
 
-      // 5. Split Payment Entries (if any)
-      if (split_payments && split_payments.length > 0) {
-        for (const splitPayment of split_payments) {
-          const splitAmount = parseFloat(splitPayment.amount);
-          
-          // Debit Split Payment Account
-          if (splitPayment.debit_account_id) {
-            const debitAccount = await tx.customer.findUnique({
-              where: { cus_id: splitPayment.debit_account_id }
-            });
-            
-            if (debitAccount) {
-              ledgerEntries.push({
-                cus_id: splitPayment.debit_account_id,
-                opening_balance: debitAccount.cus_balance,
-                debit_amount: splitAmount,
-                credit_amount: 0,
-                closing_balance: debitAccount.cus_balance + splitAmount,
-                bill_no: sale.sale_id.toString(),
-                trnx_type: splitPayment.payment_type,
-                details: `Split Payment - ${bill_type || 'BILL'} - Debit Account`,
-                payments: splitAmount,
-                updated_by
-              });
-            }
-          }
+        // 4. Transporter Entry (if loader_id is provided)
+        if (loader_id) {
+          const loader = await tx.loader.findUnique({
+            where: { loader_id }
+          });
 
-          // Credit Split Payment Account
-          if (splitPayment.credit_account_id) {
-            const creditAccount = await tx.customer.findUnique({
-              where: { cus_id: splitPayment.credit_account_id }
+          if (loader) {
+            // Debit Transporter Account
+            ledgerEntries.push({
+              cus_id: loader_id,
+              opening_balance: loader.loader_balance,
+              debit_amount: parseFloat(shipping_amount || 0),
+              credit_amount: 0,
+              closing_balance: loader.loader_balance + parseFloat(shipping_amount || 0),
+              bill_no: sale.sale_id.toString(),
+              trnx_type: 'CASH',
+              details: `Transporter Charges - ${bill_type || 'BILL'} - Transport Account (Debit)`,
+              payments: 0,
+              updated_by
             });
-            
-            if (creditAccount) {
+
+            // Credit Sundry Debtors Account
+            if (specialAccounts.sundryDebtors) {
               ledgerEntries.push({
-                cus_id: splitPayment.credit_account_id,
-                opening_balance: creditAccount.cus_balance,
+                cus_id: specialAccounts.sundryDebtors.cus_id,
+                opening_balance: specialAccounts.sundryDebtors.cus_balance,
                 debit_amount: 0,
-                credit_amount: splitAmount,
-                closing_balance: creditAccount.cus_balance - splitAmount,
+                credit_amount: parseFloat(shipping_amount || 0),
+                closing_balance: specialAccounts.sundryDebtors.cus_balance - parseFloat(shipping_amount || 0),
                 bill_no: sale.sale_id.toString(),
-                trnx_type: splitPayment.payment_type,
-                details: `Split Payment - ${bill_type || 'BILL'} - Credit Account`,
-                payments: splitAmount,
+                trnx_type: 'CASH',
+                details: `Transporter Charges - ${bill_type || 'BILL'} - Sundry Debtors (Credit)`,
+                payments: 0,
                 updated_by
               });
             }
           }
         }
-      }
+
+        // 5. Split Payment Entries (if any)
+        if (split_payments && split_payments.length > 0) {
+          for (const splitPayment of split_payments) {
+            const splitAmount = parseFloat(splitPayment.amount);
+
+            // Debit Split Payment Account
+            if (splitPayment.debit_account_id) {
+              const debitAccount = await tx.customer.findUnique({
+                where: { cus_id: splitPayment.debit_account_id }
+              });
+
+              if (debitAccount) {
+                ledgerEntries.push({
+                  cus_id: splitPayment.debit_account_id,
+                  opening_balance: debitAccount.cus_balance,
+                  debit_amount: splitAmount,
+                  credit_amount: 0,
+                  closing_balance: debitAccount.cus_balance + splitAmount,
+                  bill_no: sale.sale_id.toString(),
+                  trnx_type: splitPayment.payment_type,
+                  details: `Split Payment - ${bill_type || 'BILL'} - Debit Account`,
+                  payments: splitAmount,
+                  updated_by
+                });
+              }
+            }
+
+            // Credit Split Payment Account
+            if (splitPayment.credit_account_id) {
+              const creditAccount = await tx.customer.findUnique({
+                where: { cus_id: splitPayment.credit_account_id }
+              });
+
+              if (creditAccount) {
+                ledgerEntries.push({
+                  cus_id: splitPayment.credit_account_id,
+                  opening_balance: creditAccount.cus_balance,
+                  debit_amount: 0,
+                  credit_amount: splitAmount,
+                  closing_balance: creditAccount.cus_balance - splitAmount,
+                  bill_no: sale.sale_id.toString(),
+                  trnx_type: splitPayment.payment_type,
+                  details: `Split Payment - ${bill_type || 'BILL'} - Credit Account`,
+                  payments: splitAmount,
+                  updated_by
+                });
+              }
+            }
+          }
+        }
       } // End of if (!isQuotation) for ledger entries
 
       // Create all ledger entries (skip for quotations)
       if (!isQuotation) {
-      for (const entry of ledgerEntries) {
-        await createLedgerEntry(tx, entry);
-      }
+        for (const entry of ledgerEntries) {
+          await createLedgerEntry(tx, entry);
+        }
 
         // Update customer balance (skip for quotations)
-      const currentBalance = parseFloat(customer.cus_balance) || 0;
-      const newBalance = currentBalance + parseFloat(netTotal) - parseFloat(payment);
-      
-      await tx.customer.update({
-        where: { cus_id },
-        data: {
-          cus_balance: newBalance
-        }
-      });
+        const currentBalance = parseFloat(customer.cus_balance) || 0;
+        const newBalance = currentBalance + parseFloat(netTotal) - parseFloat(payment);
+
+        await tx.customer.update({
+          where: { cus_id },
+          data: {
+            cus_balance: newBalance
+          }
+        });
 
         // Update special account balances (skip for quotations)
         if (parseFloat(payment) > 0 && specialAccounts) {
-        const paymentAccount = payment_type === 'CASH' ? specialAccounts.cash : specialAccounts.bank;
-        if (paymentAccount) {
-          const accountCurrentBalance = parseFloat(paymentAccount.cus_balance) || 0;
-          const accountNewBalance = accountCurrentBalance + parseFloat(payment);
-          
-          await tx.customer.update({
-            where: { cus_id: paymentAccount.cus_id },
-        data: {
-          cus_balance: accountNewBalance
+          const paymentAccount = payment_type === 'CASH' ? specialAccounts.cash : specialAccounts.bank;
+          if (paymentAccount) {
+            const accountCurrentBalance = parseFloat(paymentAccount.cus_balance) || 0;
+            const accountNewBalance = accountCurrentBalance + parseFloat(payment);
+
+            await tx.customer.update({
+              where: { cus_id: paymentAccount.cus_id },
+              data: {
+                cus_balance: accountNewBalance
+              }
+            });
+          }
         }
-          });
-        }
-      }
 
         // Update transporter balance (skip for quotations)
-      if (loader_id && parseFloat(shipping_amount || 0) > 0) {
-        await tx.loader.update({
-          where: { loader_id },
-          data: {
-            loader_balance: {
-              increment: parseFloat(shipping_amount || 0)
+        if (loader_id && parseFloat(shipping_amount || 0) > 0) {
+          await tx.loader.update({
+            where: { loader_id },
+            data: {
+              loader_balance: {
+                increment: parseFloat(shipping_amount || 0)
+              }
             }
-          }
-        });
-      }
+          });
+        }
 
         // Update sundry debtors balance (skip for quotations)
         if (loader_id && specialAccounts && specialAccounts.sundryDebtors && parseFloat(shipping_amount || 0) > 0) {
-        await tx.customer.update({
-          where: { cus_id: specialAccounts.sundryDebtors.cus_id },
-          data: {
-            cus_balance: {
-              decrement: parseFloat(shipping_amount || 0)
+          await tx.customer.update({
+            where: { cus_id: specialAccounts.sundryDebtors.cus_id },
+            data: {
+              cus_balance: {
+                decrement: parseFloat(shipping_amount || 0)
+              }
             }
-          }
-        });
-      }
+          });
+        }
 
         // Update split payment account balances (skip for quotations)
-      if (split_payments && split_payments.length > 0) {
-        for (const splitPayment of split_payments) {
-          const splitAmount = parseFloat(splitPayment.amount);
-          
-          if (splitPayment.debit_account_id) {
-            await tx.customer.update({
-              where: { cus_id: splitPayment.debit_account_id },
-              data: {
-                cus_balance: {
-                  increment: splitAmount
-                }
-              }
-            });
-          }
+        if (split_payments && split_payments.length > 0) {
+          for (const splitPayment of split_payments) {
+            const splitAmount = parseFloat(splitPayment.amount);
 
-          if (splitPayment.credit_account_id) {
-            await tx.customer.update({
-              where: { cus_id: splitPayment.credit_account_id },
-              data: {
-                cus_balance: {
-                  decrement: splitAmount
+            if (splitPayment.debit_account_id) {
+              await tx.customer.update({
+                where: { cus_id: splitPayment.debit_account_id },
+                data: {
+                  cus_balance: {
+                    increment: splitAmount
+                  }
                 }
-              }
-            });
+              });
+            }
+
+            if (splitPayment.credit_account_id) {
+              await tx.customer.update({
+                where: { cus_id: splitPayment.credit_account_id },
+                data: {
+                  cus_balance: {
+                    decrement: splitAmount
+                  }
+                }
+              });
+            }
           }
         }
-      }
 
         // 6. Transport Entries (if any) - Skip for quotations
-      if (transport_details && transport_details.length > 0) {
-        for (const transport of transport_details) {
-          const transportAmount = parseFloat(transport.amount);
-          
-          if (transport.account_id && transportAmount > 0) {
-            const transportAccount = await tx.customer.findUnique({
-              where: { cus_id: transport.account_id }
-            });
-            
-            if (transportAccount) {
-              // Debit Transport Account
-              await createLedgerEntry(tx, {
-                cus_id: transport.account_id,
-                opening_balance: transportAccount.cus_balance,
-                debit_amount: transportAmount,
-                credit_amount: 0,
-                closing_balance: transportAccount.cus_balance + transportAmount,
-                bill_no: sale.sale_id.toString(),
-                trnx_type: 'CASH',
-                details: `Transport Charges - ${bill_type || 'BILL'} - ${transport.description || 'Transport'}`,
-                payments: 0,
-                updated_by
+        if (transport_details && transport_details.length > 0) {
+          for (const transport of transport_details) {
+            const transportAmount = parseFloat(transport.amount);
+
+            if (transport.account_id && transportAmount > 0) {
+              const transportAccount = await tx.customer.findUnique({
+                where: { cus_id: transport.account_id }
               });
 
-              // Credit Sundry Debtors Account
-              if (specialAccounts.sundryDebtors) {
+              if (transportAccount) {
+                // Debit Transport Account
                 await createLedgerEntry(tx, {
-                  cus_id: specialAccounts.sundryDebtors.cus_id,
-                  opening_balance: specialAccounts.sundryDebtors.cus_balance,
-                  debit_amount: 0,
-                  credit_amount: transportAmount,
-                  closing_balance: specialAccounts.sundryDebtors.cus_balance - transportAmount,
+                  cus_id: transport.account_id,
+                  opening_balance: transportAccount.cus_balance,
+                  debit_amount: transportAmount,
+                  credit_amount: 0,
+                  closing_balance: transportAccount.cus_balance + transportAmount,
                   bill_no: sale.sale_id.toString(),
                   trnx_type: 'CASH',
-                  details: `Transport Charges - ${bill_type || 'BILL'} - Sundry Debtors`,
+                  details: `Transport Charges - ${bill_type || 'BILL'} - ${transport.description || 'Transport'}`,
                   payments: 0,
                   updated_by
                 });
-              }
 
-              // Update transport account balance
-              await tx.customer.update({
-                where: { cus_id: transport.account_id },
-                data: {
-                  cus_balance: {
-                    increment: transportAmount
-                  }
+                // Credit Sundry Debtors Account
+                if (specialAccounts.sundryDebtors) {
+                  await createLedgerEntry(tx, {
+                    cus_id: specialAccounts.sundryDebtors.cus_id,
+                    opening_balance: specialAccounts.sundryDebtors.cus_balance,
+                    debit_amount: 0,
+                    credit_amount: transportAmount,
+                    closing_balance: specialAccounts.sundryDebtors.cus_balance - transportAmount,
+                    bill_no: sale.sale_id.toString(),
+                    trnx_type: 'CASH',
+                    details: `Transport Charges - ${bill_type || 'BILL'} - Sundry Debtors`,
+                    payments: 0,
+                    updated_by
+                  });
                 }
-              });
 
-              // Update sundry debtors balance
-              if (specialAccounts.sundryDebtors) {
+                // Update transport account balance
                 await tx.customer.update({
-                  where: { cus_id: specialAccounts.sundryDebtors.cus_id },
+                  where: { cus_id: transport.account_id },
                   data: {
                     cus_balance: {
-                      decrement: transportAmount
+                      increment: transportAmount
                     }
                   }
                 });
+
+                // Update sundry debtors balance
+                if (specialAccounts.sundryDebtors) {
+                  await tx.customer.update({
+                    where: { cus_id: specialAccounts.sundryDebtors.cus_id },
+                    data: {
+                      cus_balance: {
+                        decrement: transportAmount
+                      }
+                    }
+                  });
+                }
               }
             }
           }
-        }
-      } // End of transport entries for non-quotations
+        } // End of transport entries for non-quotations
       } // End of if (!isQuotation) for all financial transactions
 
       return sale;
@@ -1190,11 +1190,14 @@ export async function PUT(request) {
 
       // Delete existing ledger entries for this sale (cleanup if previously generated)
       await tx.ledger.deleteMany({
-        where: { bill_no: id }
+        where: { bill_no: id ? String(id) : null }
       });
 
       // Restore store stock quantities from old sale details
-      if (existingSale.store_id) {
+      // CRITICAL FIX: Only restore stock if the previous bill was NOT a quotation or order (since those didn't deduct stock)
+      const wasStockDeducted = existingSale.bill_type !== 'QUOTATION' && existingSale.bill_type !== 'ORDER';
+
+      if (existingSale.store_id && wasStockDeducted) {
         const stockRestorePromises = existingSale.sale_details.map(async detail => {
           await updateStoreStock(existingSale.store_id, detail.pro_id, detail.qnty, 'increment', updated_by);
         });
@@ -1223,7 +1226,7 @@ export async function PUT(request) {
 
       // Create new sale details
       const finalStoreId = store_id ? parseInt(store_id) : existingSale.store_id;
-      const saleDetailPromises = sale_details.map(detail => 
+      const saleDetailPromises = sale_details.map(detail =>
         tx.saleDetail.create({
           data: {
             sale_id: sale.sale_id,
@@ -1251,7 +1254,7 @@ export async function PUT(request) {
 
       // Create new split payments if provided
       if (split_payments && split_payments.length > 0) {
-        const splitPaymentPromises = split_payments.map(splitPayment => 
+        const splitPaymentPromises = split_payments.map(splitPayment =>
           tx.splitPayment.create({
             data: {
               sale_id: sale.sale_id,
@@ -1266,10 +1269,13 @@ export async function PUT(request) {
         await Promise.all(splitPaymentPromises);
       }
 
-      // Update store stock quantities - skip for quotations
+      // Update store stock quantities - skip for quotations/orders
       const finalStoreIdForStock = store_id ? parseInt(store_id) : existingSale.store_id;
-      const isQuotation = isQuotationFromBody || existingSale.bill_type === 'QUOTATION';
-      if (!isQuotation && finalStoreIdForStock) {
+
+      // CRITICAL FIX: Determine if new bill type requires stock deduction
+      const isNewBillQuotationOrOrder = bill_type === 'QUOTATION' || bill_type === 'ORDER';
+
+      if (!isNewBillQuotationOrOrder && finalStoreIdForStock) {
         // Stock validation removed - allow negative stock
         // for (const detail of sale_details) {
         //   const hasStock = await checkStockAvailability(finalStoreIdForStock, detail.pro_id, parseInt(detail.qnty));
@@ -1288,12 +1294,12 @@ export async function PUT(request) {
       // Special accounts already fetched before transaction
       // Create comprehensive ledger entries (skip for quotations)
       const ledgerEntries = [];
-      
+
       // Calculate net amount owed by customer (total - payment received)
       const customerNetAmount = netTotal - parseFloat(payment);
 
       // 1. Customer Bill Entry - Debit Customer Account (skip for quotations)
-      if (!isQuotation) {
+      if (!isNewBillQuotationOrOrder) {
         ledgerEntries.push({
           cus_id,
           opening_balance: customer.cus_balance,
@@ -1309,7 +1315,8 @@ export async function PUT(request) {
       }
 
       // 2. Cash/Bank Account - CREDIT (when payment is received)
-      if (!isQuotation && parseFloat(payment) > 0) {
+      if (!isNewBillQuotationOrOrder && parseFloat(payment) > 0) {
+
 
         // 3. Payment Entry - Debit Cash/Bank Account
         const paymentAccount = payment_type === 'CASH' ? specialAccounts.cash : specialAccounts.bank;
@@ -1345,7 +1352,7 @@ export async function PUT(request) {
             closing_balance: loader.loader_balance + parseFloat(shipping_amount || 0),
             bill_no: sale.sale_id.toString(),
             trnx_type: 'CASH',
-                details: `Transporter Charges - ${bill_type || 'BILL'} - Transport Account (Debit)`,
+            details: `Transporter Charges - ${bill_type || 'BILL'} - Transport Account (Debit)`,
             payments: 0,
             updated_by
           });
@@ -1360,7 +1367,7 @@ export async function PUT(request) {
               closing_balance: specialAccounts.sundryDebtors.cus_balance - parseFloat(shipping_amount || 0),
               bill_no: sale.sale_id.toString(),
               trnx_type: 'CASH',
-                  details: `Transporter Charges - ${bill_type || 'BILL'} - Sundry Debtors (Credit)`,
+              details: `Transporter Charges - ${bill_type || 'BILL'} - Sundry Debtors (Credit)`,
               payments: 0,
               updated_by
             });
@@ -1372,13 +1379,13 @@ export async function PUT(request) {
       if (!isQuotation && split_payments && split_payments.length > 0) {
         for (const splitPayment of split_payments) {
           const splitAmount = parseFloat(splitPayment.amount);
-          
+
           // Debit Split Payment Account
           if (splitPayment.debit_account_id) {
             const debitAccount = await tx.customer.findUnique({
               where: { cus_id: splitPayment.debit_account_id }
             });
-            
+
             if (debitAccount) {
               ledgerEntries.push({
                 cus_id: splitPayment.debit_account_id,
@@ -1400,7 +1407,7 @@ export async function PUT(request) {
             const creditAccount = await tx.customer.findUnique({
               where: { cus_id: splitPayment.credit_account_id }
             });
-            
+
             if (creditAccount) {
               ledgerEntries.push({
                 cus_id: splitPayment.credit_account_id,
@@ -1430,7 +1437,7 @@ export async function PUT(request) {
       if (!isQuotation) {
         const currentBalance = parseFloat(customer.cus_balance) || 0;
         const newBalance = currentBalance + parseFloat(netTotal) - parseFloat(payment);
-        
+
         await tx.customer.update({
           where: { cus_id },
           data: {
@@ -1445,12 +1452,12 @@ export async function PUT(request) {
         if (paymentAccount) {
           const accountCurrentBalance = parseFloat(paymentAccount.cus_balance) || 0;
           const accountNewBalance = accountCurrentBalance + parseFloat(payment);
-          
+
           await tx.customer.update({
             where: { cus_id: paymentAccount.cus_id },
-        data: {
-          cus_balance: accountNewBalance
-        }
+            data: {
+              cus_balance: accountNewBalance
+            }
           });
         }
       }
@@ -1483,7 +1490,7 @@ export async function PUT(request) {
       if (!isQuotation && split_payments && split_payments.length > 0) {
         for (const splitPayment of split_payments) {
           const splitAmount = parseFloat(splitPayment.amount);
-          
+
           if (splitPayment.debit_account_id) {
             await tx.customer.update({
               where: { cus_id: splitPayment.debit_account_id },
@@ -1554,7 +1561,7 @@ export async function DELETE(request) {
 
       // Delete ledger entries for this sale
       await tx.ledger.deleteMany({
-        where: { bill_no: id }
+        where: { bill_no: id ? String(id) : null }
       });
 
       // Delete sale details (cascade should handle this, but being explicit)

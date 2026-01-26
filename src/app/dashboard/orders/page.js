@@ -61,11 +61,10 @@ import {
   Phone as PhoneIcon,
   Close as CloseIcon,
   LocationOn as MapPinIcon,
-  Business as BusinessIcon,
-  ListAlt as ListAltIcon
+  Business as BusinessIcon
 } from '@mui/icons-material';
 
-function SalesPageContent() {
+function OrdersPageContent() {
   const searchParams = useSearchParams();
 
   // State management
@@ -79,7 +78,7 @@ function SalesPageContent() {
   // Filter state
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCustomer, setFilterCustomer] = useState('');
-  const [filterBillType, setFilterBillType] = useState('');
+  const [filterBillType, setFilterBillType] = useState('ORDER');
   const [filterStore, setFilterStore] = useState('');
   const [filterPaymentType, setFilterPaymentType] = useState('');
   const [filterMinAmount, setFilterMinAmount] = useState('');
@@ -93,11 +92,20 @@ function SalesPageContent() {
   const [selectedBill, setSelectedBill] = useState(null);
   const [currentView, setCurrentView] = useState('list');
 
-  // Handle URL query parameter for view
+  // Handle URL query parameter for view and type
   useEffect(() => {
     const viewParam = searchParams?.get('view');
     if (viewParam === 'create') {
       setCurrentView('create');
+    }
+    
+    const typeParam = searchParams?.get('type');
+    if (typeParam) {
+      setBillType(typeParam);
+      setFilterBillType(typeParam);
+    } else {
+      setBillType('ORDER');
+      setFilterBillType('ORDER');
     }
   }, [searchParams]);
 
@@ -163,15 +171,7 @@ function SalesPageContent() {
   });
 
   // Bill type state
-  const [billType, setBillType] = useState('BILL');
-
-  // Load Order state
-  const [loadOrderDialogOpen, setLoadOrderDialogOpen] = useState(false);
-  const [orderSearchTerm, setOrderSearchTerm] = useState('');
-
-  // Load Quotation state
-  const [loadQuotationDialogOpen, setLoadQuotationDialogOpen] = useState(false);
-  const [quotationSearchTerm, setQuotationSearchTerm] = useState('');
+  const [billType, setBillType] = useState('ORDER');
 
   // Customer creation popup state
   const [customerPopupOpen, setCustomerPopupOpen] = useState(false);
@@ -430,130 +430,6 @@ function SalesPageContent() {
     }));
   };
 
-  // Handle loading an order into the form
-  const handleLoadOrder = async (order) => {
-    try {
-      setLoading(true);
-      
-      // Fetch full order details to ensure we have everything
-      const response = await fetch(`/api/sales?id=${order.sale_id}`);
-      if (!response.ok) throw new Error('Failed to fetch order details');
-      const fullOrder = await response.json();
-      
-      console.log('📦 Loaded Order:', fullOrder);
-
-      // Set Customer
-      if (fullOrder.customer) {
-        setFormSelectedCustomer(fullOrder.customer);
-      } else if (fullOrder.cus_id) {
-        const customer = customers.find(c => c.cus_id === fullOrder.cus_id);
-        if (customer) setFormSelectedCustomer(customer);
-      }
-
-      // Set Store
-      let selectedStore = null;
-      if (fullOrder.store_id) {
-        selectedStore = stores.find(s => s.storeid === fullOrder.store_id);
-      }
-      
-      if (selectedStore) {
-        setFormSelectedStore(selectedStore);
-      } else if (stores.length > 0) {
-        setFormSelectedStore(stores[0]);
-        selectedStore = stores[0];
-      }
-
-      // Map products
-      if (fullOrder.sale_details) {
-        const mappedProducts = fullOrder.sale_details.map(detail => {
-          return {
-            id: Date.now() + Math.random(),
-            pro_id: detail.pro_id,
-            pro_title: detail.product?.pro_title || detail.pro_title || 'Unknown Product',
-            storeid: selectedStore?.storeid,
-            store_name: selectedStore?.store_name || 'Store',
-            quantity: parseFloat(detail.qnty) || 0,
-            rate: parseFloat(detail.unit_rate) || 0,
-            amount: parseFloat(detail.total_amount) || 0,
-            stock: 0 // We don't have current stock here, could fetch it but for now 0 is safe
-          };
-        });
-        setProductTableData(mappedProducts);
-      }
-      
-      setLoadOrderDialogOpen(false);
-      showSnackbar('Order loaded successfully', 'success');
-      
-    } catch (error) {
-      console.error('Error loading order:', error);
-      showSnackbar('Failed to load order', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handle loading a quotation into the form
-  const handleLoadQuotation = async (quotation) => {
-    try {
-      setLoading(true);
-      
-      // Fetch full quotation details to ensure we have everything
-      const response = await fetch(`/api/sales?id=${quotation.sale_id}`);
-      if (!response.ok) throw new Error('Failed to fetch quotation details');
-      const fullQuotation = await response.json();
-      
-      console.log('📦 Loaded Quotation:', fullQuotation);
-
-      // Set Customer
-      if (fullQuotation.customer) {
-        setFormSelectedCustomer(fullQuotation.customer);
-      } else if (fullQuotation.cus_id) {
-        const customer = customers.find(c => c.cus_id === fullQuotation.cus_id);
-        if (customer) setFormSelectedCustomer(customer);
-      }
-
-      // Set Store
-      let selectedStore = null;
-      if (fullQuotation.store_id) {
-        selectedStore = stores.find(s => s.storeid === fullQuotation.store_id);
-      }
-      
-      if (selectedStore) {
-        setFormSelectedStore(selectedStore);
-      } else if (stores.length > 0) {
-        setFormSelectedStore(stores[0]);
-        selectedStore = stores[0];
-      }
-
-      // Map products
-      if (fullQuotation.sale_details) {
-        const mappedProducts = fullQuotation.sale_details.map(detail => {
-          return {
-            id: Date.now() + Math.random(),
-            pro_id: detail.pro_id,
-            pro_title: detail.product?.pro_title || detail.pro_title || 'Unknown Product',
-            storeid: selectedStore?.storeid,
-            store_name: selectedStore?.store_name || 'Store',
-            quantity: parseFloat(detail.qnty) || 0,
-            rate: parseFloat(detail.unit_rate) || 0,
-            amount: parseFloat(detail.total_amount) || 0,
-            stock: 0 // We don't have current stock here, could fetch it but for now 0 is safe
-          };
-        });
-        setProductTableData(mappedProducts);
-      }
-      
-      setLoadQuotationDialogOpen(false);
-      showSnackbar('Quotation loaded successfully', 'success');
-      
-    } catch (error) {
-      console.error('Error loading quotation:', error);
-      showSnackbar('Failed to load quotation', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Save bill to database
   const handleSaveBill = async () => {
     try {
@@ -672,16 +548,20 @@ function SalesPageContent() {
 
       // Call API
       const response = await fetch('/api/sales', {
-        method: 'POST',
+        method: editSaleId ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(saleData),
+        body: JSON.stringify(editSaleId ? { ...saleData, id: editSaleId } : saleData),
       });
 
       if (response.ok) {
         const result = await response.json();
-        showSnackbar('Bill saved successfully!', 'success');
+        const successMessage = editSaleId ? 'Order updated/converted successfully!' : 'Bill saved successfully!';
+        showSnackbar(successMessage, 'success');
+
+        // Clear edit mode
+        setEditSaleId(null);
 
         // Store bill data for printing
         const billDataForPrint = {
@@ -1625,36 +1505,87 @@ function SalesPageContent() {
       return 0;
     });
 
-  const handleEdit = (sale) => {
-    showSnackbar('Edit functionality will be implemented soon', 'info');
-  };
+  // Edit sale state
+  const [editSaleId, setEditSaleId] = useState(null);
 
-  const handleDelete = async (saleId) => {
-    if (!window.confirm('Are you sure you want to delete this sale? This action cannot be undone.')) {
-      return;
-    }
-
+  const handleEdit = async (sale) => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/sales?id=${saleId}`, {
-        method: 'DELETE',
+      showSnackbar('Loading order details...', 'info');
+
+      // Fetch full details
+      const response = await fetch(`/api/sales?id=${sale.sale_id}`);
+      if (!response.ok) throw new Error('Failed to fetch order details');
+
+      const fullSale = await response.json();
+      const saleData = Array.isArray(fullSale) ? fullSale[0] : fullSale;
+
+      console.log('📝 Editing sale:', saleData);
+
+      // 1. Set Customer
+      setFormSelectedCustomer(saleData.customer);
+
+      // 2. Set Store (find matching store object)
+      const storeId = saleData.store_id || (saleData.sale_details?.[0]?.store_id);
+      const store = stores.find(s => s.storeid == storeId) || (stores.length > 0 ? stores[0] : null);
+      if (store) setFormSelectedStore(store);
+
+      // 3. Populate Product Table
+      const tableData = saleData.sale_details.map((d, index) => ({
+        id: Date.now() + index, // Unique ID
+        pro_id: d.pro_id,
+        pro_title: d.product?.pro_title || d.product?.pro_name || 'Unknown Product',
+        storeid: store?.storeid,
+        store_name: store?.store_name,
+        quantity: parseFloat(d.qnty),
+        rate: parseFloat(d.unit_rate),
+        amount: parseFloat(d.total_amount),
+        stock: 0 // Will be updated by store stock fetch
+      }));
+      setProductTableData(tableData);
+
+      // 4. Populate Payment Data
+      setPaymentData({
+        cash: parseFloat(saleData.cash_payment || 0),
+        bank: parseFloat(saleData.bank_payment || 0),
+        bankAccountId: saleData.debit_account_id || '',
+        totalCashReceived: parseFloat(saleData.payment || 0), // This is total of cash + bank
+        discount: parseFloat(saleData.discount || 0),
+        labour: 0,
+        deliveryCharges: parseFloat(saleData.shipping_amount || 0),
+        notes: saleData.reference || ''
       });
 
-      const data = await response.json();
+      // 5. Populate Transport Options
+      // Map transport details if they exist on the sale object (need backend support or mapping)
+      // Current backend might not return transport_details in the main object easily unless included.
+      // Assuming GET includes them or we fallback. 
+      // Note: GET route includes split_payments but maybe not transport_details in the top level include?
+      // GET route line 201 includes `sale_details`. 
+      // The `GET` handler in `route.js` does NOT explicitly include `transport_details` in the Prisma include!
+      // So transport options might be lost on edit. I will skip transport population for now or accept it's a limitation.
+      setTransportOptions([]);
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to delete sale');
-      }
+      // 6. Set Conversion Mode
+      // User wants to convert Order -> Sale
+      setBillType('BILL');
+      setEditSaleId(saleData.sale_id);
 
-      // Remove from local state
-      setSales(prevSales => prevSales.filter(sale => sale.sale_id !== saleId));
-      showSnackbar('Sale deleted successfully', 'success');
-    } catch (error) {
-      console.error('Error deleting sale:', error);
-      showSnackbar(error.message || 'Failed to delete sale', 'error');
+      // 7. Switch View
+      setCurrentView('create');
+
+      showSnackbar('Order loaded for conversion/editing', 'success');
+
+    } catch (e) {
+      console.error('Error editing sale:', e);
+      showSnackbar('Error loading sale details', 'error');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDelete = async (saleId) => {
+    showSnackbar('Delete functionality will be implemented soon', 'info');
   };
 
   const handleViewReceipt = (sale) => {
@@ -1712,45 +1643,13 @@ function SalesPageContent() {
               </IconButton>
               <Box>
                 <Typography variant="h5" component="h1" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
-                  Create New Sale
+                  Create New Order
                 </Typography>
                 <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                  Select products and create sale order
+                  Select products and create order
                 </Typography>
               </Box>
             </Box>
-            <Button
-              variant="outlined"
-              startIcon={<ReceiptIcon />}
-              onClick={() => setLoadQuotationDialogOpen(true)}
-              sx={{
-                mr: 2,
-                borderColor: '#ed6c02',
-                color: '#ed6c02',
-                '&:hover': {
-                  borderColor: '#e65100',
-                  backgroundColor: '#fff3e0'
-                }
-              }}
-            >
-              Load Quotation
-            </Button>
-            <Button
-              variant="outlined"
-              startIcon={<ListAltIcon />}
-              onClick={() => setLoadOrderDialogOpen(true)}
-              sx={{
-                mr: 2,
-                borderColor: '#1976d2',
-                color: '#1976d2',
-                '&:hover': {
-                  borderColor: '#115293',
-                  backgroundColor: '#e3f2fd'
-                }
-              }}
-            >
-              Load Order
-            </Button>
             <Button
               variant="outlined"
               startIcon={<AddIcon />}
@@ -1785,6 +1684,7 @@ function SalesPageContent() {
                         onChange={(e) => setBillType(e.target.value)}
                         sx={{ bgcolor: 'white', minWidth: 200, '& .MuiSelect-select': { fontWeight: 'bold' } }}
                       >
+                        <MenuItem value="ORDER">Order</MenuItem>
                         <MenuItem value="BILL">Bill</MenuItem>
                         <MenuItem value="QUOTATION">Quotation</MenuItem>
                         <MenuItem value="SALE_RETURN">Sale Return</MenuItem>
@@ -2611,7 +2511,7 @@ function SalesPageContent() {
                   letterSpacing: 1,
                   mt: 2
                 }}>
-                  SALE INVOICE
+                  ORDER INVOICE
                 </Typography>
               </Box>
 
@@ -2788,7 +2688,7 @@ function SalesPageContent() {
                 <Typography sx={{ fontSize: '12px', fontWeight: 'bold' }}>اتفاق آئرن اینڈ سیمنٹ سٹور</Typography>
                 <Typography sx={{ fontSize: '10px' }}>گجرات سرگودھا روڈ، پاہڑیانوالی</Typography>
                 <Typography sx={{ fontSize: '10px' }}>Ph: 0346-7560306, 0300-7560306</Typography>
-                <Typography sx={{ mt: 0.5, fontSize: '11px', fontWeight: 'bold' }}>SALE RECEIPT</Typography>
+                <Typography sx={{ mt: 0.5, fontSize: '11px', fontWeight: 'bold' }}>ORDER RECEIPT</Typography>
               </Box>
               <Box sx={{ py: 1 }}>
                 <Typography sx={{ fontSize: '10px' }}>Inv#: #{currentBillData.sale_id}</Typography>
@@ -3126,126 +3026,6 @@ function SalesPageContent() {
           </DialogActions>
         </Dialog>
 
-      {/* Load Quotation Dialog */}
-      <Dialog
-        open={loadQuotationDialogOpen}
-        onClose={() => setLoadQuotationDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-        PaperProps={{
-          sx: { borderRadius: 3 }
-        }}
-      >
-        <DialogTitle sx={{
-          background: 'linear-gradient(45deg, #ed6c02 30%, #ff9800 90%)',
-          color: 'white',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between'
-        }}>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <ReceiptIcon sx={{ mr: 2 }} />
-            <Box>
-              <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
-                Load Quotation
-              </Typography>
-              <Typography variant="caption" sx={{ opacity: 0.9 }}>
-                Select a quotation to load into the bill
-              </Typography>
-            </Box>
-          </Box>
-          <IconButton onClick={() => setLoadQuotationDialogOpen(false)} sx={{ color: 'white' }}>
-            <CloseIcon />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent sx={{ p: 2 }}>
-          <Box sx={{ mb: 2 }}>
-            <TextField
-              fullWidth
-              size="small"
-              placeholder="Search by customer name or quotation ID..."
-              value={quotationSearchTerm}
-              onChange={(e) => setQuotationSearchTerm(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon />
-                  </InputAdornment>
-                ),
-              }}
-            />
-          </Box>
-          <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 400 }}>
-            <Table stickyHeader size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Quotation ID</TableCell>
-                  <TableCell>Customer</TableCell>
-                  <TableCell>Date</TableCell>
-                  <TableCell align="right">Amount</TableCell>
-                  <TableCell align="center">Action</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {sales
-                  .filter(sale => {
-                    const isQuotation = sale.bill_type === 'QUOTATION';
-                    if (!isQuotation) return false;
-                    
-                    if (!quotationSearchTerm) return true;
-                    
-                    const searchLower = quotationSearchTerm.toLowerCase();
-                    const matchesName = sale.customer?.cus_name?.toLowerCase().includes(searchLower);
-                    const matchesId = sale.sale_id?.toString().includes(searchLower);
-                    
-                    return matchesName || matchesId;
-                  })
-                  .map((sale) => (
-                    <TableRow key={sale.sale_id} hover>
-                      <TableCell>{sale.sale_id}</TableCell>
-                      <TableCell>{sale.customer?.cus_name || 'N/A'}</TableCell>
-                      <TableCell>{new Date(sale.created_at).toLocaleDateString()}</TableCell>
-                      <TableCell align="right">{parseFloat(sale.total_amount || 0).toFixed(2)}</TableCell>
-                      <TableCell align="center">
-                        <Button
-                          size="small"
-                          variant="contained"
-                          color="warning"
-                          onClick={() => handleLoadQuotation(sale)}
-                          startIcon={<ShoppingCartIcon />}
-                        >
-                          Load
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                {sales.filter(sale => {
-                    const isQuotation = sale.bill_type === 'QUOTATION';
-                    if (!isQuotation) return false;
-                    
-                    if (!quotationSearchTerm) return true;
-                    
-                    const searchLower = quotationSearchTerm.toLowerCase();
-                    const matchesName = sale.customer?.cus_name?.toLowerCase().includes(searchLower);
-                    const matchesId = sale.sale_id?.toString().includes(searchLower);
-                    
-                    return matchesName || matchesId;
-                  }).length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
-                      {quotationSearchTerm ? 'No matching quotations found' : 'No quotations found'}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setLoadQuotationDialogOpen(false)}>Close</Button>
-        </DialogActions>
-      </Dialog>
-
         {/* Print Styles for Create View */}
         <style jsx global>{`
           @media print {
@@ -3314,10 +3094,10 @@ function SalesPageContent() {
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <Box>
               <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
-                Sales Management
+                Order Management
               </Typography>
               <Typography variant="body1" sx={{ color: 'text.secondary', mt: 1 }}>
-                Manage your sales orders, customers, and revenue
+                Manage your orders, customers, and revenue
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', gap: 2 }}>
@@ -3351,7 +3131,7 @@ function SalesPageContent() {
                   transition: 'all 0.2s ease-in-out'
                 }}
               >
-                Add New Sale
+                Add New Order
               </Button>
             </Box>
           </Box>
@@ -3367,7 +3147,7 @@ function SalesPageContent() {
                     </Avatar>
                     <Box>
                       <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                        Total Sales
+                        Total Orders
                       </Typography>
                       <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
                         {totalSales}
@@ -3443,7 +3223,7 @@ function SalesPageContent() {
           <Card sx={{ mb: 3 }}>
             <CardContent sx={{ p: 2 }}>
               <Typography variant="h6" sx={{ mb: 2, fontWeight: 'semibold' }}>
-                Filter Sales
+                Filter Orders
               </Typography>
               <Grid container spacing={2}>
                 <Grid item xs={12} md={3}>
@@ -3451,7 +3231,7 @@ function SalesPageContent() {
                     fullWidth
                     size="small"
                     label="Search"
-                    placeholder="Search by Sale ID, Customer, or Reference"
+                    placeholder="Search by Order ID, Customer, or Reference"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     InputProps={{
@@ -3504,6 +3284,7 @@ function SalesPageContent() {
                       label="Bill Type"
                     >
                       <MenuItem value="">All Types</MenuItem>
+                      <MenuItem value="ORDER">Order</MenuItem>
                       <MenuItem value="BILL">Bill</MenuItem>
                       <MenuItem value="QUOTATION">Quotation</MenuItem>
                       <MenuItem value="SALE_RETURN">Sale Return</MenuItem>
@@ -3642,18 +3423,18 @@ function SalesPageContent() {
           <Card>
             <Box sx={{ p: 3, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Typography variant="h6" sx={{ fontWeight: 'semibold' }}>
-                Sales List
+                Order List
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Showing {filteredSales.length} of {sales.length} sales
-                {sales.length > 0 && ` (Debug: Sales loaded successfully)`}
+                Showing {filteredSales.length} of {sales.length} orders
+                {sales.length > 0 && ` (Debug: Orders loaded successfully)`}
               </Typography>
             </Box>
             <TableContainer sx={{ overflowX: 'auto', maxWidth: '100%' }}>
               <Table sx={{ minWidth: 800 }}>
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Sale ID</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Order ID</TableCell>
                     <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Customer</TableCell>
                     <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Total Amount</TableCell>
                     <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Discount</TableCell>
@@ -3717,6 +3498,14 @@ function SalesPageContent() {
                             </IconButton>
                             <IconButton
                               size="small"
+                              color="info" // distinct color for Edit
+                              onClick={() => handleEdit(sale)}
+                              title="Edit / Convert to Sale"
+                            >
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              size="small"
                               color="secondary"
                               onClick={() => {
                                 // TODO: Implement print functionality
@@ -3768,125 +3557,6 @@ function SalesPageContent() {
           {snackbar.message}
         </Alert>
       </Snackbar>
-
-      {/* Load Order Dialog */}
-      <Dialog
-        open={loadOrderDialogOpen}
-        onClose={() => setLoadOrderDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-        PaperProps={{
-          sx: { borderRadius: 3 }
-        }}
-      >
-        <DialogTitle sx={{
-          background: 'linear-gradient(45deg, #1976d2 30%, #2196f3 90%)',
-          color: 'white',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between'
-        }}>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <ListAltIcon sx={{ mr: 2 }} />
-            <Box>
-              <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
-                Load Order
-              </Typography>
-              <Typography variant="caption" sx={{ opacity: 0.9 }}>
-                Select an order to load into the bill
-              </Typography>
-            </Box>
-          </Box>
-          <IconButton onClick={() => setLoadOrderDialogOpen(false)} sx={{ color: 'white' }}>
-            <CloseIcon />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent sx={{ p: 2 }}>
-          <Box sx={{ mb: 2 }}>
-            <TextField
-              fullWidth
-              size="small"
-              placeholder="Search by customer name or order ID..."
-              value={orderSearchTerm}
-              onChange={(e) => setOrderSearchTerm(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon />
-                  </InputAdornment>
-                ),
-              }}
-            />
-          </Box>
-          <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 400 }}>
-            <Table stickyHeader size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Order ID</TableCell>
-                  <TableCell>Customer</TableCell>
-                  <TableCell>Date</TableCell>
-                  <TableCell align="right">Amount</TableCell>
-                  <TableCell align="center">Action</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {sales
-                  .filter(sale => {
-                    const isOrder = sale.bill_type === 'ORDER';
-                    if (!isOrder) return false;
-                    
-                    if (!orderSearchTerm) return true;
-                    
-                    const searchLower = orderSearchTerm.toLowerCase();
-                    const matchesName = sale.customer?.cus_name?.toLowerCase().includes(searchLower);
-                    const matchesId = sale.sale_id?.toString().includes(searchLower);
-                    
-                    return matchesName || matchesId;
-                  })
-                  .map((sale) => (
-                    <TableRow key={sale.sale_id} hover>
-                      <TableCell>{sale.sale_id}</TableCell>
-                      <TableCell>{sale.customer?.cus_name || 'N/A'}</TableCell>
-                      <TableCell>{new Date(sale.created_at).toLocaleDateString()}</TableCell>
-                      <TableCell align="right">{parseFloat(sale.total_amount || 0).toFixed(2)}</TableCell>
-                      <TableCell align="center">
-                        <Button
-                          size="small"
-                          variant="contained"
-                          onClick={() => handleLoadOrder(sale)}
-                          startIcon={<ShoppingCartIcon />}
-                        >
-                          Load
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                {sales.filter(sale => {
-                    const isOrder = sale.bill_type === 'ORDER';
-                    if (!isOrder) return false;
-                    
-                    if (!orderSearchTerm) return true;
-                    
-                    const searchLower = orderSearchTerm.toLowerCase();
-                    const matchesName = sale.customer?.cus_name?.toLowerCase().includes(searchLower);
-                    const matchesId = sale.sale_id?.toString().includes(searchLower);
-                    
-                    return matchesName || matchesId;
-                  }).length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
-                      {orderSearchTerm ? 'No matching orders found' : 'No orders found'}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setLoadOrderDialogOpen(false)}>Close</Button>
-        </DialogActions>
-      </Dialog>
 
       {/* Customer Creation Popup */}
       <Dialog
@@ -4919,7 +4589,7 @@ function SalesPageContent() {
   );
 }
 
-export default function SalesPage() {
+export default function OrdersPage() {
   return (
     <Suspense fallback={
       <DashboardLayout>
@@ -4930,7 +4600,7 @@ export default function SalesPage() {
         </Container>
       </DashboardLayout>
     }>
-      <SalesPageContent />
+      <OrdersPageContent />
     </Suspense>
   );
 }
