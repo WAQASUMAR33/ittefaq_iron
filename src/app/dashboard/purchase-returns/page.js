@@ -71,6 +71,10 @@ export default function PurchaseReturnsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingReturn, setEditingReturn] = useState(null);
 
+  // Purchase Search State
+  const [purchaseSearchTerm, setPurchaseSearchTerm] = useState('');
+  const [isSearchingPurchase, setIsSearchingPurchase] = useState(false);
+
   // Search and filter states
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -629,27 +633,38 @@ export default function PurchaseReturnsPage() {
 
         {/* Main Content */}
         <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {/* Header Section */}
+          {/* Header Section - Search Purchase */}
           <Card sx={{ p: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Typography variant="h6" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
-                Return #
+                Load Purchase Data
               </Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }} component="form" onSubmit={handlePurchaseSearch}>
                 <TextField
                   size="small"
-                  placeholder="Return No"
-                  sx={{ width: 200 }}
+                  placeholder="Purchase No or Invoice No"
+                  value={purchaseSearchTerm}
+                  onChange={(e) => setPurchaseSearchTerm(e.target.value)}
+                  sx={{ width: 250 }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon color="action" />
+                      </InputAdornment>
+                    ),
+                  }}
                 />
                 <Button
                   variant="contained"
+                  onClick={handlePurchaseSearch}
+                  disabled={isSearchingPurchase || !purchaseSearchTerm}
                   sx={{
-                    bgcolor: 'secondary.main',
-                    '&:hover': { bgcolor: 'secondary.dark' },
-                    minWidth: 80
+                    bgcolor: 'primary.main',
+                    '&:hover': { bgcolor: 'primary.dark' },
+                    minWidth: 100
                   }}
                 >
-                  Q Find
+                  {isSearchingPurchase ? <CircularProgress size={24} color="inherit" /> : 'Search'}
                 </Button>
               </Box>
             </Box>

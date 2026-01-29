@@ -13,11 +13,46 @@ function errorResponse(message, status = 400) {
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id') ? parseInt(searchParams.get('id')) : null; // optional: ?id=1
+  const invoice = searchParams.get('invoice');
 
   try {
     if (id) {
       const purchase = await prisma.purchase.findUnique({
         where: { pur_id: id },
+        include: {
+          customer: true,
+          store: true,
+          updated_by_user: {
+            select: {
+              user_id: true,
+              full_name: true,
+              role: true
+            }
+          },
+          purchase_details: {
+            include: {
+              product: {
+                select: {
+                  pro_id: true,
+                  pro_title: true,
+                  pro_unit: true
+                }
+              }
+            }
+          }
+        }
+      });
+
+      if (!purchase) {
+        return errorResponse('Purchase not found', 404);
+      }
+
+      return NextResponse.json(purchase);
+    }
+
+    if (invoice) {
+      const purchase = await prisma.purchase.findFirst({
+        where: { invoice_number: invoice },
         include: {
           customer: true,
           store: true,
