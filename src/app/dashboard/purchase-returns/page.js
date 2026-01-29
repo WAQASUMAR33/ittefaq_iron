@@ -646,7 +646,7 @@ export default function PurchaseReturnsPage() {
     <DashboardLayout>
       <div className="h-full flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex-shrink-0 mb-6">
+        <div className="flex-shrink-0 mb-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <button
@@ -673,15 +673,22 @@ export default function PurchaseReturnsPage() {
           <Card sx={{ p: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Typography variant="h6" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
-                Load Purchase Data
+                Return # {editingReturn ? editingReturn.id : 'New'}
               </Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }} component="form" onSubmit={handlePurchaseSearch}>
+              
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <TextField
                   size="small"
                   placeholder="Purchase No or Invoice No"
                   value={purchaseSearchTerm}
                   onChange={(e) => setPurchaseSearchTerm(e.target.value)}
                   sx={{ width: 250 }}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handlePurchaseSearch(e);
+                    }
+                  }}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -695,12 +702,12 @@ export default function PurchaseReturnsPage() {
                   onClick={handlePurchaseSearch}
                   disabled={isSearchingPurchase || !purchaseSearchTerm}
                   sx={{
-                    bgcolor: 'primary.main',
-                    '&:hover': { bgcolor: 'primary.dark' },
-                    minWidth: 100
+                    bgcolor: 'secondary.main',
+                    '&:hover': { bgcolor: 'secondary.dark' },
+                    minWidth: 80
                   }}
                 >
-                  {isSearchingPurchase ? <CircularProgress size={24} color="inherit" /> : 'Search'}
+                  {isSearchingPurchase ? <CircularProgress size={20} color="inherit" /> : 'Q Find'}
                 </Button>
               </Box>
             </Box>
@@ -709,38 +716,75 @@ export default function PurchaseReturnsPage() {
           {/* Main Form */}
           <Card sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
             <Box component="form" onSubmit={handleSubmit} sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-              {/* Return Details Section */}
+              {/* Top Form Fields */}
               <Box sx={{ p: 3, borderBottom: 1, borderColor: 'divider' }}>
-                <Grid container spacing={3}>
-                  {/* Row 1 - Date and Purchase Selection */}
-                  <Grid item xs={12} md={2}>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                        DATE
-                      </Typography>
-                      <TextField
-                        size="small"
-                        type="date"
-                        value={formData.return_date}
-                        onChange={(e) => setFormData(prev => ({ ...prev, return_date: e.target.value }))}
-                        sx={{ width: '100%' }}
-                        InputProps={{
-                          endAdornment: (
-                            <InputAdornment position="end">
-                              <CalendarIcon sx={{ color: 'warning.main' }} />
-                            </InputAdornment>
-                          ),
-                        }}
-                      />
-                    </Box>
+                <Grid container spacing={2}>
+                  {/* Row 1: Purchase Info (Read Only) */}
+                  <Grid item xs={12} md={3}>
+                    <TextField
+                      label="Invoice No"
+                      value={selectedPurchase?.invoice_no || ''}
+                      size="small"
+                      fullWidth
+                      InputProps={{ readOnly: true }}
+                      variant="filled"
+                    />
                   </Grid>
-                  
-                  <Grid item xs={12} md={4}>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                        SELECT PURCHASE
-                      </Typography>
-                      <Autocomplete
+                  <Grid item xs={12} md={3}>
+                    <TextField
+                      label="Purchase Date"
+                      value={selectedPurchase ? new Date(selectedPurchase.purchase_date).toLocaleDateString() : ''}
+                      size="small"
+                      fullWidth
+                      InputProps={{ readOnly: true }}
+                      variant="filled"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                    <TextField
+                      label="Supplier"
+                      value={selectedPurchase ? (suppliers.find(s => s.sup_id === selectedPurchase.sup_id)?.sup_name || 'Unknown') : ''}
+                      size="small"
+                      fullWidth
+                      InputProps={{ readOnly: true }}
+                      variant="filled"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                     <TextField
+                      label="Vehicle No"
+                      value={selectedPurchase?.vehicle_no || ''}
+                      size="small"
+                      fullWidth
+                      InputProps={{ readOnly: true }}
+                      variant="filled"
+                    />
+                  </Grid>
+
+                  {/* Row 2: Return Details */}
+                  <Grid item xs={12} md={3}>
+                    <TextField
+                      label="Return Date"
+                      type="date"
+                      value={formData.return_date}
+                      onChange={(e) => setFormData(prev => ({ ...prev, return_date: e.target.value }))}
+                      size="small"
+                      fullWidth
+                      InputLabelProps={{ shrink: true }}
+                    />
+                  </Grid>
+                   <Grid item xs={12} md={6}>
+                    <TextField
+                      label="Remarks / Reason"
+                      value={formData.return_reason}
+                      onChange={(e) => setFormData(prev => ({ ...prev, return_reason: e.target.value }))}
+                      size="small"
+                      fullWidth
+                      placeholder="Enter reason for return"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                     <Autocomplete
                         size="small"
                         options={purchases}
                         getOptionLabel={(option) => {
@@ -756,67 +800,24 @@ export default function PurchaseReturnsPage() {
                         renderInput={(params) => (
                           <TextField
                             {...params}
-                            placeholder="Select purchase to return..."
-                            sx={{ width: '100%', minWidth: 300 }}
+                            label="Manual Select"
+                            placeholder="Select purchase..."
                           />
                         )}
-                        sx={{ width: '100%', minWidth: 300 }}
                         disabled={editingReturn}
                       />
-                    </Box>
-                  </Grid>
-
-                  {/* Row 2 - Return Reason */}
-                  <Grid item xs={12} md={6}>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                        RETURN REASON
-                      </Typography>
-                      <TextField
-                        size="small"
-                        value={formData.return_reason}
-                        onChange={(e) => setFormData(prev => ({ ...prev, return_reason: e.target.value }))}
-                        placeholder="Enter reason for return..."
-                        sx={{ width: '100%' }}
-                        required
-                      />
-                    </Box>
-                  </Grid>
-
-                  {/* Row 3 - Notes */}
-                  <Grid item xs={12}>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                        ADDITIONAL NOTES
-                      </Typography>
-                      <TextField
-                        size="small"
-                        multiline
-                        rows={2}
-                        value={formData.notes}
-                        onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                        placeholder="Enter any additional notes..."
-                        sx={{ width: '100%' }}
-                      />
-                    </Box>
                   </Grid>
                 </Grid>
               </Box>
 
-              {/* Return Items Section */}
-              {selectedPurchase && formData.return_details.length > 0 && (
-                <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', p: 3 }}>
-                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
-                    Select Items to Return
-                  </Typography>
-                  
-                  <Box sx={{ flex: 1, overflow: 'auto' }}>
-                    <TableContainer component={Paper} sx={{ maxHeight: '100%' }}>
-                      <Table stickyHeader>
+              {/* Items Table */}
+              <Box sx={{ flex: 1, overflow: 'auto', p: 0 }}>
+                 <TableContainer sx={{ height: '100%' }}>
+                      <Table stickyHeader size="small">
                         <TableHead>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>No</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Product</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>#</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Product Name</TableCell>
                             <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Store</TableCell>
                             <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Original Qty</TableCell>
                             <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Unit Rate</TableCell>
@@ -826,117 +827,76 @@ export default function PurchaseReturnsPage() {
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {formData.return_details.map((detail, index) => {
-                            const product = products.find(p => p.pro_id === detail.pro_id);
-                            const store = stores.find(s => s.storeid === detail.store_id);
-                            return (
-                              <TableRow key={index} hover>
-                                <TableCell>
-                                  <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                                    {index + 1}
-                                  </Typography>
-                                </TableCell>
-                                <TableCell>
-                                  <Box>
-                                    <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                                      {product?.pro_title || 'Unknown Product'}
-                                    </Typography>
-                                    <Typography variant="caption" color="text.secondary">
-                                      {product?.pro_description || ''}
-                                    </Typography>
-                                  </Box>
-                                </TableCell>
-                                <TableCell>
-                                  <Typography variant="body2">
-                                    {store?.store_name || 'Unknown Store'}
-                                  </Typography>
-                                </TableCell>
-                                <TableCell>
-                                  <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                                    {detail.max_quantity}
-                                  </Typography>
-                                </TableCell>
-                                <TableCell>
-                                  <Typography variant="body2">
-                                    {parseFloat(detail.unit_rate || 0).toFixed(2)}
-                                  </Typography>
-                                </TableCell>
-                                <TableCell>
-                                  <TextField
-                                    type="number"
-                                    size="small"
-                                    value={detail.return_quantity || 0}
-                                    onChange={(e) => handleReturnQuantityChange(index, parseInt(e.target.value) || 0)}
-                                    inputProps={{ 
-                                      min: 0, 
-                                      max: detail.max_quantity
-                                    }}
-                                    sx={{ width: 80 }}
-                                  />
-                                </TableCell>
-                                <TableCell>
-                                  <Typography 
-                                    variant="body2" 
-                                    sx={{ 
-                                      fontWeight: 'semibold', 
-                                      color: detail.return_amount > 0 ? 'error.main' : 'text.secondary'
-                                    }}
-                                  >
-                                    {parseFloat(detail.return_amount || 0).toFixed(2)}
-                                  </Typography>
-                                </TableCell>
-                                <TableCell>
-                                  <IconButton
-                                    onClick={() => removeReturnDetail(index)}
-                                    color="error"
-                                    size="small"
-                                    title="Remove Item"
-                                  >
-                                    <CloseIcon />
-                                  </IconButton>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })}
+                          {selectedPurchase && formData.return_details.length > 0 ? (
+                             formData.return_details.map((detail, index) => {
+                                const product = products.find(p => p.pro_id === detail.pro_id);
+                                const store = stores.find(s => s.storeid === detail.store_id);
+                                return (
+                                  <TableRow key={index} hover>
+                                    <TableCell>{index + 1}</TableCell>
+                                    <TableCell>{product?.pro_title || 'Unknown'}</TableCell>
+                                    <TableCell>{store?.store_name || 'Unknown'}</TableCell>
+                                    <TableCell>{detail.max_quantity}</TableCell>
+                                    <TableCell>{parseFloat(detail.unit_rate).toFixed(2)}</TableCell>
+                                    <TableCell>
+                                      <TextField
+                                        type="number"
+                                        size="small"
+                                        value={detail.return_quantity || 0}
+                                        onChange={(e) => handleReturnQuantityChange(index, parseInt(e.target.value) || 0)}
+                                        inputProps={{ min: 0, max: detail.max_quantity, style: { padding: '4px 8px' } }}
+                                        sx={{ width: 80 }}
+                                      />
+                                    </TableCell>
+                                    <TableCell>{parseFloat(detail.return_amount).toFixed(2)}</TableCell>
+                                    <TableCell>
+                                      <IconButton size="small" color="error" onClick={() => removeReturnDetail(index)}>
+                                        <DeleteIcon fontSize="small" />
+                                      </IconButton>
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                             })
+                          ) : (
+                            <TableRow>
+                              <TableCell colSpan={8} align="center" sx={{ py: 5, color: 'text.secondary' }}>
+                                {selectedPurchase ? 'No items available for return' : 'Please load a purchase to see items'}
+                              </TableCell>
+                            </TableRow>
+                          )}
                         </TableBody>
                       </Table>
-                    </TableContainer>
-                  </Box>
+                 </TableContainer>
+              </Box>
 
-                  {/* Total Section */}
-                  <Box sx={{ mt: 3, p: 2, bgcolor: 'error.light', borderRadius: 1, border: 1, borderColor: 'error.main' }}>
-                    <Typography variant="h6" sx={{ textAlign: 'right', color: 'error.dark' }}>
-                      Total Return Amount: <span style={{ fontWeight: 'bold' }}>
-                        {parseFloat(formData.total_return_amount).toFixed(2)}
-                      </span>
-                    </Typography>
-                  </Box>
-                </Box>
-              )}
-
-              {/* Action Buttons */}
-              <Box sx={{ p: 3, borderTop: 1, borderColor: 'divider', display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
-                <Button
-                  variant="outlined"
-                  onClick={() => setCurrentView('list')}
-                  disabled={isSubmitting}
-                  sx={{ minWidth: 120 }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  variant="contained"
-                  disabled={isSubmitting || !selectedPurchase || formData.total_return_amount <= 0}
-                  startIcon={isSubmitting ? <CircularProgress size={20} /> : null}
-                  sx={{ 
-                    minWidth: 150,
-                    bgcolor: 'primary.main',
-                    '&:hover': { bgcolor: 'primary.dark' }
-                  }}
-                >
-                  {isSubmitting ? 'Processing...' : (editingReturn ? 'Update Return' : 'Create Return')}
-                </Button>
+              {/* Footer */}
+              <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider', bgcolor: 'grey.50' }}>
+                <Grid container spacing={2} alignItems="center">
+                  <Grid item xs={12} md={8}>
+                     <TextField
+                        fullWidth
+                        size="small"
+                        placeholder="Additional Notes..."
+                        value={formData.notes}
+                        onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                     />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 2 }}>
+                       <Typography variant="h6" color="error.main" fontWeight="bold">
+                          Total: {parseFloat(formData.total_return_amount).toFixed(2)}
+                       </Typography>
+                       <Button
+                          variant="contained"
+                          color="primary"
+                          type="submit"
+                          disabled={isSubmitting || !selectedPurchase || formData.total_return_amount <= 0}
+                       >
+                          {isSubmitting ? 'Processing...' : 'Save Return'}
+                       </Button>
+                    </Box>
+                  </Grid>
+                </Grid>
               </Box>
             </Box>
           </Card>
