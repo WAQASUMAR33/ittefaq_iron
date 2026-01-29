@@ -16,7 +16,9 @@ import {
   Warehouse,
   Receipt,
   ClipboardList,
-  RotateCcw
+  RotateCcw,
+  ScrollText,
+  ListOrdered
 } from 'lucide-react';
 
 export default function DashboardContent({ activeTab }) {
@@ -163,6 +165,8 @@ export default function DashboardContent({ activeTab }) {
     { title: 'Expenses', icon: DollarSign, color: 'from-rose-500 to-red-500', path: '/dashboard/expenses' },
     { title: 'Ledger', icon: FileText, color: 'from-slate-500 to-gray-600', path: '/dashboard/finance' },
     { title: 'View Reports', icon: TrendingUp, color: 'from-orange-500 to-red-500', path: '/dashboard/reports' },
+    { title: 'Orders List', icon: ListOrdered, color: 'from-blue-600 to-indigo-600', path: '/dashboard/orders' },
+    { title: 'Quotations List', icon: ScrollText, color: 'from-teal-500 to-emerald-500', path: '/dashboard/quotations' },
     { title: 'Sales List', icon: Receipt, color: 'from-cyan-500 to-blue-500', path: '/dashboard/sales' }
   ];
 

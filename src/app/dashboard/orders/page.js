@@ -1588,8 +1588,32 @@ function OrdersPageContent() {
     showSnackbar('Delete functionality will be implemented soon', 'info');
   };
 
-  const handleViewReceipt = (sale) => {
-    showSnackbar('Receipt functionality will be implemented soon', 'info');
+  const handleViewReceipt = async (sale) => {
+    try {
+      const response = await fetch(`/api/sales?id=${sale.sale_id}`);
+      if (!response.ok) throw new Error('Failed to fetch sale details');
+      const saleData = await response.json();
+      setCurrentBillData(saleData);
+      setReceiptDialogOpen(true);
+    } catch (error) {
+      console.error('Error fetching sale details:', error);
+      setCurrentBillData(sale);
+      setReceiptDialogOpen(true);
+    }
+  };
+
+  const handleQuickPrint = async (sale) => {
+    try {
+      const response = await fetch(`/api/sales?id=${sale.sale_id}`);
+      if (!response.ok) throw new Error('Failed to fetch sale details');
+      const saleData = await response.json();
+      setCurrentBillData(saleData);
+      setTimeout(() => handlePrintBill('A4'), 100);
+    } catch (error) {
+      console.error('Error fetching sale details:', error);
+      setCurrentBillData(sale);
+      setTimeout(() => handlePrintBill('A4'), 100);
+    }
   };
 
   const clearFilters = () => {
@@ -3488,41 +3512,52 @@ function OrdersPageContent() {
                           </TableCell>
                           <TableCell>{new Date(sale.created_at).toLocaleDateString()}</TableCell>
                           <TableCell align="center">
-                            <IconButton
-                              size="small"
-                              color="primary"
-                              onClick={() => handleViewBill(sale)}
-                              title="View Details"
-                            >
-                              <VisibilityIcon fontSize="small" />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              color="info" // distinct color for Edit
-                              onClick={() => handleEdit(sale)}
-                              title="Edit / Convert to Sale"
-                            >
-                              <EditIcon fontSize="small" />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              color="secondary"
-                              onClick={() => {
-                                // TODO: Implement print functionality
-                                console.log('Print sale:', sale.sale_id);
-                              }}
-                              title="Print Bill"
-                            >
-                              <PrintIcon fontSize="small" />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => handleOpenReturnDialog(sale)}
-                              title="Return Sale"
-                            >
-                              <TrendingDownIcon fontSize="small" />
-                            </IconButton>
+                            <Stack direction="row" spacing={1} justifyContent="center">
+                              <Tooltip title="View Details">
+                                <IconButton
+                                  size="small"
+                                  color="primary"
+                                  onClick={() => handleViewBill(sale)}
+                                >
+                                  <VisibilityIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="View Receipt">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleViewReceipt(sale)}
+                                >
+                                  <ReceiptIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Print Bill">
+                                <IconButton
+                                  size="small"
+                                  color="secondary"
+                                  onClick={() => handleQuickPrint(sale)}
+                                >
+                                  <PrintIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Edit / Convert to Sale">
+                                <IconButton
+                                  size="small"
+                                  color="info"
+                                  onClick={() => handleEdit(sale)}
+                                >
+                                  <EditIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Return Sale">
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  onClick={() => handleOpenReturnDialog(sale)}
+                                >
+                                  <TrendingDownIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </Stack>
                           </TableCell>
                         </TableRow>
                       );

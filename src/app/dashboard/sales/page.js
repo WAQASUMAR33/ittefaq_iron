@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, Suspense } from 'react';
+import { useState, useEffect, useMemo, Suspense, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '../components/dashboard-layout';
 
@@ -100,6 +100,91 @@ function SalesPageContent() {
       setCurrentView('create');
     }
   }, [searchParams]);
+
+  // Handle loading quotation from URL
+  const loadedQuotationIdRef = useRef(null);
+  
+  useEffect(() => {
+    const quotationId = searchParams?.get('quotationId');
+    
+    // Only proceed if we have a quotation ID, reference data is loaded, and we haven't loaded this ID yet
+    if (quotationId && 
+        quotationId !== loadedQuotationIdRef.current && 
+        customers.length > 0 && 
+        stores.length > 0 && 
+        currentView === 'create') {
+      
+      const loadQuotationFromUrl = async () => {
+        try {
+            setLoading(true);
+            loadedQuotationIdRef.current = quotationId; // Mark as loading/loaded
+            
+            const response = await fetch(`/api/sales?id=${quotationId}`);
+            if (!response.ok) throw new Error('Failed to fetch quotation details');
+            const fullQuotation = await response.json();
+            
+            console.log('📦 Loaded Quotation from URL:', fullQuotation);
+
+            // Set Customer
+            if (fullQuotation.customer) {
+                const matchingCustomer = customers.find(c => c.cus_id === fullQuotation.customer.cus_id);
+                setFormSelectedCustomer(matchingCustomer || fullQuotation.customer);
+            } else if (fullQuotation.cus_id) {
+                const customer = customers.find(c => c.cus_id === fullQuotation.cus_id);
+                if (customer) setFormSelectedCustomer(customer);
+            }
+
+            // Set Store
+            let selectedStore = null;
+            if (fullQuotation.store_id) {
+                selectedStore = stores.find(s => s.storeid === fullQuotation.store_id);
+            }
+            
+            if (selectedStore) {
+                setFormSelectedStore(selectedStore);
+            } else if (stores.length > 0) {
+                setFormSelectedStore(stores[0]);
+                selectedStore = stores[0];
+            }
+
+            // Map products
+            if (fullQuotation.sale_details) {
+                const mappedProducts = fullQuotation.sale_details.map(detail => {
+                return {
+                    id: Date.now() + Math.random(),
+                    pro_id: detail.pro_id,
+                    pro_title: detail.product?.pro_title || detail.pro_title || 'Unknown Product',
+                    storeid: selectedStore?.storeid,
+                    store_name: selectedStore?.store_name || 'Store',
+                    quantity: parseFloat(detail.qnty) || 0,
+                    rate: parseFloat(detail.unit_rate) || 0,
+                    amount: parseFloat(detail.total_amount) || 0,
+                    stock: 0 
+                };
+                });
+                setProductTableData(mappedProducts);
+            }
+            
+            // Set discount and notes
+             setPaymentData(prev => ({
+                ...prev,
+                discount: parseFloat(fullQuotation.discount) || 0,
+                notes: fullQuotation.reference || ''
+             }));
+
+            showSnackbar('Quotation loaded from URL', 'success');
+        } catch (error) {
+            console.error('Error loading quotation from URL:', error);
+            showSnackbar('Failed to load quotation from URL', 'error');
+            loadedQuotationIdRef.current = null; // Reset on error so user can retry
+        } finally {
+            setLoading(false);
+        }
+      };
+
+      loadQuotationFromUrl();
+    }
+  }, [searchParams, customers, stores, currentView]);
 
   // Sale return state
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);

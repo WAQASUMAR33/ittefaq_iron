@@ -7,6 +7,7 @@
     "build": "npx prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
+    "db:reset": "prisma db push --force-reset && node prisma/seed-admin.js",
     "generate": "prisma generate",
     "postinstall": "prisma generate"
   },

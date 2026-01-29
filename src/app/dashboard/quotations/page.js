@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import DashboardLayout from '../components/dashboard-layout';
 
 // Material-UI imports
@@ -49,6 +49,7 @@ import {
   Visibility as VisibilityIcon,
   ShoppingCart as ShoppingCartIcon,
   Receipt as ReceiptIcon,
+  ReceiptLong as ReceiptLongIcon,
   Print as PrintIcon,
   AttachMoney as AttachMoneyIcon,
   TrendingDown as TrendingDownIcon,
@@ -66,6 +67,7 @@ import {
 
 function QuotationsPageContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   // State management
   const [sales, setSales] = useState([]);
@@ -814,7 +816,27 @@ function QuotationsPageContent() {
   };
 
   const handleDelete = async (saleId) => {
-    showSnackbar('Delete functionality will be implemented soon', 'info');
+    if (!confirm('Are you sure you want to delete this quotation?')) return;
+
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/sales?id=${saleId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        showSnackbar('Quotation deleted successfully', 'success');
+        fetchData();
+      } else {
+        const data = await response.json();
+        showSnackbar(data.error || 'Failed to delete quotation', 'error');
+      }
+    } catch (error) {
+      console.error('Error deleting quotation:', error);
+      showSnackbar('Error deleting quotation', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handlePrintBill = (mode = 'A4', fromDialog = false) => {
@@ -1007,17 +1029,43 @@ function QuotationsPageContent() {
           {/* Header */}
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <IconButton onClick={() => setCurrentView('list')} color="primary">
+              <IconButton
+                onClick={() => setCurrentView('list')}
+                color="primary"
+                sx={{
+                  bgcolor: 'primary.main',
+                  color: 'white',
+                  borderRadius: 2,
+                  '&:hover': {
+                    bgcolor: 'primary.dark',
+                    transform: 'scale(1.05)'
+                  },
+                  transition: 'all 0.2s ease-in-out'
+                }}
+              >
                 <SearchIcon />
               </IconButton>
-              <Typography variant="h5" component="h1" sx={{ fontWeight: 'bold' }}>
-                {editSaleId ? 'Edit Quotation' : 'Create New Quotation'}
-              </Typography>
+              <Box>
+                <Typography variant="h5" component="h1" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
+                  {editSaleId ? 'Edit Quotation' : 'Create New Quotation'}
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  Select products and create quotation
+                </Typography>
+              </Box>
             </Box>
             <Button
               variant="outlined"
               startIcon={<AddIcon />}
               onClick={handleOpenCustomerPopup}
+              sx={{
+                borderColor: '#6f42c1',
+                color: '#6f42c1',
+                '&:hover': {
+                  borderColor: '#5a2d91',
+                  backgroundColor: '#f8f5ff'
+                }
+              }}
             >
               Create Customer
             </Button>
@@ -1026,6 +1074,7 @@ function QuotationsPageContent() {
           {/* Main Form */}
           <Card>
             <CardContent sx={{ p: 2 }}>
+              {/* Top Row - Date, Customer */}
               <Grid container spacing={2} sx={{ mb: 2 }}>
                 <Grid item xs={12} md={3}>
                   <Box>
@@ -1037,28 +1086,78 @@ function QuotationsPageContent() {
                       type="date"
                       size="small"
                       defaultValue={new Date().toISOString().split('T')[0]}
+                      sx={{ bgcolor: 'white' }}
                     />
                   </Box>
                 </Grid>
                 <Grid item xs={12} md={5}>
-                  <Box>
-                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
-                      CUSTOMER
-                    </Typography>
+                  <Box sx={{ position: 'relative' }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'medium', color: 'text.secondary' }}>
+                        CUSTOMER
+                      </Typography>
+                      {formSelectedCustomer && (
+                        <Typography variant="body2" sx={{
+                          fontWeight: 'bold',
+                          color: 'white',
+                          fontSize: '0.875rem',
+                          bgcolor: 'primary.light',
+                          px: 1,
+                          py: 0.5,
+                          borderRadius: 1
+                        }}>
+                          Balance: {formSelectedCustomer.cus_balance ? parseFloat(formSelectedCustomer.cus_balance).toFixed(2) : '0.00'}
+                        </Typography>
+                      )}
+                    </Box>
                     <Autocomplete
                       size="small"
                       options={customers}
                       getOptionLabel={(option) => option.cus_name || ''}
                       value={formSelectedCustomer}
                       onChange={(event, newValue) => setFormSelectedCustomer(newValue)}
-                      renderInput={(params) => <TextField {...params} placeholder="Select Customer" />}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          placeholder="Select Customer"
+                          sx={{ bgcolor: 'white', '& .MuiInputBase-input': { fontWeight: formSelectedCustomer ? 'bold' : 'normal' } }}
+                        />
+                      )}
                     />
                   </Box>
                 </Grid>
                 <Grid item xs={12} md={4}>
+                  {/* Space for future fields or just empty */}
+                </Grid>
+              </Grid>
+
+              {/* Product Selection Row */}
+              <Grid container spacing={2} sx={{ mb: 2 }}>
+                <Grid item xs={12} md={3}>
                   <Box>
                     <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
-                      STORE
+                      SELECT PRODUCT
+                    </Typography>
+                    <Autocomplete
+                      size="small"
+                      options={products}
+                      getOptionLabel={(option) => option.pro_title || ''}
+                      value={formSelectedProduct}
+                      onChange={(event, newValue) => handleProductSelect(newValue)}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          placeholder="Select Product"
+                          sx={{ bgcolor: 'white', '& .MuiInputBase-input': { fontWeight: formSelectedProduct ? 'bold' : 'normal' } }}
+                        />
+                      )}
+                    />
+                  </Box>
+                </Grid>
+                <Grid item xs={12} md={2}>
+                  <Box>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
+                      SELECT STORE
                     </Typography>
                     <FormControl fullWidth size="small">
                       <Select
@@ -1067,7 +1166,10 @@ function QuotationsPageContent() {
                           const store = stores.find(s => s.storeid === e.target.value);
                           setFormSelectedStore(store);
                         }}
+                        sx={{ bgcolor: 'white', '& .MuiSelect-select': { fontWeight: formSelectedStore ? 'bold' : 'normal' } }}
+                        displayEmpty
                       >
+                        <MenuItem value="">Select Store</MenuItem>
                         {stores.map((store) => (
                           <MenuItem key={store.storeid} value={store.storeid}>
                             {store.store_name}
@@ -1077,79 +1179,120 @@ function QuotationsPageContent() {
                     </FormControl>
                   </Box>
                 </Grid>
-              </Grid>
-
-              {/* Product Selection */}
-              <Grid container spacing={2} alignItems="flex-end" sx={{ mb: 2, bgcolor: '#f8f9fa', p: 2, borderRadius: 2 }}>
-                <Grid item xs={12} md={4}>
-                  <Typography variant="body2" sx={{ mb: 1 }}>Product</Typography>
-                  <Autocomplete
-                    size="small"
-                    options={products}
-                    getOptionLabel={(option) => option.pro_title || ''}
-                    value={formSelectedProduct}
-                    onChange={(event, newValue) => handleProductSelect(newValue)}
-                    renderInput={(params) => <TextField {...params} placeholder="Select Product" />}
-                  />
+                <Grid item xs={12} md={1.5}>
+                  <Box>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
+                      STOCK
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      value={productFormData.stock}
+                      disabled
+                      sx={{ bgcolor: '#f8f9fa' }}
+                    />
+                  </Box>
                 </Grid>
-                <Grid item xs={6} md={2}>
-                  <Typography variant="body2" sx={{ mb: 1 }}>Stock</Typography>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    value={productFormData.stock}
-                    disabled
-                    InputProps={{ readOnly: true }}
-                  />
+                <Grid item xs={12} md={1.5}>
+                  <Box>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
+                      QTY
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      type="number"
+                      value={productFormData.quantity}
+                      onChange={(e) => handleQuantityChange(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (productFormData.rate > 0) {
+                            handleAddProductToTable();
+                          } else {
+                            // Focus on rate field
+                            const inputs = document.querySelectorAll('input[type="number"]');
+                            // Find current input index and focus next
+                            // Simple workaround: focus the rate input
+                            // Ideally use refs, but DOM query is easier here
+                            // We know Rate is next
+                          }
+                        }
+                      }}
+                      sx={{ bgcolor: 'white' }}
+                    />
+                  </Box>
                 </Grid>
-                <Grid item xs={6} md={2}>
-                  <Typography variant="body2" sx={{ mb: 1 }}>Quantity</Typography>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    type="number"
-                    value={productFormData.quantity}
-                    onChange={(e) => handleQuantityChange(e.target.value)}
-                  />
+                <Grid item xs={12} md={1.5}>
+                  <Box>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
+                      RATE
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      type="number"
+                      value={productFormData.rate}
+                      onChange={(e) => handleRateChange(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddProductToTable();
+                        }
+                      }}
+                      sx={{ bgcolor: 'white' }}
+                    />
+                  </Box>
                 </Grid>
-                <Grid item xs={6} md={2}>
-                  <Typography variant="body2" sx={{ mb: 1 }}>Rate</Typography>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    type="number"
-                    value={productFormData.rate}
-                    onChange={(e) => handleRateChange(e.target.value)}
-                  />
+                <Grid item xs={12} md={1.5}>
+                  <Box>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
+                      AMOUNT
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      type="number"
+                      value={productFormData.amount}
+                      disabled
+                      sx={{ bgcolor: 'white' }}
+                    />
+                  </Box>
                 </Grid>
-                <Grid item xs={12} md={2}>
-                  <Button
-                    fullWidth
-                    variant="contained"
-                    startIcon={<AddIcon />}
-                    onClick={handleAddProductToTable}
-                    sx={{ height: 40 }}
-                  >
-                    Add
-                  </Button>
+                <Grid item xs={12} md={1}>
+                  <Box sx={{ mt: 3.5 }}>
+                    <Button
+                      fullWidth
+                      variant="contained"
+                      onClick={handleAddProductToTable}
+                      sx={{
+                        bgcolor: '#6f42c1',
+                        color: 'white',
+                        height: 40,
+                        '&:hover': { bgcolor: '#5a2d91' }
+                      }}
+                    >
+                      <AddIcon />
+                    </Button>
+                  </Box>
                 </Grid>
               </Grid>
 
               {/* Product Table */}
-              <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, maxHeight: 300 }}>
-                <Table size="small" stickyHeader>
+              <TableContainer component={Paper} sx={{ mb: 2, border: '1px solid #e9ecef' }}>
+                <Table size="small">
                   <TableHead>
-                    <TableRow>
-                      <TableCell>Product</TableCell>
-                      <TableCell align="right">Quantity</TableCell>
-                      <TableCell align="right">Rate</TableCell>
-                      <TableCell align="right">Total</TableCell>
-                      <TableCell align="center">Action</TableCell>
+                    <TableRow sx={{ bgcolor: '#f8f9fa' }}>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Product</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 'bold' }}>Quantity</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 'bold' }}>Rate</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 'bold' }}>Total</TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 'bold' }}>Action</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {productTableData.map((row) => (
-                      <TableRow key={row.id}>
+                      <TableRow key={row.id} sx={{ '&:hover': { bgcolor: '#f8f9fa' } }}>
                         <TableCell>{row.pro_title}</TableCell>
                         <TableCell align="right">{row.quantity}</TableCell>
                         <TableCell align="right">{row.rate.toFixed(2)}</TableCell>
@@ -1163,8 +1306,8 @@ function QuotationsPageContent() {
                     ))}
                     {productTableData.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={5} align="center" sx={{ py: 3, color: 'text.secondary' }}>
-                          No products added
+                        <TableCell colSpan={5} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                          No products added yet
                         </TableCell>
                       </TableRow>
                     )}
@@ -1182,35 +1325,48 @@ function QuotationsPageContent() {
                     label="Notes / Reference"
                     value={paymentData.notes}
                     onChange={(e) => handlePaymentDataChange('notes', e.target.value)}
+                    sx={{ bgcolor: 'white' }}
                   />
                 </Grid>
                 <Grid item xs={12} md={6}>
                   <Paper variant="outlined" sx={{ p: 2, bgcolor: '#f8f9fa' }}>
-                    <Stack spacing={1}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <Typography>Total Amount:</Typography>
-                        <Typography fontWeight="bold">{calculateTotalAmount().toFixed(2)}</Typography>
+                    <Stack spacing={2}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography color="text.secondary">Total Amount:</Typography>
+                        <Typography fontWeight="bold" variant="h6">{calculateTotalAmount().toFixed(2)}</Typography>
                       </Box>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <Typography>Discount:</Typography>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography color="text.secondary">Discount:</Typography>
                         <TextField
                           size="small"
-                          sx={{ width: 100 }}
+                          sx={{ width: 150, bgcolor: 'white' }}
                           type="number"
                           value={paymentData.discount}
                           onChange={(e) => handlePaymentDataChange('discount', e.target.value)}
                         />
                       </Box>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <Typography>Grand Total:</Typography>
-                        <Typography fontWeight="bold" variant="h6">{calculateGrandTotal().toFixed(2)}</Typography>
+                      <Divider />
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography variant="h6">Grand Total:</Typography>
+                        <Typography fontWeight="bold" variant="h5" color="primary">
+                          {calculateGrandTotal().toFixed(2)}
+                        </Typography>
                       </Box>
                       <Button
                         fullWidth
                         variant="contained"
                         size="large"
                         onClick={handleSaveBill}
-                        sx={{ mt: 2 }}
+                        sx={{
+                          mt: 2,
+                          py: 1.5,
+                          bgcolor: 'primary.main',
+                          fontSize: '1.1rem',
+                          fontWeight: 'bold',
+                          '&:hover': {
+                            bgcolor: 'primary.dark'
+                          }
+                        }}
                       >
                         {editSaleId ? 'Update Quotation' : 'Save Quotation'}
                       </Button>
@@ -1290,22 +1446,43 @@ function QuotationsPageContent() {
                   <TableCell align="right">{parseFloat(sale.total_amount).toFixed(2)}</TableCell>
                   <TableCell align="center">
                     <Stack direction="row" spacing={1} justifyContent="center">
+                      <Tooltip title="Create Bill">
+                        <IconButton
+                          size="small"
+                          color="success"
+                          onClick={() => router.push(`/dashboard/sales?view=create&quotationId=${sale.sale_id}`)}
+                        >
+                          <ReceiptLongIcon />
+                        </IconButton>
+                      </Tooltip>
                       <Tooltip title="View Receipt">
-                        <IconButton size="small" onClick={() => handleViewReceipt(sale)}>
-                          <ReceiptIcon />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Edit">
-                        <IconButton size="small" color="primary" onClick={() => handleEdit(sale)}>
-                          <EditIcon />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Delete">
-                        <IconButton size="small" color="error" onClick={() => handleDelete(sale.sale_id)}>
-                          <DeleteIcon />
-                        </IconButton>
-                      </Tooltip>
-                    </Stack>
+                              <IconButton size="small" onClick={() => handleViewReceipt(sale)}>
+                                <ReceiptIcon />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Print A4">
+                              <IconButton 
+                                size="small" 
+                                color="secondary" 
+                                onClick={() => {
+                                  setCurrentBillData(sale);
+                                  setTimeout(() => handlePrintBill('A4'), 100);
+                                }}
+                              >
+                                <PrintIcon />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Edit">
+                              <IconButton size="small" color="primary" onClick={() => handleEdit(sale)}>
+                                <EditIcon />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Delete">
+                              <IconButton size="small" color="error" onClick={() => handleDelete(sale.sale_id)}>
+                                <DeleteIcon />
+                              </IconButton>
+                            </Tooltip>
+                          </Stack>
                   </TableCell>
                 </TableRow>
               ))}

@@ -1552,7 +1552,10 @@ export async function DELETE(request) {
       }
 
       // Restore store stock quantities
-      if (existingSale.store_id) {
+      // Only restore if it wasn't a QUOTATION or ORDER (which don't deduct stock)
+      const shouldRestoreStock = existingSale.bill_type !== 'QUOTATION' && existingSale.bill_type !== 'ORDER';
+
+      if (existingSale.store_id && shouldRestoreStock) {
         const stockRestorePromises = existingSale.sale_details.map(async detail => {
           await updateStoreStock(existingSale.store_id, detail.pro_id, detail.qnty, 'increment', updated_by || null);
         });
