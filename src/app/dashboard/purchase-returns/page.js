@@ -187,6 +187,42 @@ export default function PurchaseReturnsPage() {
     }));
   };
 
+  // Handle purchase search
+  const handlePurchaseSearch = async (e) => {
+    e?.preventDefault();
+    if (!purchaseSearchTerm.trim()) return;
+    
+    setIsSearchingPurchase(true);
+    try {
+      // Try search by ID if numeric
+      if (!isNaN(purchaseSearchTerm)) {
+        const idRes = await fetch(`/api/purchases?id=${purchaseSearchTerm}`);
+        if (idRes.ok) {
+          const purchase = await idRes.json();
+          handlePurchaseSelect(purchase);
+          showSnackbar('Purchase loaded successfully', 'success');
+          setIsSearchingPurchase(false);
+          return;
+        }
+      }
+      
+      // Try search by Invoice Number
+      const invoiceRes = await fetch(`/api/purchases?invoice=${purchaseSearchTerm}`);
+      if (invoiceRes.ok) {
+        const purchase = await invoiceRes.json();
+        handlePurchaseSelect(purchase);
+        showSnackbar('Purchase loaded successfully', 'success');
+      } else {
+        showSnackbar('Purchase not found with that ID or Invoice Number', 'error');
+      }
+    } catch (error) {
+      console.error('Error searching purchase:', error);
+      showSnackbar('Error searching purchase', 'error');
+    } finally {
+      setIsSearchingPurchase(false);
+    }
+  };
+
   // Handle return quantity change
   const handleReturnQuantityChange = (index, quantity) => {
     const newQuantity = Math.max(0, Math.min(quantity, formData.return_details[index].max_quantity));
