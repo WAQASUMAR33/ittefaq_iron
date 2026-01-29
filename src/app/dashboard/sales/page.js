@@ -5038,5 +5038,4 @@ export default function SalesPage() {
       <SalesPageContent />
     </Suspense>
   );
-} );
 }
