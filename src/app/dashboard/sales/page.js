@@ -1026,6 +1026,7 @@ function SalesPageContent() {
         cus_name: newCustomer.cus_name.trim(),
         cus_phone_no: newCustomer.cus_phone_no.trim(),
         cus_phone_no2: newCustomer.cus_phone_no2.trim(),
+        cus_address: newCustomer.cus_address.trim(),
         cus_reference: newCustomer.cus_reference.trim(),
         cus_account_info: newCustomer.cus_account_info.trim(),
         other: newCustomer.other.trim(),
@@ -4084,6 +4085,25 @@ function SalesPageContent() {
                 />
               </Grid>
 
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  required
+                  label="Address"
+                  name="cus_address"
+                  value={newCustomer.cus_address}
+                  onChange={(e) => setNewCustomer(prev => ({ ...prev, cus_address: e.target.value }))}
+                  placeholder="Enter complete address"
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <MapPinIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+
               {/* Second Row - Customer Type, Category */}
 
               <Grid item xs={12} md={4}>
@@ -5018,4 +5038,5 @@ export default function SalesPage() {
       <SalesPageContent />
     </Suspense>
   );
+} );
 }

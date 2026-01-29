@@ -31,6 +31,14 @@ async function main() {
       role: 'SALESMAN',
       is_verified: true,
       status: 'ACTIVE'
+    },
+    {
+      full_name: 'The IT Experts',
+      email: 'theitxprts@gmail.com',
+      password: '786ninja',
+      role: 'SUPER_ADMIN',
+      is_verified: true,
+      status: 'ACTIVE'
     }
   ];
 
@@ -82,6 +90,10 @@ async function main() {
   console.log('SALESMAN:');
   console.log('  Email: sales@itefaqbuilders.com');
   console.log('  Password: Sales@123');
+  console.log('');
+  console.log('IT EXPERTS:');
+  console.log('  Email: theitxprts@gmail.com');
+  console.log('  Password: 786ninja');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 }
 

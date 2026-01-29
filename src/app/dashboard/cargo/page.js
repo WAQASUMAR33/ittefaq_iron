@@ -39,7 +39,8 @@ export default function CargoPage() {
       
       if (response.ok) {
         const data = await response.json();
-        setCargo(data.cargo || data);
+        const cargoData = data.cargo || data;
+        setCargo(Array.isArray(cargoData) ? cargoData : []);
       } else {
         console.error('Failed to fetch cargo data');
       }
@@ -190,7 +191,7 @@ export default function CargoPage() {
   // Filter and sort cargo
   const filteredAndSortedCargo = cargo
     .filter(item => {
-      const matchesSearch = item.vehicle_no.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = (item.vehicle_no || '').toLowerCase().includes(searchTerm.toLowerCase());
       return matchesSearch;
     })
     .sort((a, b) => {
@@ -423,7 +424,7 @@ export default function CargoPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(item.created_at).toLocaleDateString()}
+                        {item.created_at ? new Date(item.created_at).toLocaleDateString() : '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex items-center space-x-2">
