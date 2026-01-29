@@ -335,7 +335,7 @@ export default function FinancePage() {
 
   return (
     <DashboardLayout>
-      <Container maxWidth="xl" sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', p: 3 }}>
+      <Container maxWidth={false} sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', p: 3 }}>
         {/* Header Section */}
         <Box sx={{ flexShrink: 0, mb: 3 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
