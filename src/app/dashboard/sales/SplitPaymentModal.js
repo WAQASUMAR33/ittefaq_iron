@@ -3,16 +3,16 @@
 import { X, Plus, CreditCard, Search } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
-export default function SplitPaymentModal({ 
-  isOpen, 
-  onClose, 
-  splitPayments, 
+export default function SplitPaymentModal({
+  isOpen,
+  onClose,
+  splitPayments,
   setSplitPayments,
   netTotal,
-  customers 
+  customers
 }) {
   const [localSplitPayments, setLocalSplitPayments] = useState(splitPayments || []);
-  
+
   // Account search states for each payment
   const [debitSearchTerms, setDebitSearchTerms] = useState({});
   const [creditSearchTerms, setCreditSearchTerms] = useState({});
@@ -36,7 +36,7 @@ export default function SplitPaymentModal({
 
   // Filter customers by type
   const getCustomerAccounts = () => {
-    return customers.filter(c => c.customer_type?.cus_type_title === 'Customer');
+    return customers.filter(c => c.customer_category?.cus_cat_title?.toLowerCase().includes('customer'));
   };
 
   const getCashAccounts = () => {
@@ -47,7 +47,7 @@ export default function SplitPaymentModal({
   const getFilteredCustomerAccounts = (searchTerm) => {
     const accounts = getCustomerAccounts();
     if (!searchTerm) return accounts;
-    return accounts.filter(c => 
+    return accounts.filter(c =>
       c.cus_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.cus_phone_no?.toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -56,7 +56,7 @@ export default function SplitPaymentModal({
   const getFilteredCashAccounts = (searchTerm) => {
     const accounts = getCashAccounts();
     if (!searchTerm) return accounts;
-    return accounts.filter(c => 
+    return accounts.filter(c =>
       c.cus_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.cus_phone_no?.toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -84,7 +84,7 @@ export default function SplitPaymentModal({
   };
 
   const updatePayment = (index, field, value) => {
-    const updated = localSplitPayments.map((payment, i) => 
+    const updated = localSplitPayments.map((payment, i) =>
       i === index ? { ...payment, [field]: value } : payment
     );
     setLocalSplitPayments(updated);
@@ -248,7 +248,7 @@ export default function SplitPaymentModal({
                         className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
                       />
                       <Search className="w-4 h-4 text-gray-400 absolute right-3 top-4" />
-                      
+
                       {showDebitDropdowns[index] && (
                         <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                           {getFilteredCustomerAccounts(debitSearchTerms[index]).length > 0 ? (
@@ -293,7 +293,7 @@ export default function SplitPaymentModal({
                         className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
                       />
                       <Search className="w-4 h-4 text-gray-400 absolute right-3 top-4" />
-                      
+
                       {showCreditDropdowns[index] && (
                         <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                           {getFilteredCashAccounts(creditSearchTerms[index]).length > 0 ? (

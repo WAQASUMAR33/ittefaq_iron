@@ -119,7 +119,7 @@ export default function SubscriptionsPage() {
 
     try {
       setSubscribing(true);
-      
+
       // Get user ID from localStorage (adjust as needed)
       const userData = localStorage.getItem('user');
       const user = userData ? JSON.parse(userData) : null;
@@ -163,8 +163,8 @@ export default function SubscriptionsPage() {
 
   // Filter customers with type "Customer"
   const getRegularCustomers = () => {
-    return customers.filter(customer => 
-      customer.customer_type?.cus_type_title?.toLowerCase().includes('customer')
+    return customers.filter(customer =>
+      customer.customer_category?.cus_cat_title?.toLowerCase().includes('customer')
     );
   };
 

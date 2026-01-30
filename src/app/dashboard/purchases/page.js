@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import DashboardLayout from '../components/dashboard-layout';
 
 // Material-UI imports
-import { 
+import {
   Box,
   Container,
   Typography,
@@ -83,35 +83,35 @@ export default function PurchasesPage() {
   const [stores, setStores] = useState([]);
   const [customerCategories, setCustomerCategories] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Filtered customer lists
   const [suppliers, setSuppliers] = useState([]);
   const [bankAccounts, setBankAccounts] = useState([]);
-  
+
   // Function to filter customers by type
   const filterCustomersByType = (customers, customerTypes) => {
     // Find supplier and bank account types
-    const supplierType = customerTypes.find(type => 
+    const supplierType = customerTypes.find(type =>
       type.cus_type_title.toLowerCase() === 'supplier'
     );
-    const bankAccountType = customerTypes.find(type => 
+    const bankAccountType = customerTypes.find(type =>
       type.cus_type_title.toLowerCase() === 'cash account'
     );
-    
+
     // Filter customers by type
-    const filteredSuppliers = customers.filter(customer => 
+    const filteredSuppliers = customers.filter(customer =>
       customer.cus_type === supplierType?.cus_type_id
     );
-    
-    const filteredBankAccounts = customers.filter(customer => 
+
+    const filteredBankAccounts = customers.filter(customer =>
       customer.cus_type === bankAccountType?.cus_type_id
     );
-    
+
     console.log(`🔍 Filtered ${filteredSuppliers.length} suppliers and ${filteredBankAccounts.length} bank accounts`);
-    
+
     return { suppliers: filteredSuppliers, bankAccounts: filteredBankAccounts };
   };
-  
+
   // Sample vehicle data
   const [vehicles] = useState([
     { id: 1, vehicle_no: 'ABC-123', driver_name: 'John Doe', vehicle_type: 'Truck' },
@@ -130,7 +130,7 @@ export default function PurchasesPage() {
     message: '',
     severity: 'success'
   });
-  
+
   // Customer form states
   const [showCustomerForm, setShowCustomerForm] = useState(false);
   const [customerFormData, setCustomerFormData] = useState({
@@ -150,25 +150,25 @@ export default function PurchasesPage() {
     city_id: ''
   });
   const [isSubmittingCustomer, setIsSubmittingCustomer] = useState(false);
-  
+
   // Customer form dropdown data
   const [customerTypes, setCustomerTypes] = useState([]);
   const [cities, setCities] = useState([]);
-  
-  
+
+
   // Filter states
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState('');
   const [sortBy, setSortBy] = useState('created_at');
   const [sortOrder, setSortOrder] = useState('desc');
-  
+
   // Product grid filter states
   const [productSearchTerm, setProductSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedSubcategory, setSelectedSubcategory] = useState('');
   const [categories, setCategories] = useState([]);
   const [subcategories, setSubcategories] = useState([]);
-  
+
   // Selected product for preview
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [productFormData, setProductFormData] = useState({
@@ -176,7 +176,7 @@ export default function PurchasesPage() {
     unit_rate: '',
     crate: ''
   });
-  
+
   // Customer dropdown filter states
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
@@ -239,13 +239,13 @@ export default function PurchasesPage() {
   // Function to handle labour charges distribution
   const handleLabourDistribution = (includeLabour, labourAmount, purchaseDetails) => {
     console.log('🔧 handleLabourDistribution called:', { includeLabour, labourAmount, purchaseDetailsLength: purchaseDetails.length });
-    
+
     if (includeLabour && labourAmount && purchaseDetails.length > 0) {
       const labourAmountNum = parseFloat(labourAmount || 0);
       const totalQuantity = purchaseDetails.reduce((sum, detail) => sum + parseFloat(detail.qnty || 0), 0);
-      
+
       console.log('🔧 Labour distribution:', { labourAmountNum, totalQuantity });
-      
+
       if (totalQuantity > 0) {
         const labourPerUnit = labourAmountNum / totalQuantity;
         console.log('🔧 Labour per unit:', labourPerUnit);
@@ -264,7 +264,7 @@ export default function PurchasesPage() {
             quantity: detail.qnty,
             crate: detail.crate
           });
-          
+
           return {
             ...detail,
             // keep crate unchanged; update price fields only
@@ -283,7 +283,7 @@ export default function PurchasesPage() {
       // Remove labour charges - restore original unit prices; crate stays as-is
       const updatedDetails = purchaseDetails.map(detail => {
         const restoredRate = detail.original_rate ?? detail.unit_rate ?? detail.rate ?? 0;
-        
+
         return {
           ...detail,
           unit_rate: restoredRate,
@@ -295,7 +295,7 @@ export default function PurchasesPage() {
 
       return updatedDetails;
     }
-    
+
     return purchaseDetails;
   };
 
@@ -364,7 +364,7 @@ export default function PurchasesPage() {
         console.error('Customer Categories API error:', customerCategoriesRes.status, customerCategoriesRes.statusText);
         setCustomerCategories([]);
       }
-      
+
       if (customerTypesRes.ok) {
         const customerTypesData = await customerTypesRes.json();
         setCustomerTypes(Array.isArray(customerTypesData) ? customerTypesData : []);
@@ -372,7 +372,7 @@ export default function PurchasesPage() {
         console.error('Customer Types API error:', customerTypesRes.status, customerTypesRes.statusText);
         setCustomerTypes([]);
       }
-      
+
       if (citiesRes.ok) {
         const citiesData = await citiesRes.json();
         setCities(Array.isArray(citiesData) ? citiesData : []);
@@ -413,9 +413,9 @@ export default function PurchasesPage() {
   // Filter and sort logic
   const filteredPurchases = purchases.filter(purchase => {
     const matchesSearch = purchase.customer?.cus_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         purchase.vehicle_no?.toLowerCase().includes(searchTerm.toLowerCase());
+      purchase.vehicle_no?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCustomer = !selectedCustomer || purchase.cus_id === selectedCustomer;
-    
+
     return matchesSearch && matchesCustomer;
   });
 
@@ -427,22 +427,22 @@ export default function PurchasesPage() {
 
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.pro_title.toLowerCase().includes(productSearchTerm.toLowerCase()) ||
-                         product.pro_description?.toLowerCase().includes(productSearchTerm.toLowerCase());
-    
+      product.pro_description?.toLowerCase().includes(productSearchTerm.toLowerCase());
+
     return matchesSearch;
   });
 
   // Customer filtering logic
   const filteredCustomers = customers.filter(customer => {
     const matchesSearch = customer.cus_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
-                         customer.cus_phone_no?.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
-                         customer.cus_email?.toLowerCase().includes(customerSearchTerm.toLowerCase());
+      customer.cus_phone_no?.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
+      customer.cus_email?.toLowerCase().includes(customerSearchTerm.toLowerCase());
     return matchesSearch;
   });
 
   const sortedPurchases = filteredPurchases.sort((a, b) => {
     let aValue, bValue;
-    
+
     if (sortBy === 'created_at') {
       aValue = new Date(a.created_at);
       bValue = new Date(b.created_at);
@@ -494,22 +494,22 @@ export default function PurchasesPage() {
   // Add product to purchase list
   const addProductToPurchase = () => {
     if (!selectedProduct) return;
-    
+
     // Check if store is selected
     if (!formData.store_id) {
       alert('Please select a store before adding products');
       return;
     }
-    
+
     const existingDetail = formData.purchase_details.find(detail => detail.pro_id === selectedProduct.pro_id);
-    
+
     if (existingDetail) {
       alert('Product already exists in the purchase list');
       return;
     }
-    
+
     const totalAmount = parseFloat(productFormData.qnty) * parseFloat(productFormData.crate || productFormData.unit_rate);
-    
+
     const newDetail = {
       pro_id: selectedProduct.pro_id,
       product_id: selectedProduct.pro_id, // Add product_id for console logging
@@ -522,23 +522,23 @@ export default function PurchasesPage() {
       total_amount: totalAmount.toString(),
       discount: '0'
     };
-    
+
     setFormData(prev => {
       const updatedPurchaseDetails = [...prev.purchase_details, newDetail];
-      
+
       // Apply labour distribution if checkbox is checked
       const finalPurchaseDetails = handleLabourDistribution(
         prev.include_labour,
         prev.labour_amount,
         updatedPurchaseDetails
       );
-      
+
       return {
-      ...prev,
+        ...prev,
         purchase_details: finalPurchaseDetails
       };
     });
-    
+
     // Reset selection
     setSelectedProduct(null);
     setProductFormData({
@@ -576,7 +576,7 @@ export default function PurchasesPage() {
     const transportAmount = parseFloat(formData.transport_amount || 0);
     const labourAmount = parseFloat(formData.labour_amount || 0);
     const discount = parseFloat(formData.discount || 0);
-    
+
     return totalAmount + unloadingAmount + transportAmount + labourAmount - discount;
   };
 
@@ -590,38 +590,38 @@ export default function PurchasesPage() {
         alert('Please select a customer');
         return;
       }
-      
+
       if (formData.purchase_details.length === 0) {
         alert('Please add at least one product to the purchase');
         return;
       }
-      
+
       const url = editingPurchase ? '/api/purchases' : '/api/purchases';
       const method = editingPurchase ? 'PUT' : 'POST';
-      
+
       // Calculate total amount from purchase details
       const calculatedTotalAmount = calculateTotalAmount();
-      
+
       // Set proper debit and credit accounts for purchase transaction
       // For purchases: Debit = Inventory/Stock Account, Credit = Supplier Account or Cash Account
       let debitAccountId = '';
       let creditAccountId = '';
-      
+
       // Find inventory/stock account (assuming it's an ASSET_ACCOUNT type)
-      const inventoryAccount = customers.find(customer => 
-        customer.cus_type === 'ASSET_ACCOUNT' && 
+      const inventoryAccount = customers.find(customer =>
+        customer.cus_type === 'ASSET_ACCOUNT' &&
         customer.cus_name.toLowerCase().includes('inventory')
       );
-      
+
       if (inventoryAccount) {
         debitAccountId = inventoryAccount.cus_id;
       }
-      
+
       // Calculate total payment amount
       const cashPayment = parseFloat(formData.cash_payment || 0);
       const bankPayment = parseFloat(formData.bank_payment || 0);
       const totalPayment = cashPayment + bankPayment;
-      
+
       // Set payment type based on which payments are made
       let paymentType = 'CASH';
       if (cashPayment > 0 && bankPayment > 0) {
@@ -629,11 +629,11 @@ export default function PurchasesPage() {
       } else if (bankPayment > 0) {
         paymentType = 'BANK_TRANSFER';
       }
-      
+
       // Set credit account based on payment type
       if (cashPayment > 0) {
         // If cash payment, credit cash account
-        const cashAccount = customers.find(customer => 
+        const cashAccount = customers.find(customer =>
           customer.cus_name === 'Cash Account'
         );
         console.log('🔍 Looking for cash account:', {
@@ -649,31 +649,31 @@ export default function PurchasesPage() {
         // If no payment, credit supplier account (accounts payable)
         creditAccountId = formData.cus_id;
       }
-      
-      const body = editingPurchase 
-        ? { 
-            id: editingPurchase.pur_id, 
-            ...formData, 
-            total_amount: calculatedTotalAmount.toString(),
-            debit_account_id: debitAccountId,
-            credit_account_id: creditAccountId,
-            bank_account_id: selectedBankAccount ? selectedBankAccount.cus_id : null,
-            payment: totalPayment,
-            payment_type: paymentType,
-            cash_payment: cashPayment,
-            bank_payment: bankPayment
-          } 
-        : { 
-            ...formData, 
-            total_amount: calculatedTotalAmount.toString(),
-            debit_account_id: debitAccountId,
-            credit_account_id: creditAccountId,
-            bank_account_id: selectedBankAccount ? selectedBankAccount.cus_id : null,
-            payment: totalPayment,
-            payment_type: paymentType,
-            cash_payment: cashPayment,
-            bank_payment: bankPayment
-          };
+
+      const body = editingPurchase
+        ? {
+          id: editingPurchase.pur_id,
+          ...formData,
+          total_amount: calculatedTotalAmount.toString(),
+          debit_account_id: debitAccountId,
+          credit_account_id: creditAccountId,
+          bank_account_id: selectedBankAccount ? selectedBankAccount.cus_id : null,
+          payment: totalPayment,
+          payment_type: paymentType,
+          cash_payment: cashPayment,
+          bank_payment: bankPayment
+        }
+        : {
+          ...formData,
+          total_amount: calculatedTotalAmount.toString(),
+          debit_account_id: debitAccountId,
+          credit_account_id: creditAccountId,
+          bank_account_id: selectedBankAccount ? selectedBankAccount.cus_id : null,
+          payment: totalPayment,
+          payment_type: paymentType,
+          cash_payment: cashPayment,
+          bank_payment: bankPayment
+        };
 
       console.log('🔍 Purchase API Request Body:', {
         payment_type: paymentType,
@@ -709,8 +709,8 @@ export default function PurchasesPage() {
           labour_amount: '',
           include_labour: false,
           discount: '',
-      cash_payment: '',
-      bank_payment: '',
+          cash_payment: '',
+          bank_payment: '',
           payment_type: 'CASH',
           vehicle_no: '',
           invoice_number: '',
@@ -747,7 +747,7 @@ export default function PurchasesPage() {
       invoice_number: purchase.invoice_number || '',
       purchase_details: purchase.purchase_details || []
     });
-    
+
     // Set selected bank account if credit_account_id exists
     if (purchase.credit_account_id) {
       const bankAccount = customers.find(customer => customer.cus_id === purchase.credit_account_id);
@@ -755,11 +755,11 @@ export default function PurchasesPage() {
     } else {
       setSelectedBankAccount(null);
     }
-    
+
     // Set selected customer for the form
     const customer = customers.find(customer => customer.cus_id === purchase.cus_id);
     setFormSelectedCustomer(customer || null);
-    
+
     setCurrentView('create');
   };
 
@@ -1000,7 +1000,7 @@ export default function PurchasesPage() {
                 transition: 'all 0.2s ease-in-out'
               }}
             >
-                Add New Purchase
+              Add New Purchase
             </Button>
           </Box>
 
@@ -1014,15 +1014,15 @@ export default function PurchasesPage() {
                 <Button
                   variant="text"
                   size="small"
-                onClick={clearFilters}
+                  onClick={clearFilters}
                   sx={{ color: 'primary.main' }}
-              >
-                Clear All Filters
+                >
+                  Clear All Filters
                 </Button>
               </Box>
-            
+
               <Grid container spacing={3}>
-              {/* Search */}
+                {/* Search */}
                 <Grid item xs={12} md={6}>
                   <TextField
                     fullWidth
@@ -1041,7 +1041,7 @@ export default function PurchasesPage() {
                   />
                 </Grid>
 
-              {/* Customer Filter */}
+                {/* Customer Filter */}
                 <Grid item xs={12} md={3}>
                   <Autocomplete
                     fullWidth
@@ -1068,7 +1068,7 @@ export default function PurchasesPage() {
                   />
                 </Grid>
 
-              {/* Sort */}
+                {/* Sort */}
                 <Grid item xs={12} md={3}>
                   <Autocomplete
                     fullWidth
@@ -1085,8 +1085,8 @@ export default function PurchasesPage() {
                     onChange={(event, newValue) => {
                       if (newValue) {
                         const [field, order] = newValue.value.split('-');
-                    setSortBy(field);
-                    setSortOrder(order);
+                        setSortBy(field);
+                        setSortOrder(order);
                       }
                     }}
                     filterOptions={(options, { inputValue }) => {
@@ -1230,7 +1230,7 @@ export default function PurchasesPage() {
                 Showing {finalPurchases.length} of {purchases.length} purchases
               </Typography>
             </Box>
-            
+
             {finalPurchases.length === 0 ? (
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 8 }}>
                 <Box sx={{ textAlign: 'center' }}>
@@ -1260,7 +1260,7 @@ export default function PurchasesPage() {
                     <div className="col-span-1">Actions</div>
                   </div>
                 </div>
-                
+
                 {/* Scrollable Table Body */}
                 <div className="flex-1 overflow-y-auto">
                   <div className="divide-y divide-gray-200">
@@ -1287,8 +1287,8 @@ export default function PurchasesPage() {
                           <div className="col-span-2">
                             <div className="text-sm font-semibold text-green-600">{parseFloat(purchase.net_total).toFixed(2)}</div>
                             <div className="text-xs text-gray-500">
-                              Total: {parseFloat(purchase.total_amount).toFixed(2)} | 
-                              Unload: {parseFloat(purchase.unloading_amount).toFixed(2)} | 
+                              Total: {parseFloat(purchase.total_amount).toFixed(2)} |
+                              Unload: {parseFloat(purchase.unloading_amount).toFixed(2)} |
                               Fare: {parseFloat(purchase.fare_amount).toFixed(2)}
                             </div>
                             {purchase.discount > 0 && (
@@ -1466,7 +1466,7 @@ export default function PurchasesPage() {
                       />
                     </Box>
                   </Grid>
-                  
+
                   {/* Row 1 */}
                   <Grid item xs={12} md={2}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -1488,8 +1488,8 @@ export default function PurchasesPage() {
                       />
                     </Box>
                   </Grid>
-                  
-                  
+
+
                   <Grid item xs={12} md={4}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -1497,8 +1497,8 @@ export default function PurchasesPage() {
                           SUPPLIER
                         </Typography>
                         {formSelectedCustomer && (
-                          <Box sx={{ 
-                            bgcolor: 'success.light', 
+                          <Box sx={{
+                            bgcolor: 'success.light',
                             color: 'success.contrastText',
                             px: 1.5,
                             py: 0.5,
@@ -1535,8 +1535,8 @@ export default function PurchasesPage() {
                           <TextField
                             {...params}
                             placeholder="Select supplier..."
-                            sx={{ 
-                              width: '100%', 
+                            sx={{
+                              width: '100%',
                               minWidth: 300,
                               '& .MuiInputBase-input': {
                                 fontWeight: formSelectedCustomer ? 'bold' : 'normal'
@@ -1545,27 +1545,30 @@ export default function PurchasesPage() {
                             onClick={() => setCustomerDropdownOpen(true)}
                           />
                         )}
-                        renderOption={(props, option) => (
-                          <Box component="li" {...props}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-                              <PersonIcon sx={{ color: 'primary.main', fontSize: 20 }} />
-                              <Box sx={{ flex: 1 }}>
-                                <Typography 
-                                  variant="body2" 
-                                  sx={{ 
-                                    fontWeight: formSelectedCustomer?.cus_id === option.cus_id ? 'bold' : 'medium',
-                                    color: formSelectedCustomer?.cus_id === option.cus_id ? 'primary.main' : 'text.primary'
-                                  }}
-                                >
-                                  {option.cus_name}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {option.cus_phone_no} • Balance: {parseFloat(option.cus_balance || 0).toFixed(2)}
-                                </Typography>
+                        renderOption={(props, option) => {
+                          const { key, ...optionProps } = props;
+                          return (
+                            <Box component="li" key={key} {...optionProps}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                                <PersonIcon sx={{ color: 'primary.main', fontSize: 20 }} />
+                                <Box sx={{ flex: 1 }}>
+                                  <Typography
+                                    variant="body2"
+                                    sx={{
+                                      fontWeight: formSelectedCustomer?.cus_id === option.cus_id ? 'bold' : 'medium',
+                                      color: formSelectedCustomer?.cus_id === option.cus_id ? 'primary.main' : 'text.primary'
+                                    }}
+                                  >
+                                    {option.cus_name}
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {option.cus_phone_no} • Balance: {parseFloat(option.cus_balance || 0).toFixed(2)}
+                                  </Typography>
+                                </Box>
                               </Box>
                             </Box>
-                          </Box>
-                        )}
+                          );
+                        }}
                         sx={{ width: '100%', minWidth: 300 }}
                         disablePortal={false}
                         openOnFocus={true}
@@ -1575,7 +1578,7 @@ export default function PurchasesPage() {
                       />
                     </Box>
                   </Grid>
-                  
+
                   {/* Row 2 - Vehicle, Transport Amount, Labour Amount */}
                   <Grid item xs={12} md={4}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -1591,8 +1594,8 @@ export default function PurchasesPage() {
                         getOptionLabel={(option) => `${option.vehicle_no} - ${option.driver_name}`}
                         value={vehicles.find(v => v.vehicle_no === formData.vehicle_no) || null}
                         onChange={(event, newValue) => {
-                          setFormData(prev => ({ 
-                            ...prev, 
+                          setFormData(prev => ({
+                            ...prev,
                             vehicle_no: newValue ? newValue.vehicle_no : ''
                           }));
                           setVehicleDropdownOpen(false);
@@ -1621,12 +1624,12 @@ export default function PurchasesPage() {
                       />
                     </Box>
                   </Grid>
-                  
-                  
-                  
-                  
-                  </Grid>
-                      </Box>
+
+
+
+
+                </Grid>
+              </Box>
 
 
               {/* Product Selection Section */}
@@ -1634,7 +1637,7 @@ export default function PurchasesPage() {
                 <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2 }}>
                   SELECT PRODUCT X
                 </Typography>
-                
+
                 <Grid container spacing={2}>
                   <Grid item xs={12} md={9}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -1656,8 +1659,8 @@ export default function PurchasesPage() {
                           <TextField
                             {...params}
                             placeholder={formData.store_id ? "Store Selected" : "Select store"}
-                            sx={{ 
-                              width: '100%', 
+                            sx={{
+                              width: '100%',
                               minWidth: 200,
                               '& .MuiInputBase-input': {
                                 fontWeight: formData.store_id ? 'bold' : 'normal',
@@ -1666,33 +1669,36 @@ export default function PurchasesPage() {
                             }}
                           />
                         )}
-                        renderOption={(props, option) => (
-                          <Box component="li" {...props}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <StoreIcon sx={{ color: 'primary.main' }} />
-                              <Box>
-                                <Typography 
-                                  variant="body2" 
-                                  sx={{ 
-                                    fontWeight: formData.store_id === option.storeid.toString() ? 'bold' : 'medium',
-                                    color: formData.store_id === option.storeid.toString() ? 'primary.main' : 'text.primary'
-                                  }}
-                                >
-                                  {option.store_name}
-                                </Typography>
-                                {option.store_address && (
-                                  <Typography variant="caption" color="text.secondary">
-                                    {option.store_address}
+                        renderOption={(props, option) => {
+                          const { key, ...optionProps } = props;
+                          return (
+                            <Box component="li" key={key} {...optionProps}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <StoreIcon sx={{ color: 'primary.main' }} />
+                                <Box>
+                                  <Typography
+                                    variant="body2"
+                                    sx={{
+                                      fontWeight: formData.store_id === option.storeid.toString() ? 'bold' : 'medium',
+                                      color: formData.store_id === option.storeid.toString() ? 'primary.main' : 'text.primary'
+                                    }}
+                                  >
+                                    {option.store_name}
                                   </Typography>
-                                )}
+                                  {option.store_address && (
+                                    <Typography variant="caption" color="text.secondary">
+                                      {option.store_address}
+                                    </Typography>
+                                  )}
+                                </Box>
                               </Box>
                             </Box>
-                          </Box>
-                        )}
+                          );
+                        }}
                       />
                     </Box>
                   </Grid>
-                  
+
                   <Grid item xs={12} md={3}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
@@ -1726,7 +1732,7 @@ export default function PurchasesPage() {
                       />
                     </Box>
                   </Grid>
-                  
+
                   <Grid item xs={12} md={1.5}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
@@ -1734,15 +1740,15 @@ export default function PurchasesPage() {
                       </Typography>
                       <TextField
                         size="small"
-                            type="number"
-                            value={productFormData.qnty}
-                            onChange={(e) => setProductFormData(prev => ({ ...prev, qnty: e.target.value }))}
+                        type="number"
+                        value={productFormData.qnty}
+                        onChange={(e) => setProductFormData(prev => ({ ...prev, qnty: e.target.value }))}
                         inputProps={{ min: 1 }}
                         sx={{ width: 100, minWidth: 100 }}
                       />
                     </Box>
                   </Grid>
-                  
+
                   <Grid item xs={12} md={1.5}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
@@ -1750,15 +1756,15 @@ export default function PurchasesPage() {
                       </Typography>
                       <TextField
                         size="small"
-                            type="number"
-                            value={productFormData.unit_rate}
-                            onChange={(e) => setProductFormData(prev => ({ ...prev, unit_rate: e.target.value }))}
+                        type="number"
+                        value={productFormData.unit_rate}
+                        onChange={(e) => setProductFormData(prev => ({ ...prev, unit_rate: e.target.value }))}
                         inputProps={{ step: 0.01, min: 0 }}
                         sx={{ width: 100, minWidth: 100 }}
                       />
                     </Box>
                   </Grid>
-                  
+
                   <Grid item xs={12} md={1.5}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
@@ -1766,15 +1772,15 @@ export default function PurchasesPage() {
                       </Typography>
                       <TextField
                         size="small"
-                            type="number"
-                            value={productFormData.crate || productFormData.unit_rate}
-                            onChange={(e) => setProductFormData(prev => ({ ...prev, crate: e.target.value }))}
+                        type="number"
+                        value={productFormData.crate || productFormData.unit_rate}
+                        onChange={(e) => setProductFormData(prev => ({ ...prev, crate: e.target.value }))}
                         inputProps={{ step: 0.01, min: 0 }}
                         sx={{ width: 100, minWidth: 100 }}
                       />
                     </Box>
                   </Grid>
-                  
+
                   <Grid item xs={12} md={1.5}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
@@ -1788,12 +1794,12 @@ export default function PurchasesPage() {
                       />
                     </Box>
                   </Grid>
-                  
+
                   <Grid item xs={12} md={1.5}>
                     <Button
                       variant="contained"
-                          onClick={addProductToPurchase}
-                          disabled={!productFormData.qnty || !productFormData.unit_rate}
+                      onClick={addProductToPurchase}
+                      disabled={!productFormData.qnty || !productFormData.unit_rate}
                       sx={{
                         bgcolor: 'secondary.main',
                         '&:hover': { bgcolor: 'secondary.dark' },
@@ -1806,7 +1812,7 @@ export default function PurchasesPage() {
                   </Grid>
                 </Grid>
               </Box>
-                      
+
 
               {/* Product List Table */}
               <Box sx={{ flex: 1, p: 3, borderBottom: 1, borderColor: 'divider' }}>
@@ -1827,8 +1833,8 @@ export default function PurchasesPage() {
                     <TableBody>
                       {formData.purchase_details.length > 0 ? (
                         formData.purchase_details.map((detail, index) => {
-                              const product = products.find(p => p.pro_id === detail.pro_id);
-                              return (
+                          const product = products.find(p => p.pro_id === detail.pro_id);
+                          return (
                             <TableRow key={index} hover>
                               <TableCell>{index + 1}</TableCell>
                               <TableCell>
@@ -1846,21 +1852,21 @@ export default function PurchasesPage() {
                               </TableCell>
                               <TableCell>
                                 <TextField
-                                      type="number"
-                                      value={detail.qnty}
-                                      onChange={(e) => {
-                                        const newQuantity = e.target.value;
-                                        const updatedDetails = formData.purchase_details.map((d, i) => 
-                                          i === index
-                                            ? {
-                                                ...d,
-                                                qnty: newQuantity,
-                                                total_amount: (parseInt(newQuantity) * parseFloat(d.unit_rate)).toString()
-                                              }
-                                            : d
-                                        );
-                                        setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
-                                      }}
+                                  type="number"
+                                  value={detail.qnty}
+                                  onChange={(e) => {
+                                    const newQuantity = e.target.value;
+                                    const updatedDetails = formData.purchase_details.map((d, i) =>
+                                      i === index
+                                        ? {
+                                          ...d,
+                                          qnty: newQuantity,
+                                          total_amount: (parseInt(newQuantity) * parseFloat(d.unit_rate)).toString()
+                                        }
+                                        : d
+                                    );
+                                    setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
+                                  }}
                                   inputProps={{ min: 1 }}
                                   size="small"
                                   sx={{ width: 80 }}
@@ -1868,21 +1874,21 @@ export default function PurchasesPage() {
                               </TableCell>
                               <TableCell>
                                 <TextField
-                                      type="number"
-                                      value={detail.unit_rate}
-                                      onChange={(e) => {
-                                        const newUnitRate = e.target.value;
-                                        const updatedDetails = formData.purchase_details.map((d, i) => 
-                                          i === index
-                                            ? {
-                                                ...d,
-                                                unit_rate: newUnitRate,
-                                                total_amount: (parseInt(d.qnty) * parseFloat(d.crate || newUnitRate)).toString()
-                                              }
-                                            : d
-                                        );
-                                        setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
-                                      }}
+                                  type="number"
+                                  value={detail.unit_rate}
+                                  onChange={(e) => {
+                                    const newUnitRate = e.target.value;
+                                    const updatedDetails = formData.purchase_details.map((d, i) =>
+                                      i === index
+                                        ? {
+                                          ...d,
+                                          unit_rate: newUnitRate,
+                                          total_amount: (parseInt(d.qnty) * parseFloat(d.crate || newUnitRate)).toString()
+                                        }
+                                        : d
+                                    );
+                                    setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
+                                  }}
                                   inputProps={{ step: 0.01, min: 0 }}
                                   size="small"
                                   sx={{ width: 100 }}
@@ -1894,17 +1900,17 @@ export default function PurchasesPage() {
                                   value={detail.crate || detail.unit_rate || '0'}
                                   onChange={(e) => {
                                     const newCrate = e.target.value;
-                                    const updatedDetails = formData.purchase_details.map((d, i) => 
+                                    const updatedDetails = formData.purchase_details.map((d, i) =>
                                       i === index
                                         ? {
-                                            ...d,
-                                            crate: newCrate,
-                                            total_amount: (parseInt(d.qnty) * parseFloat(newCrate)).toString()
-                                              }
-                                            : d
-                                        );
-                                        setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
-                                      }}
+                                          ...d,
+                                          crate: newCrate,
+                                          total_amount: (parseInt(d.qnty) * parseFloat(newCrate)).toString()
+                                        }
+                                        : d
+                                    );
+                                    setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
+                                  }}
                                   inputProps={{ step: 0.01, min: 0 }}
                                   size="small"
                                   sx={{ width: 100 }}
@@ -1912,16 +1918,16 @@ export default function PurchasesPage() {
                               </TableCell>
                               <TableCell>
                                 <Typography variant="body2" sx={{ fontWeight: 'semibold', color: 'success.main' }}>
-                                      {parseFloat(detail.total_amount).toFixed(2)}
+                                  {parseFloat(detail.total_amount).toFixed(2)}
                                 </Typography>
                               </TableCell>
                               <TableCell>
                                 <IconButton
-                                      onClick={() => removePurchaseDetail(index)}
+                                  onClick={() => removePurchaseDetail(index)}
                                   color="error"
                                   size="small"
-                                      title="Remove Product"
-                                    >
+                                  title="Remove Product"
+                                >
                                   <CloseIcon />
                                 </IconButton>
                               </TableCell>
@@ -1941,7 +1947,7 @@ export default function PurchasesPage() {
                   </Table>
                 </TableContainer>
               </Box>
-                  
+
               {/* Payment and Summary Section */}
               <Box sx={{ p: 3 }}>
                 <Box sx={{ display: 'flex', gap: 4 }}>
@@ -1950,126 +1956,129 @@ export default function PurchasesPage() {
                     {/* Split Payment Section */}
                     <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
                       <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                           CASH PAYMENT
-                      </Typography>
-                      <TextField
-                        size="small"
-                        type="number"
+                        </Typography>
+                        <TextField
+                          size="small"
+                          type="number"
                           value={formData.cash_payment}
-                            onChange={(e) => {
+                          onChange={(e) => {
                             setFormData(prev => ({ ...prev, cash_payment: e.target.value }));
-                        }}
-                        inputProps={{ step: 0.01, min: 0 }}
-                        sx={{ width: '100%' }}
+                          }}
+                          inputProps={{ step: 0.01, min: 0 }}
+                          sx={{ width: '100%' }}
                           placeholder="0.00"
-                      />
-                    </Box>
+                        />
+                      </Box>
                       <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                           BANK PAYMENT
-                      </Typography>
-                      <TextField
-                        size="small"
-                        type="number"
+                        </Typography>
+                        <TextField
+                          size="small"
+                          type="number"
                           value={formData.bank_payment}
-                        onChange={(e) => {
+                          onChange={(e) => {
                             setFormData(prev => ({ ...prev, bank_payment: e.target.value }));
-                        }}
-                        inputProps={{ step: 0.01, min: 0 }}
-                        sx={{ width: '100%' }}
+                          }}
+                          inputProps={{ step: 0.01, min: 0 }}
+                          sx={{ width: '100%' }}
                           placeholder="0.00"
-                      />
-                    </Box>
+                        />
+                      </Box>
                       <Box sx={{ flex: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                        BANK ACCOUNT
-                      </Typography>
-                      <Autocomplete
-                        size="small"
+                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                          BANK ACCOUNT
+                        </Typography>
+                        <Autocomplete
+                          size="small"
                           disabled={parseFloat(formData.bank_payment || 0) <= 0}
-                        open={bankAccountDropdownOpen}
+                          open={bankAccountDropdownOpen}
                           onOpen={() => {
                             console.log('🔍 Opening bank account dropdown, options:', bankAccounts.length);
                             setBankAccountDropdownOpen(true);
                           }}
-                        onClose={() => setBankAccountDropdownOpen(false)}
+                          onClose={() => setBankAccountDropdownOpen(false)}
                           options={bankAccounts.length > 0 ? bankAccounts : customers}
-                        getOptionLabel={(option) => option.cus_name}
-                        value={selectedBankAccount}
-                        onChange={(event, newValue) => {
-                          setSelectedBankAccount(newValue);
-                          setFormData(prev => ({ 
-                            ...prev, 
-                            credit_account_id: newValue ? newValue.cus_id.toString() : ''
-                          }));
-                          setBankAccountDropdownOpen(false);
-                        }}
-                        filterOptions={(options, { inputValue }) => {
-                          return options.filter(option =>
-                            option.cus_name.toLowerCase().includes(inputValue.toLowerCase()) ||
-                            option.cus_phone_no?.toLowerCase().includes(inputValue.toLowerCase())
-                          );
-                        }}
-                        renderInput={(params) => (
-                          <TextField
-                            {...params}
+                          getOptionLabel={(option) => option.cus_name}
+                          value={selectedBankAccount}
+                          onChange={(event, newValue) => {
+                            setSelectedBankAccount(newValue);
+                            setFormData(prev => ({
+                              ...prev,
+                              credit_account_id: newValue ? newValue.cus_id.toString() : ''
+                            }));
+                            setBankAccountDropdownOpen(false);
+                          }}
+                          filterOptions={(options, { inputValue }) => {
+                            return options.filter(option =>
+                              option.cus_name.toLowerCase().includes(inputValue.toLowerCase()) ||
+                              option.cus_phone_no?.toLowerCase().includes(inputValue.toLowerCase())
+                            );
+                          }}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
                               placeholder="Select Bank Account"
-                              sx={{ 
-                                width: '100%', 
+                              sx={{
+                                width: '100%',
                                 '& .MuiInputBase-input': {
                                   fontWeight: selectedBankAccount ? 'bold' : 'normal'
                                 }
                               }}
-                            onClick={() => setBankAccountDropdownOpen(true)}
-                          />
-                        )}
-                          renderOption={(props, option) => (
-                            <Box component="li" {...props}>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-                                <AttachMoneyIcon sx={{ color: 'primary.main', fontSize: 20 }} />
-                                <Box sx={{ flex: 1 }}>
-                                  <Typography 
-                                    variant="body2" 
-                                    sx={{ 
-                                      fontWeight: selectedBankAccount?.cus_id === option.cus_id ? 'bold' : 'medium',
-                                      color: selectedBankAccount?.cus_id === option.cus_id ? 'primary.main' : 'text.primary'
-                                    }}
-                                  >
-                                    {option.cus_name}
-                                  </Typography>
-                                  <Typography variant="caption" color="text.secondary">
-                                    {option.cus_phone_no} • Balance: {parseFloat(option.cus_balance || 0).toFixed(2)}
-                                  </Typography>
+                              onClick={() => setBankAccountDropdownOpen(true)}
+                            />
+                          )}
+                          renderOption={(props, option) => {
+                            const { key, ...optionProps } = props;
+                            return (
+                              <Box component="li" key={key} {...optionProps}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                                  <AttachMoneyIcon sx={{ color: 'primary.main', fontSize: 20 }} />
+                                  <Box sx={{ flex: 1 }}>
+                                    <Typography
+                                      variant="body2"
+                                      sx={{
+                                        fontWeight: selectedBankAccount?.cus_id === option.cus_id ? 'bold' : 'medium',
+                                        color: selectedBankAccount?.cus_id === option.cus_id ? 'primary.main' : 'text.primary'
+                                      }}
+                                    >
+                                      {option.cus_name}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary">
+                                      {option.cus_phone_no} • Balance: {parseFloat(option.cus_balance || 0).toFixed(2)}
+                                    </Typography>
+                                  </Box>
                                 </Box>
                               </Box>
-                            </Box>
-                          )}
+                            );
+                          }}
                           sx={{ width: '100%' }}
-                        disablePortal={false}
-                        openOnFocus={true}
-                        selectOnFocus={true}
-                        clearOnBlur={false}
-                        handleHomeEndKeys={true}
-                      />
+                          disablePortal={false}
+                          openOnFocus={true}
+                          selectOnFocus={true}
+                          clearOnBlur={false}
+                          handleHomeEndKeys={true}
+                        />
+                      </Box>
                     </Box>
-                    </Box>
-                  
+
                     {/* Row 2: TOTAL PAYMENT, NOTES */}
                     <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
                       <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                        TOTAL PAYMENT
-                      </Typography>
-                      <TextField
-                        size="small"
-                        value={(parseFloat(formData.cash_payment || 0) + parseFloat(formData.bank_payment || 0)).toFixed(2)}
-                        InputProps={{ readOnly: true }}
-                        sx={{ width: '100%', backgroundColor: 'action.hover' }}
-                      />
-                    </Box>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                          TOTAL PAYMENT
+                        </Typography>
+                        <TextField
+                          size="small"
+                          value={(parseFloat(formData.cash_payment || 0) + parseFloat(formData.bank_payment || 0)).toFixed(2)}
+                          InputProps={{ readOnly: true }}
+                          sx={{ width: '100%', backgroundColor: 'action.hover' }}
+                        />
+                      </Box>
                       <Box sx={{ flex: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                           NOTES
                         </Typography>
                         <TextField
@@ -2077,39 +2086,39 @@ export default function PurchasesPage() {
                           multiline
                           rows={2}
                           placeholder="Additional notes"
-                        sx={{ width: '100%' }}
-                      />
-                    </Box>
+                          sx={{ width: '100%' }}
+                        />
+                      </Box>
                     </Box>
                   </Box>
-                  
+
                   {/* Right Section - Summary Fields */}
                   <Box sx={{ width: 350, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                        {/* TOTAL AMOUNT */}
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 'bold', flex: 1, textAlign: 'right' }}>
+                    {/* TOTAL AMOUNT */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', flex: 1, textAlign: 'right' }}>
                         TOTAL AMOUNT
                       </Typography>
                       <TextField
                         size="small"
-                            value={calculateTotalAmount().toFixed(2)}
+                        value={calculateTotalAmount().toFixed(2)}
                         InputProps={{ readOnly: true }}
-                            sx={{ width: 150 }}
+                        sx={{ width: 150 }}
                       />
                     </Box>
 
-                        {/* DELIVERY CHARGES */}
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 'bold', flex: 1, textAlign: 'right' }}>
-                            DELIVERY CHARGES
+                    {/* DELIVERY CHARGES */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', flex: 1, textAlign: 'right' }}>
+                        DELIVERY CHARGES
                       </Typography>
                       <TextField
                         size="small"
-                            type="number"
-                            value={formData.transport_amount || '0'}
-                            onChange={(e) => setFormData(prev => ({ ...prev, transport_amount: e.target.value }))}
-                            inputProps={{ step: 0.01, min: 0 }}
-                            sx={{ width: 150 }}
+                        type="number"
+                        value={formData.transport_amount || '0'}
+                        onChange={(e) => setFormData(prev => ({ ...prev, transport_amount: e.target.value }))}
+                        inputProps={{ step: 0.01, min: 0 }}
+                        sx={{ width: 150 }}
                       />
                     </Box>
 
@@ -2148,10 +2157,10 @@ export default function PurchasesPage() {
                         checked={formData.include_labour || false}
                         onChange={(e) => {
                           const newIncludeLabour = e.target.checked;
-                          console.log('🔧 Checkbox changed:', { 
-                            newIncludeLabour, 
+                          console.log('🔧 Checkbox changed:', {
+                            newIncludeLabour,
                             labourAmount: formData.labour_amount,
-                            purchaseDetailsLength: formData.purchase_details.length 
+                            purchaseDetailsLength: formData.purchase_details.length
                           });
                           setFormData(prev => {
                             const updatedDetails = handleLabourDistribution(
@@ -2175,63 +2184,63 @@ export default function PurchasesPage() {
                       </Typography>
                     </Box>
 
-                        {/* DISCOUNT */}
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 'bold', flex: 1, textAlign: 'right' }}>
-                            DISCOUNT
-                          </Typography>
-                          <TextField
-                            size="small"
-                            type="number"
-                            value={formData.discount || '0'}
-                            onChange={(e) => setFormData(prev => ({ ...prev, discount: e.target.value }))}
-                            inputProps={{ step: 0.01, min: 0 }}
-                            sx={{ width: 150 }}
-                          />
-                        </Box>
+                    {/* DISCOUNT */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', flex: 1, textAlign: 'right' }}>
+                        DISCOUNT
+                      </Typography>
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={formData.discount || '0'}
+                        onChange={(e) => setFormData(prev => ({ ...prev, discount: e.target.value }))}
+                        inputProps={{ step: 0.01, min: 0 }}
+                        sx={{ width: 150 }}
+                      />
+                    </Box>
 
-                        {/* TOTAL PAYMENT */}
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 'bold', flex: 1, textAlign: 'right' }}>
-                            TOTAL PAYMENT
-                          </Typography>
-                          <TextField
-                            size="small"
-                            value={(parseFloat(formData.cash_payment || 0) + parseFloat(formData.bank_payment || 0)).toFixed(2)}
-                            InputProps={{ readOnly: true }}
-                            sx={{ width: 150, backgroundColor: 'action.hover' }}
-                          />
-                        </Box>
+                    {/* TOTAL PAYMENT */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', flex: 1, textAlign: 'right' }}>
+                        TOTAL PAYMENT
+                      </Typography>
+                      <TextField
+                        size="small"
+                        value={(parseFloat(formData.cash_payment || 0) + parseFloat(formData.bank_payment || 0)).toFixed(2)}
+                        InputProps={{ readOnly: true }}
+                        sx={{ width: 150, backgroundColor: 'action.hover' }}
+                      />
+                    </Box>
 
-                        {/* BALANCE */}
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 'bold', flex: 1, textAlign: 'right' }}>
-                            BALANCE
-                          </Typography>
-                          <TextField
-                            size="small"
-                            value={(calculateNetTotal() - (parseFloat(formData.cash_payment || 0) + parseFloat(formData.bank_payment || 0))).toFixed(2)}
-                            InputProps={{ readOnly: true }}
-                            sx={{ width: 150 }}
-                          />
-                        </Box>
+                    {/* BALANCE */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', flex: 1, textAlign: 'right' }}>
+                        BALANCE
+                      </Typography>
+                      <TextField
+                        size="small"
+                        value={(calculateNetTotal() - (parseFloat(formData.cash_payment || 0) + parseFloat(formData.bank_payment || 0))).toFixed(2)}
+                        InputProps={{ readOnly: true }}
+                        sx={{ width: 150 }}
+                      />
+                    </Box>
                   </Box>
                 </Box>
               </Box>
 
-                  {/* Form Actions */}
+              {/* Form Actions */}
               <Box sx={{ p: 3, borderTop: 1, borderColor: 'divider', display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
                 <Button
-                                type="button"
-                      onClick={() => setCurrentView('list')}
+                  type="button"
+                  onClick={() => setCurrentView('list')}
                   variant="outlined"
                   sx={{ px: 3, py: 1.5 }}
-                    >
-                      Cancel
+                >
+                  Cancel
                 </Button>
                 <Button
-                      type="submit"
-                      disabled={isSubmitting}
+                  type="submit"
+                  disabled={isSubmitting}
                   variant="contained"
                   startIcon={isSubmitting ? <CircularProgress size={20} /> : null}
                   sx={{
@@ -2247,14 +2256,14 @@ export default function PurchasesPage() {
             </Box>
           </Card>
         </Box>
-                            </div>
+      </div>
     </DashboardLayout>
   );
 
   return (
     <>
       {currentView === 'list' ? renderPurchaseListView() : renderPurchaseCreateView()}
-      
+
 
       {/* Add Customer Modal */}
       <Dialog
@@ -2269,11 +2278,11 @@ export default function PurchasesPage() {
           }
         }}
       >
-        <DialogTitle sx={{ 
-          bgcolor: 'secondary.main', 
-          color: 'white', 
-          display: 'flex', 
-          alignItems: 'center', 
+        <DialogTitle sx={{
+          bgcolor: 'secondary.main',
+          color: 'white',
+          display: 'flex',
+          alignItems: 'center',
           justifyContent: 'space-between',
           p: 2
         }}>
@@ -2290,14 +2299,14 @@ export default function PurchasesPage() {
               </Typography>
             </Box>
           </Box>
-          <IconButton 
-            onClick={handleCloseCustomerForm} 
+          <IconButton
+            onClick={handleCloseCustomerForm}
             sx={{ color: 'white' }}
           >
             <CloseIcon />
           </IconButton>
         </DialogTitle>
-        
+
         <DialogContent sx={{ p: 3 }}>
           <Box component="form" sx={{ mt: 2 }}>
             <Grid container spacing={3}>
@@ -2305,7 +2314,7 @@ export default function PurchasesPage() {
               <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
-                          required
+                  required
                   label="Customer Name"
                   name="cus_name"
                   value={customerFormData.cus_name}
@@ -2534,7 +2543,7 @@ export default function PurchasesPage() {
                   fullWidth
                   label="Opening Balance"
                   name="cus_balance"
-                          type="number"
+                  type="number"
                   inputProps={{ step: "0.01" }}
                   value={customerFormData.cus_balance}
                   onChange={handleCustomerFormChange}
@@ -2571,22 +2580,22 @@ export default function PurchasesPage() {
             </Grid>
           </Box>
         </DialogContent>
-        
+
         <DialogActions sx={{ p: 3, gap: 2 }}>
-          <Button 
-            onClick={handleCloseCustomerForm} 
-            variant="outlined" 
+          <Button
+            onClick={handleCloseCustomerForm}
+            variant="outlined"
             sx={{ px: 3, py: 1.5 }}
-                    >
-                      Cancel
+          >
+            Cancel
           </Button>
-          <Button 
-            onClick={handleAddCustomer} 
-            variant="contained" 
+          <Button
+            onClick={handleAddCustomer}
+            variant="contained"
             disabled={isSubmittingCustomer}
             startIcon={isSubmittingCustomer ? <CircularProgress size={20} /> : <SaveIcon />}
-            sx={{ 
-              px: 4, 
+            sx={{
+              px: 4,
               py: 1.5,
               bgcolor: 'secondary.main',
               '&:hover': { bgcolor: 'secondary.dark' }

@@ -36,7 +36,7 @@ export default function CargoPage() {
     try {
       setLoading(true);
       const response = await fetch('/api/cargo');
-      
+
       if (response.ok) {
         const data = await response.json();
         const cargoData = data.cargo || data;
@@ -53,7 +53,7 @@ export default function CargoPage() {
 
   const handleAddCargo = async (e) => {
     e.preventDefault();
-    
+
     try {
       const response = await fetch('/api/cargo', {
         method: 'POST',
@@ -97,7 +97,7 @@ export default function CargoPage() {
 
   const handleUpdateCargo = async (e) => {
     e.preventDefault();
-    
+
     try {
       const response = await fetch('/api/cargo', {
         method: 'PUT',
@@ -112,7 +112,7 @@ export default function CargoPage() {
 
       if (response.ok) {
         const updatedCargo = await response.json();
-        setCargo(prev => prev.map(item => 
+        setCargo(prev => prev.map(item =>
           item.cargo_id === editingCargo.cargo_id ? updatedCargo : item
         ));
         setShowCargoForm(false);
@@ -160,13 +160,13 @@ export default function CargoPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     // Validation
     if (!formData.vehicle_no.trim()) {
       alert('Vehicle number is required');
       return;
     }
-    
+
     if (editingCargo) {
       await handleUpdateCargo(e);
     } else {
@@ -197,12 +197,12 @@ export default function CargoPage() {
     .sort((a, b) => {
       let aValue = a[sortBy];
       let bValue = b[sortBy];
-      
+
       if (sortBy === 'created_at') {
         aValue = new Date(aValue);
         bValue = new Date(bValue);
       }
-      
+
       if (sortOrder === 'asc') {
         return aValue > bValue ? 1 : -1;
       } else {
@@ -216,13 +216,13 @@ export default function CargoPage() {
 
   // Calculate total expenses
   const calculateTotalExpenses = (item) => {
-    return (item.exp1 || 0) + (item.exp2 || 0) + (item.exp3 || 0) + 
-           (item.exp4 || 0) + (item.exp5 || 0) + (item.exp6 || 0) + (item.others || 0);
+    return (parseFloat(item.exp1) || 0) + (parseFloat(item.exp2) || 0) + (parseFloat(item.exp3) || 0) +
+      (parseFloat(item.exp4) || 0) + (parseFloat(item.exp5) || 0) + (parseFloat(item.exp6) || 0) + (parseFloat(item.others) || 0);
   };
 
   // Calculate net amount
   const calculateNetAmount = (item) => {
-    return (item.total_cargo_fare || 0) - calculateTotalExpenses(item);
+    return (parseFloat(item.total_cargo_fare) || 0) - calculateTotalExpenses(item);
   };
 
   // Clear filters
@@ -273,7 +273,7 @@ export default function CargoPage() {
               Clear All Filters
             </button>
           </div>
-          
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {/* Search */}
             <div>
@@ -338,7 +338,7 @@ export default function CargoPage() {
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Fare</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {cargo.reduce((sum, item) => sum + (item.total_cargo_fare || 0), 0).toFixed(2)}
+                  {cargo.reduce((sum, item) => sum + (parseFloat(item.total_cargo_fare) || 0), 0).toFixed(2)}
                 </p>
               </div>
             </div>
@@ -457,14 +457,14 @@ export default function CargoPage() {
           <div className="fixed inset-0 z-[9999] overflow-y-auto">
             <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
               {/* Background Overlay */}
-              <div 
-                className="fixed inset-0 bg-gradient-to-br from-gray-900/80 via-blue-900/60 to-purple-900/80 backdrop-blur-md transition-all duration-500 ease-out animate-fade-in" 
+              <div
+                className="fixed inset-0 bg-gradient-to-br from-gray-900/80 via-blue-900/60 to-purple-900/80 backdrop-blur-md transition-all duration-500 ease-out animate-fade-in"
                 onClick={() => setShowCargoForm(false)}
               ></div>
-              
+
               {/* Modal Container */}
               <div className="relative inline-block w-full max-w-4xl p-0 my-8 overflow-hidden text-left align-middle transition-all duration-500 ease-out transform bg-white/95 backdrop-blur-xl shadow-2xl rounded-3xl border border-white/20 animate-slide-in-up">
-                
+
                 {/* Header */}
                 <div className="relative bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white">
                   <div className="absolute inset-0 bg-black/10"></div>
@@ -494,7 +494,7 @@ export default function CargoPage() {
                 {/* Form Content */}
                 <div className="p-6">
                   <form onSubmit={handleSubmit} className="space-y-6">
-                    
+
                     {/* Vehicle Number */}
                     <div className="group">
                       <label className="block text-sm font-semibold text-gray-700 mb-2">

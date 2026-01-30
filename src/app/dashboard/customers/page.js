@@ -147,7 +147,7 @@ export default function CustomersPage() {
         const categoriesData = await categoriesRes.json();
         const customerTypesData = await customerTypesRes.json();
         const citiesData = await citiesRes.json();
-        
+
         setCustomers(customersData);
         setCustomerCategories(categoriesData);
         setCustomerTypes(customerTypesData);
@@ -175,7 +175,7 @@ export default function CustomersPage() {
   const handleAddCustomer = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
     try {
       const response = await fetch('/api/customers', {
         method: 'POST',
@@ -242,7 +242,7 @@ export default function CustomersPage() {
   const handleUpdateCustomer = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
     try {
       const response = await fetch('/api/customers', {
         method: 'PUT',
@@ -257,7 +257,7 @@ export default function CustomersPage() {
 
       if (response.ok) {
         const updatedCustomer = await response.json();
-        setCustomers(prev => prev.map(customer => 
+        setCustomers(prev => prev.map(customer =>
           customer.cus_id === editingCustomer.cus_id ? updatedCustomer : customer
         ));
         setShowCustomerForm(false);
@@ -408,7 +408,7 @@ export default function CustomersPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     // Validation
     if (!formData.cus_name.trim()) {
       alert('Customer name is required');
@@ -426,7 +426,7 @@ export default function CustomersPage() {
       alert('Customer category is required');
       return;
     }
-    
+
     if (editingCustomer) {
       await handleUpdateCustomer(e);
     } else {
@@ -438,13 +438,13 @@ export default function CustomersPage() {
   const filteredCustomers = customers
     .filter(customer => {
       const matchesSearch = customer.cus_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           customer.cus_phone_no.includes(searchTerm) ||
-                           customer.cus_address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           customer.cus_reference?.toLowerCase().includes(searchTerm.toLowerCase());
-      
+        customer.cus_phone_no.includes(searchTerm) ||
+        customer.cus_address.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        customer.cus_reference?.toLowerCase().includes(searchTerm.toLowerCase());
+
       const matchesType = typeFilter === 'all' || customer.cus_type === typeFilter;
       const matchesCategory = categoryFilter === 'all' || customer.customer_category?.cus_cat_title === categoryFilter;
-      
+
       let matchesBalance = true;
       if (balanceFilter === 'positive') {
         matchesBalance = parseFloat(customer.cus_balance) > 0;
@@ -453,7 +453,7 @@ export default function CustomersPage() {
       } else if (balanceFilter === 'zero') {
         matchesBalance = parseFloat(customer.cus_balance) === 0;
       }
-      
+
       return matchesSearch && matchesType && matchesCategory && matchesBalance;
     })
     .map((customer, index) => ({
@@ -544,7 +544,7 @@ export default function CustomersPage() {
               transition: 'all 0.2s ease-in-out'
             }}
           >
-              Add New Customer
+            Add New Customer
           </Button>
         </div>
 
@@ -558,23 +558,23 @@ export default function CustomersPage() {
               </Typography>
               <Button
                 size="small"
-              onClick={clearFilters}
+                onClick={clearFilters}
                 sx={{ color: 'primary.main', textTransform: 'none' }}
-            >
-              Clear All Filters
+              >
+                Clear All Filters
               </Button>
             </Box>
-          
+
             <Grid container spacing={3}>
-            {/* Search */}
+              {/* Search */}
               <Grid item xs={12} sm={6} lg={3}>
                 <TextField
                   fullWidth
                   label="Search"
-                placeholder="Search customers..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                sx={{ minWidth: 250 }}
+                  placeholder="Search customers..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  sx={{ minWidth: 250 }}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -585,7 +585,7 @@ export default function CustomersPage() {
                 />
               </Grid>
 
-            {/* Type Filter */}
+              {/* Type Filter */}
               <Grid item xs={12} sm={6} lg={3}>
                 <Autocomplete
                   fullWidth
@@ -599,13 +599,14 @@ export default function CustomersPage() {
                     { value: 'LIABILITY_ACCOUNT', label: 'Liability Account' }
                   ]}
                   getOptionLabel={(option) => option.label}
-                  value={{ value: typeFilter, label: typeFilter === 'all' ? 'All Types' : 
-                    typeFilter === 'CASH_ACCOUNT' ? 'Cash Account' :
-                    typeFilter === 'ACCOUNT_PAYABLE' ? 'Account Payable' :
-                    typeFilter === 'ACCOUNT_RECEIVABLE' ? 'Account Receivable' :
-                    typeFilter === 'EXPENSE_ACCOUNT' ? 'Expense Account' :
-                    typeFilter === 'ASSET_ACCOUNT' ? 'Asset Account' :
-                    typeFilter === 'LIABILITY_ACCOUNT' ? 'Liability Account' : 'All Types'
+                  value={{
+                    value: typeFilter, label: typeFilter === 'all' ? 'All Types' :
+                      typeFilter === 'CASH_ACCOUNT' ? 'Cash Account' :
+                        typeFilter === 'ACCOUNT_PAYABLE' ? 'Account Payable' :
+                          typeFilter === 'ACCOUNT_RECEIVABLE' ? 'Account Receivable' :
+                            typeFilter === 'EXPENSE_ACCOUNT' ? 'Expense Account' :
+                              typeFilter === 'ASSET_ACCOUNT' ? 'Asset Account' :
+                                typeFilter === 'LIABILITY_ACCOUNT' ? 'Liability Account' : 'All Types'
                   }}
                   onChange={(event, newValue) => {
                     setTypeFilter(newValue ? newValue.value : 'all');
@@ -651,7 +652,7 @@ export default function CustomersPage() {
                 />
               </Grid>
 
-            {/* Category Filter */}
+              {/* Category Filter */}
               <Grid item xs={12} sm={6} lg={3}>
                 <Autocomplete
                   fullWidth
@@ -708,7 +709,7 @@ export default function CustomersPage() {
                 />
               </Grid>
 
-            {/* Balance Filter */}
+              {/* Balance Filter */}
               <Grid item xs={12} sm={6} lg={3}>
                 <Autocomplete
                   fullWidth
@@ -719,11 +720,12 @@ export default function CustomersPage() {
                     { value: 'zero', label: 'Zero Balance' }
                   ]}
                   getOptionLabel={(option) => option.label}
-                  value={{ value: balanceFilter, label: 
-                    balanceFilter === 'all' ? 'All Balances' :
-                    balanceFilter === 'positive' ? 'Positive Balance' :
-                    balanceFilter === 'negative' ? 'Negative Balance' :
-                    balanceFilter === 'zero' ? 'Zero Balance' : 'All Balances'
+                  value={{
+                    value: balanceFilter, label:
+                      balanceFilter === 'all' ? 'All Balances' :
+                        balanceFilter === 'positive' ? 'Positive Balance' :
+                          balanceFilter === 'negative' ? 'Negative Balance' :
+                            balanceFilter === 'zero' ? 'Zero Balance' : 'All Balances'
                   }}
                   onChange={(event, newValue) => {
                     setBalanceFilter(newValue ? newValue.value : 'all');
@@ -777,8 +779,8 @@ export default function CustomersPage() {
           <Grid item xs={12} sm={6} lg={3}>
             <Card sx={{ p: 3 }}>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Avatar sx={{ 
-                  bgcolor: 'primary.main', 
+                <Avatar sx={{
+                  bgcolor: 'primary.main',
                   mr: 2,
                   width: 48,
                   height: 48
@@ -800,8 +802,8 @@ export default function CustomersPage() {
           <Grid item xs={12} sm={6} lg={3}>
             <Card sx={{ p: 3 }}>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Avatar sx={{ 
-                  bgcolor: 'success.main', 
+                <Avatar sx={{
+                  bgcolor: 'success.main',
                   mr: 2,
                   width: 48,
                   height: 48
@@ -813,7 +815,7 @@ export default function CustomersPage() {
                     Account Types
                   </Typography>
                   <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
-                  {customers.filter(c => ['CASH_ACCOUNT', 'ACCOUNT_PAYABLE', 'ACCOUNT_RECEIVABLE', 'EXPENSE_ACCOUNT', 'ASSET_ACCOUNT', 'LIABILITY_ACCOUNT'].includes(c.cus_type)).length}
+                    {customers.filter(c => ['CASH_ACCOUNT', 'ACCOUNT_PAYABLE', 'ACCOUNT_RECEIVABLE', 'EXPENSE_ACCOUNT', 'ASSET_ACCOUNT', 'LIABILITY_ACCOUNT'].includes(c.cus_type)).length}
                   </Typography>
                 </Box>
               </Box>
@@ -823,8 +825,8 @@ export default function CustomersPage() {
           <Grid item xs={12} sm={6} lg={3}>
             <Card sx={{ p: 3 }}>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Avatar sx={{ 
-                  bgcolor: 'secondary.main', 
+                <Avatar sx={{
+                  bgcolor: 'secondary.main',
                   mr: 2,
                   width: 48,
                   height: 48
@@ -836,7 +838,7 @@ export default function CustomersPage() {
                     Positive Balance
                   </Typography>
                   <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
-                  {customers.filter(c => parseFloat(c.cus_balance) > 0).length}
+                    {customers.filter(c => parseFloat(c.cus_balance) > 0).length}
                   </Typography>
                 </Box>
               </Box>
@@ -846,8 +848,8 @@ export default function CustomersPage() {
           <Grid item xs={12} sm={6} lg={3}>
             <Card sx={{ p: 3 }}>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Avatar sx={{ 
-                  bgcolor: 'warning.main', 
+                <Avatar sx={{
+                  bgcolor: 'warning.main',
                   mr: 2,
                   width: 48,
                   height: 48
@@ -859,12 +861,12 @@ export default function CustomersPage() {
                     New This Month
                   </Typography>
                   <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
-                  {customers.filter(c => {
-                    const createdDate = new Date(c.created_at);
-                    const thisMonth = new Date();
-                    thisMonth.setDate(1);
-                    return createdDate >= thisMonth;
-                  }).length}
+                    {customers.filter(c => {
+                      const createdDate = new Date(c.created_at);
+                      const thisMonth = new Date();
+                      thisMonth.setDate(1);
+                      return createdDate >= thisMonth;
+                    }).length}
                   </Typography>
                 </Box>
               </Box>
@@ -897,12 +899,12 @@ export default function CustomersPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                {filteredCustomers.map((customer) => (
+                  {filteredCustomers.map((customer) => (
                     <TableRow key={customer.cus_id} hover>
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <Avatar sx={{ 
-                            bgcolor: 'primary.main', 
+                          <Avatar sx={{
+                            bgcolor: 'primary.main',
                             mr: 2,
                             width: 40,
                             height: 40
@@ -916,7 +918,7 @@ export default function CustomersPage() {
                             <Typography variant="caption" color="text.secondary">
                               ID: #{customer.sequentialId}
                             </Typography>
-                          {customer.cus_reference && (
+                            {customer.cus_reference && (
                               <Typography variant="caption" color="primary" display="block">
                                 Ref: {customer.cus_reference}
                               </Typography>
@@ -930,7 +932,7 @@ export default function CustomersPage() {
                             <PhoneIcon sx={{ fontSize: 16, mr: 1, color: 'text.secondary' }} />
                             <Typography variant="body2">{customer.cus_phone_no}</Typography>
                           </Box>
-                        {customer.cus_phone_no2 && (
+                          {customer.cus_phone_no2 && (
                             <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
                               <PhoneIcon sx={{ fontSize: 16, mr: 1, color: 'text.secondary' }} />
                               <Typography variant="body2">{customer.cus_phone_no2}</Typography>
@@ -945,22 +947,22 @@ export default function CustomersPage() {
                         </Box>
                       </TableCell>
                       <TableCell>
-                        <Chip 
+                        <Chip
                           label={getCustomerTypeTitle(customer.cus_type)}
                           size="small"
                           sx={{
                             backgroundColor: getTypeColor(customer.cus_type).includes('yellow') ? '#fef3c7' :
-                                            getTypeColor(customer.cus_type).includes('red') ? '#fee2e2' :
-                                            getTypeColor(customer.cus_type).includes('emerald') ? '#d1fae5' :
-                                            getTypeColor(customer.cus_type).includes('orange') ? '#fed7aa' :
-                                            getTypeColor(customer.cus_type).includes('indigo') ? '#e0e7ff' :
-                                            getTypeColor(customer.cus_type).includes('pink') ? '#fce7f3' : '#f3f4f6',
+                              getTypeColor(customer.cus_type).includes('red') ? '#fee2e2' :
+                                getTypeColor(customer.cus_type).includes('emerald') ? '#d1fae5' :
+                                  getTypeColor(customer.cus_type).includes('orange') ? '#fed7aa' :
+                                    getTypeColor(customer.cus_type).includes('indigo') ? '#e0e7ff' :
+                                      getTypeColor(customer.cus_type).includes('pink') ? '#fce7f3' : '#f3f4f6',
                             color: getTypeColor(customer.cus_type).includes('yellow') ? '#92400e' :
-                                   getTypeColor(customer.cus_type).includes('red') ? '#dc2626' :
-                                   getTypeColor(customer.cus_type).includes('emerald') ? '#059669' :
-                                   getTypeColor(customer.cus_type).includes('orange') ? '#ea580c' :
-                                   getTypeColor(customer.cus_type).includes('indigo') ? '#4338ca' :
-                                   getTypeColor(customer.cus_type).includes('pink') ? '#be185d' : '#374151'
+                              getTypeColor(customer.cus_type).includes('red') ? '#dc2626' :
+                                getTypeColor(customer.cus_type).includes('emerald') ? '#059669' :
+                                  getTypeColor(customer.cus_type).includes('orange') ? '#ea580c' :
+                                    getTypeColor(customer.cus_type).includes('indigo') ? '#4338ca' :
+                                      getTypeColor(customer.cus_type).includes('pink') ? '#be185d' : '#374151'
                           }}
                         />
                       </TableCell>
@@ -970,34 +972,34 @@ export default function CustomersPage() {
                         </Typography>
                       </TableCell>
                       <TableCell>
-                        <Typography 
-                          variant="body2" 
-                          sx={{ 
+                        <Typography
+                          variant="body2"
+                          sx={{
                             fontWeight: 500,
                             color: getBalanceColor(customer.cus_balance).includes('green') ? 'success.main' :
-                                   getBalanceColor(customer.cus_balance).includes('red') ? 'error.main' : 'text.secondary'
+                              getBalanceColor(customer.cus_balance).includes('red') ? 'error.main' : 'text.secondary'
                           }}
                         >
-                        {parseFloat(customer.cus_balance).toFixed(2)}
+                          {parseFloat(customer.cus_balance).toFixed(2)}
                         </Typography>
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" color="text.secondary">
-                      {new Date(customer.created_at).toLocaleDateString()}
+                          {new Date(customer.created_at).toLocaleDateString()}
                         </Typography>
                       </TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex', gap: 1 }}>
                           <IconButton
                             size="small"
-                          onClick={() => handleEditCustomer(customer)}
+                            onClick={() => handleEditCustomer(customer)}
                             sx={{ color: 'primary.main' }}
                           >
                             <EditIcon />
                           </IconButton>
                           <IconButton
                             size="small"
-                          onClick={() => handleDeleteCustomer(customer.cus_id)}
+                            onClick={() => handleDeleteCustomer(customer.cus_id)}
                             sx={{ color: 'error.main' }}
                           >
                             <DeleteIcon />
@@ -1025,7 +1027,7 @@ export default function CustomersPage() {
             }
           }}
         >
-          <DialogTitle sx={{ 
+          <DialogTitle sx={{
             background: 'linear-gradient(45deg, #2196f3 30%, #9c27b0 90%)',
             color: 'white',
             display: 'flex',
@@ -1033,8 +1035,8 @@ export default function CustomersPage() {
             justifyContent: 'space-between'
           }}>
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <Avatar sx={{ 
-                bgcolor: 'rgba(255,255,255,0.2)', 
+              <Avatar sx={{
+                bgcolor: 'rgba(255,255,255,0.2)',
                 mr: 2,
                 width: 48,
                 height: 48
@@ -1043,15 +1045,15 @@ export default function CustomersPage() {
               </Avatar>
               <Box>
                 <Typography variant="h5" component="div" sx={{ fontWeight: 'bold' }}>
-                          {editingCustomer ? 'Edit Customer' : 'Add New Customer'}
+                  {editingCustomer ? 'Edit Customer' : 'Add New Customer'}
                 </Typography>
                 <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                          {editingCustomer ? 'Update customer information' : 'Create a new customer profile'}
+                  {editingCustomer ? 'Update customer information' : 'Create a new customer profile'}
                 </Typography>
               </Box>
             </Box>
             <IconButton
-                      onClick={() => setShowCustomerForm(false)}
+              onClick={() => setShowCustomerForm(false)}
               sx={{ color: 'white' }}
             >
               <CloseIcon />
@@ -1061,9 +1063,9 @@ export default function CustomersPage() {
           <DialogContent sx={{ p: 3 }}>
             <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2 }}>
               {/* Quick Actions */}
-              <Box sx={{ 
-                bgcolor: 'grey.50', 
-                borderRadius: 2, 
+              <Box sx={{
+                bgcolor: 'grey.50',
+                borderRadius: 2,
                 p: 2,
                 border: 1,
                 borderColor: 'grey.200',
@@ -1131,11 +1133,11 @@ export default function CustomersPage() {
                     fullWidth
                     required
                     label="Customer Name"
-                          name="cus_name"
-                          value={formData.cus_name}
-                          onChange={handleFormChange}
-                          sx={{ minWidth: 250 }}
-                          placeholder="Enter customer name"
+                    name="cus_name"
+                    value={formData.cus_name}
+                    onChange={handleFormChange}
+                    sx={{ minWidth: 250 }}
+                    placeholder="Enter customer name"
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -1151,12 +1153,12 @@ export default function CustomersPage() {
                     fullWidth
                     required
                     label="Primary Phone"
-                          name="cus_phone_no"
+                    name="cus_phone_no"
                     type="tel"
-                          value={formData.cus_phone_no}
-                          onChange={handleFormChange}
-                          sx={{ minWidth: 250 }}
-                          placeholder="Enter primary phone number"
+                    value={formData.cus_phone_no}
+                    onChange={handleFormChange}
+                    sx={{ minWidth: 250 }}
+                    placeholder="Enter primary phone number"
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -1171,12 +1173,12 @@ export default function CustomersPage() {
                   <TextField
                     fullWidth
                     label="Secondary Phone"
-                          name="cus_phone_no2"
+                    name="cus_phone_no2"
                     type="tel"
-                          value={formData.cus_phone_no2}
-                          onChange={handleFormChange}
-                          sx={{ minWidth: 250 }}
-                          placeholder="Enter secondary phone number"
+                    value={formData.cus_phone_no2}
+                    onChange={handleFormChange}
+                    sx={{ minWidth: 250 }}
+                    placeholder="Enter secondary phone number"
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -1193,11 +1195,11 @@ export default function CustomersPage() {
                     fullWidth
                     required
                     label="Address"
-                          name="cus_address"
-                          value={formData.cus_address}
-                          onChange={handleFormChange}
-                          sx={{ minWidth: 250 }}
-                          placeholder="Enter customer address"
+                    name="cus_address"
+                    value={formData.cus_address}
+                    onChange={handleFormChange}
+                    sx={{ minWidth: 250 }}
+                    placeholder="Enter customer address"
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -1211,7 +1213,7 @@ export default function CustomersPage() {
                 <Grid item xs={12} md={4}>
                   <Autocomplete
                     fullWidth
-                            required
+                    required
                     options={[
                       { id: '', title: 'Select a type' },
                       ...customerTypes.map(type => ({
@@ -1249,11 +1251,14 @@ export default function CustomersPage() {
                         sx={{ minWidth: 250 }}
                       />
                     )}
-                    renderOption={(props, option) => (
-                      <Box component="li" {...props}>
-                        {option.title}
-                      </Box>
-                    )}
+                    renderOption={(props, option) => {
+                      const { key, ...optionProps } = props;
+                      return (
+                        <Box component="li" key={key} {...optionProps}>
+                          {option.title}
+                        </Box>
+                      );
+                    }}
                     filterOptions={(options, { inputValue }) => {
                       return options.filter(option =>
                         option.title.toLowerCase().includes(inputValue.toLowerCase())
@@ -1278,7 +1283,7 @@ export default function CustomersPage() {
                 <Grid item xs={12} md={4}>
                   <Autocomplete
                     fullWidth
-                          required
+                    required
                     options={[
                       { id: '', title: 'Select a category' },
                       ...customerCategories.map(category => ({
@@ -1316,11 +1321,14 @@ export default function CustomersPage() {
                         sx={{ minWidth: 250 }}
                       />
                     )}
-                    renderOption={(props, option) => (
-                      <Box component="li" {...props}>
-                        {option.title}
-                      </Box>
-                    )}
+                    renderOption={(props, option) => {
+                      const { key, ...optionProps } = props;
+                      return (
+                        <Box component="li" key={key} {...optionProps}>
+                          {option.title}
+                        </Box>
+                      );
+                    }}
                     filterOptions={(options, { inputValue }) => {
                       return options.filter(option =>
                         option.title.toLowerCase().includes(inputValue.toLowerCase())
@@ -1347,36 +1355,36 @@ export default function CustomersPage() {
                   <TextField
                     fullWidth
                     label="Reference"
-                          name="cus_reference"
-                          value={formData.cus_reference}
-                          onChange={handleFormChange}
-                          sx={{ minWidth: 250 }}
-                          placeholder="Enter reference number"
-                        />
+                    name="cus_reference"
+                    value={formData.cus_reference}
+                    onChange={handleFormChange}
+                    sx={{ minWidth: 250 }}
+                    placeholder="Enter reference number"
+                  />
                 </Grid>
 
                 <Grid item xs={12} md={4}>
                   <TextField
                     fullWidth
                     label="Account Info"
-                          name="cus_account_info"
-                          value={formData.cus_account_info}
-                          onChange={handleFormChange}
-                          sx={{ minWidth: 250 }}
-                          placeholder="Enter account information"
-                        />
+                    name="cus_account_info"
+                    value={formData.cus_account_info}
+                    onChange={handleFormChange}
+                    sx={{ minWidth: 250 }}
+                    placeholder="Enter account information"
+                  />
                 </Grid>
 
                 <Grid item xs={12} md={4}>
                   <TextField
                     fullWidth
                     label="CNIC"
-                          name="CNIC"
-                          value={formData.CNIC}
-                          onChange={handleFormChange}
-                          sx={{ minWidth: 250 }}
-                          placeholder="Enter CNIC number"
-                        />
+                    name="CNIC"
+                    value={formData.CNIC}
+                    onChange={handleFormChange}
+                    sx={{ minWidth: 250 }}
+                    placeholder="Enter CNIC number"
+                  />
                 </Grid>
 
                 {/* Fourth Row - NTN, Urdu Name, City */}
@@ -1384,24 +1392,24 @@ export default function CustomersPage() {
                   <TextField
                     fullWidth
                     label="NTN Number"
-                          name="NTN_NO"
-                          value={formData.NTN_NO}
-                          onChange={handleFormChange}
-                          sx={{ minWidth: 250 }}
-                          placeholder="Enter NTN number"
-                        />
+                    name="NTN_NO"
+                    value={formData.NTN_NO}
+                    onChange={handleFormChange}
+                    sx={{ minWidth: 250 }}
+                    placeholder="Enter NTN number"
+                  />
                 </Grid>
 
                 <Grid item xs={12} md={4}>
                   <TextField
                     fullWidth
                     label="Name in Urdu"
-                          name="name_urdu"
-                          value={formData.name_urdu}
-                          onChange={handleFormChange}
-                          sx={{ minWidth: 250 }}
-                          placeholder="Enter name in Urdu"
-                        />
+                    name="name_urdu"
+                    value={formData.name_urdu}
+                    onChange={handleFormChange}
+                    sx={{ minWidth: 250 }}
+                    placeholder="Enter name in Urdu"
+                  />
                 </Grid>
 
                 <Grid item xs={12} md={4}>
@@ -1443,11 +1451,14 @@ export default function CustomersPage() {
                         sx={{ minWidth: 250 }}
                       />
                     )}
-                    renderOption={(props, option) => (
-                      <Box component="li" {...props}>
-                        {option.name}
-                      </Box>
-                    )}
+                    renderOption={(props, option) => {
+                      const { key, ...optionProps } = props;
+                      return (
+                        <Box component="li" key={key} {...optionProps}>
+                          {option.name}
+                        </Box>
+                      );
+                    }}
                     filterOptions={(options, { inputValue }) => {
                       return options.filter(option =>
                         option.name.toLowerCase().includes(inputValue.toLowerCase())
@@ -1474,13 +1485,13 @@ export default function CustomersPage() {
                   <TextField
                     fullWidth
                     label="Balance"
-                          name="cus_balance"
+                    name="cus_balance"
                     type="number"
                     inputProps={{ step: "0.01" }}
-                          value={formData.cus_balance}
-                          onChange={handleFormChange}
-                          sx={{ minWidth: 250 }}
-                          placeholder="Enter customer balance"
+                    value={formData.cus_balance}
+                    onChange={handleFormChange}
+                    sx={{ minWidth: 250 }}
+                    placeholder="Enter customer balance"
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -1495,12 +1506,12 @@ export default function CustomersPage() {
                   <TextField
                     fullWidth
                     label="Other Information"
-                          name="other"
-                          value={formData.other}
-                          onChange={handleFormChange}
-                          sx={{ minWidth: 250 }}
-                          placeholder="Enter additional information"
-                        />
+                    name="other"
+                    value={formData.other}
+                    onChange={handleFormChange}
+                    sx={{ minWidth: 250 }}
+                    placeholder="Enter additional information"
+                  />
                 </Grid>
 
               </Grid>
@@ -1509,15 +1520,15 @@ export default function CustomersPage() {
 
           <DialogActions sx={{ p: 3, borderTop: 1, borderColor: 'divider' }}>
             <Button
-                        onClick={() => setShowCustomerForm(false)}
+              onClick={() => setShowCustomerForm(false)}
               sx={{ textTransform: 'none' }}
-                      >
-                        Cancel
+            >
+              Cancel
             </Button>
             <Button
-                        type="submit"
+              type="submit"
               variant="contained"
-                        disabled={isSubmitting}
+              disabled={isSubmitting}
               onClick={handleSubmit}
               sx={{
                 background: 'linear-gradient(45deg, #2196f3 30%, #9c27b0 90%)',
@@ -1528,14 +1539,14 @@ export default function CustomersPage() {
                 }
               }}
             >
-                          {isSubmitting ? (
+              {isSubmitting ? (
                 <Box sx={{ display: 'flex', alignItems: 'center' }}>
                   <CircularProgress size={16} sx={{ mr: 1, color: 'white' }} />
-                              {editingCustomer ? 'Updating...' : 'Creating...'}
+                  {editingCustomer ? 'Updating...' : 'Creating...'}
                 </Box>
-                          ) : (
+              ) : (
                 <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                              {editingCustomer ? 'Update Customer' : 'Create Customer'}
+                  {editingCustomer ? 'Update Customer' : 'Create Customer'}
                   <CheckIcon sx={{ ml: 1 }} />
                 </Box>
               )}
@@ -1550,7 +1561,7 @@ export default function CustomersPage() {
           maxWidth="sm"
           fullWidth
         >
-          <DialogTitle sx={{ 
+          <DialogTitle sx={{
             background: 'linear-gradient(45deg, #2196f3 30%, #9c27b0 90%)',
             color: 'white',
             display: 'flex',
@@ -1558,8 +1569,8 @@ export default function CustomersPage() {
             justifyContent: 'space-between'
           }}>
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <Avatar sx={{ 
-                bgcolor: 'rgba(255,255,255,0.2)', 
+              <Avatar sx={{
+                bgcolor: 'rgba(255,255,255,0.2)',
                 mr: 2,
                 width: 40,
                 height: 40
@@ -1576,7 +1587,7 @@ export default function CustomersPage() {
               </Box>
             </Box>
             <IconButton
-                onClick={() => setShowCustomerTypePopup(false)}
+              onClick={() => setShowCustomerTypePopup(false)}
               sx={{ color: 'white' }}
             >
               <CloseIcon />
@@ -1589,25 +1600,25 @@ export default function CustomersPage() {
                 fullWidth
                 required
                 label="Customer Type Title"
-                          value={customerTypeFormData.cus_type_title}
-                          onChange={(e) => setCustomerTypeFormData({ cus_type_title: e.target.value })}
-                          disabled={isAddingCustomerType}
-                          placeholder="Enter customer type title"
+                value={customerTypeFormData.cus_type_title}
+                onChange={(e) => setCustomerTypeFormData({ cus_type_title: e.target.value })}
+                disabled={isAddingCustomerType}
+                placeholder="Enter customer type title"
                 sx={{ mb: 2 }}
-                        />
+              />
             </Box>
           </DialogContent>
 
           <DialogActions sx={{ p: 3, borderTop: 1, borderColor: 'divider' }}>
             <Button
-                        onClick={() => setShowCustomerTypePopup(false)}
+              onClick={() => setShowCustomerTypePopup(false)}
               sx={{ textTransform: 'none' }}
-                      >
-                        Cancel
+            >
+              Cancel
             </Button>
             <Button
               variant="contained"
-                        disabled={isAddingCustomerType}
+              disabled={isAddingCustomerType}
               onClick={handleAddCustomerType}
               sx={{
                 background: 'linear-gradient(45deg, #2196f3 30%, #9c27b0 90%)',
@@ -1617,14 +1628,14 @@ export default function CustomersPage() {
                 }
               }}
             >
-                          {isAddingCustomerType ? (
+              {isAddingCustomerType ? (
                 <Box sx={{ display: 'flex', alignItems: 'center' }}>
                   <CircularProgress size={16} sx={{ mr: 1, color: 'white' }} />
-                              Adding...
+                  Adding...
                 </Box>
-                          ) : (
-                            'Add Type'
-                          )}
+              ) : (
+                'Add Type'
+              )}
             </Button>
           </DialogActions>
         </Dialog>
@@ -1636,7 +1647,7 @@ export default function CustomersPage() {
           maxWidth="sm"
           fullWidth
         >
-          <DialogTitle sx={{ 
+          <DialogTitle sx={{
             background: 'linear-gradient(45deg, #4caf50 30%, #2e7d32 90%)',
             color: 'white',
             display: 'flex',
@@ -1644,8 +1655,8 @@ export default function CustomersPage() {
             justifyContent: 'space-between'
           }}>
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <Avatar sx={{ 
-                bgcolor: 'rgba(255,255,255,0.2)', 
+              <Avatar sx={{
+                bgcolor: 'rgba(255,255,255,0.2)',
                 mr: 2,
                 width: 40,
                 height: 40
@@ -1725,7 +1736,7 @@ export default function CustomersPage() {
           maxWidth="sm"
           fullWidth
         >
-          <DialogTitle sx={{ 
+          <DialogTitle sx={{
             background: 'linear-gradient(45deg, #ff9800 30%, #f57c00 90%)',
             color: 'white',
             display: 'flex',
@@ -1733,8 +1744,8 @@ export default function CustomersPage() {
             justifyContent: 'space-between'
           }}>
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <Avatar sx={{ 
-                bgcolor: 'rgba(255,255,255,0.2)', 
+              <Avatar sx={{
+                bgcolor: 'rgba(255,255,255,0.2)',
                 mr: 2,
                 width: 40,
                 height: 40
@@ -1751,7 +1762,7 @@ export default function CustomersPage() {
               </Box>
             </Box>
             <IconButton
-                onClick={() => setShowCityPopup(false)}
+              onClick={() => setShowCityPopup(false)}
               sx={{ color: 'white' }}
             >
               <CloseIcon />
@@ -1764,25 +1775,25 @@ export default function CustomersPage() {
                 fullWidth
                 required
                 label="City Name"
-                        value={cityFormData.city_name}
-                        onChange={(e) => setCityFormData({ city_name: e.target.value })}
-                        disabled={isAddingCity}
-                        placeholder="Enter city name"
+                value={cityFormData.city_name}
+                onChange={(e) => setCityFormData({ city_name: e.target.value })}
+                disabled={isAddingCity}
+                placeholder="Enter city name"
                 sx={{ mb: 2 }}
-                      />
+              />
             </Box>
           </DialogContent>
 
           <DialogActions sx={{ p: 3, borderTop: 1, borderColor: 'divider' }}>
             <Button
-                        onClick={() => setShowCityPopup(false)}
+              onClick={() => setShowCityPopup(false)}
               sx={{ textTransform: 'none' }}
-                      >
-                        Cancel
+            >
+              Cancel
             </Button>
             <Button
               variant="contained"
-                        disabled={isAddingCity}
+              disabled={isAddingCity}
               onClick={handleAddCity}
               sx={{
                 background: 'linear-gradient(45deg, #ff9800 30%, #f57c00 90%)',
@@ -1792,14 +1803,14 @@ export default function CustomersPage() {
                 }
               }}
             >
-                          {isAddingCity ? (
+              {isAddingCity ? (
                 <Box sx={{ display: 'flex', alignItems: 'center' }}>
                   <CircularProgress size={16} sx={{ mr: 1, color: 'white' }} />
-                              Adding...
+                  Adding...
                 </Box>
-                          ) : (
-                            'Add City'
-                          )}
+              ) : (
+                'Add City'
+              )}
             </Button>
           </DialogActions>
         </Dialog>

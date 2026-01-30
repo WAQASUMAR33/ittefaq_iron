@@ -98,7 +98,7 @@ function OrdersPageContent() {
     if (viewParam === 'create') {
       setCurrentView('create');
     }
-    
+
     const typeParam = searchParams?.get('type');
     if (typeParam) {
       setBillType(typeParam);
@@ -1753,10 +1753,10 @@ function OrdersPageContent() {
                     <Autocomplete
                       size="small"
                       options={customers.filter(customer => {
-                        // Filter for customers with type "Customer"
-                        const isCustomer = customer.customer_type &&
-                          customer.customer_type.cus_type_title &&
-                          customer.customer_type.cus_type_title.toLowerCase().includes('customer');
+                        // Filter for customers with category "Customer"
+                        const isCustomer = customer.customer_category &&
+                          customer.customer_category.cus_cat_title &&
+                          customer.customer_category.cus_cat_title.toLowerCase().includes('customer');
                         return isCustomer;
                       })}
                       getOptionLabel={(option) => {
@@ -1782,7 +1782,7 @@ function OrdersPageContent() {
                     />
                     {/* Debug info */}
                     <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                      Debug: {customers.length} total customers, {customers.filter(c => c.customer_type?.cus_type_title?.toLowerCase().includes('customer')).length} customers (filtered)
+                      Debug: {customers.length} total customers, {customers.filter(c => c.customer_category?.cus_cat_title?.toLowerCase().includes('customer')).length} customers (filtered)
                     </Typography>
                   </Box>
                 </Grid>
@@ -3272,11 +3272,11 @@ function OrdersPageContent() {
                     fullWidth
                     size="small"
                     options={customers.filter(customer => {
-                      // Filter customers where type is "Customer"
-                      const isCustomer = customer.customer_type &&
-                        customer.customer_type.cus_type_title &&
-                        customer.customer_type.cus_type_title.toLowerCase().includes('customer');
-                      console.log('🔍 Sales List Customer filtering:', customer.cus_name, 'isCustomer:', isCustomer, 'customer_type:', customer.customer_type);
+                      // Filter for customers with category "Customer"
+                      const isCustomer = customer.customer_category &&
+                        customer.customer_category.cus_cat_title &&
+                        customer.customer_category.cus_cat_title.toLowerCase().includes('customer');
+                      console.log('🔍 Orders List Customer filtering:', customer.cus_name, 'isCustomer:', isCustomer, 'customer_category:', customer.customer_category);
                       return isCustomer;
                     })}
                     getOptionLabel={(option) => option.cus_name || ''}
@@ -3296,7 +3296,7 @@ function OrdersPageContent() {
                   />
                   {/* Debug info */}
                   <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                    Debug: {customers.length} total customers, {customers.filter(c => c.customer_type?.cus_type_title?.toLowerCase().includes('customer')).length} customers
+                    Debug: {customers.length} total customers, {customers.filter(c => c.customer_category?.cus_cat_title?.toLowerCase().includes('customer')).length} customers
                   </Typography>
                 </Grid>
                 <Grid item xs={12} md={2}>

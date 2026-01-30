@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { 
-  Plus, 
-  Edit, 
-  Trash2, 
-  Check, 
-  X, 
-  DollarSign, 
-  Search, 
+import {
+  Plus,
+  Edit,
+  Trash2,
+  Check,
+  X,
+  DollarSign,
+  Search,
   Filter,
   Hash,
   Calendar,
@@ -23,7 +23,7 @@ import {
 import DashboardLayout from '../components/dashboard-layout';
 
 // Material-UI imports
-import { 
+import {
   Box,
   Container,
   Typography,
@@ -72,13 +72,13 @@ export default function FinancePage() {
   const [loading, setLoading] = useState(true);
   const [showLedgerForm, setShowLedgerForm] = useState(false);
   const [editingLedger, setEditingLedger] = useState(null);
-  
+
   // Filter states
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState('');
   const [sortBy, setSortBy] = useState('created_at');
   const [sortOrder, setSortOrder] = useState('desc');
-  
+
   // Customer dropdown filter states
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
@@ -144,18 +144,18 @@ export default function FinancePage() {
   // Filter and sort logic
   const filteredLedgerEntries = ledgerEntries.filter(entry => {
     const matchesSearch = entry.customer?.cus_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         entry.details?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         entry.bill_no?.toLowerCase().includes(searchTerm.toLowerCase());
+      entry.details?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      entry.bill_no?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCustomer = !selectedCustomer || entry.cus_id === selectedCustomer;
-    
+
     return matchesSearch && matchesCustomer;
   });
 
   // Customer filtering logic
   const filteredCustomers = customers.filter(customer => {
     const matchesSearch = customer.cus_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
-                         customer.cus_phone_no?.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
-                         customer.cus_email?.toLowerCase().includes(customerSearchTerm.toLowerCase());
+      customer.cus_phone_no?.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
+      customer.cus_email?.toLowerCase().includes(customerSearchTerm.toLowerCase());
     return matchesSearch;
   });
 
@@ -163,14 +163,14 @@ export default function FinancePage() {
   const filteredAccounts = customers.filter(customer => {
     if (!accountSearchTerm) return true; // Show all when no search term
     const matchesSearch = customer.cus_name.toLowerCase().includes(accountSearchTerm.toLowerCase()) ||
-                         customer.cus_phone_no?.toLowerCase().includes(accountSearchTerm.toLowerCase()) ||
-                         customer.cus_email?.toLowerCase().includes(accountSearchTerm.toLowerCase());
+      customer.cus_phone_no?.toLowerCase().includes(accountSearchTerm.toLowerCase()) ||
+      customer.cus_email?.toLowerCase().includes(accountSearchTerm.toLowerCase());
     return matchesSearch;
   });
 
   const sortedLedgerEntries = filteredLedgerEntries.sort((a, b) => {
     let aValue, bValue;
-    
+
     if (sortBy === 'created_at') {
       aValue = new Date(a.created_at);
       bValue = new Date(b.created_at);
@@ -233,23 +233,23 @@ export default function FinancePage() {
         alert('Please select an account');
         return;
       }
-      
+
       if (!formData.debit_amount && !formData.credit_amount) {
         alert('Please enter either debit or credit amount');
         return;
       }
-      
+
       const url = editingLedger ? '/api/ledger' : '/api/ledger';
       const method = editingLedger ? 'PUT' : 'POST';
-      
-      const body = editingLedger 
-        ? { 
-            id: editingLedger.l_id, 
-            ...formData
-          } 
-        : { 
-            ...formData
-          };
+
+      const body = editingLedger
+        ? {
+          id: editingLedger.l_id,
+          ...formData
+        }
+        : {
+          ...formData
+        };
 
       const response = await fetch(url, {
         method,
@@ -316,10 +316,10 @@ export default function FinancePage() {
   if (loading) {
     return (
       <DashboardLayout>
-        <Box sx={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center', 
+        <Box sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
           height: '100%',
           flexDirection: 'column',
           gap: 2
@@ -370,7 +370,7 @@ export default function FinancePage() {
                 transition: 'all 0.2s ease-in-out'
               }}
             >
-                Add Ledger Entry
+              Add Ledger Entry
             </Button>
           </Box>
         </Box>
@@ -384,20 +384,20 @@ export default function FinancePage() {
                   Filters & Sorting
                 </Typography>
                 <Button
-                onClick={clearFilters}
+                  onClick={clearFilters}
                   size="small"
-                  sx={{ 
+                  sx={{
                     color: 'primary.main',
                     textTransform: 'none',
                     fontWeight: 500
                   }}
-              >
-                Clear All Filters
+                >
+                  Clear All Filters
                 </Button>
               </Box>
-            
+
               <Grid container spacing={3}>
-              {/* Search */}
+                {/* Search */}
                 <Grid item xs={12} md={6}>
                   <TextField
                     fullWidth
@@ -419,7 +419,7 @@ export default function FinancePage() {
                   />
                 </Grid>
 
-              {/* Account Filter */}
+                {/* Account Filter */}
                 <Grid item xs={12} md={3}>
                   <Autocomplete
                     options={filteredAccounts}
@@ -441,7 +441,7 @@ export default function FinancePage() {
                     renderInput={(params) => (
                       <TextField
                         {...params}
-                    placeholder="Search accounts..."
+                        placeholder="Search accounts..."
                         InputProps={{
                           ...params.InputProps,
                           startAdornment: (
@@ -458,35 +458,38 @@ export default function FinancePage() {
                         }}
                       />
                     )}
-                    renderOption={(props, option) => (
-                      <Box component="li" {...props}>
-                        <Box>
-                          <Typography variant="body2" fontWeight="medium">
-                            {option.cus_name}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {option.cus_phone_no} {option.cus_email && `• ${option.cus_email}`}
-                          </Typography>
+                    renderOption={(props, option) => {
+                      const { key, ...optionProps } = props;
+                      return (
+                        <Box component="li" key={key} {...optionProps}>
+                          <Box>
+                            <Typography variant="body2" fontWeight="medium">
+                              {option.cus_name}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {option.cus_phone_no} {option.cus_email && `• ${option.cus_email}`}
+                            </Typography>
+                          </Box>
                         </Box>
-                      </Box>
-                    )}
+                      );
+                    }}
                     noOptionsText="No accounts found"
                     clearOnEscape
                     clearText="Clear"
                   />
                 </Grid>
 
-              {/* Sort */}
+                {/* Sort */}
                 <Grid item xs={12} md={3}>
                   <FormControl fullWidth>
                     <InputLabel>Sort By</InputLabel>
                     <Select
-                  value={`${sortBy}-${sortOrder}`}
-                  onChange={(e) => {
-                    const [field, order] = e.target.value.split('-');
-                    setSortBy(field);
-                    setSortOrder(order);
-                  }}
+                      value={`${sortBy}-${sortOrder}`}
+                      onChange={(e) => {
+                        const [field, order] = e.target.value.split('-');
+                        setSortBy(field);
+                        setSortOrder(order);
+                      }}
                       label="Sort By"
                       sx={{
                         borderRadius: 0,
@@ -514,10 +517,10 @@ export default function FinancePage() {
               <Card sx={{ borderRadius: 0, boxShadow: 3, height: '100%' }}>
                 <CardContent sx={{ p: 3 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Avatar sx={{ 
-                      bgcolor: 'error.main', 
-                      mr: 2, 
-                      width: 48, 
+                    <Avatar sx={{
+                      bgcolor: 'error.main',
+                      mr: 2,
+                      width: 48,
                       height: 48,
                       background: 'linear-gradient(45deg, #f44336, #d32f2f)'
                     }}>
@@ -540,10 +543,10 @@ export default function FinancePage() {
               <Card sx={{ borderRadius: 0, boxShadow: 3, height: '100%' }}>
                 <CardContent sx={{ p: 3 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Avatar sx={{ 
-                      bgcolor: 'success.main', 
-                      mr: 2, 
-                      width: 48, 
+                    <Avatar sx={{
+                      bgcolor: 'success.main',
+                      mr: 2,
+                      width: 48,
                       height: 48,
                       background: 'linear-gradient(45deg, #4caf50, #2e7d32)'
                     }}>
@@ -566,10 +569,10 @@ export default function FinancePage() {
               <Card sx={{ borderRadius: 0, boxShadow: 3, height: '100%' }}>
                 <CardContent sx={{ p: 3 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Avatar sx={{ 
-                      bgcolor: 'primary.main', 
-                      mr: 2, 
-                      width: 48, 
+                    <Avatar sx={{
+                      bgcolor: 'primary.main',
+                      mr: 2,
+                      width: 48,
                       height: 48,
                       background: 'linear-gradient(45deg, #2196f3, #1976d2)'
                     }}>
@@ -592,10 +595,10 @@ export default function FinancePage() {
               <Card sx={{ borderRadius: 0, boxShadow: 3, height: '100%' }}>
                 <CardContent sx={{ p: 3 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Avatar sx={{ 
-                      bgcolor: 'secondary.main', 
-                      mr: 2, 
-                      width: 48, 
+                    <Avatar sx={{
+                      bgcolor: 'secondary.main',
+                      mr: 2,
+                      width: 48,
                       height: 48,
                       background: 'linear-gradient(45deg, #9c27b0, #7b1fa2)'
                     }}>
@@ -624,17 +627,17 @@ export default function FinancePage() {
               title="Ledger Entries"
               action={
                 <Typography variant="body2" color="text.secondary">
-                Showing {finalLedgerEntries.length} of {ledgerEntries.length} entries
+                  Showing {finalLedgerEntries.length} of {ledgerEntries.length} entries
                 </Typography>
               }
               sx={{ borderBottom: 1, borderColor: 'divider' }}
             />
-            
+
             {finalLedgerEntries.length === 0 ? (
-              <Box sx={{ 
-                flex: 1, 
-                display: 'flex', 
-                alignItems: 'center', 
+              <Box sx={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
                 justifyContent: 'center',
                 flexDirection: 'column',
                 gap: 2
@@ -644,9 +647,9 @@ export default function FinancePage() {
                   No ledger entries found
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                    {searchTerm || selectedCustomer
-                      ? 'Try adjusting your filters to see more results.'
-                      : 'Get started by adding your first ledger entry.'}
+                  {searchTerm || selectedCustomer
+                    ? 'Try adjusting your filters to see more results.'
+                    : 'Get started by adding your first ledger entry.'}
                 </Typography>
               </Box>
             ) : (
@@ -723,13 +726,13 @@ export default function FinancePage() {
 
                           {/* Type */}
                           <TableCell>
-                            <Chip 
-                              label={entry.trnx_type} 
-                              size="small" 
+                            <Chip
+                              label={entry.trnx_type}
+                              size="small"
                               variant="outlined"
                               color={
                                 entry.trnx_type === 'CASH' ? 'primary' :
-                                entry.trnx_type === 'BANK_TRANSFER' ? 'secondary' : 'default'
+                                  entry.trnx_type === 'BANK_TRANSFER' ? 'secondary' : 'default'
                               }
                             />
                           </TableCell>
@@ -747,7 +750,7 @@ export default function FinancePage() {
                               <Tooltip title="Edit Entry">
                                 <IconButton
                                   size="small"
-                                onClick={() => handleEdit(entry)}
+                                  onClick={() => handleEdit(entry)}
                                   sx={{ color: 'primary.main' }}
                                 >
                                   <Edit size={16} />
@@ -756,7 +759,7 @@ export default function FinancePage() {
                               <Tooltip title="Delete Entry">
                                 <IconButton
                                   size="small"
-                                onClick={() => handleDelete(entry.l_id)}
+                                  onClick={() => handleDelete(entry.l_id)}
                                   sx={{ color: 'error.main' }}
                                 >
                                   <Trash2 size={16} />
@@ -798,40 +801,40 @@ export default function FinancePage() {
           sx: { borderRadius: 0 }
         }}
       >
-        <DialogTitle sx={{ 
-          display: 'flex', 
-          alignItems: 'center', 
+        <DialogTitle sx={{
+          display: 'flex',
+          alignItems: 'center',
           justifyContent: 'space-between',
           pb: 2
         }}>
           <Typography variant="h5" component="h2" sx={{ fontWeight: 'bold' }}>
-                  {editingLedger ? 'Edit Ledger Entry' : 'Add New Ledger Entry'}
+            {editingLedger ? 'Edit Ledger Entry' : 'Add New Ledger Entry'}
           </Typography>
           <IconButton
-                  onClick={() => {
-                    setShowLedgerForm(false);
-                    setEditingLedger(null);
-                    setFormData({
-                      cus_id: '',
-                      debit_amount: '',
-                      credit_amount: '',
-                      bill_no: '',
-                      trnx_type: 'CASH',
-                      details: '',
-                      payments: ''
-                    });
-                    setCustomerSearchTerm('');
-                  }}
+            onClick={() => {
+              setShowLedgerForm(false);
+              setEditingLedger(null);
+              setFormData({
+                cus_id: '',
+                debit_amount: '',
+                credit_amount: '',
+                bill_no: '',
+                trnx_type: 'CASH',
+                details: '',
+                payments: ''
+              });
+              setCustomerSearchTerm('');
+            }}
             sx={{ color: 'text.secondary' }}
           >
             <X size={20} />
           </IconButton>
         </DialogTitle>
-        
+
         <DialogContent sx={{ pt: 2 }}>
 
           <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                {/* Account Selection */}
+            {/* Account Selection */}
             <Autocomplete
               options={filteredCustomers}
               getOptionLabel={(option) => option.cus_name}
@@ -841,7 +844,7 @@ export default function FinancePage() {
                   setFormData(prev => ({ ...prev, cus_id: newValue.cus_id }));
                   setCustomerSearchTerm(newValue.cus_name);
                 } else {
-                          setFormData(prev => ({ ...prev, cus_id: '' }));
+                  setFormData(prev => ({ ...prev, cus_id: '' }));
                   setCustomerSearchTerm('');
                 }
               }}
@@ -853,7 +856,7 @@ export default function FinancePage() {
                 <TextField
                   {...params}
                   label="Account *"
-                      placeholder="Search accounts..."
+                  placeholder="Search accounts..."
                   required
                   InputProps={{
                     ...params.InputProps,
@@ -871,34 +874,37 @@ export default function FinancePage() {
                   }}
                 />
               )}
-              renderOption={(props, option) => (
-                <Box component="li" {...props}>
-                  <Box>
-                    <Typography variant="body2" fontWeight="medium">
-                      {option.cus_name}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {option.cus_phone_no} {option.cus_email && `• ${option.cus_email}`}
-                    </Typography>
+              renderOption={(props, option) => {
+                const { key, ...optionProps } = props;
+                return (
+                  <Box component="li" key={key} {...optionProps}>
+                    <Box>
+                      <Typography variant="body2" fontWeight="medium">
+                        {option.cus_name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {option.cus_phone_no} {option.cus_email && `• ${option.cus_email}`}
+                      </Typography>
+                    </Box>
                   </Box>
-                </Box>
-              )}
+                );
+              }}
               noOptionsText="No accounts found"
               clearOnEscape
               clearText="Clear"
             />
-                  
-                  {/* Selected Customer Display */}
-                  {formData.cus_id && getSelectedCustomer() && (
-              <Alert 
-                severity="success" 
+
+            {/* Selected Customer Display */}
+            {formData.cus_id && getSelectedCustomer() && (
+              <Alert
+                severity="success"
                 action={
                   <IconButton
                     size="small"
-                          onClick={() => {
-                            setFormData(prev => ({ ...prev, cus_id: '' }));
-                            setCustomerSearchTerm('');
-                          }}
+                    onClick={() => {
+                      setFormData(prev => ({ ...prev, cus_id: '' }));
+                      setCustomerSearchTerm('');
+                    }}
                     sx={{ color: 'error.main' }}
                   >
                     <X size={16} />
@@ -914,19 +920,19 @@ export default function FinancePage() {
               </Alert>
             )}
 
-                {/* Amount Fields */}
+            {/* Amount Fields */}
             <Grid container spacing={3}>
-                  {/* Debit Amount */}
+              {/* Debit Amount */}
               <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
                   label="Debit Amount"
-                      name="debit_amount"
+                  name="debit_amount"
                   type="number"
-                      value={formData.debit_amount}
-                      onChange={handleInputChange}
+                  value={formData.debit_amount}
+                  onChange={handleInputChange}
                   inputProps={{ step: 0.01, min: 0 }}
-                      placeholder="0.00"
+                  placeholder="0.00"
                   sx={{
                     '& .MuiOutlinedInput-root': {
                       borderRadius: 0,
@@ -941,17 +947,17 @@ export default function FinancePage() {
                 />
               </Grid>
 
-                  {/* Credit Amount */}
+              {/* Credit Amount */}
               <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
                   label="Credit Amount"
-                      name="credit_amount"
+                  name="credit_amount"
                   type="number"
-                      value={formData.credit_amount}
-                      onChange={handleInputChange}
+                  value={formData.credit_amount}
+                  onChange={handleInputChange}
                   inputProps={{ step: 0.01, min: 0 }}
-                      placeholder="0.00"
+                  placeholder="0.00"
                   sx={{
                     '& .MuiOutlinedInput-root': {
                       borderRadius: 0,
@@ -967,16 +973,16 @@ export default function FinancePage() {
               </Grid>
             </Grid>
 
-                {/* Transaction Type and Bill No */}
+            {/* Transaction Type and Bill No */}
             <Grid container spacing={3}>
-                  {/* Transaction Type */}
+              {/* Transaction Type */}
               <Grid item xs={12} md={6}>
                 <FormControl fullWidth required>
                   <InputLabel>Transaction Type</InputLabel>
                   <Select
-                      name="trnx_type"
-                      value={formData.trnx_type}
-                      onChange={handleInputChange}
+                    name="trnx_type"
+                    value={formData.trnx_type}
+                    onChange={handleInputChange}
                     label="Transaction Type"
                     sx={{
                       '& .MuiOutlinedInput-notchedOutline': {
@@ -991,51 +997,51 @@ export default function FinancePage() {
                 </FormControl>
               </Grid>
 
-                  {/* Bill No */}
+              {/* Bill No */}
               <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
                   label="Bill Number"
-                      name="bill_no"
-                      value={formData.bill_no}
-                      onChange={handleInputChange}
-                      placeholder="Enter bill number"
+                  name="bill_no"
+                  value={formData.bill_no}
+                  onChange={handleInputChange}
+                  placeholder="Enter bill number"
                   sx={{
                     '& .MuiOutlinedInput-root': {
                       borderRadius: 0,
                     }
                   }}
-                    />
+                />
               </Grid>
             </Grid>
 
-                {/* Details */}
+            {/* Details */}
             <TextField
               fullWidth
               label="Details"
-                    name="details"
-                    value={formData.details}
-                    onChange={handleInputChange}
+              name="details"
+              value={formData.details}
+              onChange={handleInputChange}
               multiline
-                    rows={3}
-                    placeholder="Enter transaction details"
+              rows={3}
+              placeholder="Enter transaction details"
               sx={{
                 '& .MuiOutlinedInput-root': {
                   borderRadius: 0,
                 }
               }}
-                  />
+            />
 
-                {/* Payments */}
+            {/* Payments */}
             <TextField
               fullWidth
               label="Payments"
-                    name="payments"
+              name="payments"
               type="number"
-                    value={formData.payments}
-                    onChange={handleInputChange}
+              value={formData.payments}
+              onChange={handleInputChange}
               inputProps={{ step: 0.01, min: 0 }}
-                    placeholder="0.00"
+              placeholder="0.00"
               sx={{
                 '& .MuiOutlinedInput-root': {
                   borderRadius: 0,
@@ -1044,29 +1050,29 @@ export default function FinancePage() {
             />
           </Box>
         </DialogContent>
-        
+
         <DialogActions sx={{ p: 3, pt: 1 }}>
           <Button
-                    onClick={() => {
-                      setShowLedgerForm(false);
-                      setEditingLedger(null);
-                      setFormData({
-                        cus_id: '',
-                        debit_amount: '',
-                        credit_amount: '',
-                        bill_no: '',
-                        trnx_type: 'CASH',
-                        details: '',
-                        payments: ''
-                      });
-                      setCustomerSearchTerm('');
-                    }}
+            onClick={() => {
+              setShowLedgerForm(false);
+              setEditingLedger(null);
+              setFormData({
+                cus_id: '',
+                debit_amount: '',
+                credit_amount: '',
+                bill_no: '',
+                trnx_type: 'CASH',
+                details: '',
+                payments: ''
+              });
+              setCustomerSearchTerm('');
+            }}
             sx={{ textTransform: 'none', fontWeight: 500 }}
-                  >
-                    Cancel
+          >
+            Cancel
           </Button>
           <Button
-                    type="submit"
+            type="submit"
             variant="contained"
             onClick={handleSubmit}
             sx={{
@@ -1086,8 +1092,8 @@ export default function FinancePage() {
               },
               transition: 'all 0.2s ease-in-out'
             }}
-                  >
-                    {editingLedger ? 'Update Entry' : 'Create Entry'}
+          >
+            {editingLedger ? 'Update Entry' : 'Create Entry'}
           </Button>
         </DialogActions>
       </Dialog>
