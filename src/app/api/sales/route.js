@@ -815,10 +815,26 @@ export async function POST(request) {
           updated_by
         });
 
-        // 2. Cash/Bank Account - CREDIT (when payment is received)
+        // 2. Customer Payment Entry - Credit Customer Account
+        if (parseFloat(payment) > 0) {
+          ledgerEntries.push({
+            cus_id,
+            opening_balance: customer.cus_balance + netTotal,
+            debit_amount: 0,
+            credit_amount: parseFloat(payment),
+            closing_balance: customer.cus_balance + netTotal - parseFloat(payment),
+            bill_no: sale.sale_id.toString(),
+            trnx_type: payment_type || 'CASH',
+            details: `Payment Received - ${bill_type || 'BILL'} - Customer Account (Credit)`,
+            payments: parseFloat(payment),
+            updated_by
+          });
+        }
+
+        // 3. Cash/Bank Account - DEBIT (when payment is received)
         if (parseFloat(payment) > 0) {
 
-          // 3. Payment Entry - Debit Cash/Bank Account
+          // 4. Payment Entry - Debit Cash/Bank Account
           const paymentAccount = payment_type === 'CASH' ? specialAccounts.cash : specialAccounts.bank;
           if (paymentAccount) {
             ledgerEntries.push({
@@ -1314,9 +1330,20 @@ export async function PUT(request) {
         });
       }
 
-      // 2. Cash/Bank Account - CREDIT (when payment is received)
+      // 2. Customer Payment Entry - Credit Customer Account (skip for quotations)
       if (!isNewBillQuotationOrOrder && parseFloat(payment) > 0) {
-
+        ledgerEntries.push({
+          cus_id,
+          opening_balance: customer.cus_balance + netTotal,
+          debit_amount: 0,
+          credit_amount: parseFloat(payment),
+          closing_balance: customer.cus_balance + netTotal - parseFloat(payment),
+          bill_no: sale.sale_id.toString(),
+          trnx_type: payment_type || 'CASH',
+          details: `Payment Received - ${bill_type || 'BILL'} - Customer Account (Credit)`,
+          payments: parseFloat(payment),
+          updated_by
+        });
 
         // 3. Payment Entry - Debit Cash/Bank Account
         const paymentAccount = payment_type === 'CASH' ? specialAccounts.cash : specialAccounts.bank;

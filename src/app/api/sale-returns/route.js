@@ -268,13 +268,15 @@ export async function POST(request) {
       // Skip financial transactions for quotation returns
       if (!isQuotationReturn) {
         // Restore store stock quantities (skip for quotations)
-        if (sale.store_id) {
-          const storeStockRestorePromises = return_details.map(async detail => {
-            await updateStoreStock(sale.store_id, detail.pro_id, parseInt(detail.qnty), 'increment', updated_by);
-          });
+        // Use detail.store_id if available (for manual items), otherwise sale.store_id
+        const storeStockRestorePromises = return_details.map(async detail => {
+          const targetStoreId = detail.store_id || sale.store_id;
+          if (targetStoreId) {
+            await updateStoreStock(targetStoreId, detail.pro_id, parseInt(detail.qnty), 'increment', updated_by);
+          }
+        });
 
-          await Promise.all(storeStockRestorePromises);
-        }
+        await Promise.all(storeStockRestorePromises);
 
         // Create ledger entries (reverse of sale) - Skip for quotations
         // Credit entry for return (reduce customer debt)

@@ -1,21 +1,1340 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import DashboardLayout from '../components/dashboard-layout';
+
+// Material-UI imports
+import {
+  Box,
+  Container,
+  Typography,
+  Button,
+  TextField,
+  Card,
+  CardContent,
+  Grid,
+  IconButton,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Autocomplete,
+  Chip,
+  InputAdornment,
+  Stack,
+  Alert,
+  Snackbar,
+  CircularProgress,
+  Tooltip,
+  useTheme,
+  useMediaQuery,
+  Divider,
+  Fade,
+  Zoom,
+  LinearProgress
+} from '@mui/material';
+
+import {
+  Add as AddIcon,
+  Search as SearchIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  ArrowBack as ArrowBackIcon,
+  CalendarToday as CalendarIcon,
+  Close as CloseIcon,
+  Save as SaveIcon,
+  Person as PersonIcon,
+  Store as StoreIcon,
+  Receipt as ReceiptIcon,
+  Inventory as InventoryIcon,
+  LocalShipping as ShippingIcon,
+  History as HistoryIcon,
+  FilterList as FilterIcon,
+  RestartAlt as ResetIcon,
+  Info as InfoIcon,
+  CheckCircle as CheckCircleIcon,
+  Error as ErrorIcon,
+  ArrowForward as ArrowForwardIcon,
+  CloudUpload as UploadIcon,
+  Warning as WarningIcon
+} from '@mui/icons-material';
+
+// Premium Theme Patterns
+const STYLES = {
+  glassCard: {
+    backdropFilter: 'blur(10px)',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: '24px',
+    border: '1px solid rgba(224, 224, 224, 0.5)',
+    boxShadow: '0 10px 40px rgba(0,0,0,0.04)',
+    overflow: 'hidden',
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    '&:hover': {
+      boxShadow: '0 15px 50px rgba(0,0,0,0.08)',
+    }
+  },
+  gradientHeader: {
+    background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
+    color: 'white',
+    p: { xs: 3, md: 5 },
+    borderRadius: '0 0 40px 40px',
+    mb: -6,
+    boxShadow: '0 10px 30px rgba(30, 58, 138, 0.2)',
+    position: 'relative',
+    zIndex: 1,
+  },
+  primaryGradientBtn: {
+    background: 'linear-gradient(45deg, #3b82f6 30%, #2ecc71 90%)',
+    borderRadius: '14px',
+    px: 3,
+    py: 1.2,
+    fontSize: '0.9rem',
+    fontWeight: '600',
+    textTransform: 'none',
+    color: 'white',
+    boxShadow: '0 4px 15px rgba(59, 130, 246, 0.3)',
+    '&:hover': {
+      background: 'linear-gradient(45deg, #2563eb 30%, #27ae60 90%)',
+      transform: 'translateY(-2px)',
+      boxShadow: '0 8px 25px rgba(59, 130, 246, 0.4)',
+    },
+    transition: 'all 0.2s',
+  },
+  tableHeader: {
+    backgroundColor: '#f8fafc',
+    '& .MuiTableCell-head': {
+      fontWeight: '700',
+      color: '#64748b',
+      textTransform: 'uppercase',
+      fontSize: '0.75rem',
+      letterSpacing: '0.05em',
+      py: 2,
+    }
+  },
+  input: {
+    '& .MuiOutlinedInput-root': {
+      borderRadius: '12px',
+      backgroundColor: '#f8fafc',
+      '& fieldset': { border: '1px solid #e2e8f0' },
+      '&:hover fieldset': { borderColor: '#cbd5e1' },
+      '&.Mui-focused fieldset': { borderColor: '#3b82f6' },
+    }
+  }
+};
 
 export default function SaleReturnsPage() {
-  const router = useRouter();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+  // State management
+  const [currentView, setCurrentView] = useState('list'); // 'list', 'create', 'edit'
+  const [saleReturns, setSaleReturns] = useState([]);
+  const [sales, setSales] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [stores, setStores] = useState([]);
+  const [loaders, setLoaders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingReturn, setEditingReturn] = useState(null);
+
+  // Sale Search State
+  const [saleSearchTerm, setSaleSearchTerm] = useState('');
+  const [isSearchingSale, setIsSearchingSale] = useState(false);
+
+  // Search and filter states
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [selectedStore, setSelectedStore] = useState(null);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [sortBy, setSortBy] = useState('created_at');
+  const [sortOrder, setSortOrder] = useState('desc');
+
+  // Form states
+  const [selectedSale, setSelectedSale] = useState(null);
+  const [formData, setFormData] = useState({
+    sale_id: '',
+    cus_id: '',
+    return_date: new Date().toISOString().split('T')[0],
+    return_reason: '',
+    return_details: [],
+    total_return_amount: 0,
+    payment: 0,
+    payment_type: 'CASH',
+    loader_id: '',
+    shipping_amount: 0,
+    notes: ''
+  });
+
+  // Manual Product Addition State
+  const [manualProduct, setManualProduct] = useState(null);
+  const [manualStore, setManualStore] = useState(null);
+  const [manualQty, setManualQty] = useState(1);
+  const [manualRate, setManualRate] = useState(0);
+
+  // Snackbar state
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'success'
+  });
+
+  // Fetch data
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const responses = await Promise.all([
+        fetch('/api/sale-returns'),
+        fetch('/api/sales'),
+        fetch('/api/customers'),
+        fetch('/api/products'),
+        fetch('/api/stores'),
+        fetch('/api/loaders')
+      ]);
+
+      const data = await Promise.all(responses.map(res => res.json()));
+
+      setSaleReturns(data[0] || []);
+      setSales(data[1] || []);
+      setCustomers(data[2] || []);
+      setProducts(data[3] || []);
+      setStores(data[4] || []);
+      setLoaders(data[5] || []);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      showSnackbar('Error fetching data', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    try {
-      localStorage.setItem('openSaleReturnCreate', '1');
-    } catch (e) {
-      // ignore storage errors
+    fetchData();
+  }, []);
+
+  // Helper functions
+  const showSnackbar = (message, severity = 'success') => {
+    setSnackbar({ open: true, message, severity });
+  };
+
+  const handleSnackbarClose = () => {
+    setSnackbar(prev => ({ ...prev, open: false }));
+  };
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setSelectedCustomer(null);
+    setSelectedStore(null);
+    setDateFrom('');
+    setDateTo('');
+  };
+
+  // Handle sale selection
+  const handleSaleSelect = (sale) => {
+    setSelectedSale(sale);
+
+    setFormData(prev => ({
+      ...prev,
+      sale_id: sale.sale_id,
+      cus_id: sale.cus_id,
+      loader_id: sale.loader_id || '',
+      shipping_amount: 0, // Should be specified manually if deduction needed
+      payment: 0,
+      return_details: sale.sale_details?.map(detail => ({
+        pro_id: detail.pro_id,
+        store_id: detail.store_id || sale.store_id,
+        max_quantity: detail.qnty || 0,
+        unit_rate: detail.unit_rate || 0,
+        unit: detail.unit || 'PCS',
+        return_quantity: 0,
+        return_amount: 0,
+        is_manual: false
+      })) || []
+    }));
+
+    if (sale.store_id && stores.length > 0) {
+      const matchingStore = stores.find(s =>
+        (s.store_id && s.store_id === sale.store_id) ||
+        (s.storeid && s.storeid === sale.store_id)
+      );
+      if (matchingStore) {
+        setManualStore(matchingStore);
+      }
     }
-    router.replace('/dashboard/sales');
-  }, [router]);
+    showSnackbar(`Sale #${sale.sale_id} loaded successfully`, 'success');
+  };
 
-  return null;
+  // Handle sale search
+  const handleSaleSearch = async (e) => {
+    e?.preventDefault();
+    if (!saleSearchTerm.trim()) return;
+
+    setIsSearchingSale(true);
+    try {
+      if (!isNaN(saleSearchTerm)) {
+        const idRes = await fetch(`/api/sales?id=${saleSearchTerm}`);
+        if (idRes.ok) {
+          const sale = await idRes.json();
+          handleSaleSelect(sale);
+          setIsSearchingSale(false);
+          return;
+        }
+      }
+      showSnackbar('Sale not found with that ID', 'warning');
+    } catch (error) {
+      console.error('Error searching sale:', error);
+      showSnackbar('Error searching sale', 'error');
+    } finally {
+      setIsSearchingSale(false);
+    }
+  };
+
+  // Handle Manual Product Selection
+  const handleManualProductSelect = (product) => {
+    setManualProduct(product);
+    if (product) {
+      setManualRate(product.pro_sale_price || 0);
+    } else {
+      setManualRate(0);
+    }
+  };
+
+  // Add Manual Product to List
+  const handleAddManualProduct = () => {
+    if (!manualProduct) {
+      showSnackbar('Please select a product', 'error');
+      return;
+    }
+    if (!manualStore) {
+      showSnackbar('Please select a store', 'error');
+      return;
+    }
+    if (manualQty <= 0) {
+      showSnackbar('Quantity must be greater than 0', 'error');
+      return;
+    }
+
+    const newItem = {
+      pro_id: manualProduct.pro_id,
+      store_id: manualStore.storeid || manualStore.store_id,
+      max_quantity: null,
+      unit_rate: parseFloat(manualRate),
+      unit: manualProduct.pro_unit || 'PCS',
+      return_quantity: parseFloat(manualQty),
+      return_amount: parseFloat(manualQty) * parseFloat(manualRate),
+      is_manual: true
+    };
+
+    setFormData(prev => {
+      const updatedDetails = [...prev.return_details, newItem];
+      const totalReturnAmount = updatedDetails.reduce((sum, detail) => sum + (detail.return_amount || 0), 0);
+
+      return {
+        ...prev,
+        return_details: updatedDetails,
+        total_return_amount: totalReturnAmount
+      };
+    });
+
+    setManualProduct(null);
+    setManualQty(1);
+    setManualRate(0);
+    showSnackbar('Item added to return list', 'success');
+  };
+
+  // Handle return quantity change
+  const handleReturnQuantityChange = (index, quantity) => {
+    const item = formData.return_details[index];
+    let newQuantity = quantity;
+    if (item.max_quantity !== null && item.max_quantity !== undefined) {
+      newQuantity = Math.max(0, Math.min(quantity, item.max_quantity));
+    } else {
+      newQuantity = Math.max(0, quantity);
+    }
+
+    setFormData(prev => {
+      const updatedDetails = prev.return_details.map((detail, i) => {
+        if (i === index) {
+          const returnAmount = newQuantity * parseFloat(detail.unit_rate || 0);
+          return {
+            ...detail,
+            return_quantity: newQuantity,
+            return_amount: returnAmount
+          };
+        }
+        return detail;
+      });
+
+      const totalReturnAmount = updatedDetails.reduce((sum, detail) => sum + (detail.return_amount || 0), 0);
+
+      return {
+        ...prev,
+        return_details: updatedDetails,
+        total_return_amount: totalReturnAmount
+      };
+    });
+  };
+
+  // Remove return detail
+  const removeReturnDetail = (index) => {
+    setFormData(prev => {
+      const updatedDetails = prev.return_details.filter((_, i) => i !== index);
+      const totalReturnAmount = updatedDetails.reduce((sum, detail) => sum + (detail.return_amount || 0), 0);
+
+      return {
+        ...prev,
+        return_details: updatedDetails,
+        total_return_amount: totalReturnAmount
+      };
+    });
+  };
+
+  // Handle form submission
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!formData.cus_id) {
+      showSnackbar('Please select a customer', 'error');
+      return;
+    }
+
+    const returningItems = formData.return_details
+      .filter(detail => detail.return_quantity > 0)
+      .map(detail => ({
+        ...detail,
+        qnty: detail.return_quantity,
+        total_amount: detail.return_amount
+      }));
+
+    if (returningItems.length === 0) {
+      showSnackbar('Please select at least one item to return', 'error');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const url = '/api/sale-returns';
+      const method = editingReturn ? 'PUT' : 'POST';
+
+      const body = {
+        ...formData,
+        total_amount: formData.total_return_amount,
+        reason: formData.return_reason,
+        reference: formData.notes,
+        return_details: returningItems,
+        updated_by: 1 // Default user
+      };
+
+      if (editingReturn) body.id = editingReturn.return_id;
+
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      if (response.ok) {
+        await fetchData();
+        setCurrentView('list');
+        setEditingReturn(null);
+        setSelectedSale(null);
+        setFormData({
+          sale_id: '',
+          cus_id: '',
+          return_date: new Date().toISOString().split('T')[0],
+          return_reason: '',
+          return_details: [],
+          total_return_amount: 0,
+          payment: 0,
+          payment_type: 'CASH',
+          loader_id: '',
+          shipping_amount: 0,
+          notes: ''
+        });
+
+        showSnackbar(
+          editingReturn ? 'Sale return updated successfully' : 'Sale return created successfully',
+          'success'
+        );
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        showSnackbar(
+          errorData.message || errorData.error || `Error ${editingReturn ? 'updating' : 'creating'} sale return`,
+          'error'
+        );
+      }
+    } catch (error) {
+      console.error('Error saving sale return:', error);
+      showSnackbar('Error saving sale return', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle edit
+  const handleEdit = (saleReturn) => {
+    setEditingReturn(saleReturn);
+    setFormData({
+      sale_id: saleReturn.sale_id || '',
+      cus_id: saleReturn.cus_id,
+      return_date: saleReturn.return_date?.split('T')[0] || new Date().toISOString().split('T')[0],
+      return_reason: saleReturn.reason || '',
+      return_details: saleReturn.return_details?.map(d => ({
+        ...d,
+        pro_id: d.pro_id,
+        unit_rate: d.unit_rate,
+        return_quantity: d.qnty,
+        return_amount: d.total_amount,
+        max_quantity: null,
+        is_manual: true
+      })) || [],
+      total_return_amount: parseFloat(saleReturn.total_amount) || 0,
+      payment: parseFloat(saleReturn.payment) || 0,
+      payment_type: saleReturn.payment_type || 'CASH',
+      loader_id: saleReturn.loader_id || '',
+      shipping_amount: parseFloat(saleReturn.shipping_amount) || 0,
+      notes: saleReturn.reference || ''
+    });
+    setCurrentView('create');
+  };
+
+  // Handle delete
+  const handleDelete = async (returnId) => {
+    if (window.confirm('Are you sure you want to delete this sale return? This will reverse all stock and balance adjustments.')) {
+      try {
+        const response = await fetch(`/api/sale-returns?id=${returnId}`, {
+          method: 'DELETE'
+        });
+        if (response.ok) {
+          await fetchData();
+          showSnackbar('Sale return deleted successfully', 'success');
+        } else {
+          showSnackbar('Error deleting sale return', 'error');
+        }
+      } catch (error) {
+        console.error('Error deleting sale return:', error);
+        showSnackbar('Error deleting sale return', 'error');
+      }
+    }
+  };
+
+  // Filter and sort data
+  const filteredAndSortedReturns = saleReturns
+    .filter(returnItem => {
+      const customer = customers.find(c => c.cus_id === returnItem.cus_id);
+
+      const matchesSearch = (returnItem.reason?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        returnItem.reference?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        customer?.cus_name?.toLowerCase().includes(searchTerm.toLowerCase()));
+      const matchesCustomer = !selectedCustomer || returnItem.cus_id === selectedCustomer.cus_id;
+      const matchesDateFrom = !dateFrom || new Date(returnItem.return_date) >= new Date(dateFrom);
+      const matchesDateTo = !dateTo || new Date(returnItem.return_date) <= new Date(dateTo);
+
+      return matchesSearch && matchesCustomer && matchesDateFrom && matchesDateTo;
+    })
+    .sort((a, b) => {
+      const aValue = a[sortBy];
+      const bValue = b[sortBy];
+      const modifier = sortOrder === 'asc' ? 1 : -1;
+
+      if (aValue < bValue) return -1 * modifier;
+      if (aValue > bValue) return 1 * modifier;
+      return 0;
+    });
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <Box sx={{ minHeight: '80vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+          <CircularProgress size={60} thickness={4} sx={{ color: 'primary.main' }} />
+          <Typography variant="h6" color="text.secondary" className="animate-pulse">
+            Loading Returns...
+          </Typography>
+        </Box>
+      </DashboardLayout>
+    );
+  }
+
+  // Render Sale Returns List View
+  const renderSaleReturnsListView = () => (
+    <DashboardLayout>
+      <Box sx={{ minHeight: '100vh', bgcolor: '#f1f5f9', pb: 10 }}>
+        {/* Modern Header */}
+        <Box sx={STYLES.gradientHeader}>
+          <Container maxWidth="xl">
+            <Grid container spacing={2} alignItems="center">
+              <Grid item xs={12} md={8}>
+                <Stack direction="row" spacing={2} alignItems="center">
+                  <Box sx={{ p: 1.5, bgcolor: 'rgba(255,255,255,0.2)', borderRadius: '16px', backdropFilter: 'blur(10px)' }}>
+                    <HistoryIcon sx={{ fontSize: 32, color: 'white' }} />
+                  </Box>
+                  <Box>
+                    <Typography variant="h3" sx={{ fontWeight: '800', letterSpacing: '-0.02em', mb: 0.5 }}>
+                      Sale Returns
+                    </Typography>
+                    <Typography variant="body1" sx={{ opacity: 0.8, fontWeight: '500' }}>
+                      Manage customer returns, stock adjustments and refunds
+                    </Typography>
+                  </Box>
+                </Stack>
+              </Grid>
+              <Grid item xs={12} md={4} sx={{ textAlign: { md: 'right' } }}>
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={() => setCurrentView('create')}
+                  sx={STYLES.primaryGradientBtn}
+                >
+                  Process New Return
+                </Button>
+              </Grid>
+            </Grid>
+          </Container>
+        </Box>
+
+        <Container maxWidth="xl" sx={{ mt: 1 }}>
+          <Stack spacing={4}>
+            {/* Search & Filters Card */}
+            <Fade in={true} timeout={800}>
+              <Card sx={STYLES.glassCard}>
+                <CardContent sx={{ p: 4 }}>
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 3 }}>
+                    <FilterIcon color="primary" />
+                    <Typography variant="h6" sx={{ fontWeight: '700', color: 'text.primary' }}>
+                      Filter Records
+                    </Typography>
+                    <Box sx={{ flexGrow: 1 }} />
+                    <Button
+                      size="small"
+                      startIcon={<ResetIcon />}
+                      onClick={clearFilters}
+                      sx={{ borderRadius: '10px', textTransform: 'none' }}
+                    >
+                      Reset Filters
+                    </Button>
+                  </Stack>
+
+                  <Grid container spacing={3}>
+                    <Grid item xs={12} md={4}>
+                      <TextField
+                        fullWidth
+                        placeholder="Search by ID, Customer or Reason..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        sx={STYLES.input}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <SearchIcon sx={{ color: 'primary.main' }} />
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+                    </Grid>
+
+                    <Grid item xs={12} md={4}>
+                      <Autocomplete
+                        options={customers}
+                        getOptionLabel={(option) => option.cus_name}
+                        value={selectedCustomer}
+                        onChange={(event, newValue) => setSelectedCustomer(newValue)}
+                        renderInput={(params) => (
+                          <TextField {...params} placeholder="Select Customer" sx={STYLES.input} />
+                        )}
+                      />
+                    </Grid>
+
+                    <Grid item xs={12} md={2}>
+                      <TextField
+                        fullWidth
+                        type="date"
+                        label="From Date"
+                        value={dateFrom}
+                        onChange={(e) => setDateFrom(e.target.value)}
+                        InputLabelProps={{ shrink: true }}
+                        sx={STYLES.input}
+                      />
+                    </Grid>
+
+                    <Grid item xs={12} md={2}>
+                      <TextField
+                        fullWidth
+                        type="date"
+                        label="To Date"
+                        value={dateTo}
+                        onChange={(e) => setDateTo(e.target.value)}
+                        InputLabelProps={{ shrink: true }}
+                        sx={STYLES.input}
+                      />
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
+            </Fade>
+
+            {/* Main Data Table */}
+            <Fade in={true} timeout={1200}>
+              <Card sx={STYLES.glassCard}>
+                <Box sx={{ p: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9' }}>
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: '800' }}>
+                      Recent Return Invoices
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Showing {filteredAndSortedReturns.length} of {saleReturns.length} records
+                    </Typography>
+                  </Box>
+                  <Tooltip title="Reload Data">
+                    <IconButton size="small" onClick={fetchData} sx={{ bgcolor: 'primary.50', color: 'primary.main' }}>
+                      <ResetIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+
+                <TableContainer>
+                  <Table sx={{ minWidth: 800 }}>
+                    <TableHead sx={STYLES.tableHeader}>
+                      <TableRow>
+                        <TableCell>Return Details</TableCell>
+                        <TableCell>Customer</TableCell>
+                        <TableCell>Original Sale</TableCell>
+                        <TableCell>Return Date</TableCell>
+                        <TableCell align="right">Amount</TableCell>
+                        <TableCell align="center">Status</TableCell>
+                        <TableCell align="right">Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {filteredAndSortedReturns.length > 0 ? (
+                        filteredAndSortedReturns.map((returnItem) => {
+                          const customer = customers.find(c => c.cus_id === returnItem.cus_id);
+                          return (
+                            <TableRow
+                              key={returnItem.return_id}
+                              hover
+                              sx={{
+                                transition: 'all 0.2s',
+                                '&:hover': { bgcolor: '#f8fafc' }
+                              }}
+                            >
+                              <TableCell>
+                                <Stack direction="row" spacing={2} alignItems="center">
+                                  <Box sx={{
+                                    p: 1,
+                                    bgcolor: 'error.50',
+                                    color: 'error.main',
+                                    borderRadius: '10px'
+                                  }}>
+                                    <ReceiptIcon fontSize="small" />
+                                  </Box>
+                                  <Box>
+                                    <Typography variant="body2" sx={{ fontWeight: '700', color: 'primary.main' }}>
+                                      INV-R-{returnItem.return_id}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', maxWidth: 180 }} noWrap>
+                                      {returnItem.reason || 'No reason provided'}
+                                    </Typography>
+                                  </Box>
+                                </Stack>
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="body2" sx={{ fontWeight: '600' }}>
+                                  {customer?.cus_name || 'Walk-in Customer'}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {customer?.cus_phone_no || 'No contact'}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>
+                                <Chip
+                                  label={`#${returnItem.sale_id}`}
+                                  size="small"
+                                  variant="outlined"
+                                  sx={{ borderRadius: '6px', fontWeight: 'bold' }}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                  <CalendarIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                                  <Typography variant="body2">
+                                    {new Date(returnItem.return_date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                  </Typography>
+                                </Stack>
+                              </TableCell>
+                              <TableCell align="right">
+                                <Typography variant="body2" sx={{ fontWeight: '800', color: 'error.main' }}>
+                                  PKR {parseFloat(returnItem.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                </Typography>
+                              </TableCell>
+                              <TableCell align="center">
+                                <Chip
+                                  icon={<CheckCircleIcon sx={{ fontSize: '1rem !important' }} />}
+                                  label="Completed"
+                                  size="small"
+                                  sx={{
+                                    bgcolor: '#ecfdf5',
+                                    color: '#059669',
+                                    fontWeight: '700',
+                                    borderRadius: '8px',
+                                    px: 1,
+                                    '& .MuiChip-icon': { color: '#059669' }
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell align="right">
+                                <Stack direction="row" spacing={1} justifyContent="flex-end">
+                                  <Tooltip title="Edit">
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => handleEdit(returnItem)}
+                                      sx={{ color: 'primary.main', bgcolor: 'primary.50', '&:hover': { bgcolor: 'primary.100' } }}
+                                    >
+                                      <EditIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                  <Tooltip title="Delete">
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => handleDelete(returnItem.return_id)}
+                                      sx={{ color: 'error.main', bgcolor: 'error.50', '&:hover': { bgcolor: 'error.100' } }}
+                                    >
+                                      <DeleteIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                </Stack>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={7} align="center" sx={{ py: 10 }}>
+                            <Box sx={{ opacity: 0.5 }}>
+                              <InventoryIcon sx={{ fontSize: 60, mb: 2 }} />
+                              <Typography variant="h6">No return records found</Typography>
+                              <Typography variant="body2">Try adjusting your filters or search terms</Typography>
+                            </Box>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Card>
+            </Fade>
+          </Stack>
+        </Container>
+      </Box>
+    </DashboardLayout>
+  );
+
+  // Render Sale Return Create View
+  const renderSaleReturnCreateView = () => {
+    const affectedLoader = loaders.find(l => l.loader_id === formData.loader_id);
+
+    return (
+      <DashboardLayout>
+        <Box sx={{ minHeight: '100vh', bgcolor: '#f8fafc', pb: 10 }}>
+          {/* Creation Header */}
+          <Box sx={{
+            background: editingReturn
+              ? 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)'
+              : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+            color: 'white',
+            py: 4,
+            boxShadow: '0 10px 30px rgba(0,0,0,0.1)'
+          }}>
+            <Container maxWidth="xl">
+              <Stack direction="row" spacing={3} alignItems="center">
+                <IconButton
+                  onClick={() => setCurrentView('list')}
+                  sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' } }}
+                >
+                  <ArrowBackIcon />
+                </IconButton>
+                <Box>
+                  <Typography variant="h4" sx={{ fontWeight: '800' }}>
+                    {editingReturn ? 'Update Sale Return' : 'New Sale Return'}
+                  </Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                    {editingReturn ? `Editing invoice INV-R-${editingReturn.return_id}` : 'Select a sale or add products manually to process a return'}
+                  </Typography>
+                </Box>
+                <Box sx={{ flexGrow: 1 }} />
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  {!editingReturn && (
+                    <Paper sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      p: 0.5,
+                      borderRadius: '14px',
+                      bgcolor: 'rgba(255,255,255,0.15)',
+                      backdropFilter: 'blur(10px)',
+                      border: '1px solid rgba(255,255,255,0.3)'
+                    }}>
+                      <TextField
+                        placeholder="Enter Sale ID..."
+                        size="small"
+                        value={saleSearchTerm}
+                        onChange={(e) => setSaleSearchTerm(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && handleSaleSearch()}
+                        sx={{
+                          width: 150,
+                          '& .MuiOutlinedInput-root': {
+                            color: 'white',
+                            '& fieldset': { border: 'none' },
+                          }
+                        }}
+                      />
+                      <Button
+                        variant="contained"
+                        onClick={handleSaleSearch}
+                        disabled={isSearchingSale}
+                        sx={{
+                          bgcolor: 'white',
+                          color: 'primary.main',
+                          borderRadius: '10px',
+                          '&:hover': { bgcolor: '#f1f5f9' },
+                          fontWeight: 'bold',
+                          minWidth: 80
+                        }}
+                      >
+                        {isSearchingSale ? <CircularProgress size={20} /> : 'Load Sale'}
+                      </Button>
+                    </Paper>
+                  )}
+                </Box>
+              </Stack>
+            </Container>
+          </Box>
+
+          <Container maxWidth="xl" sx={{ mt: -4 }}>
+            <form onSubmit={handleSubmit}>
+              <Stack spacing={3}>
+                {/* Return Master Data */}
+                <Zoom in={true} style={{ transitionDelay: '100ms' }}>
+                  <Card sx={STYLES.glassCard}>
+                    <Box sx={{ p: 3, borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <InfoIcon color="primary" />
+                      <Typography variant="h6" sx={{ fontWeight: '700' }}>General Information</Typography>
+                    </Box>
+                    <CardContent sx={{ p: 4 }}>
+                      <Grid container spacing={3}>
+                        <Grid item xs={12} md={3}>
+                          <TextField
+                            fullWidth
+                            label="Return Date"
+                            type="date"
+                            value={formData.return_date}
+                            onChange={(e) => setFormData(prev => ({ ...prev, return_date: e.target.value }))}
+                            InputLabelProps={{ shrink: true }}
+                            sx={STYLES.input}
+                            required
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={5}>
+                          <TextField
+                            fullWidth
+                            label="Return Reason / Remarks"
+                            value={formData.return_reason}
+                            onChange={(e) => setFormData(prev => ({ ...prev, return_reason: e.target.value }))}
+                            placeholder="Why is it being returned?"
+                            sx={STYLES.input}
+                            required
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={4}>
+                          {selectedSale ? (
+                            <Box sx={{
+                              p: 2,
+                              bgcolor: 'primary.50',
+                              borderRadius: '12px',
+                              border: '1px dashed',
+                              borderColor: 'primary.200',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between'
+                            }}>
+                              <Box>
+                                <Typography variant="caption" color="primary.main" sx={{ fontWeight: 'bold', textTransform: 'uppercase' }}>Selected Sale</Typography>
+                                <Typography variant="body1" sx={{ fontWeight: '700' }}>#{selectedSale.sale_id} - {customers.find(c => c.cus_id === selectedSale.cus_id)?.cus_name || 'Walk-in'}</Typography>
+                              </Box>
+                              <IconButton size="small" color="error" onClick={() => {
+                                setSelectedSale(null);
+                                setFormData(prev => ({ ...prev, sale_id: '', return_details: [] }));
+                              }}>
+                                <CloseIcon fontSize="small" />
+                              </IconButton>
+                            </Box>
+                          ) : (
+                            <Autocomplete
+                              options={customers}
+                              getOptionLabel={(option) => option.cus_name}
+                              value={customers.find(c => c.cus_id === formData.cus_id) || null}
+                              onChange={(event, newValue) => {
+                                setFormData(prev => ({ ...prev, cus_id: newValue ? newValue.cus_id : '' }));
+                              }}
+                              renderInput={(params) => <TextField {...params} label="Select Customer" sx={STYLES.input} />}
+                            />
+                          )}
+                        </Grid>
+                      </Grid>
+                    </CardContent>
+                  </Card>
+                </Zoom>
+
+                {/* Loader & Shipping Logic Section */}
+                <Zoom in={true} style={{ transitionDelay: '150ms' }}>
+                  <Card sx={{ ...STYLES.glassCard, transition: 'all 0.5s ease' }}>
+                    <Box sx={{ p: 3, borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <ShippingIcon color="secondary" />
+                      <Typography variant="h6" sx={{ fontWeight: '700' }}>Loader & Logistics Impact</Typography>
+                    </Box>
+                    <CardContent sx={{ p: 4 }}>
+                      <Grid container spacing={4}>
+                        <Grid item xs={12} md={6}>
+                          <Autocomplete
+                            options={loaders}
+                            getOptionLabel={(o) => `${o.loader_name} (${o.loader_number})`}
+                            value={loaders.find(l => l.loader_id === formData.loader_id) || null}
+                            onChange={(e, v) => setFormData(p => ({ ...p, loader_id: v ? v.loader_id : '' }))}
+                            renderInput={(params) => <TextField {...params} label="Affected Loader" sx={STYLES.input} />}
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            type="number"
+                            label="Shipping Deduction Amount"
+                            value={formData.shipping_amount}
+                            onChange={(e) => setFormData(p => ({ ...p, shipping_amount: parseFloat(e.target.value) || 0 }))}
+                            sx={STYLES.input}
+                            InputProps={{
+                              startAdornment: <InputAdornment position="start">PKR</InputAdornment>
+                            }}
+                          />
+                        </Grid>
+
+                        {affectedLoader && (
+                          <Grid item xs={12}>
+                            <Fade in={true}>
+                              <Alert
+                                severity="warning"
+                                icon={<WarningIcon />}
+                                sx={{
+                                  borderRadius: '16px',
+                                  '& .MuiAlert-message': { width: '100%' },
+                                  bgcolor: '#fffbeb',
+                                  border: '1px solid #fdec9a'
+                                }}
+                              >
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <Box>
+                                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>Loader Balance Adjustment</Typography>
+                                    <Typography variant="body2">
+                                      Processing this return will <strong>deduct PKR {parseFloat(formData.shipping_amount).toFixed(2)}</strong> from <strong>{affectedLoader.loader_name}</strong>'s current balance (PKR {parseFloat(affectedLoader.loader_balance).toLocaleString()}).
+                                    </Typography>
+                                  </Box>
+                                  <Chip label="Automatic Deduction" size="small" color="warning" sx={{ fontWeight: 'bold' }} />
+                                </Box>
+                              </Alert>
+                            </Fade>
+                          </Grid>
+                        )}
+                      </Grid>
+                    </CardContent>
+                  </Card>
+                </Zoom>
+
+                {/* Manual Product Add Section */}
+                <Zoom in={true} style={{ transitionDelay: '200ms' }}>
+                  <Card sx={{ ...STYLES.glassCard, bgcolor: '#fcfcfc' }}>
+                    <Box sx={{ px: 3, py: 2, borderBottom: '1px solid #f1f5f9', bgcolor: '#f8fafc' }}>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <AddIcon color="secondary" />
+                        <Typography variant="body1" sx={{ fontWeight: '700' }}>Quick Add Product</Typography>
+                      </Stack>
+                    </Box>
+                    <CardContent sx={{ p: 3 }}>
+                      <Grid container spacing={2} alignItems="center">
+                        <Grid item xs={12} md={4}>
+                          <Autocomplete
+                            options={products}
+                            getOptionLabel={(option) => option.pro_title || ''}
+                            value={manualProduct}
+                            onChange={(event, newValue) => handleManualProductSelect(newValue)}
+                            renderInput={(params) => <TextField {...params} label="Select Product" sx={STYLES.input} />}
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={3}>
+                          <Autocomplete
+                            options={stores}
+                            getOptionLabel={(option) => option.store_name || ''}
+                            value={manualStore}
+                            onChange={(event, newValue) => setManualStore(newValue)}
+                            renderInput={(params) => <TextField {...params} label="Target Store" sx={STYLES.input} />}
+                          />
+                        </Grid>
+                        <Grid item xs={6} md={2}>
+                          <TextField
+                            type="number"
+                            label="Qty"
+                            value={manualQty}
+                            onChange={(e) => setManualQty(e.target.value)}
+                            fullWidth
+                            sx={STYLES.input}
+                          />
+                        </Grid>
+                        <Grid item xs={6} md={2}>
+                          <TextField
+                            type="number"
+                            label="R-Rate"
+                            value={manualRate}
+                            onChange={(e) => setManualRate(e.target.value)}
+                            fullWidth
+                            sx={STYLES.input}
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={1}>
+                          <Button
+                            fullWidth
+                            variant="contained"
+                            onClick={handleAddManualProduct}
+                            sx={{
+                              height: 54,
+                              borderRadius: '12px',
+                              bgcolor: 'secondary.main',
+                              boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)',
+                              '&:hover': { bgcolor: 'secondary.dark' }
+                            }}
+                          >
+                            <AddIcon />
+                          </Button>
+                        </Grid>
+                      </Grid>
+                    </CardContent>
+                  </Card>
+                </Zoom>
+
+                {/* Items Table */}
+                <Zoom in={true} style={{ transitionDelay: '300ms' }}>
+                  <Card sx={STYLES.glassCard}>
+                    <Box sx={{ p: 3, borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <InventoryIcon color="primary" />
+                        <Typography variant="h6" sx={{ fontWeight: '700' }}>Return Bag</Typography>
+                      </Stack>
+                      <Typography variant="body2" color="text.secondary">
+                        {formData.return_details.length} Items Listed
+                      </Typography>
+                    </Box>
+                    <TableContainer>
+                      <Table>
+                        <TableHead sx={STYLES.tableHeader}>
+                          <TableRow>
+                            <TableCell width="50">#</TableCell>
+                            <TableCell>Product Information</TableCell>
+                            <TableCell>Storage</TableCell>
+                            <TableCell align="center">Max Qty</TableCell>
+                            <TableCell align="right">Unit Rate</TableCell>
+                            <TableCell align="center" width="120">Return Qty</TableCell>
+                            <TableCell align="right">Line Total</TableCell>
+                            <TableCell align="center">Action</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {formData.return_details.length > 0 ? (
+                            formData.return_details.map((detail, index) => {
+                              const product = products.find(p => p.pro_id === detail.pro_id);
+                              const store = stores.find(s => (s.storeid === detail.store_id || s.store_id === detail.store_id));
+                              return (
+                                <TableRow key={index} hover>
+                                  <TableCell>{index + 1}</TableCell>
+                                  <TableCell>
+                                    <Typography variant="body2" sx={{ fontWeight: '700' }}>{product?.pro_title || 'Unknown Product'}</Typography>
+                                    <Stack direction="row" spacing={0.5}>
+                                      {detail.is_manual && <Chip label="Manual" size="small" sx={{ height: 18, fontSize: '0.65rem', bgcolor: '#fef3c7', color: '#92400e', fontWeight: 'bold' }} />}
+                                      {!detail.is_manual && <Chip label="From Sale" size="small" sx={{ height: 18, fontSize: '0.65rem', bgcolor: '#dcfce7', color: '#166534', fontWeight: 'bold' }} />}
+                                    </Stack>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Stack direction="row" spacing={0.5} alignItems="center">
+                                      <StoreIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                                      <Typography variant="body2">{store?.store_name || 'Loading...'}</Typography>
+                                    </Stack>
+                                  </TableCell>
+                                  <TableCell align="center">
+                                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                                      {detail.max_quantity !== null ? detail.max_quantity : '∞'}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell align="right">
+                                    <Typography variant="body2" sx={{ fontWeight: '600' }}>{parseFloat(detail.unit_rate).toFixed(2)}</Typography>
+                                  </TableCell>
+                                  <TableCell align="center">
+                                    <TextField
+                                      type="number"
+                                      size="small"
+                                      value={detail.return_quantity || 0}
+                                      onChange={(e) => handleReturnQuantityChange(index, parseFloat(e.target.value) || 0)}
+                                      inputProps={{
+                                        min: 0,
+                                        max: detail.max_quantity !== null ? detail.max_quantity : undefined,
+                                        style: { textAlign: 'center', fontWeight: '800' }
+                                      }}
+                                      sx={{
+                                        '& .MuiOutlinedInput-root': { borderRadius: '8px' }
+                                      }}
+                                    />
+                                  </TableCell>
+                                  <TableCell align="right">
+                                    <Typography variant="body2" sx={{ fontWeight: '800', color: 'primary.main' }}>{parseFloat(detail.return_amount).toFixed(2)}</Typography>
+                                  </TableCell>
+                                  <TableCell align="center">
+                                    <IconButton size="small" color="error" onClick={() => removeReturnDetail(index)} sx={{ bgcolor: 'error.50' }}>
+                                      <DeleteIcon fontSize="small" />
+                                    </IconButton>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })
+                          ) : (
+                            <TableRow>
+                              <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
+                                <Box sx={{ opacity: 0.3 }}>
+                                  <UploadIcon sx={{ fontSize: 48, mb: 1 }} />
+                                  <Typography variant="body1">No products to return yet.</Typography>
+                                  <Typography variant="body2">Search for a sale or add manually above.</Typography>
+                                </Box>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+
+                    {/* Summary & Footer */}
+                    <Box sx={{ p: 4, bgcolor: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
+                      <Grid container spacing={4} alignItems="flex-end">
+                        <Grid item xs={12} md={7}>
+                          <Stack spacing={3}>
+                            <TextField
+                              fullWidth
+                              multiline
+                              rows={2}
+                              label="Internal Notes / Reference"
+                              placeholder="Add any internal reference..."
+                              value={formData.notes}
+                              onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                              sx={STYLES.input}
+                            />
+                            <Grid container spacing={2}>
+                              <Grid item xs={12} md={6}>
+                                <TextField
+                                  fullWidth
+                                  type="number"
+                                  label="Refund Amount (Cash/Paid)"
+                                  value={formData.payment}
+                                  onChange={(e) => setFormData(prev => ({ ...prev, payment: parseFloat(e.target.value) || 0 }))}
+                                  sx={STYLES.input}
+                                  InputProps={{ startAdornment: <InputAdornment position="start">PKR</InputAdornment> }}
+                                />
+                              </Grid>
+                              <Grid item xs={12} md={6}>
+                                <Autocomplete
+                                  options={['CASH', 'BANK_TRANSFER', 'CHEQUE']}
+                                  value={formData.payment_type}
+                                  onChange={(e, v) => setFormData(prev => ({ ...prev, payment_type: v || 'CASH' }))}
+                                  renderInput={(params) => <TextField {...params} label="Refund Via" sx={STYLES.input} />}
+                                />
+                              </Grid>
+                            </Grid>
+                          </Stack>
+                        </Grid>
+                        <Grid item xs={12} md={5}>
+                          <Paper sx={{ p: 3, borderRadius: '16px', bgcolor: 'white', border: '1px solid #e2e8f0' }}>
+                            <Stack spacing={2}>
+                              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <Typography color="text.secondary">Return Subtotal</Typography>
+                                <Typography sx={{ fontWeight: '700' }}>PKR {parseFloat(formData.total_return_amount).toFixed(2)}</Typography>
+                              </Box>
+                              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <Typography color="text.secondary">Loader Deduction</Typography>
+                                <Typography sx={{ fontWeight: '700', color: 'secondary.main' }}>- PKR {parseFloat(formData.shipping_amount).toFixed(2)}</Typography>
+                              </Box>
+                              <Divider />
+                              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Box>
+                                  <Typography variant="h6" sx={{ fontWeight: '800' }}>Net Return</Typography>
+                                  <Typography variant="caption" color="text.secondary">Adjusted customer balance</Typography>
+                                </Box>
+                                <Typography variant="h5" sx={{ fontWeight: '900', color: 'error.main' }}>
+                                  PKR {parseFloat(formData.total_return_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                </Typography>
+                              </Box>
+                              <Button
+                                fullWidth
+                                variant="contained"
+                                size="large"
+                                type="submit"
+                                disabled={isSubmitting || formData.total_return_amount <= 0}
+                                startIcon={isSubmitting ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
+                                sx={{ ...STYLES.primaryGradientBtn, py: 2, fontSize: '1.1rem' }}
+                              >
+                                {isSubmitting ? 'Processing Invoice...' : (editingReturn ? 'Update Return' : 'Confirm & Process Return')}
+                              </Button>
+                            </Stack>
+                          </Paper>
+                        </Grid>
+                      </Grid>
+                    </Box>
+                  </Card>
+                </Zoom>
+              </Stack>
+            </form>
+          </Container>
+        </Box>
+      </DashboardLayout>
+    );
+  };
+
+  return (
+    <>
+      <Fade in={true}>
+        <Box>
+          {currentView === 'list' ? renderSaleReturnsListView() : renderSaleReturnCreateView()}
+        </Box>
+      </Fade>
+
+      {/* Modern Snackbar */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={handleSnackbarClose}
+          severity={snackbar.severity}
+          variant="filled"
+          sx={{
+            borderRadius: '12px',
+            boxShadow: '0 8px 30px rgba(0,0,0,0.15)',
+            fontWeight: '600'
+          }}
+          iconMapping={{
+            success: <CheckCircleIcon fontSize="inherit" />,
+            error: <ErrorIcon fontSize="inherit" />,
+            warning: <InfoIcon fontSize="inherit" />
+          }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+    </>
+  );
 }
-
-

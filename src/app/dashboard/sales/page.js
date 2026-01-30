@@ -62,7 +62,8 @@ import {
   Close as CloseIcon,
   LocationOn as MapPinIcon,
   Business as BusinessIcon,
-  ListAlt as ListAltIcon
+  ListAlt as ListAltIcon,
+  Info as InfoIcon
 } from '@mui/icons-material';
 
 function SalesPageContent() {
@@ -103,82 +104,82 @@ function SalesPageContent() {
 
   // Handle loading quotation from URL
   const loadedQuotationIdRef = useRef(null);
-  
+
   useEffect(() => {
     const quotationId = searchParams?.get('quotationId');
-    
+
     // Only proceed if we have a quotation ID, reference data is loaded, and we haven't loaded this ID yet
-    if (quotationId && 
-        quotationId !== loadedQuotationIdRef.current && 
-        customers.length > 0 && 
-        stores.length > 0 && 
-        currentView === 'create') {
-      
+    if (quotationId &&
+      quotationId !== loadedQuotationIdRef.current &&
+      customers.length > 0 &&
+      stores.length > 0 &&
+      currentView === 'create') {
+
       const loadQuotationFromUrl = async () => {
         try {
-            setLoading(true);
-            loadedQuotationIdRef.current = quotationId; // Mark as loading/loaded
-            
-            const response = await fetch(`/api/sales?id=${quotationId}`);
-            if (!response.ok) throw new Error('Failed to fetch quotation details');
-            const fullQuotation = await response.json();
-            
-            console.log('📦 Loaded Quotation from URL:', fullQuotation);
+          setLoading(true);
+          loadedQuotationIdRef.current = quotationId; // Mark as loading/loaded
 
-            // Set Customer
-            if (fullQuotation.customer) {
-                const matchingCustomer = customers.find(c => c.cus_id === fullQuotation.customer.cus_id);
-                setFormSelectedCustomer(matchingCustomer || fullQuotation.customer);
-            } else if (fullQuotation.cus_id) {
-                const customer = customers.find(c => c.cus_id === fullQuotation.cus_id);
-                if (customer) setFormSelectedCustomer(customer);
-            }
+          const response = await fetch(`/api/sales?id=${quotationId}`);
+          if (!response.ok) throw new Error('Failed to fetch quotation details');
+          const fullQuotation = await response.json();
 
-            // Set Store
-            let selectedStore = null;
-            if (fullQuotation.store_id) {
-                selectedStore = stores.find(s => s.storeid === fullQuotation.store_id);
-            }
-            
-            if (selectedStore) {
-                setFormSelectedStore(selectedStore);
-            } else if (stores.length > 0) {
-                setFormSelectedStore(stores[0]);
-                selectedStore = stores[0];
-            }
+          console.log('📦 Loaded Quotation from URL:', fullQuotation);
 
-            // Map products
-            if (fullQuotation.sale_details) {
-                const mappedProducts = fullQuotation.sale_details.map(detail => {
-                return {
-                    id: Date.now() + Math.random(),
-                    pro_id: detail.pro_id,
-                    pro_title: detail.product?.pro_title || detail.pro_title || 'Unknown Product',
-                    storeid: selectedStore?.storeid,
-                    store_name: selectedStore?.store_name || 'Store',
-                    quantity: parseFloat(detail.qnty) || 0,
-                    rate: parseFloat(detail.unit_rate) || 0,
-                    amount: parseFloat(detail.total_amount) || 0,
-                    stock: 0 
-                };
-                });
-                setProductTableData(mappedProducts);
-            }
-            
-            // Set discount and notes
-             setPaymentData(prev => ({
-                ...prev,
-                discount: parseFloat(fullQuotation.discount) || 0,
-                notes: fullQuotation.reference || ''
-             }));
+          // Set Customer
+          if (fullQuotation.customer) {
+            const matchingCustomer = customers.find(c => c.cus_id === fullQuotation.customer.cus_id);
+            setFormSelectedCustomer(matchingCustomer || fullQuotation.customer);
+          } else if (fullQuotation.cus_id) {
+            const customer = customers.find(c => c.cus_id === fullQuotation.cus_id);
+            if (customer) setFormSelectedCustomer(customer);
+          }
 
-            showSnackbar('Quotation loaded from URL', 'success');
+          // Set Store
+          let selectedStore = null;
+          if (fullQuotation.store_id) {
+            selectedStore = stores.find(s => s.storeid === fullQuotation.store_id);
+          }
+
+          if (selectedStore) {
+            setFormSelectedStore(selectedStore);
+          } else if (stores.length > 0) {
+            setFormSelectedStore(stores[0]);
+            selectedStore = stores[0];
+          }
+
+          // Map products
+          if (fullQuotation.sale_details) {
+            const mappedProducts = fullQuotation.sale_details.map(detail => {
+              return {
+                id: Date.now() + Math.random(),
+                pro_id: detail.pro_id,
+                pro_title: detail.product?.pro_title || detail.pro_title || 'Unknown Product',
+                storeid: selectedStore?.storeid,
+                store_name: selectedStore?.store_name || 'Store',
+                quantity: parseFloat(detail.qnty) || 0,
+                rate: parseFloat(detail.unit_rate) || 0,
+                amount: parseFloat(detail.total_amount) || 0,
+                stock: 0
+              };
+            });
+            setProductTableData(mappedProducts);
+          }
+
+          // Set discount and notes
+          setPaymentData(prev => ({
+            ...prev,
+            discount: parseFloat(fullQuotation.discount) || 0,
+            notes: fullQuotation.reference || ''
+          }));
+
+          showSnackbar('Quotation loaded from URL', 'success');
         } catch (error) {
-            console.error('Error loading quotation from URL:', error);
-            showSnackbar('Failed to load quotation from URL', 'error');
-            loadedQuotationIdRef.current = null; // Reset on error so user can retry
+          console.error('Error loading quotation from URL:', error);
+          showSnackbar('Failed to load quotation from URL', 'error');
+          loadedQuotationIdRef.current = null; // Reset on error so user can retry
         } finally {
-            setLoading(false);
+          setLoading(false);
         }
       };
 
@@ -301,6 +302,41 @@ function SalesPageContent() {
       setFormSelectedStore(stores[0]);
     }
   }, [stores]);
+
+  // Ledger state
+  const [ledgerDialogOpen, setLedgerDialogOpen] = useState(false);
+  const [ledgerData, setLedgerData] = useState(null);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [ledgerStartDate, setLedgerStartDate] = useState(new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().split('T')[0]);
+  const [ledgerEndDate, setLedgerEndDate] = useState(new Date().toISOString().split('T')[0]);
+
+  const fetchLedgerData = async (customerId) => {
+    if (!customerId) return;
+    try {
+      setLedgerLoading(true);
+      const response = await fetch(`/api/reports?type=customer-ledger&customerId=${customerId}&startDate=${ledgerStartDate}&endDate=${ledgerEndDate}`);
+      if (response.ok) {
+        const data = await response.json();
+        setLedgerData(data);
+      } else {
+        showSnackbar('Error fetching ledger data', 'error');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      showSnackbar('Error fetching ledger data', 'error');
+    } finally {
+      setLedgerLoading(false);
+    }
+  };
+
+  const handleOpenLedger = () => {
+    if (formSelectedCustomer) {
+      fetchLedgerData(formSelectedCustomer.cus_id);
+      setLedgerDialogOpen(true);
+    } else {
+      showSnackbar('Please select a customer first', 'error');
+    }
+  };
 
   const handleSnackbarClose = () => {
     setSnackbar(prev => ({ ...prev, open: false }));
@@ -519,12 +555,12 @@ function SalesPageContent() {
   const handleLoadOrder = async (order) => {
     try {
       setLoading(true);
-      
+
       // Fetch full order details to ensure we have everything
       const response = await fetch(`/api/sales?id=${order.sale_id}`);
       if (!response.ok) throw new Error('Failed to fetch order details');
       const fullOrder = await response.json();
-      
+
       console.log('📦 Loaded Order:', fullOrder);
 
       // Set Customer
@@ -540,7 +576,7 @@ function SalesPageContent() {
       if (fullOrder.store_id) {
         selectedStore = stores.find(s => s.storeid === fullOrder.store_id);
       }
-      
+
       if (selectedStore) {
         setFormSelectedStore(selectedStore);
       } else if (stores.length > 0) {
@@ -565,10 +601,10 @@ function SalesPageContent() {
         });
         setProductTableData(mappedProducts);
       }
-      
+
       setLoadOrderDialogOpen(false);
       showSnackbar('Order loaded successfully', 'success');
-      
+
     } catch (error) {
       console.error('Error loading order:', error);
       showSnackbar('Failed to load order', 'error');
@@ -581,12 +617,12 @@ function SalesPageContent() {
   const handleLoadQuotation = async (quotation) => {
     try {
       setLoading(true);
-      
+
       // Fetch full quotation details to ensure we have everything
       const response = await fetch(`/api/sales?id=${quotation.sale_id}`);
       if (!response.ok) throw new Error('Failed to fetch quotation details');
       const fullQuotation = await response.json();
-      
+
       console.log('📦 Loaded Quotation:', fullQuotation);
 
       // Set Customer
@@ -602,7 +638,7 @@ function SalesPageContent() {
       if (fullQuotation.store_id) {
         selectedStore = stores.find(s => s.storeid === fullQuotation.store_id);
       }
-      
+
       if (selectedStore) {
         setFormSelectedStore(selectedStore);
       } else if (stores.length > 0) {
@@ -627,10 +663,10 @@ function SalesPageContent() {
         });
         setProductTableData(mappedProducts);
       }
-      
+
       setLoadQuotationDialogOpen(false);
       showSnackbar('Quotation loaded successfully', 'success');
-      
+
     } catch (error) {
       console.error('Error loading quotation:', error);
       showSnackbar('Failed to load quotation', 'error');
@@ -869,42 +905,58 @@ function SalesPageContent() {
   }, [paymentData.cash, paymentData.bank]);
 
   // Transport functions
-  const fetchTransportAccounts = async () => {
+  const fetchTransportAccounts = async (providedCustomers = null) => {
     try {
-      const response = await fetch('/api/customers');
-      if (response.ok) {
-        const accountsData = await response.json();
-        // Filter accounts where type is "Transport"
-        const transportAccountsData = accountsData.filter(account =>
-          account.customer_type &&
-          account.customer_type.cus_type_title &&
-          account.customer_type.cus_type_title.toLowerCase().includes('transport')
-        );
+      let accountsData = providedCustomers;
+
+      if (!accountsData) {
+        const response = await fetch('/api/customers');
+        if (response.ok) {
+          const customersResponse = await response.json();
+          accountsData = customersResponse.value || customersResponse;
+        }
+      }
+
+      if (Array.isArray(accountsData)) {
+        // Filter accounts where type is "Transport" or name mentions transport
+        const transportAccountsData = accountsData.filter(account => {
+          const typeTitle = (account.customer_type?.cus_type_title || '').toLowerCase();
+          const name = (account.cus_name || '').toLowerCase();
+          return typeTitle.includes('transport') || name.includes('transport');
+        });
         setTransportAccounts(transportAccountsData);
       } else {
-        console.error('❌ Customer accounts API error:', response.status);
         setTransportAccounts([]);
       }
     } catch (error) {
-      console.error('❌ Error fetching customer accounts:', error);
+      console.error('❌ Error fetching transport accounts:', error);
       setTransportAccounts([]);
     }
   };
 
   // Bank accounts functions
-  const fetchBankAccounts = async () => {
+  const fetchBankAccounts = async (providedCustomers = null) => {
     try {
-      const response = await fetch('/api/customers');
-      if (response.ok) {
-        const accountsData = await response.json();
-        // Filter accounts where type is "Bank Account"
+      let accountsData = providedCustomers;
+
+      if (!accountsData) {
+        const response = await fetch('/api/customers');
+        if (response.ok) {
+          const customersResponse = await response.json();
+          accountsData = customersResponse.value || customersResponse;
+        }
+      }
+
+      if (Array.isArray(accountsData)) {
+        // Filter accounts where type is "Bank Account" or name mentions bank
         const bankAccountsData = accountsData.filter(account => {
-          const isBankAccount = account.customer_type &&
-            account.customer_type.cus_type_title &&
-            account.customer_type.cus_type_title.toLowerCase().includes('bank account');
+          const typeTitle = (account.customer_type?.cus_type_title || '').toLowerCase();
+          const name = (account.cus_name || '').toLowerCase();
+
+          const isBankAccount = typeTitle.includes('bank') || name.includes('bank');
 
           if (isBankAccount) {
-            console.log('🏦 Found bank account:', account.cus_name, account.customer_type.cus_type_title);
+            console.log('🏦 Found bank account:', account.cus_name, typeTitle);
           }
 
           return isBankAccount;
@@ -913,7 +965,6 @@ function SalesPageContent() {
         console.log('🏦 Bank accounts found:', bankAccountsData.length);
         setBankAccounts(bankAccountsData);
       } else {
-        console.error('❌ Bank accounts API error:', response.status);
         setBankAccounts([]);
       }
     } catch (error) {
@@ -1125,42 +1176,21 @@ function SalesPageContent() {
         fetch('/api/cities')
       ]);
 
-      // Fetch transport accounts after main data
-      await fetchTransportAccounts();
-
-      // Fetch bank accounts after main data
-      await fetchBankAccounts();
-
-      console.log('📡 All API calls completed');
-
       if (customersRes.ok) {
         const customersResponse = await customersRes.json();
-        console.log('🔍 Customers API response:', customersResponse);
-        console.log('🔍 Customers API response type:', typeof customersResponse);
-        console.log('🔍 Customers API response is array:', Array.isArray(customersResponse));
-        // Handle the API response format: {value: [...]} or direct array
         const customersData = customersResponse.value || customersResponse;
-        console.log('🔍 Customers data after processing:', customersData);
-        console.log('🔍 Customers data type:', typeof customersData);
-        console.log('🔍 Customers data is array:', Array.isArray(customersData));
-        console.log('🔍 Customers count:', customersData.length);
-        if (customersData.length > 0) {
-          console.log('🔍 First customer:', customersData[0]);
-        }
-        setCustomers(customersData);
-        console.log('🔍 Customers state set successfully');
+        const customersArray = Array.isArray(customersData) ? customersData : [];
+        setCustomers(customersArray);
+        fetchTransportAccounts(customersArray);
+        fetchBankAccounts(customersArray);
       } else {
-        console.error('❌ Customers API error:', customersRes.status, customersRes.statusText);
+        console.error('❌ Customers API error:', customersRes.status);
         setCustomers([]);
       }
+
       if (productsRes.ok) {
         const productsData = await productsRes.json();
-        console.log('🔍 Products data:', productsData);
-        console.log('🔍 Products count:', productsData.length);
-        if (productsData.length > 0) {
-          console.log('🔍 First product structure:', productsData[0]);
-        }
-        setProducts(productsData);
+        setProducts(productsData || []);
       } else {
         console.error('❌ Products API error:', productsRes.status);
       }
@@ -1899,17 +1929,38 @@ function SalesPageContent() {
                         CUSTOMER
                       </Typography>
                       {formSelectedCustomer && (
-                        <Typography variant="body2" sx={{
-                          fontWeight: 'bold',
-                          color: 'white',
-                          fontSize: '0.875rem',
-                          bgcolor: 'primary.light',
-                          px: 1,
-                          py: 0.5,
-                          borderRadius: 1
-                        }}>
-                          Balance: {formSelectedCustomer.cus_balance ? parseFloat(formSelectedCustomer.cus_balance).toFixed(2) : '0.00'}
-                        </Typography>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <Box sx={{
+                            bgcolor: 'success.light',
+                            color: 'success.contrastText',
+                            px: 1.5,
+                            py: 0.5,
+                            borderRadius: 1,
+                            fontSize: '0.75rem',
+                            fontWeight: 'bold'
+                          }}>
+                            Balance: {parseFloat(formSelectedCustomer.cus_balance || 0).toFixed(2)}
+                          </Box>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<ListAltIcon />}
+                            onClick={handleOpenLedger}
+                            sx={{
+                              py: 0.5,
+                              fontSize: '0.75rem',
+                              color: 'secondary.main',
+                              borderColor: 'secondary.main',
+                              '&:hover': {
+                                borderColor: 'secondary.dark',
+                                bgcolor: 'secondary.light',
+                                color: 'white'
+                              }
+                            }}
+                          >
+                            View Ledger
+                          </Button>
+                        </Stack>
                       )}
                     </Box>
                     <Autocomplete
@@ -3212,125 +3263,125 @@ function SalesPageContent() {
           </DialogActions>
         </Dialog>
 
-      {/* Load Quotation Dialog */}
-      <Dialog
-        open={loadQuotationDialogOpen}
-        onClose={() => setLoadQuotationDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-        PaperProps={{
-          sx: { borderRadius: 3 }
-        }}
-      >
-        <DialogTitle sx={{
-          background: 'linear-gradient(45deg, #ed6c02 30%, #ff9800 90%)',
-          color: 'white',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between'
-        }}>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <ReceiptIcon sx={{ mr: 2 }} />
-            <Box>
-              <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
-                Load Quotation
-              </Typography>
-              <Typography variant="caption" sx={{ opacity: 0.9 }}>
-                Select a quotation to load into the bill
-              </Typography>
+        {/* Load Quotation Dialog */}
+        <Dialog
+          open={loadQuotationDialogOpen}
+          onClose={() => setLoadQuotationDialogOpen(false)}
+          maxWidth="md"
+          fullWidth
+          PaperProps={{
+            sx: { borderRadius: 3 }
+          }}
+        >
+          <DialogTitle sx={{
+            background: 'linear-gradient(45deg, #ed6c02 30%, #ff9800 90%)',
+            color: 'white',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <ReceiptIcon sx={{ mr: 2 }} />
+              <Box>
+                <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
+                  Load Quotation
+                </Typography>
+                <Typography variant="caption" sx={{ opacity: 0.9 }}>
+                  Select a quotation to load into the bill
+                </Typography>
+              </Box>
             </Box>
-          </Box>
-          <IconButton onClick={() => setLoadQuotationDialogOpen(false)} sx={{ color: 'white' }}>
-            <CloseIcon />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent sx={{ p: 2 }}>
-          <Box sx={{ mb: 2 }}>
-            <TextField
-              fullWidth
-              size="small"
-              placeholder="Search by customer name or quotation ID..."
-              value={quotationSearchTerm}
-              onChange={(e) => setQuotationSearchTerm(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon />
-                  </InputAdornment>
-                ),
-              }}
-            />
-          </Box>
-          <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 400 }}>
-            <Table stickyHeader size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Quotation ID</TableCell>
-                  <TableCell>Customer</TableCell>
-                  <TableCell>Date</TableCell>
-                  <TableCell align="right">Amount</TableCell>
-                  <TableCell align="center">Action</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {sales
-                  .filter(sale => {
+            <IconButton onClick={() => setLoadQuotationDialogOpen(false)} sx={{ color: 'white' }}>
+              <CloseIcon />
+            </IconButton>
+          </DialogTitle>
+          <DialogContent sx={{ p: 2 }}>
+            <Box sx={{ mb: 2 }}>
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="Search by customer name or quotation ID..."
+                value={quotationSearchTerm}
+                onChange={(e) => setQuotationSearchTerm(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            </Box>
+            <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 400 }}>
+              <Table stickyHeader size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Quotation ID</TableCell>
+                    <TableCell>Customer</TableCell>
+                    <TableCell>Date</TableCell>
+                    <TableCell align="right">Amount</TableCell>
+                    <TableCell align="center">Action</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {sales
+                    .filter(sale => {
+                      const isQuotation = sale.bill_type === 'QUOTATION';
+                      if (!isQuotation) return false;
+
+                      if (!quotationSearchTerm) return true;
+
+                      const searchLower = quotationSearchTerm.toLowerCase();
+                      const matchesName = sale.customer?.cus_name?.toLowerCase().includes(searchLower);
+                      const matchesId = sale.sale_id?.toString().includes(searchLower);
+
+                      return matchesName || matchesId;
+                    })
+                    .map((sale) => (
+                      <TableRow key={sale.sale_id} hover>
+                        <TableCell>{sale.sale_id}</TableCell>
+                        <TableCell>{sale.customer?.cus_name || 'N/A'}</TableCell>
+                        <TableCell>{new Date(sale.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell align="right">{parseFloat(sale.total_amount || 0).toFixed(2)}</TableCell>
+                        <TableCell align="center">
+                          <Button
+                            size="small"
+                            variant="contained"
+                            color="warning"
+                            onClick={() => handleLoadQuotation(sale)}
+                            startIcon={<ShoppingCartIcon />}
+                          >
+                            Load
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  {sales.filter(sale => {
                     const isQuotation = sale.bill_type === 'QUOTATION';
                     if (!isQuotation) return false;
-                    
+
                     if (!quotationSearchTerm) return true;
-                    
+
                     const searchLower = quotationSearchTerm.toLowerCase();
                     const matchesName = sale.customer?.cus_name?.toLowerCase().includes(searchLower);
                     const matchesId = sale.sale_id?.toString().includes(searchLower);
-                    
-                    return matchesName || matchesId;
-                  })
-                  .map((sale) => (
-                    <TableRow key={sale.sale_id} hover>
-                      <TableCell>{sale.sale_id}</TableCell>
-                      <TableCell>{sale.customer?.cus_name || 'N/A'}</TableCell>
-                      <TableCell>{new Date(sale.created_at).toLocaleDateString()}</TableCell>
-                      <TableCell align="right">{parseFloat(sale.total_amount || 0).toFixed(2)}</TableCell>
-                      <TableCell align="center">
-                        <Button
-                          size="small"
-                          variant="contained"
-                          color="warning"
-                          onClick={() => handleLoadQuotation(sale)}
-                          startIcon={<ShoppingCartIcon />}
-                        >
-                          Load
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                {sales.filter(sale => {
-                    const isQuotation = sale.bill_type === 'QUOTATION';
-                    if (!isQuotation) return false;
-                    
-                    if (!quotationSearchTerm) return true;
-                    
-                    const searchLower = quotationSearchTerm.toLowerCase();
-                    const matchesName = sale.customer?.cus_name?.toLowerCase().includes(searchLower);
-                    const matchesId = sale.sale_id?.toString().includes(searchLower);
-                    
+
                     return matchesName || matchesId;
                   }).length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
-                      {quotationSearchTerm ? 'No matching quotations found' : 'No quotations found'}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setLoadQuotationDialogOpen(false)}>Close</Button>
-        </DialogActions>
-      </Dialog>
+                      <TableRow>
+                        <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
+                          {quotationSearchTerm ? 'No matching quotations found' : 'No quotations found'}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setLoadQuotationDialogOpen(false)}>Close</Button>
+          </DialogActions>
+        </Dialog>
 
         {/* Print Styles for Create View */}
         <style jsx global>{`
@@ -3803,6 +3854,18 @@ function SalesPageContent() {
                             </IconButton>
                             <IconButton
                               size="small"
+                              color="info"
+                              onClick={() => {
+                                setFormSelectedCustomer(sale.customer);
+                                fetchLedgerData(sale.cus_id);
+                                setLedgerDialogOpen(true);
+                              }}
+                              title="Customer Ledger"
+                            >
+                              <ListAltIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              size="small"
                               color="secondary"
                               onClick={() => {
                                 // TODO: Implement print functionality
@@ -3920,13 +3983,13 @@ function SalesPageContent() {
                   .filter(sale => {
                     const isOrder = sale.bill_type === 'ORDER';
                     if (!isOrder) return false;
-                    
+
                     if (!orderSearchTerm) return true;
-                    
+
                     const searchLower = orderSearchTerm.toLowerCase();
                     const matchesName = sale.customer?.cus_name?.toLowerCase().includes(searchLower);
                     const matchesId = sale.sale_id?.toString().includes(searchLower);
-                    
+
                     return matchesName || matchesId;
                   })
                   .map((sale) => (
@@ -3948,23 +4011,23 @@ function SalesPageContent() {
                     </TableRow>
                   ))}
                 {sales.filter(sale => {
-                    const isOrder = sale.bill_type === 'ORDER';
-                    if (!isOrder) return false;
-                    
-                    if (!orderSearchTerm) return true;
-                    
-                    const searchLower = orderSearchTerm.toLowerCase();
-                    const matchesName = sale.customer?.cus_name?.toLowerCase().includes(searchLower);
-                    const matchesId = sale.sale_id?.toString().includes(searchLower);
-                    
-                    return matchesName || matchesId;
-                  }).length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
-                      {orderSearchTerm ? 'No matching orders found' : 'No orders found'}
-                    </TableCell>
-                  </TableRow>
-                )}
+                  const isOrder = sale.bill_type === 'ORDER';
+                  if (!isOrder) return false;
+
+                  if (!orderSearchTerm) return true;
+
+                  const searchLower = orderSearchTerm.toLowerCase();
+                  const matchesName = sale.customer?.cus_name?.toLowerCase().includes(searchLower);
+                  const matchesId = sale.sale_id?.toString().includes(searchLower);
+
+                  return matchesName || matchesId;
+                }).length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
+                        {orderSearchTerm ? 'No matching orders found' : 'No orders found'}
+                      </TableCell>
+                    </TableRow>
+                  )}
               </TableBody>
             </Table>
           </TableContainer>
@@ -5017,6 +5080,193 @@ function SalesPageContent() {
             disabled={returnFormData.return_details.length === 0 || !returnFormData.reason}
           >
             Process Return
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Customer Ledger Dialog */}
+      <Dialog
+        open={ledgerDialogOpen}
+        onClose={() => setLedgerDialogOpen(false)}
+        maxWidth="lg"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.12)'
+          }
+        }}
+      >
+        <DialogTitle sx={{
+          bgcolor: 'primary.main',
+          color: 'white',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          p: 2
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Avatar sx={{ bgcolor: 'white', color: 'primary.main' }}>
+              <ListAltIcon />
+            </Avatar>
+            <Box>
+              <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
+                Customer Ledger: {formSelectedCustomer?.cus_name}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Detailed financial statement and transaction history
+              </Typography>
+            </Box>
+          </Box>
+          <IconButton onClick={() => setLedgerDialogOpen(false)} size="small" sx={{ color: 'white' }}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ p: 3 }}>
+          <Box sx={{ mt: 2, mb: 3, p: 2, bgcolor: 'grey.50', borderRadius: 2, display: 'flex', gap: 2, alignItems: 'center', border: '1px solid', borderColor: 'divider' }}>
+            <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'text.secondary' }}>
+              FILTER BY DATE:
+            </Typography>
+            <TextField
+              size="small"
+              type="date"
+              label="Start Date"
+              value={ledgerStartDate}
+              onChange={(e) => setLedgerStartDate(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              sx={{ bgcolor: 'white' }}
+            />
+            <TextField
+              size="small"
+              type="date"
+              label="End Date"
+              value={ledgerEndDate}
+              onChange={(e) => setLedgerEndDate(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              sx={{ bgcolor: 'white' }}
+            />
+            <Button
+              variant="contained"
+              onClick={() => fetchLedgerData(formSelectedCustomer?.cus_id)}
+              disabled={ledgerLoading}
+              startIcon={ledgerLoading ? <CircularProgress size={20} color="inherit" /> : null}
+              sx={{ bgcolor: 'secondary.main', '&:hover': { bgcolor: 'secondary.dark' } }}
+            >
+              Update Report
+            </Button>
+          </Box>
+
+          {ledgerData ? (
+            <>
+              {/* Summary Cards */}
+              <Grid container spacing={2} sx={{ mb: 4 }}>
+                <Grid item xs={12} sm={3}>
+                  <Card sx={{ bgcolor: 'grey.50', borderBottom: '4px solid', borderColor: 'grey.400' }}>
+                    <CardContent sx={{ p: 2 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold', textTransform: 'uppercase' }}>Opening Balance</Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold', mt: 1 }}>{ledgerData.summary.openingBalance.toFixed(2)}</Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid item xs={12} sm={3}>
+                  <Card sx={{ bgcolor: 'success.50', borderBottom: '4px solid', borderColor: 'success.main' }}>
+                    <CardContent sx={{ p: 2 }}>
+                      <Typography variant="caption" color="success.main" sx={{ fontWeight: 'bold', textTransform: 'uppercase' }}>Total Debit (Sales)</Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold', mt: 1, color: 'success.main' }}>{ledgerData.summary.totalDebit.toFixed(2)}</Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid item xs={12} sm={3}>
+                  <Card sx={{ bgcolor: 'error.50', borderBottom: '4px solid', borderColor: 'error.main' }}>
+                    <CardContent sx={{ p: 2 }}>
+                      <Typography variant="caption" color="error.main" sx={{ fontWeight: 'bold', textTransform: 'uppercase' }}>Total Credit (Payments)</Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold', mt: 1, color: 'error.main' }}>{ledgerData.summary.totalCredit.toFixed(2)}</Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid item xs={12} sm={3}>
+                  <Card sx={{ bgcolor: 'primary.50', borderBottom: '4px solid', borderColor: 'primary.main' }}>
+                    <CardContent sx={{ p: 2 }}>
+                      <Typography variant="caption" color="primary.main" sx={{ fontWeight: 'bold', textTransform: 'uppercase' }}>Closing Balance</Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold', mt: 1, color: 'primary.main' }}>{ledgerData.summary.closingBalance.toFixed(2)}</Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              </Grid>
+
+              {/* Ledger Entries Table */}
+              <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <ReceiptIcon color="primary" /> Transaction History
+              </Typography>
+              <TableContainer component={Paper} sx={{ maxHeight: 400, border: '1px solid', borderColor: 'divider' }}>
+                <Table stickyHeader size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Date</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Type</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Bill No</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Details</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }} align="right">Debit</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }} align="right">Credit</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }} align="right">Balance</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {ledgerData.ledgerEntries.map((entry, idx) => (
+                      <TableRow key={idx} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                        <TableCell>{new Date(entry.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell>
+                          <Chip
+                            label={entry.trnx_type}
+                            size="small"
+                            color={entry.trnx_type === 'SALE' ? 'primary' : entry.trnx_type === 'PAYMENT' ? 'success' : 'default'}
+                            variant="outlined"
+                            sx={{ fontWeight: 'bold', borderRadius: 1 }}
+                          />
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 'medium' }}>{entry.bill_no || '-'}</TableCell>
+                        <TableCell sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <Tooltip title={entry.details || entry.payments?.[0]?.payment_details || ''}>
+                            <span>{entry.details || entry.payments?.[0]?.payment_details || '-'}</span>
+                          </Tooltip>
+                        </TableCell>
+                        <TableCell align="right" sx={{ color: entry.debit_amount > 0 ? 'success.main' : 'inherit', fontWeight: entry.debit_amount > 0 ? 'bold' : 'normal' }}>
+                          {entry.debit_amount > 0 ? entry.debit_amount.toFixed(2) : '-'}
+                        </TableCell>
+                        <TableCell align="right" sx={{ color: entry.credit_amount > 0 ? 'error.main' : 'inherit', fontWeight: entry.credit_amount > 0 ? 'bold' : 'normal' }}>
+                          {entry.credit_amount > 0 ? entry.credit_amount.toFixed(2) : '-'}
+                        </TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>{entry.closing_balance.toFixed(2)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </>
+          ) : (
+            <Box sx={{ py: 12, textAlign: 'center', bgcolor: 'grey.50', borderRadius: 2, border: '1px dashed', borderColor: 'divider' }}>
+              {ledgerLoading ? (
+                <Stack alignItems="center" spacing={2}>
+                  <CircularProgress size={40} />
+                  <Typography color="text.secondary">Fetching ledger data...</Typography>
+                </Stack>
+              ) : (
+                <Stack alignItems="center" spacing={1}>
+                  <InfoIcon sx={{ fontSize: 48, color: 'grey.300' }} />
+                  <Typography color="text.secondary">No ledger data available for the selected range.</Typography>
+                </Stack>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2.5, bgcolor: 'grey.50', borderTop: '1px solid', borderColor: 'divider' }}>
+          <Button
+            onClick={() => setLedgerDialogOpen(false)}
+            variant="contained"
+            color="primary"
+            sx={{ px: 4 }}
+          >
+            Close Statement
           </Button>
         </DialogActions>
       </Dialog>
