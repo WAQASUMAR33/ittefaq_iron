@@ -235,12 +235,14 @@ function SalesPageContent() {
 
   // Bank accounts state
   const [bankAccounts, setBankAccounts] = useState([]);
+  const [loaders, setLoaders] = useState([]);
 
   // Payment and calculation state
   const [paymentData, setPaymentData] = useState({
     cash: 0,
     bank: 0,
     bankAccountId: '',
+    loaderId: '',
     totalCashReceived: 0,
     discount: 0,
     labour: 0,
@@ -762,7 +764,7 @@ function SalesPageContent() {
         bank_title: selectedBankAccount?.cus_name || null, // Store bank account name (optional)
         debit_account_id: paymentData.bankAccountId || null,
         credit_account_id: null,
-        loader_id: null,
+        loader_id: paymentData.loaderId || null,
         shipping_amount: totalShippingAmount, // Include both transport and delivery charges
         bill_type: billType || 'BILL',
         reference: paymentData.notes || null,
@@ -832,7 +834,9 @@ function SalesPageContent() {
             }
           })),
           labour: parseFloat(paymentData.labour) || 0,
-          notes: paymentData.notes || ''
+          notes: paymentData.notes || '',
+          loader_id: paymentData.loaderId || null,
+          loader: paymentData.loaderId ? loaders.find(l => l.loader_id === paymentData.loaderId) : null
         };
         setCurrentBillData(billDataForPrint);
 
@@ -848,6 +852,7 @@ function SalesPageContent() {
           cash: 0,
           bank: 0,
           bankAccountId: '',
+          loaderId: '',
           totalCashReceived: 0,
           discount: 0,
           labour: 0,
@@ -1167,13 +1172,14 @@ function SalesPageContent() {
       }
 
       // Fetch other data in parallel
-      const [customersRes, productsRes, customerTypesRes, storesRes, customerCategoriesRes, citiesRes] = await Promise.all([
+      const [customersRes, productsRes, customerTypesRes, storesRes, customerCategoriesRes, citiesRes, loadersRes] = await Promise.all([
         fetch('/api/customers'),
         fetch('/api/products'),
         fetch('/api/customer-types'),
         fetch('/api/stores'),
         fetch('/api/customer-category'),
-        fetch('/api/cities')
+        fetch('/api/cities'),
+        fetch('/api/loaders')
       ]);
 
       if (customersRes.ok) {
@@ -1234,6 +1240,14 @@ function SalesPageContent() {
       } else {
         console.error('❌ Cities API error:', citiesRes.status);
         setCities([]);
+      }
+      if (loadersRes.ok) {
+        const loadersData = await loadersRes.json();
+        console.log('🔍 Loaders data:', loadersData);
+        setLoaders(loadersData || []);
+      } else {
+        console.error('❌ Loaders API error:', loadersRes.status);
+        setLoaders([]);
       }
 
     } catch (error) {
@@ -1966,10 +1980,10 @@ function SalesPageContent() {
                     <Autocomplete
                       size="small"
                       options={customers.filter(customer => {
-                        // Filter for customers with type "Customer"
-                        const isCustomer = customer.customer_type &&
-                          customer.customer_type.cus_type_title &&
-                          customer.customer_type.cus_type_title.toLowerCase().includes('customer');
+                        // Filter for customers with category "Customer"
+                        const isCustomer = customer.customer_category &&
+                          customer.customer_category.cus_cat_title &&
+                          customer.customer_category.cus_cat_title.toLowerCase().includes('customer');
                         return isCustomer;
                       })}
                       getOptionLabel={(option) => {
@@ -1995,7 +2009,7 @@ function SalesPageContent() {
                     />
                     {/* Debug info */}
                     <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                      Debug: {customers.length} total customers, {customers.filter(c => c.customer_type?.cus_type_title?.toLowerCase().includes('customer')).length} customers (filtered)
+                      Debug: {customers.length} total customers, {customers.filter(c => c.customer_category?.cus_cat_title?.toLowerCase().includes('customer')).length} customers (filtered)
                     </Typography>
                   </Box>
                 </Grid>
@@ -2463,6 +2477,28 @@ function SalesPageContent() {
                       </Box>
                     </Grid>
                   </Grid>
+
+                  {/* Loader Selection Row */}
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
+                      LOADER
+                    </Typography>
+                    <FormControl fullWidth size="small">
+                      <Select
+                        value={paymentData.loaderId}
+                        onChange={(e) => handlePaymentDataChange('loaderId', e.target.value)}
+                        sx={{ bgcolor: 'white', '& .MuiSelect-select': { padding: '8px' } }}
+                        displayEmpty
+                      >
+                        <MenuItem value="">Select Loader</MenuItem>
+                        {loaders.map((loader) => (
+                          <MenuItem key={loader.loader_id} value={loader.loader_id}>
+                            {loader.loader_name} ({loader.loader_number})
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Box>
 
                   {/* Second Row - NOTES */}
                   <Box sx={{ mb: 2 }}>
@@ -3605,11 +3641,11 @@ function SalesPageContent() {
                     fullWidth
                     size="small"
                     options={customers.filter(customer => {
-                      // Filter customers where type is "Customer"
-                      const isCustomer = customer.customer_type &&
-                        customer.customer_type.cus_type_title &&
-                        customer.customer_type.cus_type_title.toLowerCase().includes('customer');
-                      console.log('🔍 Sales List Customer filtering:', customer.cus_name, 'isCustomer:', isCustomer, 'customer_type:', customer.customer_type);
+                      // Filter for customers with category "Customer"
+                      const isCustomer = customer.customer_category &&
+                        customer.customer_category.cus_cat_title &&
+                        customer.customer_category.cus_cat_title.toLowerCase().includes('customer');
+                      console.log('🔍 Sales List Customer filtering:', customer.cus_name, 'isCustomer:', isCustomer, 'customer_category:', customer.customer_category);
                       return isCustomer;
                     })}
                     getOptionLabel={(option) => option.cus_name || ''}
@@ -3629,7 +3665,7 @@ function SalesPageContent() {
                   />
                   {/* Debug info */}
                   <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                    Debug: {customers.length} total customers, {customers.filter(c => c.customer_type?.cus_type_title?.toLowerCase().includes('customer')).length} customers
+                    Debug: {customers.length} total customers, {customers.filter(c => c.customer_category?.cus_cat_title?.toLowerCase().includes('customer')).length} customers
                   </Typography>
                 </Grid>
                 <Grid item xs={12} md={2}>
