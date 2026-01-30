@@ -716,7 +716,7 @@ function SalesPageContent() {
       // Prepare sale data
       const transportTotal = calculateTransportTotal();
       const deliveryCharges = parseFloat(paymentData.deliveryCharges) || 0;
-      const totalShippingAmount = transportTotal + deliveryCharges;
+      const totalShippingAmount = deliveryCharges; // Only delivery, transport handled via transport_details
 
       // Build split payments array for cash and bank
       const splitPayments = [];

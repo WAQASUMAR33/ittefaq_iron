@@ -591,7 +591,7 @@ export async function POST(request) {
     const netTotal = parseFloat(total_amount) - parseFloat(discount || 0) + parseFloat(shipping_amount || 0);
 
     // Check if this is a quotation or order (skip stock check for quotations and orders)
-    const isQuotation = bill_type === 'QUOTATION' || bill_type === 'ORDER';
+    const isQuotation = bill_type === 'QUOTATION';
 
     // Stock validation removed - allow negative stock
     // if (!isQuotation) {
@@ -831,25 +831,37 @@ export async function POST(request) {
           });
         }
 
-        // 3. Cash/Bank Account - DEBIT (when payment is received)
-        if (parseFloat(payment) > 0) {
 
-          // 4. Payment Entry - Debit Cash/Bank Account
-          const paymentAccount = payment_type === 'CASH' ? specialAccounts.cash : specialAccounts.bank;
-          if (paymentAccount) {
-            ledgerEntries.push({
-              cus_id: paymentAccount.cus_id,
-              opening_balance: paymentAccount.cus_balance,
-              debit_amount: parseFloat(payment),
-              credit_amount: 0,
-              closing_balance: paymentAccount.cus_balance + parseFloat(payment),
-              bill_no: sale.sale_id.toString(),
-              trnx_type: payment_type,
-              details: `Payment Received - ${bill_type || 'BILL'} - ${payment_type} Account (Debit)`,
-              payments: parseFloat(payment),
-              updated_by
-            });
-          }
+        // 3. Cash Account - DEBIT (when cash payment is received)
+        if (parseFloat(cash_payment || 0) > 0 && specialAccounts.cash) {
+          ledgerEntries.push({
+            cus_id: specialAccounts.cash.cus_id,
+            opening_balance: specialAccounts.cash.cus_balance,
+            debit_amount: parseFloat(cash_payment),
+            credit_amount: 0,
+            closing_balance: specialAccounts.cash.cus_balance + parseFloat(cash_payment),
+            bill_no: sale.sale_id.toString(),
+            trnx_type: 'CASH',
+            details: `Payment Received - ${bill_type || 'BILL'} - CASH Account (Debit)`,
+            payments: parseFloat(cash_payment),
+            updated_by
+          });
+        }
+
+        // 4. Bank Account - DEBIT (when bank payment is received)
+        if (parseFloat(bank_payment || 0) > 0 && specialAccounts.bank) {
+          ledgerEntries.push({
+            cus_id: specialAccounts.bank.cus_id,
+            opening_balance: specialAccounts.bank.cus_balance,
+            debit_amount: parseFloat(bank_payment),
+            credit_amount: 0,
+            closing_balance: specialAccounts.bank.cus_balance + parseFloat(bank_payment),
+            bill_no: sale.sale_id.toString(),
+            trnx_type: 'BANK_TRANSFER',
+            details: `Payment Received - ${bill_type || 'BILL'} - BANK Account (Debit)`,
+            payments: parseFloat(bank_payment),
+            updated_by
+          });
         }
 
         // 4. Transporter Entry (if loader_id is provided)
@@ -960,20 +972,29 @@ export async function POST(request) {
           }
         });
 
-        // Update special account balances (skip for quotations)
-        if (parseFloat(payment) > 0 && specialAccounts) {
-          const paymentAccount = payment_type === 'CASH' ? specialAccounts.cash : specialAccounts.bank;
-          if (paymentAccount) {
-            const accountCurrentBalance = parseFloat(paymentAccount.cus_balance) || 0;
-            const accountNewBalance = accountCurrentBalance + parseFloat(payment);
 
-            await tx.customer.update({
-              where: { cus_id: paymentAccount.cus_id },
-              data: {
-                cus_balance: accountNewBalance
+        // Update cash account balance
+        if (parseFloat(cash_payment || 0) > 0 && specialAccounts.cash) {
+          await tx.customer.update({
+            where: { cus_id: specialAccounts.cash.cus_id },
+            data: {
+              cus_balance: {
+                increment: parseFloat(cash_payment)
               }
-            });
-          }
+            }
+          });
+        }
+
+        // Update bank account balance
+        if (parseFloat(bank_payment || 0) > 0 && specialAccounts.bank) {
+          await tx.customer.update({
+            where: { cus_id: specialAccounts.bank.cus_id },
+            data: {
+              cus_balance: {
+                increment: parseFloat(bank_payment)
+              }
+            }
+          });
         }
 
         // Update transporter balance (skip for quotations)
