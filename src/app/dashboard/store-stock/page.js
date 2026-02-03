@@ -413,18 +413,37 @@ export default function StoreStockPage() {
         }
       `}</style>
     <DashboardLayout>
-      <Container maxWidth="xl" sx={{ 
-        py: 4, 
-        '@media print': { 
-          maxWidth: '100% !important', 
-          width: '100% !important', 
-          padding: '0 !important', 
-          margin: '0 !important',
-          marginLeft: '0 !important',
-          marginRight: '0 !important'
-        } 
-      }}>
-        <Box sx={{ mb: 4, '@media print': { margin: '0 !important', padding: '0 !important', width: '100% !important', maxWidth: '100% !important' } }}>
+      <Container 
+        maxWidth={false}
+        sx={{ 
+          py: 4,
+          maxWidth: {
+            xs: '100%',           // Mobile: full width
+            sm: '100%',           // Small screens: full width  
+            md: '100%',           // Medium screens: full width
+            lg: '1200px',         // Large screens: reasonable max width
+            xl: '1400px'          // Extra large screens: slightly larger max width
+          },
+          mx: 'auto',             // Center the content
+          px: { xs: 2, sm: 3, md: 4 }, // Responsive horizontal padding
+          '@media print': { 
+            maxWidth: '100% !important', 
+            width: '100% !important', 
+            padding: '0 !important', 
+            margin: '0 !important',
+            marginLeft: '0 !important',
+            marginRight: '0 !important'
+          } 
+        }}>
+        <Box sx={{ 
+          mb: 4, 
+          '@media print': { 
+            margin: '0 !important', 
+            padding: '0 !important', 
+            width: '100% !important', 
+            maxWidth: '100% !important' 
+          } 
+        }}>
           <Box className="no-print">
           <Typography variant="h4" component="h1" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <InventoryIcon color="primary" />

@@ -32,6 +32,7 @@ model Users {
   journals_posted     Journal[]          @relation("JournalPostedBy")
   ledger              Ledger[]
   loaders             Loader[]
+  packages            Package[]
   products            Product[]
   purchase_details    PurchaseDetail[]
   purchases           Purchase[]
@@ -39,12 +40,11 @@ model Users {
   sale_return_details SaleReturnDetail[]
   sale_returns        SaleReturn[]
   sales               Sale[]
-  sub_categories      SubCategory[]
-  vehicles            Vehicle[]
-  store_stocks        StoreStock[]
-  packages            Package[]
-  subscriptions       Subscription[]
   stock_transfers     StockTransfer[]
+  store_stocks        StoreStock[]
+  sub_categories      SubCategory[]
+  subscriptions       Subscription[]
+  vehicles            Vehicle[]
 
   @@map("users")
 }
@@ -131,7 +131,7 @@ model Customer {
   sales_debit           Sale[]             @relation("SaleDebitAccount")
   split_payments_credit SplitPayment[]     @relation("SplitPaymentCreditAccount")
   split_payments_debit  SplitPayment[]     @relation("SplitPaymentDebitAccount")
-  subscriptions        Subscription[]
+  subscriptions         Subscription[]
 
   @@index([city_id], map: "customers_city_id_fkey")
   @@index([cus_category], map: "customers_cus_category_fkey")
@@ -195,9 +195,9 @@ model Product {
   purchase_details        PurchaseDetail[]
   purchase_return_details PurchaseReturnDetail[]
   sale_details            SaleDetail[]
-  sale_return_details      SaleReturnDetail[]
-  store_stocks             StoreStock[]
-  stock_transfer_details   StockTransferDetail[]
+  sale_return_details     SaleReturnDetail[]
+  stock_transfer_details  StockTransferDetail[]
+  store_stocks            StoreStock[]
 
   @@index([cat_id], map: "products_cat_id_fkey")
   @@index([sub_cat_id], map: "products_sub_cat_id_fkey")
@@ -265,6 +265,7 @@ model Sale {
   cash_payment      Float          @default(0)
   bank_payment      Float          @default(0)
   bank_title        String?
+  advance_payment   Float          @default(0)
   debit_account_id  Int?
   credit_account_id Int?
   loader_id         Int?
@@ -363,6 +364,9 @@ model Purchase {
   updated_at        DateTime         @updatedAt
   updated_by        Int?
   store_id          Int?
+  bank_payment      Decimal?         @default(0.00) @db.Decimal(10, 2)
+  bank_title        String?          @db.VarChar(255)
+  cash_payment      Decimal?         @default(0.00) @db.Decimal(10, 2)
   purchase_details  PurchaseDetail[]
   purchase_returns  PurchaseReturn[]
   credit_account    Customer?        @relation("PurchaseCreditAccount", fields: [credit_account_id], references: [cus_id])
@@ -418,8 +422,8 @@ model PurchaseReturn {
   status              String                 @default("COMPLETED")
   created_at          DateTime               @default(now())
   updated_at          DateTime               @updatedAt
-  purchase            Purchase               @relation(fields: [purchase_id], references: [pur_id], onDelete: Cascade)
   return_details      PurchaseReturnDetail[]
+  purchase            Purchase               @relation(fields: [purchase_id], references: [pur_id], onDelete: Cascade)
 
   @@index([purchase_id], map: "purchase_returns_purchase_id_fkey")
   @@map("purchase_returns")
@@ -434,8 +438,8 @@ model PurchaseReturnDetail {
   return_amount   Decimal        @db.Decimal(10, 2)
   created_at      DateTime       @default(now())
   updated_at      DateTime       @updatedAt
-  purchase_return PurchaseReturn @relation(fields: [return_id], references: [id], onDelete: Cascade)
   product         Product        @relation(fields: [pro_id], references: [pro_id])
+  purchase_return PurchaseReturn @relation(fields: [return_id], references: [id], onDelete: Cascade)
 
   @@index([return_id], map: "purchase_return_details_return_id_fkey")
   @@index([pro_id], map: "purchase_return_details_pro_id_fkey")
@@ -693,74 +697,75 @@ model JournalDetail {
 }
 
 model Store {
-  storeid       Int          @id @default(autoincrement())
-  store_name    String
-  store_address String?
-  created_at    DateTime     @default(now())
-  updated_at    DateTime     @updatedAt
-  purchases     Purchase[]
-  sales         Sale[]
-  sale_details  SaleDetail[]
-  store_stocks       StoreStock[]
+  storeid              Int             @id @default(autoincrement())
+  store_name           String
+  store_address        String?
+  created_at           DateTime        @default(now())
+  updated_at           DateTime        @updatedAt
+  purchases            Purchase[]
+  sale_details         SaleDetail[]
+  sales                Sale[]
   stock_transfers_from StockTransfer[] @relation("StockTransferFrom")
   stock_transfers_to   StockTransfer[] @relation("StockTransferTo")
+  store_stocks         StoreStock[]
 
   @@map("stores")
 }
 
 model StoreStock {
-  store_stock_id Int      @id @default(autoincrement())
-  store_id       Int
-  pro_id         Int
-  stock_quantity Int      @default(0)
-  min_stock      Int      @default(0)
-  max_stock      Int      @default(0)
-  created_at     DateTime @default(now())
-  updated_at     DateTime @updatedAt
-  updated_by     Int?
-
-  store           Store   @relation(fields: [store_id], references: [storeid])
-  product         Product @relation(fields: [pro_id], references: [pro_id])
-  updated_by_user Users?  @relation(fields: [updated_by], references: [user_id])
+  store_stock_id  Int      @id @default(autoincrement())
+  store_id        Int
+  pro_id          Int
+  stock_quantity  Int      @default(0)
+  min_stock       Int      @default(0)
+  max_stock       Int      @default(0)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+  updated_by      Int?
+  product         Product  @relation(fields: [pro_id], references: [pro_id])
+  store           Store    @relation(fields: [store_id], references: [storeid])
+  updated_by_user Users?   @relation(fields: [updated_by], references: [user_id])
 
   @@unique([store_id, pro_id])
+  @@index([pro_id], map: "store_stocks_pro_id_fkey")
+  @@index([updated_by], map: "store_stocks_updated_by_fkey")
   @@map("store_stocks")
 }
 
 model Package {
-  package_id        Int            @id @default(autoincrement())
-  package_name      String
+  package_id          Int            @id @default(autoincrement())
+  package_name        String
   package_description String?
-  price             Decimal
-  duration_days     Int
-  features          String?
-  is_active         Boolean        @default(true)
-  created_at        DateTime       @default(now())
-  updated_at        DateTime       @updatedAt
-  updated_by        Int?
-  subscriptions    Subscription[]
-  updated_by_user   Users?         @relation(fields: [updated_by], references: [user_id])
+  price               Decimal
+  duration_days       Int
+  features            String?
+  is_active           Boolean        @default(true)
+  created_at          DateTime       @default(now())
+  updated_at          DateTime       @updatedAt
+  updated_by          Int?
+  updated_by_user     Users?         @relation(fields: [updated_by], references: [user_id])
+  subscriptions       Subscription[]
 
   @@index([updated_by], map: "packages_updated_by_fkey")
   @@map("packages")
 }
 
 model Subscription {
-  subscription_id   Int            @id @default(autoincrement())
-  cus_id            Int
-  package_id        Int
-  amount            Decimal
-  status            SubscriptionStatus @default(ACTIVE)
-  start_date        DateTime
-  end_date          DateTime
-  payment_method    SubscriptionPaymentMethod @default(BALANCE)
-  reference         String?
-  created_at        DateTime       @default(now())
-  updated_at        DateTime       @updatedAt
-  updated_by        Int?
-  customer          Customer       @relation(fields: [cus_id], references: [cus_id])
-  package           Package        @relation(fields: [package_id], references: [package_id])
-  updated_by_user   Users?         @relation(fields: [updated_by], references: [user_id])
+  subscription_id Int                       @id @default(autoincrement())
+  cus_id          Int
+  package_id      Int
+  amount          Decimal
+  status          SubscriptionStatus        @default(ACTIVE)
+  start_date      DateTime
+  end_date        DateTime
+  payment_method  SubscriptionPaymentMethod @default(BALANCE)
+  reference       String?
+  created_at      DateTime                  @default(now())
+  updated_at      DateTime                  @updatedAt
+  updated_by      Int?
+  customer        Customer                  @relation(fields: [cus_id], references: [cus_id])
+  package         Package                   @relation(fields: [package_id], references: [package_id])
+  updated_by_user Users?                    @relation(fields: [updated_by], references: [user_id])
 
   @@index([cus_id], map: "subscriptions_cus_id_fkey")
   @@index([package_id], map: "subscriptions_package_id_fkey")
@@ -769,19 +774,19 @@ model Subscription {
 }
 
 model StockTransfer {
-  transfer_id      Int                 @id @default(autoincrement())
-  transfer_no      String?             @unique
-  transfer_date    DateTime            @db.Date
+  transfer_id      Int                   @id @default(autoincrement())
+  transfer_no      String?               @unique
+  transfer_date    DateTime              @db.Date
   from_store_id    Int
   to_store_id      Int
   notes            String?
-  created_at       DateTime            @default(now())
-  updated_at       DateTime            @updatedAt
+  created_at       DateTime              @default(now())
+  updated_at       DateTime              @updatedAt
   updated_by       Int?
-  from_store       Store               @relation("StockTransferFrom", fields: [from_store_id], references: [storeid])
-  to_store          Store               @relation("StockTransferTo", fields: [to_store_id], references: [storeid])
-  updated_by_user   Users?              @relation(fields: [updated_by], references: [user_id])
   transfer_details StockTransferDetail[]
+  from_store       Store                 @relation("StockTransferFrom", fields: [from_store_id], references: [storeid])
+  to_store         Store                 @relation("StockTransferTo", fields: [to_store_id], references: [storeid])
+  updated_by_user  Users?                @relation(fields: [updated_by], references: [user_id])
 
   @@index([from_store_id], map: "stock_transfers_from_store_id_fkey")
   @@index([to_store_id], map: "stock_transfers_to_store_id_fkey")
@@ -790,14 +795,14 @@ model StockTransfer {
 }
 
 model StockTransferDetail {
-  transfer_detail_id Int          @id @default(autoincrement())
+  transfer_detail_id Int           @id @default(autoincrement())
   transfer_id        Int
   pro_id             Int
   quantity           Int
-  packing            Int?         @default(0)
-  created_at         DateTime     @default(now())
+  packing            Int?          @default(0)
+  created_at         DateTime      @default(now())
+  product            Product       @relation(fields: [pro_id], references: [pro_id])
   transfer           StockTransfer @relation(fields: [transfer_id], references: [transfer_id], onDelete: Cascade)
-  product            Product      @relation(fields: [pro_id], references: [pro_id])
 
   @@index([transfer_id], map: "stock_transfer_details_transfer_id_fkey")
   @@index([pro_id], map: "stock_transfer_details_pro_id_fkey")

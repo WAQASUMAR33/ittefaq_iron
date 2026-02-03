@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { updateStoreStock } from '@/lib/storeStock';
+import { createLedgerEntry } from '@/lib/ledger-helper';
 
 // Helper for JSON errors
 function errorResponse(message, status = 400) {
@@ -312,6 +313,9 @@ export async function POST(request) {
         net_total: safeParseFloat(net_total),
         payment: totalPaymentAmount,
         payment_type: actualPaymentType,
+        cash_payment: cashPaymentAmount,
+        bank_payment: bankPaymentAmount,
+        bank_title: isSplitPayment && bankPaymentAmount > 0 ? 'Bank Payment' : null,
         vehicle_no: vehicle_no || null,
         invoice_number: invoice_number || null,
         updated_by: updated_by ? safeParseInt(updated_by) : null
@@ -370,26 +374,24 @@ export async function POST(request) {
           select: { cus_balance: true, cus_name: true }
         });
         currentSupplierBalance = parseFloat(supplierData?.cus_balance || 0);
-        const supplierNewBalance = currentSupplierBalance + net_total;
 
         // Debit Supplier Account (Amount owed increases by invoice net total)
-        await tx.ledger.create({
-          data: {
-            cus_id: cus_id,
-            opening_balance: currentSupplierBalance,
-            debit_amount: net_total,
-            credit_amount: 0,
-            closing_balance: supplierNewBalance,
-            bill_no: newPurchase.pur_id.toString(),
-            trnx_type: 'CASH', // Should this be PURCHASE? Using CASH for now to match existing
-            details: `Purchase Invoice${invoice_number ? ` #${invoice_number}` : ''} from ${supplierData?.cus_name || 'Supplier'}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
-            payments: 0,
-            updated_by: updated_by ? parseInt(updated_by) : null
-          }
+        const supplierEntry = createLedgerEntry({
+          cus_id: cus_id,
+          opening_balance: currentSupplierBalance,
+          debit_amount: net_total,
+          credit_amount: 0,
+          bill_no: newPurchase.pur_id.toString(),
+          trnx_type: 'CASH',
+          details: `Purchase Invoice${invoice_number ? ` #${invoice_number}` : ''} from ${supplierData?.cus_name || 'Supplier'}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
+          payments: 0,
+          updated_by: updated_by ? parseInt(updated_by) : null
         });
         
+        await tx.ledger.create({ data: supplierEntry });
+        
         // Update running balance
-        currentSupplierBalance = supplierNewBalance;
+        currentSupplierBalance = supplierEntry.closing_balance;
       }
 
       // 2. Payment Entries based on payment type
@@ -406,7 +408,7 @@ export async function POST(request) {
 
       // Handle Cash Payment
       if (cashPaymentAmount > 0) {
-        // Cash Payment: Debit Cash Account, Credit Supplier Account
+        // Cash Payment: Credit Cash Account (reduces asset), Credit Supplier Account (reduces liability)
         const cashAccountData = await tx.customer.findUnique({
           where: { cus_id: credit_account_id },
           select: { cus_balance: true, cus_name: true }
@@ -414,13 +416,13 @@ export async function POST(request) {
         const cashCurrentBalance = parseFloat(cashAccountData?.cus_balance || 0);
         const cashNewBalance = cashCurrentBalance - cashPaymentAmount;
 
-        // Debit Cash Account (Cash decreases when payment is made)
+        // Credit Cash Account (Cash decreases when payment is made - FIXED from DEBIT)
         await tx.ledger.create({
           data: {
             cus_id: credit_account_id,
             opening_balance: cashCurrentBalance,
-            debit_amount: cashPaymentAmount, // Note: System uses Debit to decrease Cash Asset?
-            credit_amount: 0,
+            debit_amount: 0,  // ← FIXED: Changed from debit_amount to 0
+            credit_amount: cashPaymentAmount,  // ← FIXED: Changed to credit_amount
             closing_balance: cashNewBalance,
             bill_no: newPurchase.pur_id.toString(),
             trnx_type: 'CASH',

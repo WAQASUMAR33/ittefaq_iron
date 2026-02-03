@@ -279,16 +279,16 @@ export default function CustomerLedgerReport() {
                 
                 <div className="flex-1 overflow-auto print:overflow-visible print:block">
                   <table className="min-w-full divide-y divide-gray-200 print:block print:table">
-                    <thead className="bg-gray-50 sticky top-0 print:relative">
+                    <thead className="bg-white border-b-2 border-gray-300 sticky top-0 print:relative">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bill No</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Debit</th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Credit</th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Balance</th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Payments</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-900 font-bold uppercase tracking-wider">Date</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-900 font-bold uppercase tracking-wider">Type</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-900 font-bold uppercase tracking-wider">Bill No</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-900 font-bold uppercase tracking-wider">Details</th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-900 font-bold uppercase tracking-wider">Debit</th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-900 font-bold uppercase tracking-wider">Credit</th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-900 font-bold uppercase tracking-wider">Balance</th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-900 font-bold uppercase tracking-wider">Payments</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">

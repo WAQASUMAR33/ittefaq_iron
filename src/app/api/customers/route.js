@@ -6,6 +6,9 @@ function errorResponse(message, status = 400) {
   return NextResponse.json({ error: message }, { status });
 }
 
+// No helper needed - customer balance is maintained directly in customer table
+// It gets updated incrementally with each ledger entry (add debit, subtract credit)
+
 // ========================================
 // GET — Get all or one customer
 // ========================================
@@ -74,6 +77,15 @@ export async function GET(request) {
     return NextResponse.json(customers);
   } catch (err) {
     console.error('❌ Error fetching customers:', err);
+    
+    // Handle database connection errors
+    if (err.code === 'P1001' || err.message?.includes('Can\'t reach database server')) {
+      return NextResponse.json(
+        { error: 'Database connection failed. Please check if the database server is running.' },
+        { status: 503 }
+      );
+    }
+    
     return errorResponse('Failed to fetch customers', 500);
   }
 }
@@ -196,6 +208,15 @@ export async function POST(request) {
     return NextResponse.json(newCustomer, { status: 201 });
   } catch (err) {
     console.error('❌ Error creating customer:', err);
+    
+    // Handle database connection errors
+    if (err.code === 'P1001' || err.message?.includes('Can\'t reach database server')) {
+      return NextResponse.json(
+        { error: 'Database connection failed. Please check if the database server is running.' },
+        { status: 503 }
+      );
+    }
+    
     return errorResponse('Failed to create customer', 500);
   }
 }
@@ -331,6 +352,15 @@ export async function PUT(request) {
     return NextResponse.json(updated);
   } catch (err) {
     console.error('❌ Error updating customer:', err);
+    
+    // Handle database connection errors
+    if (err.code === 'P1001' || err.message?.includes('Can\'t reach database server')) {
+      return NextResponse.json(
+        { error: 'Database connection failed. Please check if the database server is running.' },
+        { status: 503 }
+      );
+    }
+    
     return errorResponse('Failed to update customer', 500);
   }
 }
@@ -374,6 +404,15 @@ export async function DELETE(request) {
     return NextResponse.json({ message: 'Customer deleted successfully' });
   } catch (err) {
     console.error('❌ Error deleting customer:', err);
+    
+    // Handle database connection errors
+    if (err.code === 'P1001' || err.message?.includes('Can\'t reach database server')) {
+      return NextResponse.json(
+        { error: 'Database connection failed. Please check if the database server is running.' },
+        { status: 503 }
+      );
+    }
+    
     return errorResponse('Failed to delete customer', 500);
   }
 }

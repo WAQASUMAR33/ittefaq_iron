@@ -37,28 +37,11 @@ import {
 } from '@mui/material';
 
 import {
-  Add as AddIcon,
-  Search as SearchIcon,
-  Edit as EditIcon,
-  Delete as DeleteIcon,
-  ArrowBack as ArrowBackIcon,
-  CalendarToday as CalendarIcon,
-  Close as CloseIcon,
-  Save as SaveIcon,
-  Person as PersonIcon,
-  Store as StoreIcon,
-  Receipt as ReceiptIcon,
-  Inventory as InventoryIcon,
-  LocalShipping as ShippingIcon,
-  Undo as UndoIcon,
-  History as HistoryIcon,
-  FilterList as FilterIcon,
-  RestartAlt as ResetIcon,
-  Info as InfoIcon,
-  CheckCircle as CheckCircleIcon,
-  Error as ErrorIcon,
-  ShoppingCart as ShoppingCartIcon
-} from '@mui/icons-material';
+  Package, Search as SearchLucide, Filter, ArrowUp, Plus, Edit, Trash2, X, Tag, Folder,
+  Boxes, Calendar, ShoppingCart, DollarSign, TrendingDown, CreditCard, Receipt, Eye,
+  UserPlus, Printer, Trash, FileText, LayoutGrid, ListChecks, Clock, ChevronLeft,
+  Users, Truck, Save, CheckCircle, RotateCcw, RotateCw, Info, AlertCircle, ArrowLeft, History, ClipboardList
+} from 'lucide-react';
 
 // Premium Theme Patterns
 const STYLES = {

@@ -457,7 +457,20 @@ export default function StockTransferPage() {
   // Render List View
   const renderListView = () => (
     <DashboardLayout>
-      <Container maxWidth="xl" sx={{ py: 2 }}>
+      <Container 
+        maxWidth={false}
+        sx={{ 
+          py: 2,
+          maxWidth: {
+            xs: '100%',           // Mobile: full width
+            sm: '100%',           // Small screens: full width  
+            md: '100%',           // Medium screens: full width
+            lg: '1200px',         // Large screens: reasonable max width
+            xl: '1400px'          // Extra large screens: slightly larger max width
+          },
+          mx: 'auto',             // Center the content
+          px: { xs: 2, sm: 3, md: 4 } // Responsive horizontal padding
+        }}>
         <Stack spacing={3}>
           {/* Header */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -683,7 +696,20 @@ export default function StockTransferPage() {
   // Render Form View
   const renderFormView = () => (
     <DashboardLayout>
-      <Container maxWidth="xl" sx={{ py: 2 }}>
+      <Container 
+        maxWidth={false}
+        sx={{ 
+          py: 2,
+          maxWidth: {
+            xs: '100%',           // Mobile: full width
+            sm: '100%',           // Small screens: full width  
+            md: '100%',           // Medium screens: full width
+            lg: '1200px',         // Large screens: reasonable max width
+            xl: '1400px'          // Extra large screens: slightly larger max width
+          },
+          mx: 'auto',             // Center the content
+          px: { xs: 2, sm: 3, md: 4 } // Responsive horizontal padding
+        }}>
         <Stack spacing={3}>
           {/* Header */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

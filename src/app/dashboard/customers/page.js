@@ -64,9 +64,11 @@ import {
   ExpandMore as ExpandMoreIcon,
   Save as SaveIcon,
   Close as CloseIcon,
-  Check as CheckIcon
+  Check as CheckIcon,
+  AttachMoney as AttachMoneyIcon
 } from '@mui/icons-material';
-import { Plus, Edit, Trash2, Check, X, Phone, Mail, MapPin, User, Building, CreditCard, Calendar, Search, Loader2 } from 'lucide-react';
+import { Plus, Edit, Trash2, Check, X, Phone, Mail, MapPin, User, Building, CreditCard, Calendar, Search, Loader2, Users, TrendingUp, TrendingDown, Wallet, DollarSign, Filter, ArrowUp } from 'lucide-react';
+import { Fragment } from 'react';
 import DashboardLayout from '../components/dashboard-layout';
 
 export default function CustomersPage() {
@@ -172,6 +174,7 @@ export default function CustomersPage() {
     }
   };
 
+
   const handleAddCustomer = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -205,14 +208,14 @@ export default function CustomersPage() {
           name_urdu: '',
           city_id: ''
         });
-        alert('Customer added successfully!');
+        alert('Account added successfully!');
       } else {
         const error = await response.json();
-        alert(error.error || 'Failed to create customer');
+        alert(error.error || 'Failed to create Account');
       }
     } catch (error) {
-      console.error('Error creating customer:', error);
-      alert('Failed to create customer');
+      console.error('Error creating Account:', error);
+      alert('Failed to create Account');
     } finally {
       setIsSubmitting(false);
     }
@@ -278,21 +281,21 @@ export default function CustomersPage() {
           name_urdu: '',
           city_id: ''
         });
-        alert('Customer updated successfully!');
+        alert('Account updated successfully!');
       } else {
         const error = await response.json();
-        alert(error.error || 'Failed to update customer');
+        alert(error.error || 'Failed to update Account');
       }
     } catch (error) {
-      console.error('Error updating customer:', error);
-      alert('Failed to update customer');
+      console.error('Error updating Account:', error);
+      alert('Failed to update Account');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleDeleteCustomer = async (customerId) => {
-    if (window.confirm('Are you sure you want to delete this customer?')) {
+    if (window.confirm('Are you sure you want to delete this Account?')) {
       try {
         const response = await fetch(`/api/customers?id=${customerId}`, {
           method: 'DELETE',
@@ -300,14 +303,14 @@ export default function CustomersPage() {
 
         if (response.ok) {
           setCustomers(prev => prev.filter(customer => customer.cus_id !== customerId));
-          alert('Customer deleted successfully!');
+          alert('Account deleted successfully!');
         } else {
           const error = await response.json();
-          alert(error.error || 'Failed to delete customer');
+          alert(error.error || 'Failed to delete Account');
         }
       } catch (error) {
-        console.error('Error deleting customer:', error);
-        alert('Failed to delete customer');
+        console.error('Error deleting Account:', error);
+        alert('Failed to delete Account');
       }
     }
   };
@@ -336,14 +339,14 @@ export default function CustomersPage() {
         setCustomerTypes(prev => [...prev, newCustomerType]);
         setShowCustomerTypePopup(false);
         setCustomerTypeFormData({ cus_type_title: '' });
-        alert('Customer type added successfully!');
+        alert('Account type added successfully!');
       } else {
         const error = await response.json();
-        alert(error.error || 'Failed to create customer type');
+        alert(error.error || 'Failed to create Account type');
       }
     } catch (error) {
-      console.error('Error creating customer type:', error);
-      alert('Failed to create customer type');
+      console.error('Error creating Account type:', error);
+      alert('Failed to create Account type');
     } finally {
       setIsAddingCustomerType(false);
     }
@@ -365,13 +368,13 @@ export default function CustomersPage() {
         setCustomerCategories(prev => [...prev, newCategory]);
         setShowCustomerCategoryPopup(false);
         setCustomerCategoryFormData({ cus_cat_title: '' });
-        alert('Customer category added successfully!');
+        alert('Account category added successfully!');
       } else {
-        alert('Failed to add customer category');
+        alert('Failed to add account category');
       }
     } catch (error) {
-      console.error('Error adding customer category:', error);
-      alert('Error adding customer category');
+      console.error('Error adding account category:', error);
+      alert('Error adding account category');
     } finally {
       setIsAddingCustomerCategory(false);
     }
@@ -411,7 +414,7 @@ export default function CustomersPage() {
 
     // Validation
     if (!formData.cus_name.trim()) {
-      alert('Customer name is required');
+      alert('Account name is required');
       return;
     }
     if (!formData.cus_phone_no.trim()) {
@@ -423,7 +426,7 @@ export default function CustomersPage() {
       return;
     }
     if (!formData.cus_category) {
-      alert('Customer category is required');
+      alert('Account category is required');
       return;
     }
 
@@ -468,6 +471,16 @@ export default function CustomersPage() {
     setCategoryFilter('all');
     setBalanceFilter('all');
   };
+
+  // Stats Calculations
+  const totalCustomers = filteredCustomers.length;
+  const totalReceivables = filteredCustomers
+    .filter(c => parseFloat(c.cus_balance) > 0)
+    .reduce((sum, c) => sum + parseFloat(c.cus_balance), 0);
+  const totalPayables = Math.abs(filteredCustomers
+    .filter(c => parseFloat(c.cus_balance) < 0)
+    .reduce((sum, c) => sum + parseFloat(c.cus_balance), 0));
+  const netBalance = filteredCustomers.reduce((sum, c) => sum + parseFloat(c.cus_balance), 0);
 
   const getTypeColor = (type) => {
     switch (type) {
@@ -520,368 +533,335 @@ export default function CustomersPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Customer Management</h2>
-            <p className="text-gray-600 mt-1">Manage your customers and their information</p>
+            <h2 className="text-2xl font-bold text-gray-900">Account Management</h2>
+            <p className="text-gray-600 mt-1">Manage your accounts and their information</p>
           </div>
           <Button
             variant="contained"
             startIcon={<AddIcon />}
             onClick={() => setShowCustomerForm(true)}
             sx={{
-              background: 'linear-gradient(45deg, #2196f3 30%, #9c27b0 90%)',
-              borderRadius: '8px',
-              px: 3,
-              py: 1.5,
-              textTransform: 'none',
-              fontSize: '16px',
-              fontWeight: 500,
-              boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+              background: 'linear-gradient(45deg, #2196f3, #9c27b0)',
               '&:hover': {
-                background: 'linear-gradient(45deg, #1976d2 30%, #7b1fa2 90%)',
-                boxShadow: '0 6px 25px rgba(0,0,0,0.15)',
-                transform: 'translateY(-2px)'
+                background: 'linear-gradient(45deg, #1976d2, #7b1fa2)',
+                boxShadow: 6,
+                transform: 'translateY(-2px)',
               },
+              px: 4,
+              py: 1.5,
+              borderRadius: 1.5,
+              textTransform: 'none',
+              fontWeight: 600,
+              boxShadow: 3,
               transition: 'all 0.2s ease-in-out'
             }}
           >
-            Add New Customer
+            Add New Account
           </Button>
         </div>
 
 
-        {/* Filters */}
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-              <Typography variant="h6" component="h3" sx={{ fontWeight: 600 }}>
-                Filters & Search
-              </Typography>
-              <Button
-                size="small"
-                onClick={clearFilters}
-                sx={{ color: 'primary.main', textTransform: 'none' }}
-              >
-                Clear All Filters
-              </Button>
+        {/* Premium Filters Section */}
+        <Box sx={{ flexShrink: 0, mb: 3, width: '100%' }}>
+          <Card sx={{
+            borderRadius: 2,
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+            width: '100%',
+            border: '1px solid #e2e8f0',
+            bgcolor: '#f8fafc'
+          }}>
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+                <Typography variant="h6" sx={{ fontWeight: 700, color: '#334155' }}>
+                  Filters & Sorting
+                </Typography>
+                <Button
+                  onClick={clearFilters}
+                  size="small"
+                  sx={{
+                    color: '#64748b',
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    '&:hover': { color: '#ef4444' }
+                  }}
+                >
+                  Clear All Filters
+                </Button>
+              </Box>
+
+              <Box sx={{
+                display: 'grid',
+                gridTemplateColumns: {
+                  xs: '1fr',
+                  sm: '1fr 1fr',
+                  md: 'repeat(4, 1fr)'
+                },
+                gap: 3,
+                width: '100%'
+              }}>
+                {/* Search */}
+                <Box>
+                  <TextField
+                    fullWidth
+                    label="Search"
+                    placeholder="Search accounts..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <Search size={18} color="#94a3b8" />
+                        </InputAdornment>
+                      ),
+                    }}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: 1.5,
+                        bgcolor: 'white',
+                      }
+                    }}
+                  />
+                </Box>
+
+                {/* Type Filter */}
+                <Box>
+                  <Autocomplete
+                    fullWidth
+                    options={[
+                      { value: 'all', label: 'All Types' },
+                      { value: 'CASH_ACCOUNT', label: 'Cash Account' },
+                      { value: 'ACCOUNT_PAYABLE', label: 'Account Payable' },
+                      { value: 'ACCOUNT_RECEIVABLE', label: 'Account Receivable' },
+                      { value: 'EXPENSE_ACCOUNT', label: 'Expense Account' },
+                      { value: 'ASSET_ACCOUNT', label: 'Asset Account' },
+                      { value: 'LIABILITY_ACCOUNT', label: 'Liability Account' }
+                    ]}
+                    getOptionLabel={(option) => option.label}
+                    value={{
+                      value: typeFilter, label: typeFilter === 'all' ? 'All Types' :
+                        typeFilter === 'CASH_ACCOUNT' ? 'Cash Account' :
+                          typeFilter === 'ACCOUNT_PAYABLE' ? 'Account Payable' :
+                            typeFilter === 'ACCOUNT_RECEIVABLE' ? 'Account Receivable' :
+                              typeFilter === 'EXPENSE_ACCOUNT' ? 'Expense Account' :
+                                typeFilter === 'ASSET_ACCOUNT' ? 'Asset Account' :
+                                  typeFilter === 'LIABILITY_ACCOUNT' ? 'Liability Account' : 'All Types'
+                    }}
+                    onChange={(event, newValue) => {
+                      setTypeFilter(newValue ? newValue.value : 'all');
+                    }}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Account Type"
+                        placeholder="Select type"
+                        InputProps={{
+                          ...params.InputProps,
+                          startAdornment: (
+                            <Fragment>
+                              <InputAdornment position="start">
+                                <Building size={18} color="#94a3b8" />
+                              </InputAdornment>
+                              {params.InputProps.startAdornment}
+                            </Fragment>
+                          ),
+                        }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 1.5,
+                            bgcolor: 'white',
+                          }
+                        }}
+                      />
+                    )}
+                  />
+                </Box>
+
+                {/* Category Filter */}
+                <Box>
+                  <Autocomplete
+                    fullWidth
+                    options={[
+                      { value: 'all', label: 'All Categories' },
+                      ...customerCategories.map(category => ({
+                        value: category.cus_cat_title,
+                        label: category.cus_cat_title
+                      }))
+                    ]}
+                    getOptionLabel={(option) => option.label}
+                    value={{ value: categoryFilter, label: categoryFilter === 'all' ? 'All Categories' : categoryFilter }}
+                    onChange={(event, newValue) => {
+                      setCategoryFilter(newValue ? newValue.value : 'all');
+                    }}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Category"
+                        placeholder="Select category"
+                        InputProps={{
+                          ...params.InputProps,
+                          startAdornment: (
+                            <Fragment>
+                              <InputAdornment position="start">
+                                <Filter size={18} color="#94a3b8" />
+                              </InputAdornment>
+                              {params.InputProps.startAdornment}
+                            </Fragment>
+                          ),
+                        }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 1.5,
+                            bgcolor: 'white',
+                          }
+                        }}
+                      />
+                    )}
+                  />
+                </Box>
+
+                {/* Balance Filter */}
+                <Box>
+                  <Autocomplete
+                    fullWidth
+                    options={[
+                      { value: 'all', label: 'All Balances' },
+                      { value: 'positive', label: 'Positive Balance' },
+                      { value: 'negative', label: 'Negative Balance' },
+                      { value: 'zero', label: 'Zero Balance' }
+                    ]}
+                    getOptionLabel={(option) => option.label}
+                    value={{
+                      value: balanceFilter, label:
+                        balanceFilter === 'all' ? 'All Balances' :
+                          balanceFilter === 'positive' ? 'Positive Balance' :
+                            balanceFilter === 'negative' ? 'Negative Balance' :
+                              balanceFilter === 'zero' ? 'Zero Balance' : 'All Balances'
+                    }}
+                    onChange={(event, newValue) => {
+                      setBalanceFilter(newValue ? newValue.value : 'all');
+                    }}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Balance Status"
+                        placeholder="Select balance"
+                        InputProps={{
+                          ...params.InputProps,
+                          startAdornment: (
+                            <Fragment>
+                              <InputAdornment position="start">
+                                <Wallet size={18} color="#94a3b8" />
+                              </InputAdornment>
+                              {params.InputProps.startAdornment}
+                            </Fragment>
+                          ),
+                        }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 1.5,
+                            bgcolor: 'white',
+                          }
+                        }}
+                      />
+                    )}
+                  />
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Box>
+
+        {/* Unified Professional Stats Bar */}
+        <Box sx={{ flexShrink: 0, mb: 4, width: '100%' }}>
+          <Card sx={{
+            borderRadius: 2,
+            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+            overflow: 'hidden',
+            bgcolor: 'white',
+            border: '1px solid #e5e7eb'
+          }}>
+            <Box sx={{
+              display: 'flex',
+              flexDirection: { xs: 'column', md: 'row' },
+              alignItems: 'stretch',
+              justifyContent: 'space-between',
+              p: 0
+            }}>
+              {[
+                { title: 'Total Accounts', val: totalCustomers, color: '#2563eb', bg: '#eff6ff', icon: <Users size={24} />, isCurrency: false },
+                { title: 'Total Receivables', val: totalReceivables, color: '#16a34a', bg: '#f0fdf4', icon: <TrendingUp size={24} />, isCurrency: true },
+                { title: 'Total Payables', val: totalPayables, color: '#dc2626', bg: '#fef2f2', icon: <TrendingDown size={24} />, isCurrency: true },
+                { title: 'Net Balance', val: netBalance, color: '#d97706', bg: '#fffbeb', icon: <Wallet size={24} />, isCurrency: true }
+              ].map((stat, i) => (
+                <Fragment key={i}>
+                  <Box sx={{
+                    flex: 1,
+                    p: 3,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 2.5,
+                    width: '100%',
+                    bgcolor: stat.bg,
+                    position: 'relative',
+                    borderBottom: i < 3 && { xs: '1px solid #e5e7eb', md: 'none' },
+                    '&:hover': {
+                      bgcolor: 'white',
+                      transition: 'background-color 0.3s'
+                    }
+                  }}>
+                    <Avatar sx={{
+                      bgcolor: 'white',
+                      color: stat.color,
+                      width: 52,
+                      height: 52,
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                      border: `1.5px solid ${stat.color}20`
+                    }}>
+                      {stat.icon}
+                    </Avatar>
+                    <Box>
+                      <Typography variant="overline" sx={{
+                        display: 'block',
+                        lineHeight: 1,
+                        mb: 0.5,
+                        color: '#6b7280',
+                        fontWeight: 700,
+                        letterSpacing: 1.2
+                      }}>
+                        {stat.title}
+                      </Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: 0.5, color: stat.color }}>
+                        {stat.isCurrency && <span style={{ fontSize: '0.8rem', marginRight: 4, opacity: 0.6 }}>PKR</span>}
+                        {stat.val.toLocaleString()}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  {i < 3 && (
+                    <Divider
+                      orientation="vertical"
+                      flexItem
+                      sx={{
+                        display: { xs: 'none', md: 'block' },
+                        bgcolor: '#e5e7eb',
+                        height: 60,
+                        my: 'auto'
+                      }}
+                    />
+                  )}
+                </Fragment>
+              ))}
             </Box>
-
-            <Grid container spacing={3}>
-              {/* Search */}
-              <Grid item xs={12} sm={6} lg={3}>
-                <TextField
-                  fullWidth
-                  label="Search"
-                  placeholder="Search customers..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  sx={{ minWidth: 250 }}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchIcon />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </Grid>
-
-              {/* Type Filter */}
-              <Grid item xs={12} sm={6} lg={3}>
-                <Autocomplete
-                  fullWidth
-                  options={[
-                    { value: 'all', label: 'All Types' },
-                    { value: 'CASH_ACCOUNT', label: 'Cash Account' },
-                    { value: 'ACCOUNT_PAYABLE', label: 'Account Payable' },
-                    { value: 'ACCOUNT_RECEIVABLE', label: 'Account Receivable' },
-                    { value: 'EXPENSE_ACCOUNT', label: 'Expense Account' },
-                    { value: 'ASSET_ACCOUNT', label: 'Asset Account' },
-                    { value: 'LIABILITY_ACCOUNT', label: 'Liability Account' }
-                  ]}
-                  getOptionLabel={(option) => option.label}
-                  value={{
-                    value: typeFilter, label: typeFilter === 'all' ? 'All Types' :
-                      typeFilter === 'CASH_ACCOUNT' ? 'Cash Account' :
-                        typeFilter === 'ACCOUNT_PAYABLE' ? 'Account Payable' :
-                          typeFilter === 'ACCOUNT_RECEIVABLE' ? 'Account Receivable' :
-                            typeFilter === 'EXPENSE_ACCOUNT' ? 'Expense Account' :
-                              typeFilter === 'ASSET_ACCOUNT' ? 'Asset Account' :
-                                typeFilter === 'LIABILITY_ACCOUNT' ? 'Liability Account' : 'All Types'
-                  }}
-                  onChange={(event, newValue) => {
-                    setTypeFilter(newValue ? newValue.value : 'all');
-                  }}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label="Customer Type"
-                      placeholder="Search or select type"
-                      sx={{ minWidth: 250 }}
-                    />
-                  )}
-                  filterOptions={(options, { inputValue }) => {
-                    return options.filter(option =>
-                      option.label.toLowerCase().includes(inputValue.toLowerCase())
-                    );
-                  }}
-                  isOptionEqualToValue={(option, value) => option.value === value.value}
-                  ListboxProps={{
-                    style: {
-                      maxHeight: '200px',
-                      width: '100%'
-                    }
-                  }}
-                  slotProps={{
-                    popper: {
-                      style: {
-                        width: '100%'
-                      },
-                      modifiers: [
-                        {
-                          name: 'preventOverflow',
-                          enabled: true,
-                          options: {
-                            altBoundary: true,
-                            rootBoundary: 'viewport',
-                            padding: 8,
-                          },
-                        },
-                      ],
-                    },
-                  }}
-                />
-              </Grid>
-
-              {/* Category Filter */}
-              <Grid item xs={12} sm={6} lg={3}>
-                <Autocomplete
-                  fullWidth
-                  options={[
-                    { value: 'all', label: 'All Categories' },
-                    ...customerCategories.map(category => ({
-                      value: category.cus_cat_title,
-                      label: category.cus_cat_title
-                    }))
-                  ]}
-                  getOptionLabel={(option) => option.label}
-                  value={{ value: categoryFilter, label: categoryFilter === 'all' ? 'All Categories' : categoryFilter }}
-                  onChange={(event, newValue) => {
-                    setCategoryFilter(newValue ? newValue.value : 'all');
-                  }}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label="Category"
-                      placeholder="Search or select category"
-                      sx={{ minWidth: 250 }}
-                    />
-                  )}
-                  filterOptions={(options, { inputValue }) => {
-                    return options.filter(option =>
-                      option.label.toLowerCase().includes(inputValue.toLowerCase())
-                    );
-                  }}
-                  isOptionEqualToValue={(option, value) => option.value === value.value}
-                  ListboxProps={{
-                    style: {
-                      maxHeight: '200px',
-                      width: '100%'
-                    }
-                  }}
-                  slotProps={{
-                    popper: {
-                      style: {
-                        width: '100%'
-                      },
-                      modifiers: [
-                        {
-                          name: 'preventOverflow',
-                          enabled: true,
-                          options: {
-                            altBoundary: true,
-                            rootBoundary: 'viewport',
-                            padding: 8,
-                          },
-                        },
-                      ],
-                    },
-                  }}
-                />
-              </Grid>
-
-              {/* Balance Filter */}
-              <Grid item xs={12} sm={6} lg={3}>
-                <Autocomplete
-                  fullWidth
-                  options={[
-                    { value: 'all', label: 'All Balances' },
-                    { value: 'positive', label: 'Positive Balance' },
-                    { value: 'negative', label: 'Negative Balance' },
-                    { value: 'zero', label: 'Zero Balance' }
-                  ]}
-                  getOptionLabel={(option) => option.label}
-                  value={{
-                    value: balanceFilter, label:
-                      balanceFilter === 'all' ? 'All Balances' :
-                        balanceFilter === 'positive' ? 'Positive Balance' :
-                          balanceFilter === 'negative' ? 'Negative Balance' :
-                            balanceFilter === 'zero' ? 'Zero Balance' : 'All Balances'
-                  }}
-                  onChange={(event, newValue) => {
-                    setBalanceFilter(newValue ? newValue.value : 'all');
-                  }}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label="Balance"
-                      placeholder="Search or select balance"
-                      sx={{ minWidth: 250 }}
-                    />
-                  )}
-                  filterOptions={(options, { inputValue }) => {
-                    return options.filter(option =>
-                      option.label.toLowerCase().includes(inputValue.toLowerCase())
-                    );
-                  }}
-                  isOptionEqualToValue={(option, value) => option.value === value.value}
-                  ListboxProps={{
-                    style: {
-                      maxHeight: '200px',
-                      width: '100%'
-                    }
-                  }}
-                  slotProps={{
-                    popper: {
-                      style: {
-                        width: '100%'
-                      },
-                      modifiers: [
-                        {
-                          name: 'preventOverflow',
-                          enabled: true,
-                          options: {
-                            altBoundary: true,
-                            rootBoundary: 'viewport',
-                            padding: 8,
-                          },
-                        },
-                      ],
-                    },
-                  }}
-                />
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-
-        {/* Stats Cards */}
-        <Grid container spacing={3} sx={{ mb: 3 }}>
-          <Grid item xs={12} sm={6} lg={3}>
-            <Card sx={{ p: 3 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Avatar sx={{
-                  bgcolor: 'primary.main',
-                  mr: 2,
-                  width: 48,
-                  height: 48
-                }}>
-                  <PersonIcon />
-                </Avatar>
-                <Box>
-                  <Typography variant="body2" color="text.secondary">
-                    Total Customers
-                  </Typography>
-                  <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
-                    {customers.length}
-                  </Typography>
-                </Box>
-              </Box>
-            </Card>
-          </Grid>
-
-          <Grid item xs={12} sm={6} lg={3}>
-            <Card sx={{ p: 3 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Avatar sx={{
-                  bgcolor: 'success.main',
-                  mr: 2,
-                  width: 48,
-                  height: 48
-                }}>
-                  <BusinessIcon />
-                </Avatar>
-                <Box>
-                  <Typography variant="body2" color="text.secondary">
-                    Account Types
-                  </Typography>
-                  <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
-                    {customers.filter(c => ['CASH_ACCOUNT', 'ACCOUNT_PAYABLE', 'ACCOUNT_RECEIVABLE', 'EXPENSE_ACCOUNT', 'ASSET_ACCOUNT', 'LIABILITY_ACCOUNT'].includes(c.cus_type)).length}
-                  </Typography>
-                </Box>
-              </Box>
-            </Card>
-          </Grid>
-
-          <Grid item xs={12} sm={6} lg={3}>
-            <Card sx={{ p: 3 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Avatar sx={{
-                  bgcolor: 'secondary.main',
-                  mr: 2,
-                  width: 48,
-                  height: 48
-                }}>
-                  <CreditCardIcon />
-                </Avatar>
-                <Box>
-                  <Typography variant="body2" color="text.secondary">
-                    Positive Balance
-                  </Typography>
-                  <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
-                    {customers.filter(c => parseFloat(c.cus_balance) > 0).length}
-                  </Typography>
-                </Box>
-              </Box>
-            </Card>
-          </Grid>
-
-          <Grid item xs={12} sm={6} lg={3}>
-            <Card sx={{ p: 3 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Avatar sx={{
-                  bgcolor: 'warning.main',
-                  mr: 2,
-                  width: 48,
-                  height: 48
-                }}>
-                  <ScheduleIcon />
-                </Avatar>
-                <Box>
-                  <Typography variant="body2" color="text.secondary">
-                    New This Month
-                  </Typography>
-                  <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
-                    {customers.filter(c => {
-                      const createdDate = new Date(c.created_at);
-                      const thisMonth = new Date();
-                      thisMonth.setDate(1);
-                      return createdDate >= thisMonth;
-                    }).length}
-                  </Typography>
-                </Box>
-              </Box>
-            </Card>
-          </Grid>
-        </Grid>
+          </Card>
+        </Box>
 
         {/* Customers Table */}
         <Card sx={{ height: 600, display: 'flex', flexDirection: 'column' }}>
           <Box sx={{ p: 3, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="h6" component="h3" sx={{ fontWeight: 600 }}>
-              Customers List
+              Accounts List
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Showing {filteredCustomers.length} of {customers.length} customers
+              Showing {filteredCustomers.length} of {customers.length} accounts
             </Typography>
           </Box>
           <Box sx={{ flex: 1, overflow: 'auto' }}>
@@ -889,7 +869,7 @@ export default function CustomersPage() {
               <Table stickyHeader>
                 <TableHead>
                   <TableRow>
-                    <TableCell>Customer</TableCell>
+                    <TableCell>Account</TableCell>
                     <TableCell>Contact</TableCell>
                     <TableCell>Type</TableCell>
                     <TableCell>Category</TableCell>
@@ -1014,7 +994,7 @@ export default function CustomersPage() {
           </Box>
         </Card>
 
-        {/* Customer Modal */}
+        {/* Full Replica of Sales Page Customer Modal */}
         <Dialog
           open={showCustomerForm}
           onClose={() => setShowCustomerForm(false)}
@@ -1023,6 +1003,7 @@ export default function CustomersPage() {
           PaperProps={{
             sx: {
               borderRadius: 3,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
               minHeight: '80vh'
             }
           }}
@@ -1048,7 +1029,7 @@ export default function CustomersPage() {
                   {editingCustomer ? 'Edit Customer' : 'Add New Customer'}
                 </Typography>
                 <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                  {editingCustomer ? 'Update customer information' : 'Create a new customer profile'}
+                  {editingCustomer ? 'Update customer profile' : 'Create a new customer profile'}
                 </Typography>
               </Box>
             </Box>
@@ -1061,7 +1042,7 @@ export default function CustomersPage() {
           </DialogTitle>
 
           <DialogContent sx={{ p: 3 }}>
-            <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2 }}>
+            <Box component="form" sx={{ mt: 2 }}>
               {/* Quick Actions */}
               <Box sx={{
                 bgcolor: 'grey.50',
@@ -1087,7 +1068,7 @@ export default function CustomersPage() {
                       }
                     }}
                   >
-                    Add Category
+                    Add Account Category
                   </Button>
                   <Button
                     size="small"
@@ -1132,12 +1113,12 @@ export default function CustomersPage() {
                   <TextField
                     fullWidth
                     required
-                    label="Customer Name"
+                    label="Account Name"
                     name="cus_name"
                     value={formData.cus_name}
                     onChange={handleFormChange}
                     sx={{ minWidth: 250 }}
-                    placeholder="Enter customer name"
+                    placeholder="Enter account name"
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -1189,8 +1170,7 @@ export default function CustomersPage() {
                   />
                 </Grid>
 
-                {/* Second Row - Address, Customer Type, Category */}
-                <Grid item xs={12} md={4}>
+                <Grid item xs={12}>
                   <TextField
                     fullWidth
                     required
@@ -1198,8 +1178,7 @@ export default function CustomersPage() {
                     name="cus_address"
                     value={formData.cus_address}
                     onChange={handleFormChange}
-                    sx={{ minWidth: 250 }}
-                    placeholder="Enter customer address"
+                    placeholder="Enter complete address"
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -1210,27 +1189,19 @@ export default function CustomersPage() {
                   />
                 </Grid>
 
+                {/* Second Row - Customer Type, Category */}
                 <Grid item xs={12} md={4}>
                   <Autocomplete
                     fullWidth
-                    required
-                    options={[
-                      { id: '', title: 'Select a type' },
-                      ...customerTypes.map(type => ({
-                        id: type.cus_type_id,
-                        title: type.cus_type_title
-                      }))
-                    ]}
+                    options={customerTypes.map(type => ({
+                      id: type.cus_type_id,
+                      title: type.cus_type_title
+                    }))}
                     getOptionLabel={(option) => option.title || ''}
                     value={(() => {
-                      const options = [
-                        { id: '', title: 'Select a type' },
-                        ...customerTypes.map(type => ({
-                          id: type.cus_type_id,
-                          title: type.cus_type_title
-                        }))
-                      ];
-                      return options.find(option => option.id === formData.cus_type) || { id: '', title: 'Select a type' };
+                      return customerTypes.find(option => option.cus_type_id === formData.cus_type)
+                        ? { id: formData.cus_type, title: customerTypes.find(option => option.cus_type_id === formData.cus_type).cus_type_title }
+                        : null;
                     })()}
                     onChange={(event, newValue) => {
                       setFormData(prev => ({
@@ -1238,69 +1209,37 @@ export default function CustomersPage() {
                         cus_type: newValue ? newValue.id : ''
                       }));
                     }}
-                    inputValue={customerTypeSearch}
-                    onInputChange={(event, newInputValue) => {
-                      setCustomerTypeSearch(newInputValue);
-                    }}
                     renderInput={(params) => (
                       <TextField
                         {...params}
-                        label="Customer Type"
+                        label="Account Type"
                         required
-                        placeholder="Search or select customer type"
                         sx={{ minWidth: 250 }}
+                        InputProps={{
+                          ...params.InputProps,
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <PersonIcon />
+                            </InputAdornment>
+                          ),
+                        }}
                       />
                     )}
-                    renderOption={(props, option) => {
-                      const { key, ...optionProps } = props;
-                      return (
-                        <Box component="li" key={key} {...optionProps}>
-                          {option.title}
-                        </Box>
-                      );
-                    }}
-                    filterOptions={(options, { inputValue }) => {
-                      return options.filter(option =>
-                        option.title.toLowerCase().includes(inputValue.toLowerCase())
-                      );
-                    }}
-                    isOptionEqualToValue={(option, value) => option.id === value.id}
-                    ListboxProps={{
-                      style: {
-                        maxHeight: '200px'
-                      }
-                    }}
-                    slotProps={{
-                      popper: {
-                        style: {
-                          width: '300px'
-                        }
-                      }
-                    }}
                   />
                 </Grid>
 
                 <Grid item xs={12} md={4}>
                   <Autocomplete
                     fullWidth
-                    required
-                    options={[
-                      { id: '', title: 'Select a category' },
-                      ...customerCategories.map(category => ({
-                        id: category.cus_cat_id,
-                        title: category.cus_cat_title
-                      }))
-                    ]}
+                    options={customerCategories.map(category => ({
+                      id: category.cus_cat_id,
+                      title: category.cus_cat_title
+                    }))}
                     getOptionLabel={(option) => option.title || ''}
                     value={(() => {
-                      const options = [
-                        { id: '', title: 'Select a category' },
-                        ...customerCategories.map(category => ({
-                          id: category.cus_cat_id,
-                          title: category.cus_cat_title
-                        }))
-                      ];
-                      return options.find(option => option.id === formData.cus_category) || { id: '', title: 'Select a category' };
+                      return customerCategories.find(option => option.cus_cat_id === formData.cus_category)
+                        ? { id: formData.cus_category, title: customerCategories.find(option => option.cus_cat_id === formData.cus_category).cus_cat_title }
+                        : null;
                     })()}
                     onChange={(event, newValue) => {
                       setFormData(prev => ({
@@ -1308,49 +1247,26 @@ export default function CustomersPage() {
                         cus_category: newValue ? newValue.id : ''
                       }));
                     }}
-                    inputValue={categorySearch}
-                    onInputChange={(event, newInputValue) => {
-                      setCategorySearch(newInputValue);
-                    }}
                     renderInput={(params) => (
                       <TextField
                         {...params}
-                        label="Category"
+                        label="Account Category"
                         required
-                        placeholder="Search or select category"
                         sx={{ minWidth: 250 }}
+                        InputProps={{
+                          ...params.InputProps,
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <BusinessIcon />
+                            </InputAdornment>
+                          ),
+                        }}
                       />
                     )}
-                    renderOption={(props, option) => {
-                      const { key, ...optionProps } = props;
-                      return (
-                        <Box component="li" key={key} {...optionProps}>
-                          {option.title}
-                        </Box>
-                      );
-                    }}
-                    filterOptions={(options, { inputValue }) => {
-                      return options.filter(option =>
-                        option.title.toLowerCase().includes(inputValue.toLowerCase())
-                      );
-                    }}
-                    isOptionEqualToValue={(option, value) => option.id === value.id}
-                    ListboxProps={{
-                      style: {
-                        maxHeight: '200px'
-                      }
-                    }}
-                    slotProps={{
-                      popper: {
-                        style: {
-                          width: '300px'
-                        }
-                      }
-                    }}
                   />
                 </Grid>
 
-                {/* Third Row - Reference, Account Info, CNIC */}
+                {/* Third Row - Reference, Account Info, City */}
                 <Grid item xs={12} md={4}>
                   <TextField
                     fullWidth
@@ -1376,6 +1292,44 @@ export default function CustomersPage() {
                 </Grid>
 
                 <Grid item xs={12} md={4}>
+                  <Autocomplete
+                    fullWidth
+                    options={cities.map(city => ({
+                      id: city.city_id,
+                      title: city.city_name
+                    }))}
+                    getOptionLabel={(option) => option.title || ''}
+                    value={(() => {
+                      return cities.find(option => option.city_id === formData.city_id)
+                        ? { id: formData.city_id, title: cities.find(option => option.city_id === formData.city_id).city_name }
+                        : null;
+                    })()}
+                    onChange={(event, newValue) => {
+                      setFormData(prev => ({
+                        ...prev,
+                        city_id: newValue ? newValue.id : ''
+                      }));
+                    }}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="City"
+                        sx={{ minWidth: 250 }}
+                        InputProps={{
+                          ...params.InputProps,
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <LocationIcon />
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+                    )}
+                  />
+                </Grid>
+
+                {/* Fourth Row - CNIC, NTN, Balance */}
+                <Grid item xs={12} md={4}>
                   <TextField
                     fullWidth
                     label="CNIC"
@@ -1387,7 +1341,6 @@ export default function CustomersPage() {
                   />
                 </Grid>
 
-                {/* Fourth Row - NTN, Urdu Name, City */}
                 <Grid item xs={12} md={4}>
                   <TextField
                     fullWidth
@@ -1403,88 +1356,7 @@ export default function CustomersPage() {
                 <Grid item xs={12} md={4}>
                   <TextField
                     fullWidth
-                    label="Name in Urdu"
-                    name="name_urdu"
-                    value={formData.name_urdu}
-                    onChange={handleFormChange}
-                    sx={{ minWidth: 250 }}
-                    placeholder="Enter name in Urdu"
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={4}>
-                  <Autocomplete
-                    fullWidth
-                    options={[
-                      { id: '', name: 'Select a city' },
-                      ...cities.map(city => ({
-                        id: city.city_id,
-                        name: city.city_name
-                      }))
-                    ]}
-                    getOptionLabel={(option) => option.name || ''}
-                    value={(() => {
-                      const options = [
-                        { id: '', name: 'Select a city' },
-                        ...cities.map(city => ({
-                          id: city.city_id,
-                          name: city.city_name
-                        }))
-                      ];
-                      return options.find(option => option.id === formData.city_id) || { id: '', name: 'Select a city' };
-                    })()}
-                    onChange={(event, newValue) => {
-                      setFormData(prev => ({
-                        ...prev,
-                        city_id: newValue ? newValue.id : ''
-                      }));
-                    }}
-                    inputValue={citySearch}
-                    onInputChange={(event, newInputValue) => {
-                      setCitySearch(newInputValue);
-                    }}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        label="City"
-                        placeholder="Search or select city"
-                        sx={{ minWidth: 250 }}
-                      />
-                    )}
-                    renderOption={(props, option) => {
-                      const { key, ...optionProps } = props;
-                      return (
-                        <Box component="li" key={key} {...optionProps}>
-                          {option.name}
-                        </Box>
-                      );
-                    }}
-                    filterOptions={(options, { inputValue }) => {
-                      return options.filter(option =>
-                        option.name.toLowerCase().includes(inputValue.toLowerCase())
-                      );
-                    }}
-                    isOptionEqualToValue={(option, value) => option.id === value.id}
-                    ListboxProps={{
-                      style: {
-                        maxHeight: '200px'
-                      }
-                    }}
-                    slotProps={{
-                      popper: {
-                        style: {
-                          width: '100%'
-                        }
-                      }
-                    }}
-                  />
-                </Grid>
-
-                {/* Fifth Row - Balance, Other Information */}
-                <Grid item xs={12} md={4}>
-                  <TextField
-                    fullWidth
-                    label="Balance"
+                    label="Initial Balance"
                     name="cus_balance"
                     type="number"
                     inputProps={{ step: "0.01" }}
@@ -1495,14 +1367,15 @@ export default function CustomersPage() {
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
-                          <CreditCardIcon />
+                          <AttachMoneyIcon />
                         </InputAdornment>
                       ),
                     }}
                   />
                 </Grid>
 
-                <Grid item xs={12} md={4}>
+                {/* Fifth Row - Other, Name in Urdu */}
+                <Grid item xs={12} md={6}>
                   <TextField
                     fullWidth
                     label="Other Information"
@@ -1510,45 +1383,39 @@ export default function CustomersPage() {
                     value={formData.other}
                     onChange={handleFormChange}
                     sx={{ minWidth: 250 }}
-                    placeholder="Enter additional information"
+                    placeholder="Enter other information"
                   />
                 </Grid>
 
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Name in Urdu"
+                    name="name_urdu"
+                    value={formData.name_urdu}
+                    onChange={handleFormChange}
+                    sx={{ minWidth: 250 }}
+                    placeholder="Enter name in Urdu"
+                  />
+                </Grid>
               </Grid>
             </Box>
           </DialogContent>
 
           <DialogActions sx={{ p: 3, borderTop: 1, borderColor: 'divider' }}>
-            <Button
-              onClick={() => setShowCustomerForm(false)}
-              sx={{ textTransform: 'none' }}
-            >
+            <Button onClick={() => setShowCustomerForm(false)} color="primary">
               Cancel
             </Button>
             <Button
-              type="submit"
+              onClick={handleSubmit}
               variant="contained"
               disabled={isSubmitting}
-              onClick={handleSubmit}
-              sx={{
-                background: 'linear-gradient(45deg, #2196f3 30%, #9c27b0 90%)',
-                textTransform: 'none',
-                px: 3,
-                '&:hover': {
-                  background: 'linear-gradient(45deg, #1976d2 30%, #7b1fa2 90%)',
-                }
-              }}
+              sx={{ bgcolor: '#6f42c1', '&:hover': { bgcolor: '#5a2d91' } }}
             >
               {isSubmitting ? (
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <CircularProgress size={16} sx={{ mr: 1, color: 'white' }} />
-                  {editingCustomer ? 'Updating...' : 'Creating...'}
-                </Box>
+                <CircularProgress size={24} color="inherit" />
               ) : (
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  {editingCustomer ? 'Update Customer' : 'Create Customer'}
-                  <CheckIcon sx={{ ml: 1 }} />
-                </Box>
+                editingCustomer ? 'Update Customer' : 'Create Customer'
               )}
             </Button>
           </DialogActions>
@@ -1582,7 +1449,7 @@ export default function CustomersPage() {
                   Add Customer Type
                 </Typography>
                 <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                  Create a new customer type
+                  Create a new Customer type
                 </Typography>
               </Box>
             </Box>
@@ -1603,7 +1470,7 @@ export default function CustomersPage() {
                 value={customerTypeFormData.cus_type_title}
                 onChange={(e) => setCustomerTypeFormData({ cus_type_title: e.target.value })}
                 disabled={isAddingCustomerType}
-                placeholder="Enter customer type title"
+                placeholder="Enter account type title"
                 sx={{ mb: 2 }}
               />
             </Box>
@@ -1665,10 +1532,10 @@ export default function CustomersPage() {
               </Avatar>
               <Box>
                 <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
-                  Add Customer Category
+                  Add Account Category
                 </Typography>
                 <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                  Create a new customer category
+                  Create a new Account category
                 </Typography>
               </Box>
             </Box>
@@ -1685,11 +1552,11 @@ export default function CustomersPage() {
               <TextField
                 fullWidth
                 required
-                label="Customer Category Title"
+                label="Account Category Title"
                 value={customerCategoryFormData.cus_cat_title}
                 onChange={(e) => setCustomerCategoryFormData({ cus_cat_title: e.target.value })}
                 disabled={isAddingCustomerCategory}
-                placeholder="Enter customer category title"
+                placeholder="Enter account category title"
                 sx={{ mb: 2 }}
               />
             </Box>

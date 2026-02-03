@@ -32,6 +32,15 @@ export async function GET(request) {
     return NextResponse.json(categories);
   } catch (err) {
     console.error('❌ Error fetching customer categories:', err);
+    
+    // Handle database connection errors
+    if (err.code === 'P1001' || err.message?.includes('Can\'t reach database server')) {
+      return NextResponse.json(
+        { error: 'Database connection failed. Please check if the database server is running.' },
+        { status: 503 }
+      );
+    }
+    
     return errorResponse('Failed to fetch customer categories', 500);
   }
 }
@@ -69,6 +78,14 @@ export async function POST(request) {
     return NextResponse.json(newCategory, { status: 201 });
   } catch (err) {
     console.error('❌ Error creating customer category:', err);
+    
+    if (err.code === 'P1001' || err.message?.includes('Can\'t reach database server')) {
+      return NextResponse.json(
+        { error: 'Database connection failed. Please check if the database server is running.' },
+        { status: 503 }
+      );
+    }
+    
     return errorResponse('Failed to create customer category', 500);
   }
 }
@@ -115,6 +132,14 @@ export async function PUT(request) {
     return NextResponse.json(updated);
   } catch (err) {
     console.error('❌ Error updating customer category:', err);
+    
+    if (err.code === 'P1001' || err.message?.includes('Can\'t reach database server')) {
+      return NextResponse.json(
+        { error: 'Database connection failed. Please check if the database server is running.' },
+        { status: 503 }
+      );
+    }
+    
     return errorResponse('Failed to update customer category', 500);
   }
 }
@@ -144,6 +169,14 @@ export async function DELETE(request) {
     return NextResponse.json({ message: 'Customer category deleted successfully' });
   } catch (err) {
     console.error('❌ Error deleting customer category:', err);
+    
+    if (err.code === 'P1001' || err.message?.includes('Can\'t reach database server')) {
+      return NextResponse.json(
+        { error: 'Database connection failed. Please check if the database server is running.' },
+        { status: 503 }
+      );
+    }
+    
     return errorResponse('Failed to delete customer category', 500);
   }
 }

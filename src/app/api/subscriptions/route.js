@@ -1,23 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-
-// Helper function to create ledger entry
-async function createLedgerEntry(tx, data) {
-  return await tx.ledger.create({
-    data: {
-      cus_id: data.cus_id,
-      opening_balance: data.opening_balance,
-      debit_amount: data.debit_amount || 0,
-      credit_amount: data.credit_amount || 0,
-      closing_balance: data.closing_balance,
-      bill_no: data.bill_no,
-      trnx_type: data.trnx_type,
-      details: data.details,
-      payments: data.payments || 0,
-      updated_by: data.updated_by
-    }
-  });
-}
+import { createLedgerEntry } from '@/lib/ledger-helper';
 
 // GET - Fetch all subscriptions
 export async function GET(request) {
@@ -158,7 +141,7 @@ export async function POST(request) {
         });
 
         // Create ledger entry for subscription payment
-        await createLedgerEntry(tx, {
+        const ledgerData = createLedgerEntry({
           cus_id,
           opening_balance: parseFloat(customer.cus_balance),
           debit_amount: 0,
@@ -170,6 +153,8 @@ export async function POST(request) {
           payments: packagePrice,
           updated_by: updated_by || null
         });
+        
+        await tx.ledger.create({ data: ledgerData });
       }
 
       // Return subscription with related data

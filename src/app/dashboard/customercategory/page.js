@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Tag, Edit, Trash2, Check, Calendar, Users, X } from 'lucide-react';
+import { Plus, Tag, Edit, Trash2, Check, Calendar, Users, X, Search, Filter, ArrowUp, LayoutGrid, Clock, ListChecks } from 'lucide-react';
+import { Fragment } from 'react';
 import DashboardLayout from '../components/dashboard-layout';
 
 // Material-UI imports
@@ -94,7 +95,7 @@ export default function CustomerCategoryPage() {
       } else {
         setSnackbar({
           open: true,
-          message: 'Failed to fetch customer categories',
+          message: 'Failed to fetch account categories',
           severity: 'error'
         });
       }
@@ -113,7 +114,7 @@ export default function CustomerCategoryPage() {
   const handleAddCategory = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
     try {
       const response = await fetch('/api/customer-category', {
         method: 'POST',
@@ -164,7 +165,7 @@ export default function CustomerCategoryPage() {
   const handleUpdateCategory = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
     try {
       const response = await fetch('/api/customer-category', {
         method: 'PUT',
@@ -179,7 +180,7 @@ export default function CustomerCategoryPage() {
 
       if (response.ok) {
         const updatedCategory = await response.json();
-        setCustomerCategories(prev => prev.map(category => 
+        setCustomerCategories(prev => prev.map(category =>
           category.cus_cat_id === editingCategory.cus_cat_id ? updatedCategory : category
         ));
         setShowCategoryForm(false);
@@ -253,7 +254,7 @@ export default function CustomerCategoryPage() {
 
   const handleSubmitCategory = async (e) => {
     e.preventDefault();
-    
+
     // Validation
     if (!categoryForm.cus_cat_title.trim()) {
       setSnackbar({
@@ -263,9 +264,9 @@ export default function CustomerCategoryPage() {
       });
       return;
     }
-    
+
     console.log('Submitting category form:', categoryForm);
-    
+
     if (editingCategory) {
       await handleUpdateCategory(e);
     } else {
@@ -285,19 +286,19 @@ export default function CustomerCategoryPage() {
 
   // Filter and sort categories
   const filteredAndSortedCategories = customerCategories
-    .filter(category => 
+    .filter(category =>
       category.cus_cat_title.toLowerCase().includes(searchTerm.toLowerCase())
     )
     .sort((a, b) => {
       let aValue = a[sortBy];
       let bValue = b[sortBy];
-      
+
       // Handle date sorting
       if (sortBy === 'created_at' || sortBy === 'updated_at') {
         aValue = new Date(aValue);
         bValue = new Date(bValue);
       }
-      
+
       if (sortOrder === 'asc') {
         return aValue > bValue ? 1 : -1;
       } else {
@@ -348,227 +349,247 @@ export default function CustomerCategoryPage() {
     <DashboardLayout>
       <Container maxWidth="xl" sx={{ py: 4 }}>
         <Stack spacing={4}>
-      {/* Header */}
+          {/* Header */}
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <Box>
               <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
-                Customer Categories
+                Account Categories
               </Typography>
               <Typography variant="body1" sx={{ color: 'text.secondary', mt: 1 }}>
-                Manage customer categories for better organization
+                Manage account categories for better organization
               </Typography>
             </Box>
             <Button
               variant="contained"
-              startIcon={<AddIcon />}
-          onClick={() => setShowCategoryForm(true)}
+              startIcon={<Plus size={20} />}
+              onClick={() => setShowCategoryForm(true)}
               sx={{
-                background: 'linear-gradient(45deg, #2196F3 30%, #9C27B0 90%)',
-                boxShadow: '0 3px 5px 2px rgba(33, 203, 243, .3)',
+                background: 'linear-gradient(45deg, #2196f3, #9c27b0)',
                 '&:hover': {
-                  background: 'linear-gradient(45deg, #1976D2 30%, #7B1FA2 90%)',
-                  transform: 'scale(1.05)',
+                  background: 'linear-gradient(45deg, #1976d2, #7b1fa2)',
+                  boxShadow: 6,
+                  transform: 'translateY(-2px)',
                 },
+                px: 4,
+                py: 1.5,
+                borderRadius: 1.5,
+                textTransform: 'none',
+                fontWeight: 600,
+                boxShadow: 3,
                 transition: 'all 0.2s ease-in-out'
               }}
             >
-            Add New Category
+              Add New Category
             </Button>
           </Box>
 
-      {/* Filters */}
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-                <Typography variant="h6" component="h3" sx={{ fontWeight: 'semibold' }}>
-                  Filters & Sorting
-                </Typography>
-                <Button
-                  variant="text"
-                  size="small"
-            onClick={clearFilters}
-                  sx={{ color: 'primary.main' }}
-          >
-            Clear All Filters
-                </Button>
-              </Box>
-        
-              <Grid container spacing={3}>
-          {/* Search */}
-                <Grid item xs={12} md={4}>
-                  <TextField
-                    fullWidth
-                    label="Search"
-              placeholder="Search categories..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-                    sx={{ minWidth: 300 }}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <SearchIcon />
-                        </InputAdornment>
-                      ),
+          {/* Premium Filters Section */}
+          <Box sx={{ flexShrink: 0, width: '100%' }}>
+            <Card sx={{
+              borderRadius: 2,
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+              border: '1px solid #e2e8f0',
+              bgcolor: '#f8fafc'
+            }}>
+              <CardContent sx={{ p: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: '#334155' }}>
+                    Filters & Sorting
+                  </Typography>
+                  <Button
+                    onClick={clearFilters}
+                    size="small"
+                    sx={{
+                      color: '#64748b',
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      '&:hover': { color: '#ef4444' }
                     }}
-                  />
-                </Grid>
+                  >
+                    Clear All Filters
+                  </Button>
+                </Box>
 
-          {/* Sort By */}
-                <Grid item xs={12} md={4}>
-                  <FormControl fullWidth sx={{ minWidth: 300 }}>
-                    <InputLabel>Sort By</InputLabel>
-                    <Select
-              value={sortBy}
-                      label="Sort By"
-              onChange={(e) => setSortBy(e.target.value)}
-                    >
-                      <MenuItem value="cus_cat_title">Category Title</MenuItem>
-                      <MenuItem value="created_at">Created Date</MenuItem>
-                      <MenuItem value="updated_at">Updated Date</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-
-          {/* Sort Order */}
-                <Grid item xs={12} md={4}>
-                  <FormControl fullWidth sx={{ minWidth: 300 }}>
-                    <InputLabel>Order</InputLabel>
-                    <Select
-              value={sortOrder}
-                      label="Order"
-              onChange={(e) => setSortOrder(e.target.value)}
-                    >
-                      <MenuItem value="asc">Ascending</MenuItem>
-                      <MenuItem value="desc">Descending</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
-
-      {/* Stats Cards */}
-          <Grid container spacing={3}>
-            <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Avatar
-                      sx={{
-                        width: 48,
-                        height: 48,
-                        mr: 2,
-                        background: 'linear-gradient(45deg, #2196F3 30%, #00BCD4 90%)'
+                <Box sx={{
+                  display: 'grid',
+                  gridTemplateColumns: {
+                    xs: '1fr',
+                    sm: '1fr 1fr',
+                    md: 'repeat(3, 1fr)'
+                  },
+                  gap: 3,
+                  width: '100%'
+                }}>
+                  {/* Search */}
+                  <Box>
+                    <TextField
+                      fullWidth
+                      label="Search"
+                      placeholder="Search categories..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start" sx={{ mr: 1 }}>
+                            <Search size={18} color="#94a3b8" />
+                          </InputAdornment>
+                        ),
                       }}
-                    >
-                      <TagIcon />
-                    </Avatar>
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">
-                        Total Categories
-                      </Typography>
-                      <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
-                        {totalCategories}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Avatar
                       sx={{
-                        width: 48,
-                        height: 48,
-                        mr: 2,
-                        background: 'linear-gradient(45deg, #4CAF50 30%, #8BC34A 90%)'
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: 1.5,
+                          bgcolor: 'white',
+                        }
                       }}
-                    >
-                      <CheckIcon />
-                    </Avatar>
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">
-                        Active Categories
-                      </Typography>
-                      <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
-                        {activeCategories}
-                      </Typography>
-                    </Box>
+                    />
                   </Box>
-                </CardContent>
-              </Card>
-            </Grid>
 
-            <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Avatar
-                      sx={{
-                        width: 48,
-                        height: 48,
-                        mr: 2,
-                        background: 'linear-gradient(45deg, #9C27B0 30%, #E91E63 90%)'
-                      }}
-                    >
-                      <CalendarIcon />
-                    </Avatar>
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">
-                        Recent Additions
-                      </Typography>
-                      <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
-                        {recentAdditions}
-                      </Typography>
-                    </Box>
+                  {/* Sort By */}
+                  <Box>
+                    <FormControl fullWidth>
+                      <InputLabel>Sort By</InputLabel>
+                      <Select
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value)}
+                        label="Sort By"
+                        startAdornment={
+                          <InputAdornment position="start" sx={{ mr: 1, ml: -0.5 }}>
+                            <Filter size={18} color="#94a3b8" />
+                          </InputAdornment>
+                        }
+                        sx={{
+                          borderRadius: 1.5,
+                          bgcolor: 'white',
+                        }}
+                      >
+                        <MenuItem value="cus_cat_title">Category Title</MenuItem>
+                        <MenuItem value="created_at">Created Date</MenuItem>
+                        <MenuItem value="updated_at">Updated Date</MenuItem>
+                      </Select>
+                    </FormControl>
                   </Box>
-                </CardContent>
-              </Card>
-            </Grid>
 
-            <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Avatar
-                      sx={{
-                        width: 48,
-                        height: 48,
-                        mr: 2,
-                        background: 'linear-gradient(45deg, #FF9800 30%, #F44336 90%)'
-                      }}
-                    >
-                      <PeopleIcon />
-                    </Avatar>
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">
-                        Categories Used
-                      </Typography>
-                      <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
-                        {totalCategories}
-                      </Typography>
-                    </Box>
+                  {/* Sort Order */}
+                  <Box>
+                    <FormControl fullWidth>
+                      <InputLabel>Order</InputLabel>
+                      <Select
+                        value={sortOrder}
+                        onChange={(e) => setSortOrder(e.target.value)}
+                        label="Order"
+                        startAdornment={
+                          <InputAdornment position="start" sx={{ mr: 1, ml: -0.5 }}>
+                            <ArrowUp size={18} color="#94a3b8" />
+                          </InputAdornment>
+                        }
+                        sx={{
+                          borderRadius: 1.5,
+                          bgcolor: 'white',
+                        }}
+                      >
+                        <MenuItem value="asc">Ascending</MenuItem>
+                        <MenuItem value="desc">Descending</MenuItem>
+                      </Select>
+                    </FormControl>
                   </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
+                </Box>
+              </CardContent>
+            </Card>
+          </Box>
 
-      {/* Categories Table */}
-          <Card sx={{ height: 600, display: 'flex', flexDirection: 'column' }}>
-            <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Typography variant="h6" component="h3" sx={{ fontWeight: 'semibold' }}>
-                Customer Categories
+          {/* Unified Professional Stats Bar */}
+          <Box sx={{ flexShrink: 0, width: '100%' }}>
+            <Card sx={{
+              borderRadius: 2,
+              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+              overflow: 'hidden',
+              bgcolor: 'white',
+              border: '1px solid #e5e7eb'
+            }}>
+              <Box sx={{
+                display: 'flex',
+                flexDirection: { xs: 'column', md: 'row' },
+                alignItems: 'stretch',
+                justifyContent: 'space-between',
+                p: 0
+              }}>
+                {[
+                  { title: 'Total Categories', val: totalCategories, color: '#2563eb', bg: '#eff6ff', icon: <LayoutGrid size={24} /> },
+                  { title: 'Active Categories', val: activeCategories, color: '#16a34a', bg: '#f0fdf4', icon: <ListChecks size={24} /> },
+                  { title: 'Recent Additions', val: recentAdditions, color: '#9333ea', bg: '#f5f3ff', icon: <Clock size={24} /> },
+                  { title: 'Categories Used', val: totalCategories, color: '#d97706', bg: '#fffbeb', icon: <Tag size={24} /> }
+                ].map((stat, i) => (
+                  <Fragment key={i}>
+                    <Box sx={{
+                      flex: 1,
+                      p: 3,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 2.5,
+                      width: '100%',
+                      bgcolor: stat.bg,
+                      position: 'relative',
+                      borderBottom: i < 3 && { xs: '1px solid #e5e7eb', md: 'none' },
+                      '&:hover': {
+                        bgcolor: 'white',
+                        transition: 'background-color 0.3s'
+                      }
+                    }}>
+                      <Avatar sx={{
+                        bgcolor: 'white',
+                        color: stat.color,
+                        width: 52,
+                        height: 52,
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                        border: `1.5px solid ${stat.color}20`
+                      }}>
+                        {stat.icon}
+                      </Avatar>
+                      <Box>
+                        <Typography variant="overline" sx={{
+                          display: 'block',
+                          lineHeight: 1,
+                          mb: 0.5,
+                          color: '#6b7280',
+                          fontWeight: 700,
+                          letterSpacing: 1.2
+                        }}>
+                          {stat.title}
+                        </Typography>
+                        <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: 0.5, color: stat.color }}>
+                          {stat.val.toLocaleString()}
+                        </Typography>
+                      </Box>
+                    </Box>
+                    {i < 3 && (
+                      <Divider
+                        orientation="vertical"
+                        flexItem
+                        sx={{
+                          display: { xs: 'none', md: 'block' },
+                          bgcolor: '#e5e7eb',
+                          height: 60,
+                          my: 'auto'
+                        }}
+                      />
+                    )}
+                  </Fragment>
+                ))}
+              </Box>
+            </Card>
+          </Box>
+
+          {/* Categories Table */}
+          <Card sx={{ height: 600, display: 'flex', flexDirection: 'column', borderRadius: 2, border: '1px solid #e2e8f0' }}>
+            <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between', bgcolor: '#f8fafc' }}>
+              <Typography variant="h6" component="h3" sx={{ fontWeight: 700, color: '#334155' }}>
+                Account Categories
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-            Showing {filteredAndSortedCategories.length} of {customerCategories.length} categories
+              <Typography variant="body2" sx={{ color: '#64748b', fontWeight: 500 }}>
+                Showing {filteredAndSortedCategories.length} of {customerCategories.length} categories
               </Typography>
             </Box>
-            <TableContainer component={Paper} sx={{ flex: 1, overflow: 'auto' }}>
+            <TableContainer component={Paper} sx={{ flex: 1, overflow: 'auto', boxShadow: 'none' }}>
               <Table stickyHeader>
                 <TableHead>
                   <TableRow>
@@ -580,7 +601,7 @@ export default function CustomerCategoryPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-              {filteredAndSortedCategories.map((category) => (
+                  {filteredAndSortedCategories.map((category) => (
                     <TableRow key={category.cus_cat_id} hover>
                       <TableCell>
                         <Chip label={`#${category.sequentialId}`} size="small" variant="outlined" />
@@ -592,12 +613,12 @@ export default function CustomerCategoryPage() {
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" color="text.secondary">
-                    {new Date(category.created_at).toLocaleDateString()}
+                          {new Date(category.created_at).toLocaleDateString()}
                         </Typography>
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" color="text.secondary">
-                    {new Date(category.updated_at).toLocaleDateString()}
+                          {new Date(category.updated_at).toLocaleDateString()}
                         </Typography>
                       </TableCell>
                       <TableCell align="center">
@@ -606,7 +627,7 @@ export default function CustomerCategoryPage() {
                             <IconButton
                               size="small"
                               color="primary"
-                        onClick={() => handleEditCategory(category)}
+                              onClick={() => handleEditCategory(category)}
                             >
                               <EditIcon />
                             </IconButton>
@@ -615,7 +636,7 @@ export default function CustomerCategoryPage() {
                             <IconButton
                               size="small"
                               color="error"
-                        onClick={() => handleDeleteCategory(category.cus_cat_id)}
+                              onClick={() => handleDeleteCategory(category.cus_cat_id)}
                             >
                               <DeleteIcon />
                             </IconButton>
@@ -637,10 +658,7 @@ export default function CustomerCategoryPage() {
             fullWidth
             PaperProps={{
               sx: {
-                borderRadius: 3,
-                background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.9) 100%)',
-                backdropFilter: 'blur(20px)',
-                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+                borderRadius: 2,
               }
             }}
           >
@@ -668,10 +686,10 @@ export default function CustomerCategoryPage() {
                 </Avatar>
                 <Box>
                   <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
-                        {editingCategory ? 'Edit Category' : 'Add New Category'}
+                    {editingCategory ? 'Edit Account Category' : 'Add New Account Category'}
                   </Typography>
                   <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                        {editingCategory ? 'Update category information' : 'Create a new customer category'}
+                    {editingCategory ? 'Update category information' : 'Create a new account category'}
                   </Typography>
                 </Box>
               </Box>
@@ -697,11 +715,15 @@ export default function CustomerCategoryPage() {
                   fullWidth
                   required
                   label="Category Title"
-                      name="cus_cat_title"
-                      value={categoryForm.cus_cat_title}
-                      onChange={handleCategoryFormChange}
-                      placeholder="Enter category title (e.g., VIP Customers)"
-                  sx={{ mb: 3, minWidth: 300 }}
+                  name="cus_cat_title"
+                  value={categoryForm.cus_cat_title}
+                  onChange={handleCategoryFormChange}
+                  placeholder="Enter category title (e.g., VIP Customers)"
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 1.5,
+                    }
+                  }}
                 />
               </Box>
             </DialogContent>
@@ -711,8 +733,8 @@ export default function CustomerCategoryPage() {
                 onClick={handleCloseDialog}
                 variant="outlined"
                 sx={{ mr: 2 }}
-                    >
-                      Cancel
+              >
+                Cancel
               </Button>
               <Button
                 onClick={handleSubmitCategory}
@@ -720,11 +742,19 @@ export default function CustomerCategoryPage() {
                 disabled={isSubmitting}
                 startIcon={isSubmitting ? <CircularProgress size={20} /> : <SaveIcon />}
                 sx={{
-                  background: 'linear-gradient(45deg, #2196F3 30%, #9C27B0 90%)',
-                  boxShadow: '0 3px 5px 2px rgba(33, 203, 243, .3)',
+                  background: 'linear-gradient(45deg, #2196f3, #9c27b0)',
                   '&:hover': {
-                    background: 'linear-gradient(45deg, #1976D2 30%, #7B1FA2 90%)',
-                  }
+                    background: 'linear-gradient(45deg, #1976d2, #7b1fa2)',
+                    boxShadow: 6,
+                    transform: 'translateY(-2px)',
+                  },
+                  px: 4,
+                  py: 1.5,
+                  borderRadius: 1.5,
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  boxShadow: 3,
+                  transition: 'all 0.2s ease-in-out'
                 }}
               >
                 {isSubmitting ? 'Saving...' : editingCategory ? 'Update Category' : 'Create Category'}

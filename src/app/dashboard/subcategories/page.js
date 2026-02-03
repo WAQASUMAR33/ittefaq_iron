@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
+import { Package, Search, Filter, ArrowUp, Plus, Edit, Trash2, X, Tag, Folder, Boxes, Calendar } from 'lucide-react';
 import DashboardLayout from '../components/dashboard-layout';
 
 // Material-UI imports
@@ -36,7 +37,8 @@ import {
   FormControl,
   InputLabel,
   Select,
-  MenuItem
+  MenuItem,
+  Divider
 } from '@mui/material';
 
 // Material Icons
@@ -97,7 +99,7 @@ export default function SubCategoriesPage() {
       if (categoriesRes.ok && subCategoriesRes.ok) {
         const categoriesData = await categoriesRes.json();
         const subCategoriesData = await subCategoriesRes.json();
-        
+
         setCategories(categoriesData);
         setSubCategories(subCategoriesData);
       } else {
@@ -122,7 +124,7 @@ export default function SubCategoriesPage() {
   const handleAddSubCategory = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
     try {
       const response = await fetch('/api/subcategories', {
         method: 'POST',
@@ -177,7 +179,7 @@ export default function SubCategoriesPage() {
   const handleUpdateSubCategory = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
     try {
       const response = await fetch('/api/subcategories', {
         method: 'PUT',
@@ -192,7 +194,7 @@ export default function SubCategoriesPage() {
 
       if (response.ok) {
         const updatedSubCategory = await response.json();
-        setSubCategories(prev => prev.map(subCategory => 
+        setSubCategories(prev => prev.map(subCategory =>
           subCategory.sub_cat_id === editingSubCategory.sub_cat_id ? updatedSubCategory : subCategory
         ));
         setShowSubCategoryForm(false);
@@ -269,7 +271,7 @@ export default function SubCategoriesPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     // Validate form
     if (!formData.cat_id) {
       setSnackbar({
@@ -279,7 +281,7 @@ export default function SubCategoriesPage() {
       });
       return;
     }
-    
+
     if (!formData.sub_cat_name.trim()) {
       setSnackbar({
         open: true,
@@ -310,21 +312,21 @@ export default function SubCategoriesPage() {
   const filteredAndSortedSubCategories = subCategories
     .filter(subCategory => {
       const matchesSearch = subCategory.sub_cat_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           subCategory.category?.cat_name.toLowerCase().includes(searchTerm.toLowerCase());
+        subCategory.category?.cat_name.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory = categoryFilter === 'all' || subCategory.cat_id === categoryFilter;
-      
+
       return matchesSearch && matchesCategory;
     })
     .sort((a, b) => {
       let aValue = a[sortBy];
       let bValue = b[sortBy];
-      
+
       // Handle date sorting
       if (sortBy === 'created_at' || sortBy === 'updated_at') {
         aValue = new Date(aValue);
         bValue = new Date(bValue);
       }
-      
+
       if (sortOrder === 'asc') {
         return aValue > bValue ? 1 : -1;
       } else {
@@ -389,15 +391,21 @@ export default function SubCategoriesPage() {
             </Box>
             <Button
               variant="contained"
-              startIcon={<AddIcon />}
+              startIcon={<Plus size={20} />}
               onClick={() => setShowSubCategoryForm(true)}
               sx={{
-                background: 'linear-gradient(45deg, #2196F3 30%, #9C27B0 90%)',
-                boxShadow: '0 3px 5px 2px rgba(33, 203, 243, .3)',
+                background: 'linear-gradient(45deg, #2196f3, #9c27b0)',
                 '&:hover': {
-                  background: 'linear-gradient(45deg, #1976D2 30%, #7B1FA2 90%)',
-                  transform: 'scale(1.05)',
+                  background: 'linear-gradient(45deg, #1976d2, #7b1fa2)',
+                  boxShadow: 6,
+                  transform: 'translateY(-2px)',
                 },
+                px: 4,
+                py: 1.5,
+                borderRadius: 1.5,
+                textTransform: 'none',
+                fontWeight: 600,
+                boxShadow: 3,
                 transition: 'all 0.2s ease-in-out'
               }}
             >
@@ -405,218 +413,242 @@ export default function SubCategoriesPage() {
             </Button>
           </Box>
 
-          {/* Filters */}
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-                <Typography variant="h6" component="h3" sx={{ fontWeight: 'semibold' }}>
-                  Filters & Sorting
-                </Typography>
-                <Button
-                  variant="text"
-                  size="small"
-                  onClick={clearFilters}
-                  sx={{ color: 'primary.main' }}
-                >
-                  Clear All Filters
-                </Button>
-              </Box>
-              
-              <Grid container spacing={3}>
-                {/* Search */}
-                <Grid item xs={12} md={3}>
-                  <TextField
-                    fullWidth
-                    label="Search"
-                    placeholder="Search subcategories..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <SearchIcon />
-                        </InputAdornment>
-                      ),
+          {/* Premium Filters Section */}
+          <Box sx={{ flexShrink: 0, width: '100%' }}>
+            <Card sx={{
+              borderRadius: 2,
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+              border: '1px solid #e2e8f0',
+              bgcolor: '#f8fafc'
+            }}>
+              <CardContent sx={{ p: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: '#334155' }}>
+                    Filters & Sorting
+                  </Typography>
+                  <Button
+                    onClick={clearFilters}
+                    size="small"
+                    sx={{
+                      color: '#64748b',
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      '&:hover': { color: '#ef4444' }
                     }}
-                  />
-                </Grid>
+                  >
+                    Clear All Filters
+                  </Button>
+                </Box>
 
-                {/* Category Filter */}
-                <Grid item xs={12} md={3}>
-                  <FormControl fullWidth>
-                    <InputLabel>Category</InputLabel>
-                    <Select
-                      value={categoryFilter}
-                      label="Category"
-                      onChange={(e) => setCategoryFilter(e.target.value)}
-                    >
-                      <MenuItem value="all">All Categories</MenuItem>
-                      {categories.map(category => (
-                        <MenuItem key={category.cat_id} value={category.cat_id}>
-                          {category.cat_name}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-
-                {/* Sort By */}
-                <Grid item xs={12} md={3}>
-                  <FormControl fullWidth>
-                    <InputLabel>Sort By</InputLabel>
-                    <Select
-                      value={sortBy}
-                      label="Sort By"
-                      onChange={(e) => setSortBy(e.target.value)}
-                    >
-                      <MenuItem value="sub_cat_name">Sub Category Name</MenuItem>
-                      <MenuItem value="product_count">Product Count</MenuItem>
-                      <MenuItem value="created_at">Created Date</MenuItem>
-                      <MenuItem value="updated_at">Updated Date</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-
-                {/* Sort Order */}
-                <Grid item xs={12} md={3}>
-                  <FormControl fullWidth>
-                    <InputLabel>Order</InputLabel>
-                    <Select
-                      value={sortOrder}
-                      label="Order"
-                      onChange={(e) => setSortOrder(e.target.value)}
-                    >
-                      <MenuItem value="asc">Ascending</MenuItem>
-                      <MenuItem value="desc">Descending</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
-
-          {/* Stats Cards */}
-          <Grid container spacing={3}>
-            <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Avatar
-                      sx={{
-                        width: 48,
-                        height: 48,
-                        mr: 2,
-                        background: 'linear-gradient(45deg, #2196F3 30%, #00BCD4 90%)'
+                <Box sx={{
+                  display: 'grid',
+                  gridTemplateColumns: {
+                    xs: '1fr',
+                    sm: '1fr 1fr',
+                    md: 'repeat(4, 1fr)'
+                  },
+                  gap: 3,
+                  width: '100%'
+                }}>
+                  {/* Search */}
+                  <Box>
+                    <TextField
+                      fullWidth
+                      label="Search"
+                      placeholder="Search subcategories..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start" sx={{ mr: 1 }}>
+                            <Search size={18} color="#94a3b8" />
+                          </InputAdornment>
+                        ),
                       }}
-                    >
-                      <FolderOpenIcon />
-                    </Avatar>
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">
-                        Total Sub Categories
-                      </Typography>
-                      <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
-                        {totalSubCategories}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Avatar
                       sx={{
-                        width: 48,
-                        height: 48,
-                        mr: 2,
-                        background: 'linear-gradient(45deg, #4CAF50 30%, #8BC34A 90%)'
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: 1.5,
+                          bgcolor: 'white',
+                        }
                       }}
-                    >
-                      <PackageIcon />
-                    </Avatar>
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">
-                        Total Products
-                      </Typography>
-                      <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
-                        {totalProducts}
-                      </Typography>
-                    </Box>
+                    />
                   </Box>
-                </CardContent>
-              </Card>
-            </Grid>
 
-            <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Avatar
-                      sx={{
-                        width: 48,
-                        height: 48,
-                        mr: 2,
-                        background: 'linear-gradient(45deg, #9C27B0 30%, #E91E63 90%)'
-                      }}
-                    >
-                      <TagIcon />
-                    </Avatar>
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">
-                        Categories Used
-                      </Typography>
-                      <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
-                        {categoriesWithSubCategories}
-                      </Typography>
-                    </Box>
+                  {/* Category Filter */}
+                  <Box>
+                    <FormControl fullWidth>
+                      <InputLabel>Category</InputLabel>
+                      <Select
+                        value={categoryFilter}
+                        label="Category"
+                        onChange={(e) => setCategoryFilter(e.target.value)}
+                        startAdornment={
+                          <InputAdornment position="start" sx={{ mr: 1, ml: -0.5 }}>
+                            <Folder size={18} color="#94a3b8" />
+                          </InputAdornment>
+                        }
+                        sx={{
+                          borderRadius: 1.5,
+                          bgcolor: 'white',
+                        }}
+                      >
+                        <MenuItem value="all">All Categories</MenuItem>
+                        {categories.map(category => (
+                          <MenuItem key={category.cat_id} value={category.cat_id}>
+                            {category.cat_name}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
                   </Box>
-                </CardContent>
-              </Card>
-            </Grid>
 
-            <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Avatar
-                      sx={{
-                        width: 48,
-                        height: 48,
-                        mr: 2,
-                        background: 'linear-gradient(45deg, #FF9800 30%, #F44336 90%)'
-                      }}
-                    >
-                      <CalendarIcon />
-                    </Avatar>
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">
-                        Recent Additions
-                      </Typography>
-                      <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
-                        {recentAdditions}
-                      </Typography>
-                    </Box>
+                  {/* Sort By */}
+                  <Box>
+                    <FormControl fullWidth>
+                      <InputLabel>Sort By</InputLabel>
+                      <Select
+                        value={sortBy}
+                        label="Sort By"
+                        onChange={(e) => setSortBy(e.target.value)}
+                        startAdornment={
+                          <InputAdornment position="start" sx={{ mr: 1, ml: -0.5 }}>
+                            <Filter size={18} color="#94a3b8" />
+                          </InputAdornment>
+                        }
+                        sx={{
+                          borderRadius: 1.5,
+                          bgcolor: 'white',
+                        }}
+                      >
+                        <MenuItem value="sub_cat_name">Sub Category Name</MenuItem>
+                        <MenuItem value="product_count">Product Count</MenuItem>
+                        <MenuItem value="created_at">Created Date</MenuItem>
+                        <MenuItem value="updated_at">Updated Date</MenuItem>
+                      </Select>
+                    </FormControl>
                   </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
+
+                  {/* Sort Order */}
+                  <Box>
+                    <FormControl fullWidth>
+                      <InputLabel>Order</InputLabel>
+                      <Select
+                        value={sortOrder}
+                        label="Order"
+                        onChange={(e) => setSortOrder(e.target.value)}
+                        startAdornment={
+                          <InputAdornment position="start" sx={{ mr: 1, ml: -0.5 }}>
+                            <ArrowUp size={18} color="#94a3b8" />
+                          </InputAdornment>
+                        }
+                        sx={{
+                          borderRadius: 1.5,
+                          bgcolor: 'white',
+                        }}
+                      >
+                        <MenuItem value="asc">Ascending</MenuItem>
+                        <MenuItem value="desc">Descending</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
+          </Box>
+
+          {/* Unified Professional Stats Bar */}
+          <Box sx={{ flexShrink: 0, width: '100%' }}>
+            <Card sx={{
+              borderRadius: 2,
+              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+              overflow: 'hidden',
+              bgcolor: 'white',
+              border: '1px solid #e5e7eb'
+            }}>
+              <Box sx={{
+                display: 'flex',
+                flexDirection: { xs: 'column', md: 'row' },
+                alignItems: 'stretch',
+                justifyContent: 'space-between',
+                p: 0
+              }}>
+                {[
+                  { title: 'Total Sub Categories', val: totalSubCategories, color: '#2563eb', bg: '#eff6ff', icon: <Boxes size={24} /> },
+                  { title: 'Total Products', val: totalProducts, color: '#16a34a', bg: '#f0fdf4', icon: <Package size={24} /> },
+                  { title: 'Categories Used', val: categoriesWithSubCategories, color: '#d97706', bg: '#fffbeb', icon: <Tag size={24} /> },
+                  { title: 'Recent Additions', val: recentAdditions, color: '#dc2626', bg: '#fef2f2', icon: <Calendar size={24} /> }
+                ].map((stat, i) => (
+                  <Fragment key={i}>
+                    <Box sx={{
+                      flex: 1,
+                      p: 3,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 2.5,
+                      width: '100%',
+                      bgcolor: stat.bg,
+                      position: 'relative',
+                      borderBottom: i < 3 && { xs: '1px solid #e5e7eb', md: 'none' },
+                      '&:hover': {
+                        bgcolor: 'white',
+                        transition: 'background-color 0.3s'
+                      }
+                    }}>
+                      <Avatar sx={{
+                        bgcolor: 'white',
+                        color: stat.color,
+                        width: 52,
+                        height: 52,
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                        border: `1.5px solid ${stat.color}20`
+                      }}>
+                        {stat.icon}
+                      </Avatar>
+                      <Box>
+                        <Typography variant="overline" sx={{
+                          display: 'block',
+                          lineHeight: 1,
+                          mb: 0.5,
+                          color: '#6b7280',
+                          fontWeight: 700,
+                          letterSpacing: 1.2
+                        }}>
+                          {stat.title}
+                        </Typography>
+                        <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: 0.5, color: stat.color }}>
+                          {stat.val.toLocaleString()}
+                        </Typography>
+                      </Box>
+                    </Box>
+                    {i < 3 && (
+                      <Divider
+                        orientation="vertical"
+                        flexItem
+                        sx={{
+                          display: { xs: 'none', md: 'block' },
+                          bgcolor: '#e5e7eb',
+                          height: 60,
+                          my: 'auto'
+                        }}
+                      />
+                    )}
+                  </Fragment>
+                ))}
+              </Box>
+            </Card>
+          </Box>
 
           {/* Sub Categories Table */}
-          <Card sx={{ height: 600, display: 'flex', flexDirection: 'column' }}>
-            <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Typography variant="h6" component="h3" sx={{ fontWeight: 'semibold' }}>
+          <Card sx={{ height: 600, display: 'flex', flexDirection: 'column', borderRadius: 2, border: '1px solid #e2e8f0' }}>
+            <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between', bgcolor: '#f8fafc' }}>
+              <Typography variant="h6" component="h3" sx={{ fontWeight: 700, color: '#334155' }}>
                 Sub Categories List
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{ color: '#64748b', fontWeight: 500 }}>
                 Showing {filteredAndSortedSubCategories.length} of {subCategories.length} subcategories
               </Typography>
             </Box>
-            <TableContainer component={Paper} sx={{ flex: 1, overflow: 'auto' }}>
+            <TableContainer component={Paper} sx={{ flex: 1, overflow: 'auto', boxShadow: 'none' }}>
               <Table stickyHeader>
                 <TableHead>
                   <TableRow>
@@ -639,10 +671,10 @@ export default function SubCategoriesPage() {
                         </Box>
                       </TableCell>
                       <TableCell>
-                        <Chip 
-                          label={subCategory.category?.cat_name || 'N/A'} 
-                          color="primary" 
-                          variant="outlined" 
+                        <Chip
+                          label={subCategory.category?.cat_name || 'N/A'}
+                          color="primary"
+                          variant="outlined"
                           size="small"
                         />
                       </TableCell>
@@ -760,6 +792,9 @@ export default function SubCategoriesPage() {
                     name="cat_id"
                     onChange={handleFormChange}
                     required
+                    sx={{
+                      borderRadius: 1.5,
+                    }}
                   >
                     {categories.map(category => (
                       <MenuItem key={category.cat_id} value={category.cat_id}>
@@ -776,7 +811,12 @@ export default function SubCategoriesPage() {
                   value={formData.sub_cat_name}
                   onChange={handleFormChange}
                   placeholder="Enter subcategory name (e.g., Smartphones)"
-                  sx={{ mb: 3 }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 1.5,
+                    },
+                    mb: 3
+                  }}
                 />
               </Box>
             </DialogContent>
@@ -795,11 +835,19 @@ export default function SubCategoriesPage() {
                 disabled={isSubmitting}
                 startIcon={isSubmitting ? <CircularProgress size={20} /> : <SaveIcon />}
                 sx={{
-                  background: 'linear-gradient(45deg, #2196F3 30%, #9C27B0 90%)',
-                  boxShadow: '0 3px 5px 2px rgba(33, 203, 243, .3)',
+                  background: 'linear-gradient(45deg, #2196f3, #9c27b0)',
                   '&:hover': {
-                    background: 'linear-gradient(45deg, #1976D2 30%, #7B1FA2 90%)',
-                  }
+                    background: 'linear-gradient(45deg, #1976d2, #7b1fa2)',
+                    boxShadow: 6,
+                    transform: 'translateY(-2px)',
+                  },
+                  px: 4,
+                  py: 1.5,
+                  borderRadius: 1.5,
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  boxShadow: 3,
+                  transition: 'all 0.2s ease-in-out'
                 }}
               >
                 {isSubmitting ? 'Saving...' : editingSubCategory ? 'Update Sub Category' : 'Create Sub Category'}

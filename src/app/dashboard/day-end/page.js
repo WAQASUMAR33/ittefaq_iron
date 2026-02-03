@@ -123,6 +123,36 @@ export default function DayEndPage() {
     fetchDayEndData(date);
   };
 
+  // Handle delete ledger entries
+  const handleDeleteLedger = async (type) => {
+    const typeNames = {
+      purchase: 'PURCHASE',
+      order: 'ORDER/SUBSCRIPTION',
+      sales: 'SALES',
+      all: 'ALL'
+    };
+
+    if (window.confirm(`Are you sure you want to delete all ${typeNames[type]} ledger entries? This action cannot be undone.`)) {
+      try {
+        const response = await fetch('/api/ledger/delete-all', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          alert(`✅ ${data.message}\n\nDetails:\n${Object.entries(data.details).map(([k, v]) => `${k}: ${v}`).join('\n')}`);
+        } else {
+          alert('❌ Failed to delete ledger entries');
+        }
+      } catch (error) {
+        console.error('Error deleting ledger entries:', error);
+        alert('❌ Error: ' + error.message);
+      }
+    }
+  };
+
   // Handle save day end
   const handleSaveDayEnd = async () => {
     try {
@@ -236,6 +266,40 @@ export default function DayEndPage() {
                 <BarChart3 className="w-4 h-4 mr-2" />
                 {showHistory ? 'Current Day' : 'History'}
               </button>
+              <div className="relative group">
+                <button
+                  className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors duration-200 flex items-center"
+                >
+                  <AlertCircle className="w-4 h-4 mr-2" />
+                  Delete Ledger
+                </button>
+                <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                  <button
+                    onClick={() => handleDeleteLedger('purchase')}
+                    className="block w-full text-left px-4 py-2 text-red-700 hover:bg-red-50 first:rounded-t-lg text-sm"
+                  >
+                    Delete Purchase Entries
+                  </button>
+                  <button
+                    onClick={() => handleDeleteLedger('order')}
+                    className="block w-full text-left px-4 py-2 text-red-700 hover:bg-red-50 text-sm border-t border-gray-200"
+                  >
+                    Delete Order Entries
+                  </button>
+                  <button
+                    onClick={() => handleDeleteLedger('sales')}
+                    className="block w-full text-left px-4 py-2 text-red-700 hover:bg-red-50 text-sm border-t border-gray-200"
+                  >
+                    Delete Sales Entries
+                  </button>
+                  <button
+                    onClick={() => handleDeleteLedger('all')}
+                    className="block w-full text-left px-4 py-2 text-red-800 font-bold hover:bg-red-100 last:rounded-b-lg text-sm border-t border-gray-200"
+                  >
+                    🗑️ Delete ALL Entries
+                  </button>
+                </div>
+              </div>
               <button
                 onClick={() => window.print()}
                 className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors duration-200 flex items-center"

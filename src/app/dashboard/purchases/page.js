@@ -72,7 +72,13 @@ import {
   Person as PersonIcon,
   Phone as PhoneIcon,
   LocationOn as LocationOnIcon,
-  AttachMoney as AttachMoneyIcon
+  AttachMoney as AttachMoneyIcon,
+  Business as BusinessIcon,
+  LocationOn as MapPinIcon,
+  TrendingDown as TrendingDownIcon,
+  FilterList as FilterListIcon,
+  Clear as ClearIcon,
+  Money as MoneyIcon
 } from '@mui/icons-material';
 
 export default function PurchasesPage() {
@@ -89,25 +95,44 @@ export default function PurchasesPage() {
   const [bankAccounts, setBankAccounts] = useState([]);
 
   // Function to filter customers by type
-  const filterCustomersByType = (customers, customerTypes) => {
-    // Find supplier and bank account types
-    const supplierType = customerTypes.find(type =>
-      type.cus_type_title.toLowerCase() === 'supplier'
-    );
-    const bankAccountType = customerTypes.find(type =>
-      type.cus_type_title.toLowerCase() === 'cash account'
-    );
+  // Function to filter customers by category and type
+  const filterCustomersByCategory = (customers, customerCategories, customerTypes) => {
+    // Log all categories with their IDs to see what we're working with
+    console.log('🔍 ALL CUSTOMER CATEGORIES:');
+    customerCategories.forEach(cat => {
+      console.log(`  ID: ${cat.cus_cat_id}, Title: "${cat.cus_cat_title}"`);
+    });
 
-    // Filter customers by type
-    const filteredSuppliers = customers.filter(customer =>
-      customer.cus_type === supplierType?.cus_type_id
-    );
+    console.log('🔍 ALL CUSTOMER TYPES:');
+    customerTypes.forEach(t => {
+      console.log(`  ID: ${t.cus_type_id}, Title: "${t.cus_type_title}"`);
+    });
 
-    const filteredBankAccounts = customers.filter(customer =>
-      customer.cus_type === bankAccountType?.cus_type_id
-    );
+    console.log('👥 All Customers with Category and Type:');
+    customers.forEach(c => {
+      const category = customerCategories.find(cat => cat.cus_cat_id === c.cus_category);
+      const type = customerTypes.find(t => t.cus_type_id === c.cus_type);
+      console.log(`  ID: ${c.cus_id}, Name: "${c.cus_name}", Category: "${category?.cus_cat_title || 'unknown'}", Type: "${type?.cus_type_title || 'unknown'}"`);
+    });
 
-    console.log(`🔍 Filtered ${filteredSuppliers.length} suppliers and ${filteredBankAccounts.length} bank accounts`);
+    // Filter by category title text (case-insensitive)
+    // Suppliers: category title contains "supplier"
+    const filteredSuppliers = customers.filter(customer => {
+      const categoryInfo = customerCategories.find(cat => cat.cus_cat_id === customer.cus_category);
+      return categoryInfo && categoryInfo.cus_cat_title.toLowerCase().includes('supplier');
+    });
+
+    // Bank accounts: BOTH category AND type must contain "bank"
+    const filteredBankAccounts = customers.filter(customer => {
+      const categoryInfo = customerCategories.find(cat => cat.cus_cat_id === customer.cus_category);
+      const typeInfo = customerTypes.find(t => t.cus_type_id === customer.cus_type);
+      const hasBank = categoryInfo && categoryInfo.cus_cat_title.toLowerCase().includes('bank');
+      const hasBank2 = typeInfo && typeInfo.cus_type_title.toLowerCase().includes('bank');
+      return hasBank && hasBank2;
+    });
+
+    console.log(`✅ Filtered ${filteredSuppliers.length} suppliers (category contains 'supplier')`);
+    console.log(`✅ Filtered ${filteredBankAccounts.length} bank accounts (BOTH category AND type contain 'bank')`);
 
     return { suppliers: filteredSuppliers, bankAccounts: filteredBankAccounts };
   };
@@ -155,6 +180,20 @@ export default function PurchasesPage() {
   const [customerTypes, setCustomerTypes] = useState([]);
   const [cities, setCities] = useState([]);
 
+  // Popup states for quick actions
+  const [showCustomerCategoryPopup, setShowCustomerCategoryPopup] = useState(false);
+  const [showCustomerTypePopup, setShowCustomerTypePopup] = useState(false);
+  const [showCityPopup, setShowCityPopup] = useState(false);
+
+  // Popup form data
+  const [customerCategoryFormData, setCustomerCategoryFormData] = useState({ cus_cat_title: '' });
+  const [customerTypeFormData, setCustomerTypeFormData] = useState({ cus_type_title: '' });
+  const [cityFormData, setCityFormData] = useState({ city_name: '' });
+
+  // Popup loading states
+  const [isAddingCustomerCategory, setIsAddingCustomerCategory] = useState(false);
+  const [isAddingCustomerType, setIsAddingCustomerType] = useState(false);
+  const [isAddingCity, setIsAddingCity] = useState(false);
 
   // Filter states
   const [searchTerm, setSearchTerm] = useState('');
@@ -169,10 +208,17 @@ export default function PurchasesPage() {
   const [categories, setCategories] = useState([]);
   const [subcategories, setSubcategories] = useState([]);
 
+  // Date filters
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [filterStore, setFilterStore] = useState('');
+  const [filterMinAmount, setFilterMinAmount] = useState('');
+  const [filterMaxAmount, setFilterMaxAmount] = useState('');
+
   // Selected product for preview
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [productFormData, setProductFormData] = useState({
-    qnty: '1',
+    qnty: '',
     unit_rate: '',
     crate: ''
   });
@@ -185,6 +231,10 @@ export default function PurchasesPage() {
   const [bankAccountDropdownOpen, setBankAccountDropdownOpen] = useState(false);
   const [formSelectedCustomer, setFormSelectedCustomer] = useState(null);
   const [vehicleDropdownOpen, setVehicleDropdownOpen] = useState(false);
+
+  // Receipt dialog states
+  const [currentBillData, setCurrentBillData] = useState(null);
+  const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
 
   // Form data
   const [formData, setFormData] = useState({
@@ -212,17 +262,17 @@ export default function PurchasesPage() {
     fetchData();
   }, []);
 
-  // Filter customers by type when both customers and customerTypes are loaded
+  // Filter customers by category when both customers and customerCategories are loaded
   useEffect(() => {
-    if (customers.length > 0 && customerTypes.length > 0) {
-      console.log('🔍 Filtering customers - customers:', customers.length, 'types:', customerTypes.length);
-      const { suppliers, bankAccounts } = filterCustomersByType(customers, customerTypes);
+    if (customers.length > 0 && customerCategories.length > 0 && customerTypes.length > 0) {
+      console.log('🔍 Filtering customers - customers:', customers.length, 'categories:', customerCategories.length, 'types:', customerTypes.length);
+      const { suppliers, bankAccounts } = filterCustomersByCategory(customers, customerCategories, customerTypes);
       setSuppliers(suppliers);
       setBankAccounts(bankAccounts);
     } else {
-      console.log('🔍 Not filtering yet - customers:', customers.length, 'types:', customerTypes.length);
+      console.log('🔍 Not filtering yet - customers:', customers.length, 'categories:', customerCategories.length, 'types:', customerTypes.length);
     }
-  }, [customers, customerTypes]);
+  }, [customers, customerCategories, customerTypes]);
 
   // Auto-select first store when stores are loaded
   useEffect(() => {
@@ -416,7 +466,25 @@ export default function PurchasesPage() {
       purchase.vehicle_no?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCustomer = !selectedCustomer || purchase.cus_id === selectedCustomer;
 
-    return matchesSearch && matchesCustomer;
+    const matchesStore = filterStore === '' ||
+      (purchase.store_id?.toString() === filterStore) ||
+      (purchase.purchase_details && purchase.purchase_details.some(detail =>
+        detail.store_id?.toString() === filterStore
+      ));
+
+    const totalAmount = parseFloat(purchase.net_total || 0);
+    const matchesMinAmount = filterMinAmount === '' ||
+      totalAmount >= parseFloat(filterMinAmount);
+    const matchesMaxAmount = filterMaxAmount === '' ||
+      totalAmount <= parseFloat(filterMaxAmount);
+
+    const matchesDateFrom = dateFrom === '' ||
+      (dateFrom && purchase.created_at && new Date(purchase.created_at) >= new Date(dateFrom));
+
+    const matchesDateTo = dateTo === '' ||
+      (dateTo && purchase.created_at && new Date(purchase.created_at) <= new Date(dateTo));
+
+    return matchesSearch && matchesCustomer && matchesStore && matchesMinAmount && matchesMaxAmount && matchesDateFrom && matchesDateTo;
   });
 
   // Product filtering logic
@@ -591,6 +659,11 @@ export default function PurchasesPage() {
         return;
       }
 
+      if (!formData.vehicle_no) {
+        alert('Please select a vehicle');
+        return;
+      }
+
       if (formData.purchase_details.length === 0) {
         alert('Please add at least one product to the purchase');
         return;
@@ -599,7 +672,9 @@ export default function PurchasesPage() {
       const url = editingPurchase ? '/api/purchases' : '/api/purchases';
       const method = editingPurchase ? 'PUT' : 'POST';
 
-      // Calculate total amount from purchase details
+      // Calculate total amount from purchase details (Subtotal only)
+      // NOTE: Backend calculates Net Total by adding charges to this amount.
+      // So we must send the Subtotal here, NOT the Net Total.
       const calculatedTotalAmount = calculateTotalAmount();
 
       // Set proper debit and credit accounts for purchase transaction
@@ -694,6 +769,36 @@ export default function PurchasesPage() {
       });
 
       if (response.ok) {
+        const result = await response.json();
+
+        // Store bill data for printing receipt
+        const billDataForPrint = {
+          pur_id: result.pur_id,
+          cus_id: result.cus_id,
+          total_amount: result.total_amount,
+          discount: parseFloat(result.discount) || 0,
+          payment: result.payment,
+          payment_type: result.payment_type || 'CASH',
+          cash_payment: parseFloat(result.cash_payment) || 0,
+          bank_payment: parseFloat(result.bank_payment) || 0,
+          bank_title: selectedBankAccount?.cus_name || null,
+          invoice_number: result.invoice_number || '',
+          created_at: result.created_at || new Date().toISOString(),
+          customer: customers.find(c => c.cus_id === result.cus_id),
+          purchase_details: result.purchase_details || formData.purchase_details,
+          // Add missing amount fields from formData
+          labour_amount: parseFloat(result.labour_amount || formData.labour_amount || 0),
+          fare_amount: parseFloat(result.fare_amount || formData.fare_amount || 0),
+          transport_amount: parseFloat(result.transport_amount || formData.transport_amount || 0),
+          unloading_amount: parseFloat(result.unloading_amount || formData.unloading_amount || 0),
+          vehicle_no: result.vehicle_no || formData.vehicle_no,
+          bill_type: result.bill_type || 'PURCHASE'
+        };
+        setCurrentBillData(billDataForPrint);
+
+        // Open receipt dialog
+        setReceiptDialogOpen(true);
+
         await fetchData();
         setCurrentView('list');
         setEditingPurchase(null);
@@ -764,13 +869,158 @@ export default function PurchasesPage() {
   };
 
   const handleViewPurchase = (purchase) => {
-    setViewingPurchase(purchase);
+    console.log('📊 Viewing Purchase Data:', {
+      pur_id: purchase.pur_id,
+      payment_type: purchase.payment_type,
+      payment: purchase.payment,
+      cash_payment: purchase.cash_payment,
+      bank_payment: purchase.bank_payment,
+      total_amount: purchase.total_amount,
+      net_total: purchase.net_total,
+      fullPurchaseData: purchase
+    });
+
+    // Calculate actual net total including all charges for display
+    const productTotal = purchase.purchase_details?.reduce((sum, detail) =>
+      sum + parseFloat(detail.total_amount || 0), 0) || parseFloat(purchase.total_amount || 0);
+    const calculatedNetTotal = productTotal +
+      parseFloat(purchase.unloading_amount || 0) +
+      parseFloat(purchase.transport_amount || 0) +
+      parseFloat(purchase.labour_amount || 0) +
+      parseFloat(purchase.fare_amount || 0) -
+      parseFloat(purchase.discount || 0);
+
+    // Use database values if available, otherwise calculate based on payment_type
+    let cashPayment = parseFloat(purchase.cash_payment || 0);
+    let bankPayment = parseFloat(purchase.bank_payment || 0);
+
+    // Fallback logic for older records without cash_payment/bank_payment fields
+    if (cashPayment === 0 && bankPayment === 0 && parseFloat(purchase.payment || 0) > 0) {
+      const totalPayment = parseFloat(purchase.payment || 0);
+      if (purchase.payment_type === 'CASH') {
+        cashPayment = totalPayment;
+        bankPayment = 0;
+      } else if (purchase.payment_type === 'BANK_TRANSFER') {
+        cashPayment = 0;
+        bankPayment = totalPayment;
+      } else {
+        // For other payment types, show as cash by default
+        cashPayment = totalPayment;
+        bankPayment = 0;
+      }
+    }
+
+    const enhancedPurchase = {
+      ...purchase,
+      // Use calculated net total for accurate display
+      display_net_total: calculatedNetTotal,
+      // Use calculated or database payment values
+      cash_payment: cashPayment,
+      bank_payment: bankPayment
+    };
+
+    console.log('📊 Enhanced Purchase Data:', {
+      cash_payment: enhancedPurchase.cash_payment,
+      bank_payment: enhancedPurchase.bank_payment,
+      payment_type: enhancedPurchase.payment_type,
+      total_payment: enhancedPurchase.payment,
+      net_total: calculatedNetTotal,
+      display_net_total: enhancedPurchase.display_net_total
+    });
+
+    setViewingPurchase(enhancedPurchase);
     setViewDialogOpen(true);
   };
 
   const handleCloseViewDialog = () => {
     setViewDialogOpen(false);
     setViewingPurchase(null);
+  };
+
+  // Handle adding customer category
+  const handleAddCustomerCategory = async (e) => {
+    e?.preventDefault();
+    setIsAddingCustomerCategory(true);
+    try {
+      const response = await fetch('/api/customer-category', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(customerCategoryFormData)
+      });
+
+      if (response.ok) {
+        const newCategory = await response.json();
+        setCustomerCategories(prev => [...prev, newCategory]);
+        setShowCustomerCategoryPopup(false);
+        setCustomerCategoryFormData({ cus_cat_title: '' });
+        showSnackbar('Account category added successfully!', 'success');
+      } else {
+        showSnackbar('Failed to add account category', 'error');
+      }
+    } catch (error) {
+      console.error('Error adding account category:', error);
+      showSnackbar('Error adding account category', 'error');
+    } finally {
+      setIsAddingCustomerCategory(false);
+    }
+  };
+
+  // Handle adding customer type
+  const handleAddCustomerType = async (e) => {
+    e?.preventDefault();
+    setIsAddingCustomerType(true);
+    try {
+      const response = await fetch('/api/customer-types', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(customerTypeFormData)
+      });
+
+      if (response.ok) {
+        const newCustomerType = await response.json();
+        setCustomerTypes(prev => [...prev, newCustomerType]);
+        setShowCustomerTypePopup(false);
+        setCustomerTypeFormData({ cus_type_title: '' });
+        showSnackbar('Account type added successfully!', 'success');
+      } else {
+        const error = await response.json();
+        showSnackbar(error.error || 'Failed to create account type', 'error');
+      }
+    } catch (error) {
+      console.error('Error creating account type:', error);
+      showSnackbar('Error creating account type', 'error');
+    } finally {
+      setIsAddingCustomerType(false);
+    }
+  };
+
+  // Handle adding city
+  const handleAddCity = async (e) => {
+    e?.preventDefault();
+    setIsAddingCity(true);
+    try {
+      const response = await fetch('/api/cities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cityFormData)
+      });
+
+      if (response.ok) {
+        const newCity = await response.json();
+        setCities(prev => [...prev, newCity]);
+        setShowCityPopup(false);
+        setCityFormData({ city_name: '' });
+        showSnackbar('City added successfully!', 'success');
+      } else {
+        const error = await response.json();
+        showSnackbar(error.error || 'Failed to create city', 'error');
+      }
+    } catch (error) {
+      console.error('Error creating city:', error);
+      showSnackbar('Error creating city', 'error');
+    } finally {
+      setIsAddingCity(false);
+    }
   };
 
   const handleDelete = async (purchaseId) => {
@@ -793,6 +1043,11 @@ export default function PurchasesPage() {
     setSelectedCustomer('');
     setSortBy('created_at');
     setSortOrder('desc');
+    setDateFrom('');
+    setDateTo('');
+    setFilterStore('');
+    setFilterMinAmount('');
+    setFilterMaxAmount('');
   };
 
   // Customer form handlers
@@ -809,7 +1064,7 @@ export default function PurchasesPage() {
     if (!customerFormData.cus_name.trim()) {
       setSnackbar({
         open: true,
-        message: 'Customer name is required',
+        message: 'Supplier name is required',
         severity: 'error'
       });
       return;
@@ -833,7 +1088,7 @@ export default function PurchasesPage() {
     if (!customerFormData.cus_category) {
       setSnackbar({
         open: true,
-        message: 'Customer category is required',
+        message: 'Supplier category is required',
         severity: 'error'
       });
       return;
@@ -841,7 +1096,7 @@ export default function PurchasesPage() {
     if (!customerFormData.cus_type) {
       setSnackbar({
         open: true,
-        message: 'Customer type is required',
+        message: 'Supplier type is required',
         severity: 'error'
       });
       return;
@@ -884,7 +1139,7 @@ export default function PurchasesPage() {
         const newCustomer = await response.json();
         setSnackbar({
           open: true,
-          message: 'Customer added successfully',
+          message: 'Supplier added successfully',
           severity: 'success'
         });
         setCustomerFormData({
@@ -909,15 +1164,15 @@ export default function PurchasesPage() {
       } else {
         setSnackbar({
           open: true,
-          message: 'Error adding customer',
+          message: 'Error adding supplier',
           severity: 'error'
         });
       }
     } catch (error) {
-      console.error('Error adding customer:', error);
+      console.error('Error adding supplier:', error);
       setSnackbar({
         open: true,
-        message: 'Error adding customer',
+        message: 'Error adding supplier',
         severity: 'error'
       });
     } finally {
@@ -1004,79 +1259,257 @@ export default function PurchasesPage() {
             </Button>
           </Box>
 
-          {/* Filters */}
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-                <Typography variant="h6" component="h3" sx={{ fontWeight: 'semibold' }}>
-                  Filters & Sorting
-                </Typography>
-                <Button
-                  variant="text"
-                  size="small"
-                  onClick={clearFilters}
-                  sx={{ color: 'primary.main' }}
-                >
-                  Clear All Filters
-                </Button>
-              </Box>
 
-              <Grid container spacing={3}>
-                {/* Search */}
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    label="Search"
-                    placeholder="Search purchases..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <SearchIcon />
-                        </InputAdornment>
-                      ),
-                    }}
-                    sx={{ minWidth: 300 }}
-                  />
-                </Grid>
 
-                {/* Customer Filter */}
-                <Grid item xs={12} md={3}>
-                  <Autocomplete
-                    fullWidth
-                    options={[{ cus_id: '', cus_name: 'All Customers' }, ...customers]}
-                    getOptionLabel={(option) => option.cus_name}
-                    value={customers.find(c => c.cus_id === selectedCustomer) || { cus_id: '', cus_name: 'All Customers' }}
-                    onChange={(event, newValue) => {
-                      setSelectedCustomer(newValue ? newValue.cus_id : '');
-                    }}
-                    filterOptions={(options, { inputValue }) => {
-                      return options.filter(option =>
-                        option.cus_name.toLowerCase().includes(inputValue.toLowerCase())
-                      );
-                    }}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        label="Customer"
-                        placeholder="Search customers..."
-                        sx={{ minWidth: 300 }}
+          {/* Unified Professional Stats Bar */}
+          <Box sx={{ flexShrink: 0, mb: 3, width: '100%' }}>
+            <Card sx={{
+              borderRadius: 2,
+              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+              overflow: 'hidden',
+              bgcolor: 'white',
+              border: '1px solid #e5e7eb'
+            }}>
+              <Box sx={{
+                display: 'flex',
+                flexDirection: { xs: 'column', md: 'row' },
+                alignItems: 'stretch',
+                justifyContent: 'space-between',
+                p: 0
+              }}>
+                {[
+                  { title: 'Total Purchases', val: totalPurchases, color: '#2563eb', bg: '#eff6ff', icon: <ShoppingCartIcon /> },
+                  { title: 'Total Value', val: totalPurchaseValue, color: '#16a34a', bg: '#f0fdf4', icon: <TrendingUpIcon /> },
+                  { title: 'Unloading Amount', val: totalUnloadingAmount, color: '#dc2626', bg: '#fef2f2', icon: <TruckIcon /> },
+                  { title: 'Fare Amount', val: totalFareAmount, color: '#d97706', bg: '#fffbeb', icon: <MoneyIcon /> }
+                ].map((stat, i) => (
+                  <Box key={i} sx={{
+                    flex: 1,
+                    p: 3,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 2.5,
+                    width: '100%',
+                    bgcolor: stat.bg,
+                    position: 'relative',
+                    borderBottom: i < 3 && { xs: '1px solid #e5e7eb', md: 'none' },
+                    '&:hover': {
+                      bgcolor: 'white',
+                      transition: 'background-color 0.3s'
+                    }
+                  }}>
+                    <Avatar sx={{
+                      bgcolor: 'white',
+                      color: stat.color,
+                      width: 52,
+                      height: 52,
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                      border: `1.5px solid ${stat.color}20`
+                    }}>
+                      {stat.icon}
+                    </Avatar>
+                    <Box>
+                      <Typography variant="overline" sx={{
+                        display: 'block',
+                        lineHeight: 1,
+                        mb: 0.5,
+                        color: '#6b7280',
+                        fontWeight: 700,
+                        letterSpacing: 1.2
+                      }}>
+                        {stat.title}
+                      </Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: 0.5, color: stat.color }}>
+                        {i > 0 && <span style={{ fontSize: '0.8rem', marginRight: 4, opacity: 0.6 }}>PKR</span>}
+                        {stat.val.toLocaleString()}
+                      </Typography>
+                    </Box>
+                    {i < 3 && (
+                      <Divider
+                        orientation="vertical"
+                        flexItem
+                        sx={{
+                          display: { xs: 'none', md: 'block' },
+                          bgcolor: '#e5e7eb',
+                          height: 60,
+                          position: 'absolute',
+                          right: 0,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          zIndex: 1
+                        }}
                       />
                     )}
-                    sx={{ minWidth: 300 }}
-                  />
-                </Grid>
+                  </Box>
+                ))}
+              </Box>
+            </Card>
+          </Box>
 
-                {/* Sort */}
-                <Grid item xs={12} md={3}>
+          {/* Filters & Sorting Section */}
+          <Box sx={{ flexShrink: 0, mb: 3, width: '100%' }}>
+            <Card sx={{
+              borderRadius: 2,
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+              width: '100%',
+              border: '1px solid #e2e8f0',
+              bgcolor: '#f8fafc'
+            }}>
+              <CardContent sx={{ p: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <FilterListIcon sx={{ color: '#64748b' }} />
+                    Filters & Sorting
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Typography variant="body2" sx={{ color: '#64748b', fontWeight: 500 }}>
+                      Showing <strong>{filteredPurchases.length}</strong> of <strong>{purchases.length}</strong> purchases
+                    </Typography>
+                    <Button
+                      onClick={clearFilters}
+                      size="small"
+                      startIcon={<ClearIcon />}
+                      sx={{
+                        color: '#64748b',
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        '&:hover': { color: '#ef4444', bgcolor: '#fee2e2' }
+                      }}
+                    >
+                      Clear All Filters
+                    </Button>
+                  </Box>
+                </Box>
+
+                <Box sx={{
+                  display: 'grid',
+                  gridTemplateColumns: {
+                    xs: '1fr',
+                    sm: 'repeat(2, 1fr)',
+                    md: 'repeat(4, 1fr)'
+                  },
+                  gap: 3,
+                  width: '100%'
+                }}>
+                  {/* Search */}
+                  <Box>
+                    <TextField
+                      fullWidth
+                      label="Search Purchases"
+                      placeholder="ID, Supplier, or Reference..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <SearchIcon size={18} sx={{ color: '#94a3b8' }} />
+                          </InputAdornment>
+                        ),
+                      }}
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
+                    />
+                  </Box>
+
+                  {/* Customer (Supplier) Filter */}
+                  <Box>
+                    <Autocomplete
+                      fullWidth
+                      options={customers.filter(customer =>
+                        customer.customer_category?.cus_cat_title?.toLowerCase().includes('supplier')
+                      )}
+                      getOptionLabel={(option) => option.cus_name || ''}
+                      value={customers.find(c => c.cus_id === selectedCustomer) || null}
+                      onChange={(event, newValue) => setSelectedCustomer(newValue ? newValue.cus_id : '')}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="Supplier"
+                          placeholder="All Suppliers"
+                          sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
+                        />
+                      )}
+                    />
+                  </Box>
+
+                  {/* Date From */}
+                  <Box>
+                    <TextField
+                      fullWidth
+                      label="From Date"
+                      type="date"
+                      value={dateFrom}
+                      onChange={(e) => setDateFrom(e.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
+                    />
+                  </Box>
+
+                  {/* Date To */}
+                  <Box>
+                    <TextField
+                      fullWidth
+                      label="To Date"
+                      type="date"
+                      value={dateTo}
+                      onChange={(e) => setDateTo(e.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
+                    />
+                  </Box>
+
+                  {/* Store Filter */}
+                  <Box>
+                    <Autocomplete
+                      fullWidth
+                      options={stores}
+                      getOptionLabel={(option) => option.store_name || ''}
+                      value={stores.find(s => s.storeid.toString() === filterStore) || null}
+                      onChange={(event, newValue) => setFilterStore(newValue ? newValue.storeid.toString() : '')}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="Store"
+                          placeholder="All Stores"
+                          sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
+                        />
+                      )}
+                    />
+                  </Box>
+
+                  {/* Min Amount */}
+                  <Box>
+                    <TextField
+                      fullWidth
+                      label="Min Amount"
+                      type="number"
+                      placeholder="e.g. 1000"
+                      value={filterMinAmount}
+                      onChange={(e) => setFilterMinAmount(e.target.value)}
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
+                    />
+                  </Box>
+
+                  {/* Max Amount */}
+                  <Box>
+                    <TextField
+                      fullWidth
+                      label="Max Amount"
+                      type="number"
+                      placeholder="e.g. 50000"
+                      value={filterMaxAmount}
+                      onChange={(e) => setFilterMaxAmount(e.target.value)}
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
+                    />
+                  </Box>
+
+                  {/* Sort */}
                   <Autocomplete
                     fullWidth
                     options={[
                       { value: 'created_at-desc', label: 'Newest First' },
                       { value: 'created_at-asc', label: 'Oldest First' },
-                      { value: 'customer-asc', label: 'Customer A-Z' },
-                      { value: 'customer-desc', label: 'Customer Z-A' },
+                      { value: 'customer-asc', label: 'Supplier A-Z' },
+                      { value: 'customer-desc', label: 'Supplier Z-A' },
                       { value: 'net_total-desc', label: 'Amount High-Low' },
                       { value: 'net_total-asc', label: 'Amount Low-High' }
                     ]}
@@ -1089,136 +1522,19 @@ export default function PurchasesPage() {
                         setSortOrder(order);
                       }
                     }}
-                    filterOptions={(options, { inputValue }) => {
-                      return options.filter(option =>
-                        option.label.toLowerCase().includes(inputValue.toLowerCase())
-                      );
-                    }}
                     renderInput={(params) => (
                       <TextField
                         {...params}
                         label="Sort By"
-                        placeholder="Select sort option..."
-                        sx={{ minWidth: 300 }}
+                        placeholder="Select..."
+                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
                       />
                     )}
-                    sx={{ minWidth: 300 }}
                   />
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
-
-          {/* Stats Cards */}
-          <Grid container spacing={3}>
-            <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Avatar
-                      sx={{
-                        width: 48,
-                        height: 48,
-                        mr: 2,
-                        background: 'linear-gradient(45deg, #4CAF50 30%, #2E7D32 90%)'
-                      }}
-                    >
-                      <ShoppingCartIcon />
-                    </Avatar>
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">
-                        Total Purchases
-                      </Typography>
-                      <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
-                        {totalPurchases}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Avatar
-                      sx={{
-                        width: 48,
-                        height: 48,
-                        mr: 2,
-                        background: 'linear-gradient(45deg, #2196F3 30%, #00BCD4 90%)'
-                      }}
-                    >
-                      <ShoppingCartIcon />
-                    </Avatar>
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">
-                        Total Value
-                      </Typography>
-                      <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
-                        {totalPurchaseValue.toLocaleString()}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Avatar
-                      sx={{
-                        width: 48,
-                        height: 48,
-                        mr: 2,
-                        background: 'linear-gradient(45deg, #9C27B0 30%, #E91E63 90%)'
-                      }}
-                    >
-                      <TruckIcon />
-                    </Avatar>
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">
-                        Unloading Amount
-                      </Typography>
-                      <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
-                        {totalUnloadingAmount.toLocaleString()}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Avatar
-                      sx={{
-                        width: 48,
-                        height: 48,
-                        mr: 2,
-                        background: 'linear-gradient(45deg, #FF9800 30%, #F44336 90%)'
-                      }}
-                    >
-                      <ReceiptIcon />
-                    </Avatar>
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">
-                        Fare Amount
-                      </Typography>
-                      <Typography variant="h4" component="div" sx={{ fontWeight: 'bold' }}>
-                        {totalFareAmount.toLocaleString()}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
+                </Box>
+              </CardContent>
+            </Card>
+          </Box>
 
           {/* Purchases Table */}
           <Card>
@@ -1410,7 +1726,7 @@ export default function PurchasesPage() {
           <Card sx={{ p: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Typography variant="h6" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
-                Order #
+                Purchase #
               </Typography>
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <Button
@@ -1451,45 +1767,7 @@ export default function PurchasesPage() {
               {/* Customer and Order Details Section */}
               <Box sx={{ p: 3, borderBottom: 1, borderColor: 'divider' }}>
                 <Grid container spacing={3}>
-                  {/* Row 0 - Invoice Number */}
-                  <Grid item xs={12} md={4}>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                        INVOICE NUMBER
-                      </Typography>
-                      <TextField
-                        size="small"
-                        placeholder="Enter invoice number"
-                        value={formData.invoice_number || ''}
-                        onChange={(e) => setFormData(prev => ({ ...prev, invoice_number: e.target.value }))}
-                        sx={{ width: '100%' }}
-                      />
-                    </Box>
-                  </Grid>
-
-                  {/* Row 1 */}
-                  <Grid item xs={12} md={2}>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                        DATE
-                      </Typography>
-                      <TextField
-                        size="small"
-                        type="date"
-                        value={new Date().toISOString().split('T')[0]}
-                        sx={{ width: '100%' }}
-                        InputProps={{
-                          endAdornment: (
-                            <InputAdornment position="end">
-                              <CalendarIcon sx={{ color: 'warning.main' }} />
-                            </InputAdornment>
-                          ),
-                        }}
-                      />
-                    </Box>
-                  </Grid>
-
-
+                  {/* Row 0 - Supplier (moved to first position) */}
                   <Grid item xs={12} md={4}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -1511,10 +1789,13 @@ export default function PurchasesPage() {
                         )}
                       </Box>
                       <Autocomplete
-                        size="small"
+                        size="medium"
                         open={customerDropdownOpen}
                         onOpen={() => {
-                          console.log('🔍 Opening supplier dropdown, options:', suppliers.length);
+                          console.log('🔍 Opening supplier dropdown');
+                          console.log('   Suppliers available:', suppliers.length);
+                          console.log('   Supplier data:', suppliers.map(s => ({ id: s.cus_id, name: s.cus_name, type: s.cus_type })));
+                          console.log('   All customers:', customers.length);
                           setCustomerDropdownOpen(true);
                         }}
                         onClose={() => setCustomerDropdownOpen(false)}
@@ -1538,6 +1819,7 @@ export default function PurchasesPage() {
                             sx={{
                               width: '100%',
                               minWidth: 300,
+                              minHeight: 56,
                               '& .MuiInputBase-input': {
                                 fontWeight: formSelectedCustomer ? 'bold' : 'normal'
                               }
@@ -1579,14 +1861,57 @@ export default function PurchasesPage() {
                     </Box>
                   </Grid>
 
-                  {/* Row 2 - Vehicle, Transport Amount, Labour Amount */}
+                  {/* Date Field */}
+                  <Grid item xs={12} md={2}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        DATE
+                      </Typography>
+                      <TextField
+                        size="medium"
+                        type="date"
+                        value={new Date().toISOString().split('T')[0]}
+                        sx={{ width: '100%', minHeight: 56 }}
+                        InputProps={{
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <CalendarIcon sx={{ color: 'warning.main' }} />
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+                    </Box>
+                  </Grid>
+
+                  {/* Invoice Number Field (moved to second position) */}
                   <Grid item xs={12} md={4}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                        VEHICLE
+                        INVOICE NUMBER
                       </Typography>
+                      <TextField
+                        size="medium"
+                        placeholder="Enter invoice number"
+                        value={formData.invoice_number || ''}
+                        onChange={(e) => setFormData(prev => ({ ...prev, invoice_number: e.target.value }))}
+                        sx={{ width: '100%', minHeight: 56 }}
+                      />
+                    </Box>
+                  </Grid>
+
+                  {/* Row 2 - Vehicle, Transport Amount, Labour Amount */}
+                  <Grid item xs={12} md={4}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                          VEHICLE
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: 'error.main', fontWeight: 'bold' }}>
+                          *
+                        </Typography>
+                      </Box>
                       <Autocomplete
-                        size="small"
+                        size="medium"
                         open={vehicleDropdownOpen}
                         onOpen={() => setVehicleDropdownOpen(true)}
                         onClose={() => setVehicleDropdownOpen(false)}
@@ -1611,8 +1936,9 @@ export default function PurchasesPage() {
                           <TextField
                             {...params}
                             placeholder="Select vehicle..."
-                            sx={{ width: '100%', minWidth: 300 }}
+                            sx={{ width: '100%', minWidth: 300, minHeight: 56 }}
                             onClick={() => setVehicleDropdownOpen(true)}
+                            required
                           />
                         )}
                         sx={{ width: '100%', minWidth: 300 }}
@@ -1635,7 +1961,7 @@ export default function PurchasesPage() {
               {/* Product Selection Section */}
               <Box sx={{ p: 3, borderBottom: 1, borderColor: 'divider' }}>
                 <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2 }}>
-                  SELECT PRODUCT X
+                  SELECT PRODUCT
                 </Typography>
 
                 <Grid container spacing={2}>
@@ -1733,7 +2059,7 @@ export default function PurchasesPage() {
                     </Box>
                   </Grid>
 
-                  <Grid item xs={12} md={1.5}>
+                  <Grid item xs={12} md={3}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                         QTY
@@ -1744,7 +2070,7 @@ export default function PurchasesPage() {
                         value={productFormData.qnty}
                         onChange={(e) => setProductFormData(prev => ({ ...prev, qnty: e.target.value }))}
                         inputProps={{ min: 1 }}
-                        sx={{ width: 100, minWidth: 100 }}
+                        sx={{ width: '100%' }}
                       />
                     </Box>
                   </Grid>
@@ -1760,7 +2086,7 @@ export default function PurchasesPage() {
                         value={productFormData.unit_rate}
                         onChange={(e) => setProductFormData(prev => ({ ...prev, unit_rate: e.target.value }))}
                         inputProps={{ step: 0.01, min: 0 }}
-                        sx={{ width: 100, minWidth: 100 }}
+                        sx={{ width: '100%' }}
                       />
                     </Box>
                   </Grid>
@@ -1968,7 +2294,7 @@ export default function PurchasesPage() {
                           }}
                           inputProps={{ step: 0.01, min: 0 }}
                           sx={{ width: '100%' }}
-                          placeholder="0.00"
+                          placeholder="Enter amount"
                         />
                       </Box>
                       <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -1984,7 +2310,7 @@ export default function PurchasesPage() {
                           }}
                           inputProps={{ step: 0.01, min: 0 }}
                           sx={{ width: '100%' }}
-                          placeholder="0.00"
+                          placeholder="Enter amount"
                         />
                       </Box>
                       <Box sx={{ flex: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -1996,7 +2322,10 @@ export default function PurchasesPage() {
                           disabled={parseFloat(formData.bank_payment || 0) <= 0}
                           open={bankAccountDropdownOpen}
                           onOpen={() => {
-                            console.log('🔍 Opening bank account dropdown, options:', bankAccounts.length);
+                            console.log('🏦 Opening bank account dropdown');
+                            console.log('   Bank accounts available:', bankAccounts.length);
+                            console.log('   Bank account data:', bankAccounts.map(b => ({ id: b.cus_id, name: b.cus_name, type_id: b.cus_type })));
+                            console.log('   All customers:', customers.length);
                             setBankAccountDropdownOpen(true);
                           }}
                           onClose={() => setBankAccountDropdownOpen(false)}
@@ -2021,12 +2350,13 @@ export default function PurchasesPage() {
                             <TextField
                               {...params}
                               placeholder="Select Bank Account"
-                              sx={{
-                                width: '100%',
-                                '& .MuiInputBase-input': {
-                                  fontWeight: selectedBankAccount ? 'bold' : 'normal'
+                              sx={
+                                {
+                                  '& .MuiInputBase-input': {
+                                    fontWeight: selectedBankAccount ? 'bold' : 'normal'
+                                  }
                                 }
-                              }}
+                              }
                               onClick={() => setBankAccountDropdownOpen(true)}
                             />
                           )}
@@ -2094,10 +2424,10 @@ export default function PurchasesPage() {
 
                   {/* Right Section - Summary Fields */}
                   <Box sx={{ width: 350, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                    {/* TOTAL AMOUNT */}
+                    {/* SUBTOTAL */}
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Typography variant="body2" sx={{ fontWeight: 'bold', flex: 1, textAlign: 'right' }}>
-                        TOTAL AMOUNT
+                        SUBTOTAL
                       </Typography>
                       <TextField
                         size="small"
@@ -2115,7 +2445,7 @@ export default function PurchasesPage() {
                       <TextField
                         size="small"
                         type="number"
-                        value={formData.transport_amount || '0'}
+                        value={formData.transport_amount || ''}
                         onChange={(e) => setFormData(prev => ({ ...prev, transport_amount: e.target.value }))}
                         inputProps={{ step: 0.01, min: 0 }}
                         sx={{ width: 150 }}
@@ -2130,7 +2460,7 @@ export default function PurchasesPage() {
                       <TextField
                         size="small"
                         type="number"
-                        value={formData.labour_amount || '0'}
+                        value={formData.labour_amount || ''}
                         onChange={(e) => {
                           const newLabourAmount = e.target.value;
                           setFormData(prev => {
@@ -2192,12 +2522,34 @@ export default function PurchasesPage() {
                       <TextField
                         size="small"
                         type="number"
-                        value={formData.discount || '0'}
+                        value={formData.discount || ''}
                         onChange={(e) => setFormData(prev => ({ ...prev, discount: e.target.value }))}
                         inputProps={{ step: 0.01, min: 0 }}
                         sx={{ width: 150 }}
                       />
                     </Box>
+
+                    {/* GRAND TOTAL */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', flex: 1, textAlign: 'right' }}>
+                        GRAND TOTAL
+                      </Typography>
+                      <TextField
+                        size="small"
+                        value={calculateNetTotal().toFixed(2)}
+                        InputProps={{ readOnly: true }}
+                        sx={{
+                          width: 150,
+                          '& .MuiInputBase-input': {
+                            fontWeight: 'bold',
+                            color: 'primary.main',
+                            fontSize: '1.1rem'
+                          }
+                        }}
+                      />
+                    </Box>
+
+                    <Divider sx={{ my: 1 }} />
 
                     {/* TOTAL PAYMENT */}
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -2250,7 +2602,7 @@ export default function PurchasesPage() {
                     '&:hover': { bgcolor: 'secondary.dark' }
                   }}
                 >
-                  {isSubmitting ? (editingPurchase ? 'Updating...' : 'Creating...') : (editingPurchase ? 'Update Purchase' : 'Create Purchase')}
+                  {isSubmitting ? (editingPurchase ? 'Updating...' : 'Creating...') : (editingPurchase ? 'Update Purchase' : 'Save')}
                 </Button>
               </Box>
             </Box>
@@ -2308,18 +2660,84 @@ export default function PurchasesPage() {
         </DialogTitle>
 
         <DialogContent sx={{ p: 3 }}>
-          <Box component="form" sx={{ mt: 2 }}>
+          <Box sx={{ my: 2 }}>
+            {/* Quick Actions */}
+            <Box sx={{
+              bgcolor: 'grey.50',
+              borderRadius: 2,
+              p: 2,
+              border: 1,
+              borderColor: 'grey.200',
+              mb: 3
+            }}>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<BusinessIcon />}
+                  onClick={() => setShowCustomerCategoryPopup(true)}
+                  sx={{
+                    borderColor: 'success.main',
+                    color: 'success.main',
+                    '&:hover': {
+                      borderColor: 'success.dark',
+                      backgroundColor: 'success.light',
+                      color: 'success.dark'
+                    }
+                  }}
+                >
+                  Add Account Category
+                </Button>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<PersonIcon />}
+                  onClick={() => setShowCustomerTypePopup(true)}
+                  sx={{
+                    borderColor: 'secondary.main',
+                    color: 'secondary.main',
+                    '&:hover': {
+                      borderColor: 'secondary.dark',
+                      backgroundColor: 'secondary.light',
+                      color: 'secondary.dark'
+                    }
+                  }}
+                >
+                  Add Type
+                </Button>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<LocationOnIcon />}
+                  onClick={() => setShowCityPopup(true)}
+                  sx={{
+                    borderColor: 'warning.main',
+                    color: 'warning.main',
+                    '&:hover': {
+                      borderColor: 'warning.dark',
+                      backgroundColor: 'warning.light',
+                      color: 'warning.dark'
+                    }
+                  }}
+                >
+                  Add City
+                </Button>
+              </Box>
+            </Box>
+
             <Grid container spacing={3}>
               {/* Row 1: Name, Primary Phone, Secondary Phone */}
               <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
                   required
-                  label="Customer Name"
+                  label="Account Name"
                   name="cus_name"
                   value={customerFormData.cus_name}
                   onChange={handleCustomerFormChange}
-                  placeholder="Enter customer name"
+                  placeholder="Enter account name"
+                  size="medium"
+                  sx={{ minHeight: 56, minWidth: 200 }}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -2340,6 +2758,8 @@ export default function PurchasesPage() {
                   value={customerFormData.cus_phone_no}
                   onChange={handleCustomerFormChange}
                   placeholder="Enter primary phone number"
+                  size="medium"
+                  sx={{ minHeight: 56, minWidth: 200 }}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -2359,6 +2779,8 @@ export default function PurchasesPage() {
                   value={customerFormData.cus_phone_no2}
                   onChange={handleCustomerFormChange}
                   placeholder="Enter secondary phone number"
+                  size="medium"
+                  sx={{ minHeight: 56, minWidth: 200 }}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -2369,18 +2791,18 @@ export default function PurchasesPage() {
                 />
               </Grid>
 
-              {/* Row 2: Address, Customer Type, Category */}
+              {/* Row 2: Address, Account Type, Category */}
               <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
                   required
                   label="Address"
                   name="cus_address"
-                  multiline
-                  rows={2}
                   value={customerFormData.cus_address}
                   onChange={handleCustomerFormChange}
-                  placeholder="Enter customer address"
+                  placeholder="Enter complete address"
+                  size="medium"
+                  sx={{ minHeight: 56, minWidth: 200 }}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -2392,42 +2814,146 @@ export default function PurchasesPage() {
               </Grid>
 
               <Grid item xs={12} md={4}>
-                <FormControl fullWidth required sx={{ minWidth: 250 }}>
-                  <InputLabel>Customer Type</InputLabel>
-                  <Select
-                    name="cus_type"
-                    value={customerFormData.cus_type}
-                    label="Customer Type"
-                    onChange={handleCustomerFormChange}
-                  >
-                    {customerTypes.map(type => (
-                      <MenuItem key={type.cus_type_id} value={type.cus_type_id}>
-                        {type.cus_type_title}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
+                <Autocomplete
+                  fullWidth
+                  required
+                  size="medium"
+                  options={[
+                    { id: '', title: 'Select a type' },
+                    ...customerTypes.map(type => ({
+                      id: type.cus_type_id,
+                      title: type.cus_type_title
+                    }))
+                  ]}
+                  value={(() => {
+                    const options = [
+                      { id: '', title: 'Select a type' },
+                      ...customerTypes.map(type => ({
+                        id: type.cus_type_id,
+                        title: type.cus_type_title
+                      }))
+                    ];
+                    return options.find(option => option.id === customerFormData.cus_type) || { id: '', title: 'Select a type' };
+                  })()}
+                  onChange={(event, newValue) => {
+                    setCustomerFormData(prev => ({
+                      ...prev,
+                      cus_type: newValue ? newValue.id : ''
+                    }));
+                  }}
+                  getOptionLabel={(option) => option.title}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Account Type"
+                      sx={{ minHeight: 56, minWidth: 255 }}
+                      InputProps={{
+                        ...params.InputProps,
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <PersonIcon />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  )}
+                />
               </Grid>
 
               <Grid item xs={12} md={4}>
-                <FormControl fullWidth required sx={{ minWidth: 250 }}>
-                  <InputLabel>Customer Category</InputLabel>
-                  <Select
-                    name="cus_category"
-                    value={customerFormData.cus_category}
-                    label="Customer Category"
-                    onChange={handleCustomerFormChange}
-                  >
-                    {customerCategories.map(category => (
-                      <MenuItem key={category.cus_cat_id} value={category.cus_cat_id}>
-                        {category.cus_cat_title}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
+                <Autocomplete
+                  fullWidth
+                  required
+                  size="medium"
+                  options={[
+                    { id: '', title: 'Select a category' },
+                    ...customerCategories.map(category => ({
+                      id: category.cus_cat_id,
+                      title: category.cus_cat_title
+                    }))
+                  ]}
+                  value={(() => {
+                    const options = [
+                      { id: '', title: 'Select a category' },
+                      ...customerCategories.map(category => ({
+                        id: category.cus_cat_id,
+                        title: category.cus_cat_title
+                      }))
+                    ];
+                    return options.find(option => option.id === customerFormData.cus_category) || { id: '', title: 'Select a category' };
+                  })()}
+                  onChange={(event, newValue) => {
+                    setCustomerFormData(prev => ({
+                      ...prev,
+                      cus_category: newValue ? newValue.id : ''
+                    }));
+                  }}
+                  getOptionLabel={(option) => option.title}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Supplier Category"
+                      sx={{ minHeight: 56, minWidth: 255 }}
+                      InputProps={{
+                        ...params.InputProps,
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <BusinessIcon />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  )}
+                />
               </Grid>
 
-              {/* Row 3: Reference, Account Info, CNIC */}
+              {/* Row 3: City, Reference, Account Info */}
+              <Grid item xs={12} md={4}>
+                <Autocomplete
+                  fullWidth
+                  size="medium"
+                  options={[
+                    { id: '', title: 'Select a city' },
+                    ...cities.map(city => ({
+                      id: city.city_id,
+                      title: city.city_name
+                    }))
+                  ]}
+                  value={(() => {
+                    const options = [
+                      { id: '', title: 'Select a city' },
+                      ...cities.map(city => ({
+                        id: city.city_id,
+                        title: city.city_name
+                      }))
+                    ];
+                    return options.find(option => option.id === customerFormData.city_id) || { id: '', title: 'Select a city' };
+                  })()}
+                  onChange={(event, newValue) => {
+                    setCustomerFormData(prev => ({
+                      ...prev,
+                      city_id: newValue ? newValue.id : ''
+                    }));
+                  }}
+                  getOptionLabel={(option) => option.title}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="City"
+                      sx={{ minHeight: 56, minWidth: 255 }}
+                      InputProps={{
+                        ...params.InputProps,
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <MapPinIcon />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  )}
+                />
+              </Grid>
+
               <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
@@ -2436,6 +2962,8 @@ export default function PurchasesPage() {
                   value={customerFormData.cus_reference}
                   onChange={handleCustomerFormChange}
                   placeholder="Enter reference"
+                  size="medium"
+                  sx={{ minHeight: 56, minWidth: 200 }}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -2454,6 +2982,8 @@ export default function PurchasesPage() {
                   value={customerFormData.cus_account_info}
                   onChange={handleCustomerFormChange}
                   placeholder="Enter account information"
+                  size="medium"
+                  sx={{ minHeight: 56, minWidth: 200 }}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -2464,6 +2994,7 @@ export default function PurchasesPage() {
                 />
               </Grid>
 
+              {/* Row 4: CNIC, NTN Number, Name in Urdu */}
               <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
@@ -2472,6 +3003,8 @@ export default function PurchasesPage() {
                   value={customerFormData.CNIC}
                   onChange={handleCustomerFormChange}
                   placeholder="Enter CNIC number"
+                  size="medium"
+                  sx={{ minHeight: 56, minWidth: 200 }}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -2482,7 +3015,6 @@ export default function PurchasesPage() {
                 />
               </Grid>
 
-              {/* Row 4: NTN Number, Name in Urdu, City */}
               <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
@@ -2491,6 +3023,8 @@ export default function PurchasesPage() {
                   value={customerFormData.NTN_NO}
                   onChange={handleCustomerFormChange}
                   placeholder="Enter NTN number"
+                  size="medium"
+                  sx={{ minHeight: 56, minWidth: 200 }}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -2509,6 +3043,8 @@ export default function PurchasesPage() {
                   value={customerFormData.name_urdu}
                   onChange={handleCustomerFormChange}
                   placeholder="Enter name in Urdu"
+                  size="medium"
+                  sx={{ minHeight: 56, minWidth: 200 }}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -2519,26 +3055,8 @@ export default function PurchasesPage() {
                 />
               </Grid>
 
+              {/* Row 5: Opening Balance, Other Information */}
               <Grid item xs={12} md={4}>
-                <FormControl fullWidth required sx={{ minWidth: 250 }}>
-                  <InputLabel>City</InputLabel>
-                  <Select
-                    name="city_id"
-                    value={customerFormData.city_id}
-                    label="City"
-                    onChange={handleCustomerFormChange}
-                  >
-                    {cities.map(city => (
-                      <MenuItem key={city.city_id} value={city.city_id}>
-                        {city.city_name}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-
-              {/* Row 5: Balance, Other Information */}
-              <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
                   label="Opening Balance"
@@ -2548,6 +3066,8 @@ export default function PurchasesPage() {
                   value={customerFormData.cus_balance}
                   onChange={handleCustomerFormChange}
                   placeholder="Enter opening balance"
+                  size="medium"
+                  sx={{ minHeight: 56, minWidth: 200 }}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -2558,16 +3078,16 @@ export default function PurchasesPage() {
                 />
               </Grid>
 
-              <Grid item xs={12} md={6}>
+              <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
                   label="Other Information"
                   name="other"
-                  multiline
-                  rows={2}
                   value={customerFormData.other}
                   onChange={handleCustomerFormChange}
                   placeholder="Enter other information"
+                  size="medium"
+                  sx={{ minHeight: 56, minWidth: 200 }}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -2610,162 +3130,236 @@ export default function PurchasesPage() {
       <Dialog
         open={viewDialogOpen}
         onClose={handleCloseViewDialog}
-        maxWidth="lg"
+        maxWidth="md"
         fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            boxShadow: 3
+          }
+        }}
       >
-        <DialogTitle>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
-              Purchase Details - #{viewingPurchase?.sequentialId || viewingPurchase?.pur_id}
-            </Typography>
-            <IconButton onClick={handleCloseViewDialog} size="small">
-              <CloseIcon />
-            </IconButton>
-          </Box>
+        <DialogTitle sx={{
+          bgcolor: 'primary.main',
+          color: 'white',
+          fontWeight: 'bold',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 2
+        }}>
+          <ReceiptIcon />
+          Purchase Receipt - #{viewingPurchase?.sequentialId || viewingPurchase?.pur_id}
         </DialogTitle>
-        <DialogContent>
+
+        <DialogContent sx={{ p: 2, bgcolor: '#f5f5f5', maxHeight: '80vh', overflow: 'auto' }}>
           {viewingPurchase && (
-            <Box sx={{ mt: 2 }}>
-              {/* Purchase Information */}
-              <Card sx={{ mb: 3, p: 2 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 2 }}>
-                  Purchase Information
+            <Box id="purchase-invoice" sx={{ width: '100%', bgcolor: 'white', p: 3, mt: 2 }}>
+              {/* Company Header */}
+              <Box sx={{ textAlign: 'center', py: 2, borderBottom: '2px solid #000' }}>
+                <Typography variant="h5" sx={{
+                  fontWeight: 'bold',
+                  mb: 1,
+                  fontFamily: 'Arial, sans-serif',
+                  direction: 'rtl'
+                }}>
+                  اتفاق آئرن اینڈ سیمنٹ سٹور
                 </Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={6}>
-                    <Typography variant="body2" color="text.secondary">Purchase ID</Typography>
-                    <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
-                      {viewingPurchase.pur_id}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <Typography variant="body2" color="text.secondary">Customer/Supplier</Typography>
-                    <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
-                      {viewingPurchase.customer?.cus_name || 'N/A'}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <Typography variant="body2" color="text.secondary">Invoice Number</Typography>
-                    <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
-                      {viewingPurchase.invoice_number || 'N/A'}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <Typography variant="body2" color="text.secondary">Vehicle Number</Typography>
-                    <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
-                      {viewingPurchase.vehicle_no || 'N/A'}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <Typography variant="body2" color="text.secondary">Payment Type</Typography>
-                    <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
-                      {viewingPurchase.payment_type}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <Typography variant="body2" color="text.secondary">Created Date</Typography>
-                    <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
-                      {new Date(viewingPurchase.created_at).toLocaleString()}
-                    </Typography>
-                  </Grid>
-                </Grid>
-              </Card>
+                <Typography variant="body2" sx={{
+                  mb: 1,
+                  direction: 'rtl'
+                }}>
+                  گجرات سرگودھا روڈ، پاہڑیانوالی
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 1 }}>
+                  <PhoneIcon sx={{ color: '#25D366', fontSize: '1rem' }} />
+                  <Typography variant="body2">
+                    Ph:- 0346-7560306, 0300-7560306
+                  </Typography>
+                </Box>
+                <Typography variant="h6" sx={{
+                  fontWeight: 'bold',
+                  textTransform: 'uppercase',
+                  letterSpacing: 1,
+                  mt: 1
+                }}>
+                  PURCHASE INVOICE
+                </Typography>
+              </Box>
 
-              {/* Amounts */}
-              <Card sx={{ mb: 3, p: 2 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 2 }}>
-                  Amounts
-                </Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={3}>
-                    <Typography variant="body2" color="text.secondary">Total Amount</Typography>
-                    <Typography variant="body1" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
-                      {parseFloat(viewingPurchase.total_amount).toFixed(2)}
+              {/* Customer and Invoice Details */}
+              <Box sx={{ px: 3, py: 2, borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between' }}>
+                <Box sx={{ flex: '0 0 50%' }}>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
+                    Supplier Name: <strong>{viewingPurchase.customer?.cus_name || 'N/A'}</strong>
+                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
+                    Phone No: <strong>{viewingPurchase.customer?.cus_phone_no || 'N/A'}</strong>
+                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
+                    Address: <strong>{viewingPurchase.customer?.cus_address || 'N/A'}</strong>
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right', flex: '0 0 50%' }}>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
+                    Invoice No: <strong>#{viewingPurchase.pur_id}</strong>
+                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
+                    Time: <strong>{new Date(viewingPurchase.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
+                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
+                    Date: <strong>{new Date(viewingPurchase.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
+                  </Typography>
+                  {viewingPurchase.vehicle_no && (
+                    <Typography variant="body2">
+                      Vehicle No: <strong>{viewingPurchase.vehicle_no}</strong>
                     </Typography>
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <Typography variant="body2" color="text.secondary">Unloading Amount</Typography>
-                    <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
-                      {parseFloat(viewingPurchase.unloading_amount || 0).toFixed(2)}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <Typography variant="body2" color="text.secondary">Fare Amount</Typography>
-                    <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
-                      {parseFloat(viewingPurchase.fare_amount || 0).toFixed(2)}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <Typography variant="body2" color="text.secondary">Transport Amount</Typography>
-                    <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
-                      {parseFloat(viewingPurchase.transport_amount || 0).toFixed(2)}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <Typography variant="body2" color="text.secondary">Labour Amount</Typography>
-                    <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
-                      {parseFloat(viewingPurchase.labour_amount || 0).toFixed(2)}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <Typography variant="body2" color="text.secondary">Discount</Typography>
-                    <Typography variant="body1" sx={{ fontWeight: 'medium', color: 'error.main' }}>
-                      -{parseFloat(viewingPurchase.discount || 0).toFixed(2)}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <Typography variant="body2" color="text.secondary">Payment</Typography>
-                    <Typography variant="body1" sx={{ fontWeight: 'bold', color: 'success.main' }}>
-                      {parseFloat(viewingPurchase.payment || 0).toFixed(2)}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <Typography variant="body2" color="text.secondary">Net Total</Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
-                      {parseFloat(viewingPurchase.net_total || 0).toFixed(2)}
-                    </Typography>
-                  </Grid>
-                </Grid>
-              </Card>
+                  )}
+                </Box>
+              </Box>
 
-              {/* Purchase Details (Products) */}
-              <Card sx={{ p: 2 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 2 }}>
-                  Products ({viewingPurchase.purchase_details?.length || 0})
-                </Typography>
-                {viewingPurchase.purchase_details && viewingPurchase.purchase_details.length > 0 ? (
-                  <TableContainer>
-                    <Table>
-                      <TableHead>
+              {/* Product Table */}
+              <Box sx={{ px: 3, py: 2 }}>
+                <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: '#9e9e9e' }}>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }}>S#</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }}>Product Name</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Qty</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Rate</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Amount</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {viewingPurchase.purchase_details && viewingPurchase.purchase_details.length > 0 ? (
+                        viewingPurchase.purchase_details.map((detail, index) => (
+                          <TableRow key={detail.pur_detail_id || index}>
+                            <TableCell sx={{ px: 1 }}>{index + 1}</TableCell>
+                            <TableCell sx={{ px: 1 }}>{detail.product?.pro_title || detail.pro_title || 'N/A'}</TableCell>
+                            <TableCell sx={{ px: 1 }} align="right">{detail.qnty || 0}</TableCell>
+                            <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.unit_rate || detail.rate || 0).toFixed(2)}</TableCell>
+                            <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.total_amount || detail.amount || 0).toFixed(2)}</TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
                         <TableRow>
-                          <TableCell sx={{ fontWeight: 'bold' }}>Product</TableCell>
-                          <TableCell sx={{ fontWeight: 'bold' }} align="right">Quantity</TableCell>
-                          <TableCell sx={{ fontWeight: 'bold' }} align="right">Unit Rate</TableCell>
-                          <TableCell sx={{ fontWeight: 'bold' }} align="right">Total Amount</TableCell>
+                          <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                            No items found
+                          </TableCell>
                         </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {viewingPurchase.purchase_details.map((detail, index) => (
-                          <TableRow key={index}>
-                            <TableCell>
-                              {detail.product?.pro_title || `Product ID: ${detail.pro_id}`}
-                            </TableCell>
-                            <TableCell align="right">{detail.qnty} {detail.unit}</TableCell>
-                            <TableCell align="right">{parseFloat(detail.unit_rate || 0).toFixed(2)}</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'medium' }}>
-                              {parseFloat(detail.total_amount || 0).toFixed(2)}
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+
+                {/* Payment Summary */}
+                <Box sx={{ mt: 2, width: '100%', display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                  <Box sx={{ flex: '0 0 48%' }}>
+                    <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, border: '1px solid #000', width: '100%' }}>
+                      <Table size="small">
+                        <TableBody>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                              {parseFloat(viewingPurchase.customer?.cus_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                ) : (
-                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 3 }}>
-                    No products in this purchase
-                  </Typography>
-                )}
-              </Card>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجودہ بقایا</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                              {(parseFloat(viewingPurchase.total_amount || 0) - parseFloat(viewingPurchase.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>کل بقایا</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                              {(parseFloat(viewingPurchase.customer?.cus_balance || 0) + parseFloat(viewingPurchase.total_amount || 0) - parseFloat(viewingPurchase.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Box>
+                  <Box sx={{ flex: '0 0 48%', display: 'flex', justifyContent: 'flex-end' }}>
+                    <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%', maxWidth: '100%' }}>
+                      <Table size="small">
+                        <TableBody>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>کل مال کی رقم</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                              {parseFloat(viewingPurchase.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>مزدوری</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                              {parseFloat(viewingPurchase.labour_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>ٹرانسپورٹ</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                              {parseFloat(viewingPurchase.transport_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>کرایہ</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                              {parseFloat(viewingPurchase.fare_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>اتارنے کا خرچ</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                              {parseFloat(viewingPurchase.unloading_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                          {parseFloat(viewingPurchase.discount || 0) > 0 && (
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رعایت/ڈسکاؤنٹ</TableCell>
+                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                -{parseFloat(viewingPurchase.discount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                          )}
+                          <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>کل بل کی رقم</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                              {(viewingPurchase.display_net_total || parseFloat(viewingPurchase.total_amount || 0) + parseFloat(viewingPurchase.unloading_amount || 0) + parseFloat(viewingPurchase.transport_amount || 0) + parseFloat(viewingPurchase.labour_amount || 0) + parseFloat(viewingPurchase.fare_amount || 0) - parseFloat(viewingPurchase.discount || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>نقد ادائیگی</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem', fontWeight: 'bold' }}>
+                              {parseFloat(viewingPurchase.cash_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                              {viewingPurchase.bank_payment > 0 ? (viewingPurchase.bank_title || 'بینک ادائیگی') : 'بینک ادائیگی'}
+                            </TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem', fontWeight: 'bold' }}>
+                              {parseFloat(viewingPurchase.bank_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>کل ادائیگی</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                              {parseFloat(viewingPurchase.payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>باقی رقم</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                              {((viewingPurchase.display_net_total || parseFloat(viewingPurchase.total_amount || 0) + parseFloat(viewingPurchase.unloading_amount || 0) + parseFloat(viewingPurchase.transport_amount || 0) + parseFloat(viewingPurchase.labour_amount || 0) + parseFloat(viewingPurchase.fare_amount || 0) - parseFloat(viewingPurchase.discount || 0)) - parseFloat(viewingPurchase.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Box>
+                </Box>
+              </Box>
             </Box>
           )}
         </DialogContent>
@@ -2799,6 +3393,487 @@ export default function PurchasesPage() {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      {/* Account Category Popup */}
+      <Dialog
+        open={showCustomerCategoryPopup}
+        onClose={() => setShowCustomerCategoryPopup(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{
+          background: 'linear-gradient(45deg, #4caf50 30%, #2e7d32 90%)',
+          color: 'white',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <Avatar sx={{
+              bgcolor: 'rgba(255,255,255,0.2)',
+              mr: 2,
+              width: 40,
+              height: 40
+            }}>
+              <BusinessIcon />
+            </Avatar>
+            <Box>
+              <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
+                Add Account Category
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Create a new account category
+              </Typography>
+            </Box>
+          </Box>
+          <IconButton
+            onClick={() => setShowCustomerCategoryPopup(false)}
+            sx={{ color: 'white' }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+
+        <DialogContent sx={{ p: 3 }}>
+          <Box component="form" sx={{ mt: 2 }}>
+            <TextField
+              fullWidth
+              required
+              label="Account Category Title"
+              value={customerCategoryFormData.cus_cat_title}
+              onChange={(e) => setCustomerCategoryFormData({ cus_cat_title: e.target.value })}
+              disabled={isAddingCustomerCategory}
+              placeholder="Enter account category title"
+              sx={{ mb: 2 }}
+            />
+          </Box>
+        </DialogContent>
+
+        <DialogActions sx={{ p: 3, borderTop: 1, borderColor: 'divider' }}>
+          <Button
+            onClick={() => setShowCustomerCategoryPopup(false)}
+            sx={{ textTransform: 'none' }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleAddCustomerCategory}
+            disabled={isAddingCustomerCategory}
+            sx={{
+              background: 'linear-gradient(45deg, #4caf50 30%, #2e7d32 90%)',
+              textTransform: 'none',
+              '&:hover': {
+                background: 'linear-gradient(45deg, #388e3c 30%, #1b5e20 90%)',
+              }
+            }}
+          >
+            {isAddingCustomerCategory ? 'Adding...' : 'Add Category'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Account Type Popup */}
+      <Dialog
+        open={showCustomerTypePopup}
+        onClose={() => setShowCustomerTypePopup(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{
+          background: 'linear-gradient(45deg, #2196f3 30%, #9c27b0 90%)',
+          color: 'white',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <Avatar sx={{
+              bgcolor: 'rgba(255,255,255,0.2)',
+              mr: 2,
+              width: 40,
+              height: 40
+            }}>
+              <PersonIcon />
+            </Avatar>
+            <Box>
+              <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
+                Add Account Type
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Create a new account type
+              </Typography>
+            </Box>
+          </Box>
+          <IconButton
+            onClick={() => setShowCustomerTypePopup(false)}
+            sx={{ color: 'white' }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+
+        <DialogContent sx={{ p: 3 }}>
+          <Box component="form" sx={{ mt: 2 }}>
+            <TextField
+              fullWidth
+              required
+              label="Account Type Title"
+              value={customerTypeFormData.cus_type_title}
+              onChange={(e) => setCustomerTypeFormData({ cus_type_title: e.target.value })}
+              disabled={isAddingCustomerType}
+              placeholder="Enter account type title"
+              sx={{ mb: 2 }}
+            />
+          </Box>
+        </DialogContent>
+
+        <DialogActions sx={{ p: 3, borderTop: 1, borderColor: 'divider' }}>
+          <Button
+            onClick={() => setShowCustomerTypePopup(false)}
+            sx={{ textTransform: 'none' }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleAddCustomerType}
+            disabled={isAddingCustomerType}
+            sx={{
+              background: 'linear-gradient(45deg, #2196f3 30%, #9c27b0 90%)',
+              textTransform: 'none',
+              '&:hover': {
+                background: 'linear-gradient(45deg, #1976d2 30%, #7b1fa2 90%)',
+              }
+            }}
+          >
+            {isAddingCustomerType ? 'Adding...' : 'Add Type'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* City Popup */}
+      <Dialog
+        open={showCityPopup}
+        onClose={() => setShowCityPopup(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{
+          background: 'linear-gradient(45deg, #ff9800 30%, #f57c00 90%)',
+          color: 'white',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <Avatar sx={{
+              bgcolor: 'rgba(255,255,255,0.2)',
+              mr: 2,
+              width: 40,
+              height: 40
+            }}>
+              <MapPinIcon />
+            </Avatar>
+            <Box>
+              <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
+                Add City
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Create a new city
+              </Typography>
+            </Box>
+          </Box>
+          <IconButton
+            onClick={() => setShowCityPopup(false)}
+            sx={{ color: 'white' }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+
+        <DialogContent sx={{ p: 3 }}>
+          <Box component="form" sx={{ mt: 2 }}>
+            <TextField
+              fullWidth
+              required
+              label="City Name"
+              value={cityFormData.city_name}
+              onChange={(e) => setCityFormData({ city_name: e.target.value })}
+              disabled={isAddingCity}
+              placeholder="Enter city name"
+              sx={{ mb: 2 }}
+            />
+          </Box>
+        </DialogContent>
+
+        <DialogActions sx={{ p: 3, borderTop: 1, borderColor: 'divider' }}>
+          <Button
+            onClick={() => setShowCityPopup(false)}
+            sx={{ textTransform: 'none' }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleAddCity}
+            disabled={isAddingCity}
+            sx={{
+              background: 'linear-gradient(45deg, #ff9800 30%, #f57c00 90%)',
+              textTransform: 'none',
+              '&:hover': {
+                background: 'linear-gradient(45deg, #f57c00 30%, #ef6c00 90%)',
+              }
+            }}
+          >
+            {isAddingCity ? 'Adding...' : 'Add City'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Receipt Dialog */}
+      <Dialog
+        open={receiptDialogOpen}
+        onClose={() => setReceiptDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            boxShadow: 3
+          }
+        }}
+      >
+        <DialogTitle sx={{
+          bgcolor: 'primary.main',
+          color: 'white',
+          fontWeight: 'bold',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 2
+        }}>
+          <ReceiptIcon />
+          Purchase Receipt Preview
+        </DialogTitle>
+
+        <DialogContent sx={{ p: 2, bgcolor: '#f5f5f5', maxHeight: '80vh', overflow: 'auto' }}>
+          {currentBillData && (
+            <Box id="receipt-preview" sx={{ width: '100%', bgcolor: 'white', p: 3, mt: 2 }}>
+              {/* Company Header */}
+              <Box sx={{ textAlign: 'center', py: 2, borderBottom: '2px solid #000' }}>
+                <Typography variant="h5" sx={{
+                  fontWeight: 'bold',
+                  mb: 1,
+                  fontFamily: 'Arial, sans-serif',
+                  direction: 'rtl'
+                }}>
+                  اتفاق آئرن اینڈ سیمنٹ سٹور
+                </Typography>
+                <Typography variant="body2" sx={{
+                  mb: 1,
+                  direction: 'rtl'
+                }}>
+                  گجرات سرگودھا روڈ، پاہڑیانوالی
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 1 }}>
+                  <PhoneIcon sx={{ color: '#25D366', fontSize: '1rem' }} />
+                  <Typography variant="body2">
+                    Ph:- 0346-7560306, 0300-7560306
+                  </Typography>
+                </Box>
+                <Typography variant="h6" sx={{
+                  fontWeight: 'bold',
+                  textTransform: 'uppercase',
+                  letterSpacing: 1,
+                  mt: 1
+                }}>
+                  PURCHASE INVOICE
+                </Typography>
+              </Box>
+
+              {/* Customer and Invoice Details */}
+              <Box sx={{ px: 3, py: 2, borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between' }}>
+                <Box sx={{ flex: '0 0 50%' }}>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
+                    Customer Name: <strong>{currentBillData.customer?.cus_name || 'N/A'}</strong>
+                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
+                    Phone No: <strong>{currentBillData.customer?.cus_phone_no || 'N/A'}</strong>
+                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
+                    Address: <strong>{currentBillData.customer?.cus_address || 'N/A'}</strong>
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right', flex: '0 0 50%' }}>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
+                    Invoice No: <strong>#{currentBillData.pur_id}</strong>
+                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
+                    Time: <strong>{new Date(currentBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
+                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
+                    Date: <strong>{new Date(currentBillData.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
+                  </Typography>
+                  <Typography variant="body2">
+                    Bill Type: <strong>{currentBillData.bill_type || 'PURCHASE'}</strong>
+                  </Typography>
+                </Box>
+              </Box>
+
+              {/* Product Table and Payment Summary - Full Width */}
+              <Box sx={{ px: 3, py: 2 }}>
+                <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: '#9e9e9e' }}>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }}>S#</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }}>Product Name</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Qty</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Rate</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Amount</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {currentBillData.purchase_details && currentBillData.purchase_details.length > 0 ? (
+                        currentBillData.purchase_details.map((detail, index) => (
+                          <TableRow key={detail.pur_detail_id || index}>
+                            <TableCell sx={{ px: 1 }}>{index + 1}</TableCell>
+                            <TableCell sx={{ px: 1 }}>{detail.product?.pro_title || detail.pro_title || 'N/A'}</TableCell>
+                            <TableCell sx={{ px: 1 }} align="right">{detail.qnty || 0}</TableCell>
+                            <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.unit_rate || detail.rate || 0).toFixed(2)}</TableCell>
+                            <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.total_amount || detail.amount || 0).toFixed(2)}</TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                            No items found
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+
+                {/* Payment Summary */}
+                <Box sx={{ mt: 2, width: '100%', display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                  <Box sx={{ flex: '0 0 48%' }}>
+                    <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, border: '1px solid #000', width: '100%' }}>
+                      <Table size="small">
+                        <TableBody>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                              {parseFloat(currentBillData.customer?.cus_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                              {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                              {(parseFloat(currentBillData.customer?.cus_balance || 0) + parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                    {currentBillData.notes && (
+                      <Box sx={{ mt: 1 }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
+                          <strong>Notes:</strong> {currentBillData.notes}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+                  <Box sx={{ flex: '0 0 48%', display: 'flex', justifyContent: 'flex-end' }}>
+                    <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%', maxWidth: '100%' }}>
+                      <Table size="small">
+                        <TableBody>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رقم بل</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                              {parseFloat(currentBillData.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>مزدوری</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                              {parseFloat(currentBillData.labour_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>کرایہ</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                              {(parseFloat(currentBillData.fare_amount || 0) + parseFloat(currentBillData.transport_amount || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                          {parseFloat(currentBillData.discount || 0) > 0 && (
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رعایت/ڈسکاؤنٹ</TableCell>
+                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                -{parseFloat(currentBillData.discount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                          )}
+                          <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                              {(parseFloat(currentBillData.total_amount || 0) + parseFloat(currentBillData.unloading_amount || 0) + parseFloat(currentBillData.transport_amount || 0) + parseFloat(currentBillData.labour_amount || 0) + parseFloat(currentBillData.fare_amount || 0) - parseFloat(currentBillData.discount || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                          {/* Always show cash payment */}
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>نقد كيش</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                              {parseFloat(currentBillData.cash_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                          {/* Always show bank payment row */}
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                              بینک پیمنٹ
+                            </TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                              {parseFloat(currentBillData.bank_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                          {/* Remove payment breakdown summary */}
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم وصول</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                              {parseFloat(currentBillData.payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>بقايا رقم</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                              {((parseFloat(currentBillData.total_amount || 0) + parseFloat(currentBillData.unloading_amount || 0) + parseFloat(currentBillData.transport_amount || 0) + parseFloat(currentBillData.labour_amount || 0) + parseFloat(currentBillData.fare_amount || 0) - parseFloat(currentBillData.discount || 0)) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Box>
+                </Box>
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+
+        <DialogActions sx={{ p: 2, borderTop: 1, borderColor: 'divider', bgcolor: '#f5f5f5' }}>
+          <Button
+            onClick={() => setReceiptDialogOpen(false)}
+            sx={{ textTransform: 'none' }}
+          >
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 }

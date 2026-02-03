@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { updateStoreStock } from '@/lib/storeStock';
+import { createLedgerEntry } from '@/lib/ledger-helper';
 
 const prisma = new PrismaClient();
 

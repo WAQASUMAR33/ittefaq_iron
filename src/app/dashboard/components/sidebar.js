@@ -61,9 +61,9 @@ export default function Sidebar({
   const menuItems = [
     { id: 'dashboard', name: 'Dashboard', icon: DashboardIcon, category: 'main' },
     
-    // Customer Management
-    { id: 'customercategory', name: 'Customer Categories', icon: LabelIcon, category: 'customer-management', parent: 'Customer Management' },
-    { id: 'customers', name: 'Customer List', icon: PeopleIcon, category: 'customer-management', parent: 'Customer Management' },
+    // Account Management
+    { id: 'customercategory', name: 'Account Categories', icon: LabelIcon, category: 'customer-management', parent: 'Account Management' },
+    { id: 'customers', name: 'Account List', icon: PeopleIcon, category: 'customer-management', parent: 'Account Management' },
     
     // Product Management
     { id: 'categories', name: 'Category Management', icon: FolderIcon, category: 'product-management', parent: 'Product Management' },
@@ -104,6 +104,14 @@ export default function Sidebar({
     { id: 'purchases-by-date', name: 'Purchases (By Date)', icon: CalendarIcon, category: 'reports', parent: 'Reports' },
     { id: 'purchases-by-supplier', name: 'Purchases (Supplier Wise)', icon: ShoppingBagIcon, category: 'reports', parent: 'Reports' },
     { id: 'expenses-by-date', name: 'Expenses Report', icon: TrendingUpIcon, category: 'reports', parent: 'Reports' },
+    { id: 'cash-report', name: 'Cash Report', icon: AttachMoneyIcon, category: 'reports', parent: 'Reports' },
+    { id: 'bank-report', name: 'Bank Report', icon: CreditCardIcon, category: 'reports', parent: 'Reports' },
+    { id: 'order-report', name: 'Order Report', icon: DescriptionIcon, category: 'reports', parent: 'Reports' },
+    { id: 'stock-report', name: 'Stock Report', icon: InventoryIcon, category: 'reports', parent: 'Reports' },
+    { id: 'sale-report', name: 'Sale Report', icon: ShoppingCartIcon, category: 'reports', parent: 'Reports' },
+    { id: 'profit-report', name: 'Profit Report', icon: TrendingUpIcon, category: 'reports', parent: 'Reports' },
+    { id: 'purchase-report', name: 'Purchase Report', icon: ShoppingBagIcon, category: 'reports', parent: 'Reports' },
+    { id: 'balance-sheet', name: 'Balance Sheet', icon: TableChartIcon, category: 'reports', parent: 'Reports' },
     
     // System Management
     { id: 'usermanagement', name: 'User Management', icon: PersonIcon, category: 'system', parent: 'System' },
@@ -183,6 +191,22 @@ export default function Sidebar({
       router.push('/dashboard/reports/purchases-by-supplier');
     } else if (itemId === 'expenses-by-date') {
       router.push('/dashboard/reports/expenses-by-date');
+    } else if (itemId === 'cash-report') {
+      router.push('/dashboard/reports/cash-report');
+    } else if (itemId === 'bank-report') {
+      router.push('/dashboard/reports/bank-report');
+    } else if (itemId === 'order-report') {
+      router.push('/dashboard/reports/order-report');
+    } else if (itemId === 'stock-report') {
+      router.push('/dashboard/reports/stock-report');
+    } else if (itemId === 'sale-report') {
+      router.push('/dashboard/reports/sale-report');
+    } else if (itemId === 'profit-report') {
+      router.push('/dashboard/reports/profit-report');
+    } else if (itemId === 'purchase-report') {
+      router.push('/dashboard/reports/purchase-report');
+    } else if (itemId === 'balance-sheet') {
+      router.push('/dashboard/reports/balance-sheet');
     } else if (itemId === 'stores') {
       router.push('/dashboard/stores');
     } else if (itemId === 'store-stock') {
