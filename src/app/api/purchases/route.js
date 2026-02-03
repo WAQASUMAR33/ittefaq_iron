@@ -136,18 +136,18 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { 
-      cus_id, 
+    const {
+      cus_id,
       store_id,
       debit_account_id,
-      total_amount, 
-      unloading_amount = 0, 
-      fare_amount = 0, 
+      total_amount,
+      unloading_amount = 0,
+      fare_amount = 0,
       transport_amount = 0,
       labour_amount = 0,
-      discount = 0, 
-      payment, 
-      payment_type, 
+      discount = 0,
+      payment,
+      payment_type,
       cash_payment = 0,
       bank_payment = 0,
       vehicle_no,
@@ -155,7 +155,7 @@ export async function POST(request) {
       updated_by,
       purchase_details = []
     } = body;
-    
+
     let { credit_account_id } = body;
 
     // Helper function to safely parse numbers and avoid NaN
@@ -176,28 +176,28 @@ export async function POST(request) {
     if (!total_amount || total_amount <= 0) {
       return errorResponse('Total amount is required and must be greater than 0');
     }
-    
+
     // Validate payment amounts
     const cashPaymentAmount = safeParseFloat(cash_payment);
     const bankPaymentAmount = safeParseFloat(bank_payment);
     const totalPaymentAmount = cashPaymentAmount + bankPaymentAmount;
-    
+
     if (totalPaymentAmount < 0) {
       return errorResponse('Total payment amount must be non-negative');
     }
-    
+
     // Determine payment type based on split payments
     // Note: Using BANK_TRANSFER for split payments since SPLIT is not in PaymentType enum
     let actualPaymentType = 'CASH';
     let isSplitPayment = false;
-    
+
     if (cashPaymentAmount > 0 && bankPaymentAmount > 0) {
       actualPaymentType = 'BANK_TRANSFER'; // Use BANK_TRANSFER for split payments
       isSplitPayment = true;
     } else if (bankPaymentAmount > 0) {
       actualPaymentType = 'BANK_TRANSFER';
     }
-    
+
     console.log('💳 Payment Type Logic:', {
       frontend_payment_type: payment_type,
       cashPaymentAmount,
@@ -205,7 +205,7 @@ export async function POST(request) {
       actualPaymentType,
       isSplitPayment
     });
-    
+
     // Validate that we have a valid payment type (we'll use actualPaymentType for the database)
     if (!actualPaymentType || !['CASH', 'CHEQUE', 'BANK_TRANSFER'].includes(actualPaymentType)) {
       return errorResponse('Valid payment type is required (CASH, CHEQUE, BANK_TRANSFER)');
@@ -213,7 +213,7 @@ export async function POST(request) {
 
     // Calculate net total: total_amount + unloading_amount + fare_amount + transport_amount + labour_amount - discount
     const net_total = safeParseFloat(total_amount) + safeParseFloat(unloading_amount) + safeParseFloat(fare_amount) + safeParseFloat(transport_amount) + safeParseFloat(labour_amount) - safeParseFloat(discount);
-    
+
     // Update payment amount to use total payment from split payments
     // payment is now calculated as totalPaymentAmount
 
@@ -226,25 +226,25 @@ export async function POST(request) {
       return errorResponse('Customer not found', 404);
     }
 
-      // Ensure special accounts exist before transaction
-      if (actualPaymentType === 'CASH' && cashPaymentAmount > 0) {
+    // Ensure special accounts exist before transaction
+    if (actualPaymentType === 'CASH' && cashPaymentAmount > 0) {
       // Find or create Cash Account
       let cashAccount = await prisma.customer.findFirst({
         where: { cus_name: 'Cash Account' }
       });
-      
+
       console.log('🔍 Cash Account search result (pre-transaction):', {
         found: !!cashAccount,
         cashAccount: cashAccount ? { id: cashAccount.cus_id, name: cashAccount.cus_name } : null,
         credit_account_id_from_frontend: credit_account_id
       });
-      
+
       if (!cashAccount) {
         // Get the Cash Account customer type
         const cashAccountType = await prisma.customerType.findFirst({
           where: { cus_type_title: 'Cash Account' }
         });
-        
+
         if (cashAccountType) {
           cashAccount = await prisma.customer.create({
             data: {
@@ -261,7 +261,7 @@ export async function POST(request) {
           console.log('✅ Created Cash Account (pre-transaction):', cashAccount);
         }
       }
-      
+
       if (cashAccount) {
         credit_account_id = cashAccount.cus_id;
         console.log('✅ Using Cash Account ID (pre-transaction):', credit_account_id);
@@ -331,7 +331,7 @@ export async function POST(request) {
       // Create purchase details if provided
       if (purchase_details && purchase_details.length > 0) {
         console.log('🔍 Processing purchase details:', purchase_details);
-        
+
         const detailsData = purchase_details.map(detail => {
           const processedDetail = {
             pur_id: newPurchase.pur_id,
@@ -347,7 +347,7 @@ export async function POST(request) {
             net_total: safeParseFloat(detail.total_amount), // Use total_amount as net_total for now
             updated_by: updated_by ? safeParseInt(updated_by) : null
           };
-          
+
           console.log('🔍 Processed detail:', processedDetail);
           return processedDetail;
         });
@@ -387,16 +387,16 @@ export async function POST(request) {
           payments: 0,
           updated_by: updated_by ? parseInt(updated_by) : null
         });
-        
+
         await tx.ledger.create({ data: supplierEntry });
-        
+
         // Update running balance
         currentSupplierBalance = supplierEntry.closing_balance;
       }
 
       // 2. Payment Entries based on payment type
       // Use the already calculated values from validation
-      
+
       console.log('🔍 Payment Debug Info:', {
         payment_type: actualPaymentType,
         credit_account_id,
@@ -431,7 +431,7 @@ export async function POST(request) {
             updated_by: updated_by ? parseInt(updated_by) : null
           }
         });
-        
+
         // Update Cash Account Balance
         await tx.customer.update({
           where: { cus_id: credit_account_id },
@@ -471,7 +471,7 @@ export async function POST(request) {
       if (bankPaymentAmount > 0) {
         // For bank payments, use the selected customer from the bank dropdown
         let bankAccountId = null;
-        
+
         if (body.bank_account_id) {
           bankAccountId = body.bank_account_id;
           console.log('🏦 Using selected bank account customer ID:', bankAccountId);
@@ -479,7 +479,7 @@ export async function POST(request) {
           console.error('❌ No bank account customer selected for bank payment');
           return errorResponse('Bank account customer is required for bank payment');
         }
-        
+
         // Bank Payment: Debit Selected Bank Customer, Credit Supplier Account
         const bankAccountData = await tx.customer.findUnique({
           where: { cus_id: bankAccountId },
@@ -493,8 +493,8 @@ export async function POST(request) {
           data: {
             cus_id: bankAccountId,
             opening_balance: bankCurrentBalance,
-            debit_amount: bankPaymentAmount,
-            credit_amount: 0,
+            debit_amount: 0,
+            credit_amount: bankPaymentAmount,
             closing_balance: bankNewBalance,
             bill_no: newPurchase.pur_id.toString(),
             trnx_type: 'BANK_TRANSFER',
@@ -503,7 +503,7 @@ export async function POST(request) {
             updated_by: updated_by ? parseInt(updated_by) : null
           }
         });
-        
+
         // Update Bank Account Balance
         await tx.customer.update({
           where: { cus_id: bankAccountId },
@@ -545,7 +545,7 @@ export async function POST(request) {
           where: { cus_id: cus_id },
           data: { cus_balance: currentSupplierBalance }
         });
-        
+
         console.log('💰 Final supplier balance update:', {
           supplier_id: cus_id,
           final_balance: currentSupplierBalance
@@ -596,20 +596,20 @@ export async function POST(request) {
 export async function PUT(request) {
   try {
     const body = await request.json();
-    const { 
-      id, 
-      cus_id, 
+    const {
+      id,
+      cus_id,
       store_id,
       debit_account_id,
       credit_account_id,
-      total_amount, 
-      unloading_amount = 0, 
-      fare_amount = 0, 
+      total_amount,
+      unloading_amount = 0,
+      fare_amount = 0,
       transport_amount = 0,
       labour_amount = 0,
-      discount = 0, 
-      payment, 
-      payment_type, 
+      discount = 0,
+      payment,
+      payment_type,
       vehicle_no,
       invoice_number,
       updated_by,
@@ -762,20 +762,20 @@ export async function PUT(request) {
         const cashCurrentBalance = parseFloat(cashAccountData?.cus_balance || 0);
         const cashNewBalance = cashCurrentBalance - parseFloat(payment || 0);
 
-      await tx.ledger.create({
-        data: {
+        await tx.ledger.create({
+          data: {
             cus_id: credit_account_id,
             opening_balance: cashCurrentBalance,
-            debit_amount: parseFloat(payment || 0),
-          credit_amount: 0,
+            debit_amount: 0,
+            credit_amount: parseFloat(payment || 0),
             closing_balance: cashNewBalance,
-          bill_no: id.toString(),
+            bill_no: id.toString(),
             trnx_type: 'CASH',
             details: `Cash Payment for Purchase Update - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
             payments: parseFloat(payment || 0),
-          updated_by: updated_by || existingPurchase.updated_by
-        }
-      });
+            updated_by: updated_by || existingPurchase.updated_by
+          }
+        });
 
         if (cus_id) {
           const supplierData = await tx.customer.findUnique({
@@ -812,8 +812,8 @@ export async function PUT(request) {
           data: {
             cus_id: credit_account_id,
             opening_balance: bankCurrentBalance,
-            debit_amount: parseFloat(payment || 0),
-            credit_amount: 0,
+            debit_amount: 0,
+            credit_amount: parseFloat(payment || 0),
             closing_balance: bankNewBalance,
             bill_no: id.toString(),
             trnx_type: 'BANK_TRANSFER',

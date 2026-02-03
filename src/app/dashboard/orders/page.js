@@ -38,8 +38,7 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions,
-  Divider
+  DialogActions
 } from '@mui/material';
 
 import {
@@ -57,13 +56,12 @@ import {
   Inventory as PackageIcon,
   Clear as ClearIcon,
   Person as PersonIcon,
+  FilterList as FilterIcon,
   MonetizationOn as MoneyIcon,
   Phone as PhoneIcon,
   Close as CloseIcon,
   LocationOn as MapPinIcon,
-  Business as BusinessIcon,
-  TrendingUp as TrendingUpIcon,
-  FilterList as FilterListIcon
+  Business as BusinessIcon
 } from '@mui/icons-material';
 
 function OrdersPageContent() {
@@ -179,7 +177,7 @@ function OrdersPageContent() {
   const [customerPopupOpen, setCustomerPopupOpen] = useState(false);
   const [customerCategories, setCustomerCategories] = useState([]);
   const [cities, setCities] = useState([]);
-
+  
   // Popup states for adding new category, type, and city
   const [showCustomerCategoryPopup, setShowCustomerCategoryPopup] = useState(false);
   const [showCustomerTypePopup, setShowCustomerTypePopup] = useState(false);
@@ -190,7 +188,7 @@ function OrdersPageContent() {
   const [isAddingCustomerCategory, setIsAddingCustomerCategory] = useState(false);
   const [isAddingCustomerType, setIsAddingCustomerType] = useState(false);
   const [isAddingCity, setIsAddingCity] = useState(false);
-
+  
   const [newCustomer, setNewCustomer] = useState({
     cus_name: '',
     cus_phone_no: '',
@@ -223,20 +221,6 @@ function OrdersPageContent() {
   // Helper functions
   const showSnackbar = (message, severity = 'success') => {
     setSnackbar({ open: true, message, severity });
-  };
-
-  const clearFilters = () => {
-    setSearchTerm('');
-    setFilterCustomer('');
-    setFilterBillType('ORDER'); // Keep ORDER as default for Orders page
-    setFilterStore('');
-    setFilterPaymentType('');
-    setFilterMinAmount('');
-    setFilterMaxAmount('');
-    setFilterBalanceStatus('');
-    setDateFrom('');
-    setDateTo('');
-    setSelectedCustomer(null);
   };
 
   // Auto-select first store when stores load
@@ -1541,43 +1525,112 @@ function OrdersPageContent() {
       return result;
     });
 
-    const result = filtered
-      .sort((a, b) => {
-        let aValue, bValue;
-
-        switch (sortBy) {
-          case 'customer':
-            aValue = a.customer?.cus_name || '';
-            bValue = b.customer?.cus_name || '';
-            break;
-          case 'total_amount':
-            aValue = parseFloat(a.total_amount || 0);
-            bValue = parseFloat(b.total_amount || 0);
-            break;
-          default:
-            aValue = new Date(a.created_at);
-            bValue = new Date(b.created_at);
-        }
-
-        const modifier = sortOrder === 'asc' ? 1 : -1;
-
-        if (aValue < bValue) return -1 * modifier;
-        if (aValue > bValue) return 1 * modifier;
-        return 0;
-      });
-
-    console.log('🔍 Filtered and sorted sales count:', result.length, 'out of', sales.length);
-    if (result.length > 0) {
-      console.log('🔍 First filtered sale:', result[0]);
+    console.log('🔍 Filtered sales count:', filtered.length, 'out of', sales.length);
+    if (filtered.length > 0) {
+      console.log('🔍 First filtered sale:', filtered[0]);
     }
-    return result;
-  }, [sales, searchTerm, filterCustomer, filterBillType, filterStore, filterPaymentType, filterMinAmount, filterMaxAmount, filterBalanceStatus, dateFrom, dateTo, sortBy, sortOrder]);
+    return filtered;
+  }, [sales, searchTerm, filterCustomer, filterBillType, filterStore, filterPaymentType, filterMinAmount, filterMaxAmount, filterBalanceStatus, dateFrom, dateTo]);
+
+  console.log('🔍 Filtered sales count:', filteredSales.length);
+  console.log('🔍 Sales state:', sales);
+  console.log('🔍 Sales state length:', sales.length);
+
+  // Debug sales state changes
+  useEffect(() => {
+    console.log('🔍 Sales state changed:', sales);
+    console.log('🔍 Sales length:', sales.length);
+    if (sales.length > 0) {
+      console.log('🔍 First sale:', sales[0]);
+    }
+  }, [sales]);
+
+  // Debug stores state changes
+  useEffect(() => {
+    console.log('🏪 Stores state changed:', stores);
+    console.log('🏪 Stores length:', stores.length);
+    console.log('🏪 Stores type:', typeof stores);
+    console.log('🏪 Is stores array:', Array.isArray(stores));
+  }, [stores]);
+
+  // Debug customers state changes for sales list
+  useEffect(() => {
+    console.log('👥 Sales List - Customers state changed:', customers);
+    console.log('👥 Sales List - Customers length:', customers.length);
+    if (customers.length > 0) {
+      console.log('👥 Sales List - First customer:', customers[0]);
+      console.log('👥 Sales List - All customer types:', customers.map(c => ({
+        name: c.cus_name,
+        type: c.customer_type?.cus_type_title,
+        cus_type: c.cus_type
+      })));
+    }
+  }, [customers]);
+
+  // Debug products state changes for new sale page
+  useEffect(() => {
+    console.log('📦 New Sale - Products state changed:', products);
+    console.log('📦 New Sale - Products length:', products.length);
+    if (products.length > 0) {
+      console.log('📦 New Sale - First product:', products[0]);
+    }
+  }, [products]);
+
+  // Debug customers state changes for new sale page
+  useEffect(() => {
+    console.log('👥 New Sale - Customers state changed:', customers);
+    console.log('👥 New Sale - Customers length:', customers.length);
+    if (customers.length > 0) {
+      console.log('👥 New Sale - First customer:', customers[0]);
+      console.log('👥 New Sale - Customer types:', customers.map(c => ({
+        name: c.cus_name,
+        type: c.customer_type?.cus_type_title
+      })));
+    }
+  }, [customers]);
+
+
+
+
 
   // Calculate stats
   const totalSales = sales.length;
   const totalSalesValue = sales.reduce((sum, sale) => sum + parseFloat(sale.total_amount || 0), 0);
   const totalDiscount = sales.reduce((sum, sale) => sum + parseFloat(sale.discount || 0), 0);
   const totalPayment = sales.reduce((sum, sale) => sum + parseFloat(sale.payment || 0), 0);
+
+  // Filter and sort sales
+  const filteredAndSortedSales = sales
+    .filter(sale => {
+      const matchesSearch = sale.customer?.cus_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        sale.sale_id?.toString().includes(searchTerm.toLowerCase());
+      const matchesCustomer = !selectedCustomer || sale.cus_id === selectedCustomer.cus_id;
+
+      return matchesSearch && matchesCustomer;
+    })
+    .sort((a, b) => {
+      let aValue, bValue;
+
+      switch (sortBy) {
+        case 'customer':
+          aValue = a.customer?.cus_name || '';
+          bValue = b.customer?.cus_name || '';
+          break;
+        case 'total_amount':
+          aValue = parseFloat(a.total_amount || 0);
+          bValue = parseFloat(b.total_amount || 0);
+          break;
+        default:
+          aValue = new Date(a.created_at);
+          bValue = new Date(b.created_at);
+      }
+
+      const modifier = sortOrder === 'asc' ? 1 : -1;
+
+      if (aValue < bValue) return -1 * modifier;
+      if (aValue > bValue) return 1 * modifier;
+      return 0;
+    });
 
   // Edit sale state
   const [editSaleId, setEditSaleId] = useState(null);
@@ -1690,6 +1743,12 @@ function OrdersPageContent() {
     }
   };
 
+  const clearFilters = () => {
+    setSearchTerm('');
+    setSelectedCustomer(null);
+    setSortBy('created_at');
+    setSortOrder('desc');
+  };
 
   if (loading) {
     return (
@@ -1712,9 +1771,9 @@ function OrdersPageContent() {
   // Render Sales Create View
   const renderSalesCreateView = () => (
     <DashboardLayout>
-      <Container
+      <Container 
         maxWidth={false}
-        sx={{
+        sx={{ 
           py: 1,
           maxWidth: {
             xs: '100%',           // Mobile: full width
@@ -3120,9 +3179,9 @@ function OrdersPageContent() {
 
   const renderSalesListView = () => (
     <DashboardLayout>
-      <Container
+      <Container 
         maxWidth={false}
-        sx={{
+        sx={{ 
           py: 4,
           maxWidth: {
             xs: '100%',           // Mobile: full width
@@ -3142,7 +3201,7 @@ function OrdersPageContent() {
                 Order Management
               </Typography>
               <Typography variant="body1" sx={{ color: 'text.secondary', mt: 1 }}>
-                Manage your orders, customers, and revenue with professional tracking
+                Manage your orders, customers, and revenue
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', gap: 2 }}>
@@ -3157,9 +3216,7 @@ function OrdersPageContent() {
                     background: 'linear-gradient(45deg, #E55A2B 30%, #E8851B 90%)',
                     transform: 'scale(1.05)',
                   },
-                  transition: 'all 0.2s ease-in-out',
-                  borderRadius: 2,
-                  px: 3
+                  transition: 'all 0.2s ease-in-out'
                 }}
               >
                 Hold Bill
@@ -3167,10 +3224,7 @@ function OrdersPageContent() {
               <Button
                 variant="contained"
                 startIcon={<AddIcon />}
-                onClick={() => {
-                  setBillType('ORDER');
-                  setCurrentView('create');
-                }}
+                onClick={() => setCurrentView('create')}
                 sx={{
                   background: 'linear-gradient(45deg, #4CAF50 30%, #2E7D32 90%)',
                   boxShadow: '0 3px 5px 2px rgba(76, 175, 80, .3)',
@@ -3178,9 +3232,7 @@ function OrdersPageContent() {
                     background: 'linear-gradient(45deg, #388E3C 30%, #1B5E20 90%)',
                     transform: 'scale(1.05)',
                   },
-                  transition: 'all 0.2s ease-in-out',
-                  borderRadius: 2,
-                  px: 3
+                  transition: 'all 0.2s ease-in-out'
                 }}
               >
                 Add New Order
@@ -3188,175 +3240,152 @@ function OrdersPageContent() {
             </Box>
           </Box>
 
-          {/* Stats Cards Section */}
-          <Box sx={{ flexShrink: 0, mb: 3, width: '100%' }}>
-            <Card sx={{
-              borderRadius: 2,
-              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-              overflow: 'hidden',
-              bgcolor: 'white',
-              border: '1px solid #e5e7eb'
-            }}>
-              <Box sx={{
-                display: 'flex',
-                flexDirection: { xs: 'column', md: 'row' },
-                alignItems: 'stretch',
-                justifyContent: 'space-between',
-                p: 0
-              }}>
-                {[
-                  { title: 'Total Orders', val: totalSales, color: '#2563eb', bg: '#eff6ff', icon: <ShoppingCartIcon /> },
-                  { title: 'Total Revenue', val: totalSalesValue, color: '#16a34a', bg: '#f0fdf4', icon: <TrendingUpIcon /> },
-                  { title: 'Total Discount', val: totalDiscount, color: '#dc2626', bg: '#fef2f2', icon: <TrendingDownIcon /> },
-                  { title: 'Total Payment', val: totalPayment, color: '#d97706', bg: '#fffbeb', icon: <MoneyIcon /> }
-                ].map((stat, i) => (
-                  <Box key={i} sx={{
-                    flex: 1,
-                    p: 3,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 2.5,
-                    width: '100%',
-                    bgcolor: stat.bg,
-                    position: 'relative',
-                    borderBottom: i < 3 && { xs: '1px solid #e5e7eb', md: 'none' },
-                    '&:hover': {
-                      bgcolor: 'white',
-                      transition: 'background-color 0.3s'
-                    }
-                  }}>
-                    <Avatar sx={{
-                      bgcolor: 'white',
-                      color: stat.color,
-                      width: 52,
-                      height: 52,
-                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                      border: `1.5px solid ${stat.color}20`
-                    }}>
-                      {stat.icon}
+          {/* Stats Cards */}
+          <Grid container spacing={3}>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)', color: 'white' }}>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', mr: 2 }}>
+                      <ShoppingCartIcon />
                     </Avatar>
                     <Box>
-                      <Typography variant="overline" sx={{
-                        display: 'block',
-                        lineHeight: 1,
-                        mb: 0.5,
-                        color: '#6b7280',
-                        fontWeight: 700,
-                        letterSpacing: 1.2
-                      }}>
-                        {stat.title}
+                      <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                        Total Orders
                       </Typography>
-                      <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: 0.5, color: stat.color }}>
-                        {i > 0 && <span style={{ fontSize: '0.8rem', marginRight: 4, opacity: 0.6 }}>PKR</span>}
-                        {stat.val.toLocaleString()}
+                      <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                        {totalSales}
                       </Typography>
                     </Box>
-                    {i < 3 && (
-                      <Divider
-                        orientation="vertical"
-                        flexItem
-                        sx={{
-                          display: { xs: 'none', md: 'block' },
-                          bgcolor: '#e5e7eb',
-                          height: 60,
-                          position: 'absolute',
-                          right: 0,
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          zIndex: 1
-                        }}
-                      />
-                    )}
                   </Box>
-                ))}
-              </Box>
-            </Card>
-          </Box>
+                </CardContent>
+              </Card>
+            </Grid>
 
-          {/* Filters & Sorting Section */}
-          <Card elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider', bgcolor: '#f8fafc' }}>
-            <CardContent sx={{ p: 3 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <FilterListIcon color="primary" />
-                  <Typography variant="h6" sx={{ fontWeight: 700 }}>Filters & Sorting</Typography>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Showing <strong>{filteredSales.length}</strong> of {sales.length} orders
-                  </Typography>
-                  <Button
-                    variant="text"
-                    color="error"
-                    size="small"
-                    startIcon={<ClearIcon />}
-                    onClick={clearFilters}
-                    sx={{ fontWeight: 600 }}
-                  >
-                    Clear All Filters
-                  </Button>
-                </Box>
-              </Box>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ background: 'linear-gradient(45deg, #4CAF50 30%, #8BC34A 90%)', color: 'white' }}>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', mr: 2 }}>
+                      <AttachMoneyIcon />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                        Total Revenue
+                      </Typography>
+                      <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                        {totalSalesValue.toLocaleString()}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
 
-              <Box sx={{
-                display: 'grid',
-                gridTemplateColumns: {
-                  xs: '1fr',
-                  sm: 'repeat(2, 1fr)',
-                  md: 'repeat(4, 1fr)'
-                },
-                gap: 3,
-                width: '100%'
-              }}>
-                {/* Search */}
-                <Box>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ background: 'linear-gradient(45deg, #9C27B0 30%, #E91E63 90%)', color: 'white' }}>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', mr: 2 }}>
+                      <TrendingDownIcon />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                        Total Discount
+                      </Typography>
+                      <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                        {totalDiscount.toLocaleString()}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ background: 'linear-gradient(45deg, #FF9800 30%, #F44336 90%)', color: 'white' }}>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', mr: 2 }}>
+                      <CreditCardIcon />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                        Total Payment
+                      </Typography>
+                      <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                        {totalPayment.toLocaleString()}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+
+          {/* Sales Filter */}
+          <Card sx={{ mb: 3 }}>
+            <CardContent sx={{ p: 2 }}>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 'semibold' }}>
+                Filter Orders
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={3}>
                   <TextField
                     fullWidth
-                    label="Search Orders"
-                    placeholder="ID, Customer, or Reference..."
+                    size="small"
+                    label="Search"
+                    placeholder="Search by Order ID, Customer, or Reference"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
-                          <SearchIcon size={18} sx={{ color: '#94a3b8' }} />
+                          <SearchIcon />
                         </InputAdornment>
                       ),
                     }}
-                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
                   />
-                </Box>
-
-                {/* Customer Filter */}
-                <Box>
+                </Grid>
+                <Grid item xs={12} md={3}>
                   <Autocomplete
                     fullWidth
-                    options={customers.filter(customer =>
-                      customer.customer_category?.cus_cat_title?.toLowerCase().includes('customer')
-                    )}
+                    size="small"
+                    options={customers.filter(customer => {
+                      // Filter for customers with category "Customer"
+                      const isCustomer = customer.customer_category &&
+                        customer.customer_category.cus_cat_title &&
+                        customer.customer_category.cus_cat_title.toLowerCase().includes('customer');
+                      console.log('🔍 Orders List Customer filtering:', customer.cus_name, 'isCustomer:', isCustomer, 'customer_category:', customer.customer_category);
+                      return isCustomer;
+                    })}
                     getOptionLabel={(option) => option.cus_name || ''}
                     value={customers.find(c => c.cus_id.toString() === filterCustomer) || null}
-                    onChange={(event, newValue) => setFilterCustomer(newValue ? newValue.cus_id.toString() : '')}
+                    onChange={(event, newValue) => {
+                      console.log('🔍 Sales List Customer selected:', newValue);
+                      setFilterCustomer(newValue ? newValue.cus_id.toString() : '');
+                    }}
                     renderInput={(params) => (
                       <TextField
                         {...params}
                         label="Customer"
-                        placeholder="All Customers"
-                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
+                        placeholder="Select customer"
+                        sx={{ minWidth: 250 }}
                       />
                     )}
                   />
-                </Box>
-
-                {/* Bill Type */}
-                <Box>
-                  <FormControl fullWidth>
+                  {/* Debug info */}
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                    Debug: {customers.length} total customers, {customers.filter(c => c.customer_category?.cus_cat_title?.toLowerCase().includes('customer')).length} customers
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} md={2}>
+                  <FormControl fullWidth size="small" sx={{ minWidth: 150 }}>
                     <InputLabel>Bill Type</InputLabel>
                     <Select
                       value={filterBillType}
                       onChange={(e) => setFilterBillType(e.target.value)}
                       label="Bill Type"
-                      sx={{ borderRadius: 1.5, bgcolor: 'white' }}
                     >
                       <MenuItem value="">All Types</MenuItem>
                       <MenuItem value="ORDER">Order</MenuItem>
@@ -3365,138 +3394,131 @@ function OrdersPageContent() {
                       <MenuItem value="SALE_RETURN">Sale Return</MenuItem>
                     </Select>
                   </FormControl>
-                </Box>
-
-                {/* Store Filter */}
-                <Box>
+                </Grid>
+                <Grid item xs={12} md={3}>
                   <Autocomplete
                     fullWidth
+                    size="small"
                     options={stores}
                     getOptionLabel={(option) => option.store_name || ''}
                     value={stores.find(s => s.storeid.toString() === filterStore) || null}
-                    onChange={(event, newValue) => setFilterStore(newValue ? newValue.storeid.toString() : '')}
+                    onChange={(event, newValue) => {
+                      setFilterStore(newValue ? newValue.storeid.toString() : '');
+                    }}
                     renderInput={(params) => (
                       <TextField
                         {...params}
                         label="Store"
-                        placeholder="All Stores"
-                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
+                        placeholder="Select store"
                       />
                     )}
                   />
-                </Box>
-
-                {/* Payment Type */}
-                <Box>
-                  <FormControl fullWidth>
+                </Grid>
+                <Grid item xs={12} md={2}>
+                  <FormControl fullWidth size="small">
                     <InputLabel>Payment Type</InputLabel>
                     <Select
                       value={filterPaymentType}
                       onChange={(e) => setFilterPaymentType(e.target.value)}
                       label="Payment Type"
-                      sx={{ borderRadius: 1.5, bgcolor: 'white' }}
                     >
-                      <MenuItem value="">All Payments</MenuItem>
+                      <MenuItem value="">All Types</MenuItem>
                       <MenuItem value="CASH">Cash</MenuItem>
                       <MenuItem value="BANK">Bank</MenuItem>
                     </Select>
                   </FormControl>
-                </Box>
-
-                {/* Status */}
-                <Box>
-                  <FormControl fullWidth>
-                    <InputLabel>Status</InputLabel>
+                </Grid>
+              </Grid>
+              <Grid container spacing={2} sx={{ mt: 1 }}>
+                <Grid item xs={12} md={2}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    type="date"
+                    label="From Date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                  />
+                </Grid>
+                <Grid item xs={12} md={2}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    type="date"
+                    label="To Date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                  />
+                </Grid>
+                <Grid item xs={12} md={2}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    type="number"
+                    label="Min Amount"
+                    placeholder=" "
+                    value={filterMinAmount}
+                    onChange={(e) => setFilterMinAmount(e.target.value)}
+                    InputProps={{
+                      startAdornment: <InputAdornment position="start">Rs</InputAdornment>,
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={12} md={2}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    type="number"
+                    label="Max Amount"
+                    placeholder=" "
+                    value={filterMaxAmount}
+                    onChange={(e) => setFilterMaxAmount(e.target.value)}
+                    InputProps={{
+                      startAdornment: <InputAdornment position="start">Rs</InputAdornment>,
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={12} md={2}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Balance Status</InputLabel>
                     <Select
                       value={filterBalanceStatus}
                       onChange={(e) => setFilterBalanceStatus(e.target.value)}
-                      label="Status"
-                      sx={{ borderRadius: 1.5, bgcolor: 'white' }}
+                      label="Balance Status"
                     >
-                      <MenuItem value="">All Statuses</MenuItem>
-                      <MenuItem value="with_balance">Pending (Balance)</MenuItem>
-                      <MenuItem value="without_balance">Paid</MenuItem>
+                      <MenuItem value="">All</MenuItem>
+                      <MenuItem value="with_balance">With Balance</MenuItem>
+                      <MenuItem value="without_balance">Without Balance</MenuItem>
                       <MenuItem value="overpaid">Overpaid</MenuItem>
                     </Select>
                   </FormControl>
-                </Box>
-
-                {/* Date Range */}
-                <Box sx={{ gridColumn: { md: 'span 2' } }}>
-                  <Box sx={{ display: 'flex', gap: 2 }}>
-                    <TextField
-                      fullWidth
-                      type="date"
-                      label="From"
-                      value={dateFrom}
-                      onChange={(e) => setDateFrom(e.target.value)}
-                      InputLabelProps={{ shrink: true }}
-                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
-                    />
-                    <TextField
-                      fullWidth
-                      type="date"
-                      label="To"
-                      value={dateTo}
-                      onChange={(e) => setDateTo(e.target.value)}
-                      InputLabelProps={{ shrink: true }}
-                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
-                    />
-                  </Box>
-                </Box>
-
-                {/* Amount Range */}
-                <Box sx={{ gridColumn: { md: 'span 2' } }}>
-                  <Box sx={{ display: 'flex', gap: 2 }}>
-                    <TextField
-                      fullWidth
-                      type="number"
-                      label="Min Amount"
-                      placeholder="PKR"
-                      value={filterMinAmount}
-                      onChange={(e) => setFilterMinAmount(e.target.value)}
-                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
-                    />
-                    <TextField
-                      fullWidth
-                      type="number"
-                      label="Max Amount"
-                      placeholder="PKR"
-                      value={filterMaxAmount}
-                      onChange={(e) => setFilterMaxAmount(e.target.value)}
-                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
-                    />
-                  </Box>
-                </Box>
-
-                {/* Sort Combinations (To match Premium style) */}
-                <Box sx={{ gridColumn: { md: 'span 2' } }}>
-                  <FormControl fullWidth>
-                    <InputLabel>Sort By</InputLabel>
-                    <Select
-                      value={`${sortBy}-${sortOrder}`}
-                      onChange={(e) => {
-                        const [field, order] = e.target.value.split('-');
-                        setSortBy(field);
-                        setSortOrder(order);
-                      }}
-                      label="Sort By"
-                      startAdornment={
-                        <InputAdornment position="start" sx={{ mr: 1, ml: -0.5 }}>
-                          <FilterListIcon size={18} sx={{ color: '#94a3b8' }} />
-                        </InputAdornment>
-                      }
-                      sx={{ borderRadius: 1.5, bgcolor: 'white' }}
-                    >
-                      <MenuItem value="created_at-desc">Newest First</MenuItem>
-                      <MenuItem value="created_at-asc">Oldest First</MenuItem>
-                      <MenuItem value="customer-asc">Customer (A-Z)</MenuItem>
-                      <MenuItem value="customer-desc">Customer (Z-A)</MenuItem>
-                      <MenuItem value="total_amount-desc">Amount (High-Low)</MenuItem>
-                      <MenuItem value="total_amount-asc">Amount (Low-High)</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Box>
+                </Grid>
+              </Grid>
+              <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setFilterCustomer('');
+                    setFilterBillType('');
+                    setFilterStore('');
+                    setFilterPaymentType('');
+                    setFilterMinAmount('');
+                    setFilterMaxAmount('');
+                    setFilterBalanceStatus('');
+                    setDateFrom('');
+                    setDateTo('');
+                  }}
+                  startIcon={<ClearIcon />}
+                >
+                  Clear Filters
+                </Button>
+                <Typography variant="body2" color="text.secondary" sx={{ alignSelf: 'center', ml: 2 }}>
+                  Showing {filteredSales.length} of {sales.length} sales
+                </Typography>
               </Box>
             </CardContent>
           </Card>
@@ -5009,9 +5031,9 @@ export default function OrdersPage() {
   return (
     <Suspense fallback={
       <DashboardLayout>
-        <Container
+        <Container 
           maxWidth={false}
-          sx={{
+          sx={{ 
             py: 4,
             maxWidth: {
               xs: '100%',           // Mobile: full width

@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { updateStoreStock } from '@/lib/storeStock';
+import prisma from '@/lib/prisma';
 
 // GET - Fetch all purchase returns
 export async function GET(request) {
@@ -116,9 +115,10 @@ export async function POST(request) {
       }
     }
 
-    const result = await prisma.$transaction(async (tx) => {
-      // Create purchase return
-      const newPurchaseReturn = await tx.purchaseReturn.create({
+    const result = await prisma.$transaction(
+      async (tx) => {
+        // Create purchase return
+        const newPurchaseReturn = await tx.purchaseReturn.create({
         data: {
           purchase_id: parseInt(purchase_id),
           return_date: new Date(return_date),
@@ -142,43 +142,72 @@ export async function POST(request) {
         data: returnDetailsData
       });
 
-      // Update store stock (add back returned quantities)
-      for (const detail of return_details) {
-        await updateStoreStock(purchase.store_id, parseInt(detail.pro_id), parseInt(detail.return_quantity), 'increment', updated_by);
+      // Update store stock - DECREMENT stock when returning to supplier
+      // (Items are going back to supplier, so our stock decreases)
+      if (purchase.store_id) {
+        for (const detail of return_details) {
+          const storeIdInt = parseInt(purchase.store_id);
+          const productIdInt = parseInt(detail.pro_id);
+          const qtyChange = parseInt(detail.return_quantity);
+          
+          try {
+            // Use single upsert-style query for faster execution
+            await tx.$executeRaw`
+              INSERT INTO store_stocks (store_id, pro_id, stock_quantity, min_stock, max_stock, created_at, updated_at) 
+              VALUES (${storeIdInt}, ${productIdInt}, -${qtyChange}, 0, 1000, NOW(), NOW())
+              ON DUPLICATE KEY UPDATE stock_quantity = stock_quantity - ${qtyChange}, updated_at = NOW()
+            `;
+          } catch (stockError) {
+            console.warn('Stock update warning:', stockError.message);
+          }
+        }
       }
 
-      // Update customer balance (reduce the amount owed)
-      const customer = await tx.customer.findUnique({
+      // Get supplier's current balance
+      const supplier = await tx.customer.findUnique({
         where: { cus_id: purchase.cus_id },
-        select: { cus_balance: true }
+        select: { cus_balance: true, cus_name: true }
       });
 
-      const currentBalance = parseFloat(customer?.cus_balance || 0);
-      const newBalance = currentBalance - parseFloat(total_return_amount || 0);
+      const currentBalance = parseFloat(supplier?.cus_balance || 0);
+      
+      // PURCHASE RETURN ACCOUNTING:
+      // When we return goods to supplier:
+      // - Our liability (amount we owe them) DECREASES
+      // - Since Purchase DEBITS supplier (increases liability), 
+      //   Purchase Return should CREDIT supplier (decrease liability)
+      const returnAmount = parseFloat(total_return_amount || 0);
+      const newBalance = currentBalance - returnAmount;
 
+      // Update supplier balance
       await tx.customer.update({
         where: { cus_id: purchase.cus_id },
         data: { cus_balance: newBalance }
       });
 
-      // Create ledger entry for the return
+      // Create ledger entry - Credit Supplier (reduces what we owe)
       await tx.ledger.create({
         data: {
           cus_id: purchase.cus_id,
           opening_balance: currentBalance,
           debit_amount: 0,
-          credit_amount: parseFloat(total_return_amount || 0),
+          credit_amount: returnAmount,
           closing_balance: newBalance,
-          bill_no: newPurchaseReturn.id.toString(),
-          trnx_type: 'RETURN',
-          details: `Purchase Return - ${return_reason}`,
+          bill_no: `PR-${newPurchaseReturn.id}`,
+          trnx_type: 'PURCHASE_RETURN',
+          details: `Purchase Return #${newPurchaseReturn.id} - ${return_reason} - Goods returned to ${supplier?.cus_name || 'Supplier'}`,
           payments: 0,
           updated_by: null
         }
       });
 
       return newPurchaseReturn;
-    });
+      },
+      {
+        timeout: 30000, // 30 seconds
+        maxWait: 60000   // 60 seconds max wait
+      }
+    );
 
     console.log('Purchase return created successfully:', result);
     return NextResponse.json(result, { status: 201 });
@@ -216,7 +245,8 @@ export async function PUT(request) {
     const existingReturn = await prisma.purchaseReturn.findUnique({
       where: { id: parseInt(id) },
       include: {
-        return_details: true
+        return_details: true,
+        purchase: true
       }
     });
 
@@ -224,8 +254,57 @@ export async function PUT(request) {
       return NextResponse.json({ error: 'Purchase return not found' }, { status: 404 });
     }
 
-    const result = await prisma.$transaction(async (tx) => {
-      // Update purchase return
+    const purchase = existingReturn.purchase;
+
+    const result = await prisma.$transaction(
+      async (tx) => {
+        // 1. First, REVERSE the old return effects
+        
+        // Reverse old stock changes (increment back what was decremented)
+        if (purchase.store_id) {
+          for (const detail of existingReturn.return_details) {
+            const storeIdInt = parseInt(purchase.store_id);
+            const productIdInt = parseInt(detail.pro_id);
+            const qtyChange = parseInt(detail.return_quantity);
+            try {
+              await tx.$executeRaw`
+                UPDATE store_stocks 
+                SET stock_quantity = stock_quantity + ${qtyChange}, updated_at = NOW() 
+                WHERE store_id = ${storeIdInt} AND pro_id = ${productIdInt}
+              `;
+            } catch (stockError) {
+              console.warn('Stock reversal warning:', stockError.message);
+          }
+        }
+      }
+
+      // Reverse old balance change (debit back what was credited)
+      const supplierBeforeReverse = await tx.customer.findUnique({
+        where: { cus_id: purchase.cus_id },
+        select: { cus_balance: true, cus_name: true }
+      });
+      const balanceBeforeReverse = parseFloat(supplierBeforeReverse?.cus_balance || 0);
+      const oldReturnAmount = parseFloat(existingReturn.total_return_amount || 0);
+      const balanceAfterReverse = balanceBeforeReverse + oldReturnAmount;
+
+      await tx.customer.update({
+        where: { cus_id: purchase.cus_id },
+        data: { cus_balance: balanceAfterReverse }
+      });
+
+      // Delete old return details
+      await tx.purchaseReturnDetail.deleteMany({
+        where: { return_id: parseInt(id) }
+      });
+
+      // Delete old ledger entries for this return
+      await tx.ledger.deleteMany({
+        where: { bill_no: `PR-${id}` }
+      });
+
+      // 2. Now apply the NEW return effects
+      
+      // Update purchase return record
       const updatedReturn = await tx.purchaseReturn.update({
         where: { id: parseInt(id) },
         data: {
@@ -235,23 +314,6 @@ export async function PUT(request) {
           notes: notes || null
         }
       });
-
-      // Delete existing return details
-      await tx.purchaseReturnDetail.deleteMany({
-        where: { return_id: parseInt(id) }
-      });
-
-      // Revert previous stock changes
-      for (const detail of existingReturn.return_details) {
-        await tx.product.update({
-          where: { pro_id: detail.pro_id },
-          data: {
-            pro_stock_qnty: {
-              decrement: detail.return_quantity
-            }
-          }
-        });
-      }
 
       // Create new return details
       if (return_details && return_details.length > 0) {
@@ -267,14 +329,57 @@ export async function PUT(request) {
           data: returnDetailsData
         });
 
-        // Apply new store stock changes
-        for (const detail of return_details) {
-          await updateStoreStock(purchase.store_id, parseInt(detail.pro_id), parseInt(detail.return_quantity), 'increment', updated_by);
+        // Apply new stock changes (decrement for return)
+        if (purchase.store_id) {
+          for (const detail of return_details) {
+            const storeIdInt = parseInt(purchase.store_id);
+            const productIdInt = parseInt(detail.pro_id);
+            const qtyChange = parseInt(detail.return_quantity);
+            try {
+              await tx.$executeRaw`
+                INSERT INTO store_stocks (store_id, pro_id, stock_quantity, min_stock, max_stock, created_at, updated_at) 
+                VALUES (${storeIdInt}, ${productIdInt}, -${qtyChange}, 0, 1000, NOW(), NOW())
+                ON DUPLICATE KEY UPDATE stock_quantity = stock_quantity - ${qtyChange}, updated_at = NOW()
+              `;
+            } catch (stockError) {
+              console.warn('Stock update warning:', stockError.message);
+            }
+          }
         }
       }
 
+      // Apply new balance change
+      const newReturnAmount = parseFloat(total_return_amount || 0);
+      const finalBalance = balanceAfterReverse - newReturnAmount;
+
+      await tx.customer.update({
+        where: { cus_id: purchase.cus_id },
+        data: { cus_balance: finalBalance }
+      });
+
+      // Create new ledger entry
+      await tx.ledger.create({
+        data: {
+          cus_id: purchase.cus_id,
+          opening_balance: balanceAfterReverse,
+          debit_amount: 0,
+          credit_amount: newReturnAmount,
+          closing_balance: finalBalance,
+          bill_no: `PR-${id}`,
+          trnx_type: 'PURCHASE_RETURN',
+          details: `Purchase Return #${id} (Updated) - ${return_reason} - Goods returned to ${supplierBeforeReverse?.cus_name || 'Supplier'}`,
+          payments: 0,
+          updated_by: null
+        }
+      });
+
       return updatedReturn;
-    });
+      },
+      {
+        timeout: 30000, // 30 seconds
+        maxWait: 60000   // 60 seconds max wait
+      }
+    );
 
     console.log('Purchase return updated successfully:', result);
     return NextResponse.json(result);
@@ -311,24 +416,58 @@ export async function DELETE(request) {
       return NextResponse.json({ error: 'Purchase return not found' }, { status: 404 });
     }
 
-    const result = await prisma.$transaction(async (tx) => {
-      // Revert store stock changes
-      for (const detail of existingReturn.return_details) {
-        await updateStoreStock(existingReturn.purchase.store_id, detail.pro_id, detail.return_quantity, 'decrement', updated_by);
+    const purchase = existingReturn.purchase;
+
+    const result = await prisma.$transaction(
+      async (tx) => {
+        // Revert store stock changes - INCREMENT back what was decremented
+        // (Items that were returned to supplier are now back in our stock conceptually)
+        if (purchase.store_id) {
+          for (const detail of existingReturn.return_details) {
+            const storeIdInt = parseInt(purchase.store_id);
+            const productIdInt = parseInt(detail.pro_id);
+            const qtyChange = parseInt(detail.return_quantity);
+            try {
+              await tx.$executeRaw`
+                UPDATE store_stocks 
+                SET stock_quantity = stock_quantity + ${qtyChange}, updated_at = NOW() 
+                WHERE store_id = ${storeIdInt} AND pro_id = ${productIdInt}
+              `;
+            } catch (stockError) {
+            console.warn('Stock reversal warning:', stockError.message);
+          }
+        }
       }
 
-      // Revert customer balance
-      const customer = await tx.customer.findUnique({
-        where: { cus_id: existingReturn.purchase.cus_id },
-        select: { cus_balance: true }
+      // Revert supplier balance - DEBIT back what was credited
+      const supplier = await tx.customer.findUnique({
+        where: { cus_id: purchase.cus_id },
+        select: { cus_balance: true, cus_name: true }
       });
 
-      const currentBalance = parseFloat(customer?.cus_balance || 0);
-      const newBalance = currentBalance + parseFloat(existingReturn.total_return_amount || 0);
+      const currentBalance = parseFloat(supplier?.cus_balance || 0);
+      const returnAmount = parseFloat(existingReturn.total_return_amount || 0);
+      const newBalance = currentBalance + returnAmount;  // Add back what was reduced
 
       await tx.customer.update({
-        where: { cus_id: existingReturn.purchase.cus_id },
+        where: { cus_id: purchase.cus_id },
         data: { cus_balance: newBalance }
+      });
+
+      // Create reversal ledger entry
+      await tx.ledger.create({
+        data: {
+          cus_id: purchase.cus_id,
+          opening_balance: currentBalance,
+          debit_amount: returnAmount,  // Debit to reverse the credit
+          credit_amount: 0,
+          closing_balance: newBalance,
+          bill_no: `PR-${id}-DELETED`,
+          trnx_type: 'PURCHASE_RETURN',
+          details: `Purchase Return #${id} CANCELLED/DELETED - Reversal entry for ${supplier?.cus_name || 'Supplier'}`,
+          payments: 0,
+          updated_by: null
+        }
       });
 
       // Delete return details
@@ -336,12 +475,9 @@ export async function DELETE(request) {
         where: { return_id: parseInt(id) }
       });
 
-      // Delete ledger entries related to this return
+      // Delete original ledger entries related to this return
       await tx.ledger.deleteMany({
-        where: { 
-          bill_no: id.toString(),
-          trnx_type: 'RETURN'
-        }
+        where: { bill_no: `PR-${id}` }
       });
 
       // Delete purchase return
@@ -350,7 +486,12 @@ export async function DELETE(request) {
       });
 
       return deletedReturn;
-    });
+      },
+      {
+        timeout: 30000, // 30 seconds
+        maxWait: 60000   // 60 seconds max wait
+      }
+    );
 
     console.log('Purchase return deleted successfully:', result);
     return NextResponse.json({ message: 'Purchase return deleted successfully' });
