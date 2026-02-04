@@ -236,6 +236,12 @@ export default function PurchasesPage() {
   const [currentBillData, setCurrentBillData] = useState(null);
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
 
+  // Purchase Type and Return states
+  const [purchaseType, setPurchaseType] = useState('new'); // 'new' or 'return'
+  const [selectedPurchaseForReturn, setSelectedPurchaseForReturn] = useState(null);
+  const [purchaseSearchResults, setPurchaseSearchResults] = useState([]);
+  const [purchaseSearchOpen, setPurchaseSearchOpen] = useState(false);
+
   // Form data
   const [formData, setFormData] = useState({
     cus_id: '',
@@ -659,8 +665,15 @@ export default function PurchasesPage() {
         return;
       }
 
-      if (!formData.vehicle_no) {
+      // Validate vehicle only for new purchases
+      if (purchaseType === 'new' && !formData.vehicle_no) {
         alert('Please select a vehicle');
+        return;
+      }
+
+      // Validate that purchase is selected for returns
+      if (purchaseType === 'return' && !selectedPurchaseForReturn) {
+        alert('Please select a purchase to return');
         return;
       }
 
@@ -736,7 +749,9 @@ export default function PurchasesPage() {
           payment: totalPayment,
           payment_type: paymentType,
           cash_payment: cashPayment,
-          bank_payment: bankPayment
+          bank_payment: bankPayment,
+          purchase_type: purchaseType,
+          return_for_purchase_id: purchaseType === 'return' ? selectedPurchaseForReturn?.pur_id : null
         }
         : {
           ...formData,
@@ -747,7 +762,9 @@ export default function PurchasesPage() {
           payment: totalPayment,
           payment_type: paymentType,
           cash_payment: cashPayment,
-          bank_payment: bankPayment
+          bank_payment: bankPayment,
+          purchase_type: purchaseType,
+          return_for_purchase_id: purchaseType === 'return' ? selectedPurchaseForReturn?.pur_id : null
         };
 
       console.log('🔍 Purchase API Request Body:', {
@@ -792,7 +809,7 @@ export default function PurchasesPage() {
           transport_amount: parseFloat(result.transport_amount || formData.transport_amount || 0),
           unloading_amount: parseFloat(result.unloading_amount || formData.unloading_amount || 0),
           vehicle_no: result.vehicle_no || formData.vehicle_no,
-          bill_type: result.bill_type || 'PURCHASE'
+          bill_type: purchaseType === 'return' ? 'PURCHASE_RETURN' : 'PURCHASE'
         };
         setCurrentBillData(billDataForPrint);
 
@@ -802,6 +819,8 @@ export default function PurchasesPage() {
         await fetchData();
         setCurrentView('list');
         setEditingPurchase(null);
+        setPurchaseType('new');
+        setSelectedPurchaseForReturn(null);
         setFormData({
           cus_id: '',
           store_id: '',
@@ -930,6 +949,74 @@ export default function PurchasesPage() {
 
     setViewingPurchase(enhancedPurchase);
     setViewDialogOpen(true);
+  };
+
+  // Handle purchase search for returns - filter by selected supplier
+  const handlePurchaseSearch = (searchValue) => {
+    // If no supplier selected, don't search
+    if (!formSelectedCustomer) {
+      setPurchaseSearchResults([]);
+      return;
+    }
+
+    if (!searchValue || searchValue.trim() === '') {
+      // Show all purchases from the selected supplier if search is empty
+      const supplierPurchases = purchases.filter(purchase => purchase.cus_id === formSelectedCustomer.cus_id);
+      setPurchaseSearchResults(supplierPurchases);
+      return;
+    }
+
+    const searchLower = searchValue.toLowerCase();
+    // Filter purchases by selected supplier AND search term
+    const results = purchases.filter(purchase => {
+      // Only show purchases from selected supplier
+      if (purchase.cus_id !== formSelectedCustomer.cus_id) {
+        return false;
+      }
+      // Then filter by search term
+      return (
+        purchase.invoice_number?.toLowerCase().includes(searchLower) ||
+        purchase.pur_id?.toString().includes(searchLower)
+      );
+    });
+
+    setPurchaseSearchResults(results);
+  };
+
+  // Handle loading purchase data for return
+  const handleLoadPurchaseForReturn = (purchase) => {
+    console.log('📦 Loading purchase for return:', purchase);
+
+    // Set the selected purchase
+    setSelectedPurchaseForReturn(purchase);
+
+    // Load purchase data into form
+    const customer = customers.find(c => c.cus_id === purchase.cus_id);
+    setFormSelectedCustomer(customer || null);
+
+    // Load all purchase details
+    setFormData(prev => ({
+      ...prev,
+      cus_id: purchase.cus_id,
+      store_id: purchase.store_id?.toString() || '',
+      total_amount: purchase.total_amount.toString(),
+      unloading_amount: purchase.unloading_amount.toString(),
+      fare_amount: purchase.fare_amount.toString(),
+      transport_amount: purchase.transport_amount?.toString() || '',
+      labour_amount: purchase.labour_amount?.toString() || '',
+      include_labour: purchase.include_labour || false,
+      discount: purchase.discount.toString(),
+      vehicle_no: purchase.vehicle_no || '',
+      purchase_details: purchase.purchase_details?.map(detail => ({
+        ...detail,
+        // For return, negate the quantity
+        qnty: detail.qnty
+      })) || []
+    }));
+
+    // Close search
+    setPurchaseSearchOpen(false);
+    setPurchaseSearchResults([]);
   };
 
   const handleCloseViewDialog = () => {
@@ -1703,17 +1790,29 @@ export default function PurchasesPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <button
-                onClick={() => setCurrentView('list')}
+                onClick={() => {
+                  setCurrentView('list');
+                  setPurchaseType('new');
+                  setSelectedPurchaseForReturn(null);
+                }}
                 className="mr-4 p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors duration-200"
               >
                 <ArrowLeftIcon />
               </button>
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">
-                  {editingPurchase ? 'Edit Purchase' : 'Create New Purchase'}
+                  {editingPurchase
+                    ? 'Edit Purchase'
+                    : purchaseType === 'return'
+                      ? 'Create Purchase Return'
+                      : 'Create New Purchase'}
                 </h2>
                 <p className="text-gray-600 mt-1">
-                  {editingPurchase ? 'Update purchase information' : 'Select products and create purchase order'}
+                  {editingPurchase
+                    ? 'Update purchase information'
+                    : purchaseType === 'return'
+                      ? 'Return items from an existing purchase'
+                      : 'Select products and create purchase order'}
                 </p>
               </div>
             </div>
@@ -1726,49 +1825,139 @@ export default function PurchasesPage() {
           <Card sx={{ p: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Typography variant="h6" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
-                Purchase #
+                {purchaseType === 'return' && selectedPurchaseForReturn ? `Return for Purchase #${selectedPurchaseForReturn.pur_id}` : 'Purchase #'}
               </Typography>
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={() => setShowCustomerForm(true)}
-                  sx={{
-                    bgcolor: 'primary.main',
-                    '&:hover': { bgcolor: 'primary.dark' }
-                  }}
-                >
-                  + New Supplier
-                </Button>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <TextField
-                  size="small"
-                  placeholder="Invoice No"
-                  sx={{ width: 200 }}
-                />
-                <Button
-                  variant="contained"
-                  sx={{
-                    bgcolor: 'secondary.main',
-                    '&:hover': { bgcolor: 'secondary.dark' },
-                    minWidth: 80
-                  }}
-                >
-                  Q Find
-                </Button>
-              </Box>
+              {purchaseType === 'new' && (
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Button
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={() => setShowCustomerForm(true)}
+                    sx={{
+                      bgcolor: 'primary.main',
+                      '&:hover': { bgcolor: 'primary.dark' }
+                    }}
+                  >
+                    + New Supplier
+                  </Button>
+                </Box>
+              )}
+              {purchaseType === 'new' && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <TextField
+                    size="small"
+                    placeholder="Invoice No"
+                    sx={{ width: 200 }}
+                  />
+                  <Button
+                    variant="contained"
+                    sx={{
+                      bgcolor: 'secondary.main',
+                      '&:hover': { bgcolor: 'secondary.dark' },
+                      minWidth: 80
+                    }}
+                  >
+                    Q Find
+                  </Button>
+                </Box>
+              )}
             </Box>
           </Card>
 
           {/* Main Form */}
           <Card sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
             <Box component="form" onSubmit={handleSubmit} sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+              {/* Purchase Type Selection Section */}
+              <Box sx={{ p: 3, borderBottom: 1, borderColor: 'divider', bgcolor: '#f8fafc' }}>
+                <Grid container spacing={3} alignItems="flex-start">
+                  {/* Purchase Type Dropdown */}
+                  {/* Purchase Type Dropdown */}
+                  <Grid size={{ xs: 12, md: 12 }}>
+                    <Box sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      p: 2,
+                      borderRadius: 2,
+                      background: purchaseType === 'new'
+                        ? 'linear-gradient(45deg, #2e7d32 30%, #4caf50 90%)'
+                        : 'linear-gradient(45deg, #c62828 30%, #ef5350 90%)',
+                      boxShadow: '0 3px 5px 2px rgba(33, 203, 243, .3)',
+                      color: 'white',
+                      transition: 'all 0.3s ease',
+                    }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Typography variant="h6" sx={{ fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>
+                          {purchaseType === 'new' ? 'New Purchase Entry' : 'Purchase Return Entry'}
+                        </Typography>
+                        <Box sx={{
+                          bgcolor: 'rgba(255,255,255,0.2)',
+                          borderRadius: 1,
+                          px: 1,
+                          py: 0.5,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 1
+                        }}>
+                          {purchaseType === 'new' ? <ShoppingCartIcon sx={{ color: 'white' }} /> : <TrendingDownIcon sx={{ color: 'white' }} />}
+                          <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                            {purchaseType === 'new' ? 'Stock In' : 'Stock Out'}
+                          </Typography>
+                        </Box>
+                      </Box>
+
+                      <FormControl size="small" variant="standard" sx={{ minWidth: 200 }}>
+                        <Select
+                          value={purchaseType}
+                          onChange={(e) => {
+                            setPurchaseType(e.target.value);
+                            if (e.target.value === 'new') {
+                              setPurchaseSearchOpen(false);
+                              setPurchaseSearchResults([]);
+                              setSelectedPurchaseForReturn(null);
+                            }
+                          }}
+                          sx={{
+                            color: 'white',
+                            '& .MuiSelect-select': {
+                              paddingRight: 2,
+                              fontWeight: 'bold',
+                              fontSize: '1.1rem'
+                            },
+                            '& .MuiSvgIcon-root': {
+                              color: 'white'
+                            },
+                            '&:before': {
+                              borderBottomColor: 'rgba(255,255,255,0.7)'
+                            },
+                            '&:after': {
+                              borderBottomColor: 'white'
+                            },
+                            '&:hover:not(.Mui-disabled):before': {
+                              borderBottomColor: 'white'
+                            }
+                          }}
+                        >
+                          <MenuItem value="new" sx={{ fontWeight: 'medium' }}>
+                            New Purchase
+                          </MenuItem>
+                          <MenuItem value="return" sx={{ fontWeight: 'medium' }}>
+                            Return Purchase
+                          </MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Box>
+                  </Grid>
+
+
+                </Grid>
+              </Box>
+
               {/* Customer and Order Details Section */}
               <Box sx={{ p: 3, borderBottom: 1, borderColor: 'divider' }}>
                 <Grid container spacing={3}>
-                  {/* Row 0 - Supplier (moved to first position) */}
-                  <Grid item xs={12} md={4}>
+                  {/* Supplier Selection - Now visible for both New and Return */}
+                  <Grid size={{ xs: 12, md: 3 }}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
@@ -1792,10 +1981,6 @@ export default function PurchasesPage() {
                         size="medium"
                         open={customerDropdownOpen}
                         onOpen={() => {
-                          console.log('🔍 Opening supplier dropdown');
-                          console.log('   Suppliers available:', suppliers.length);
-                          console.log('   Supplier data:', suppliers.map(s => ({ id: s.cus_id, name: s.cus_name, type: s.cus_type })));
-                          console.log('   All customers:', customers.length);
                           setCustomerDropdownOpen(true);
                         }}
                         onClose={() => setCustomerDropdownOpen(false)}
@@ -1804,11 +1989,30 @@ export default function PurchasesPage() {
                         value={formSelectedCustomer}
                         onChange={(event, newValue) => {
                           if (newValue) {
-                            selectCustomer(newValue);
+                            // Call the existing selection handler if exists, or do manual sets
+                            if (typeof selectCustomer === 'function') {
+                              selectCustomer(newValue);
+                            } else {
+                              setFormSelectedCustomer(newValue);
+                              setFormData(prev => ({ ...prev, cus_id: newValue.cus_id }));
+                            }
+
+                            // Additional cleanup for returns
+                            if (purchaseType === 'return') {
+                              setPurchaseSearchResults([]);
+                              setSelectedPurchaseForReturn(null);
+                              setPurchaseSearchOpen(false);
+                            }
                           } else {
                             setFormData(prev => ({ ...prev, cus_id: '' }));
-                            setCustomerSearchTerm('');
+                            if (typeof setCustomerSearchTerm === 'function') setCustomerSearchTerm('');
                             setFormSelectedCustomer(null);
+
+                            // Cleanup for returns
+                            if (purchaseType === 'return') {
+                              setPurchaseSearchResults([]);
+                              setSelectedPurchaseForReturn(null);
+                            }
                           }
                           setCustomerDropdownOpen(false);
                         }}
@@ -1818,7 +2022,7 @@ export default function PurchasesPage() {
                             placeholder="Select supplier..."
                             sx={{
                               width: '100%',
-                              minWidth: 300,
+                              minWidth: 200,
                               minHeight: 56,
                               '& .MuiInputBase-input': {
                                 fontWeight: formSelectedCustomer ? 'bold' : 'normal'
@@ -1851,7 +2055,7 @@ export default function PurchasesPage() {
                             </Box>
                           );
                         }}
-                        sx={{ width: '100%', minWidth: 300 }}
+                        sx={{ width: '100%' }}
                         disablePortal={false}
                         openOnFocus={true}
                         selectOnFocus={true}
@@ -1861,8 +2065,90 @@ export default function PurchasesPage() {
                     </Box>
                   </Grid>
 
+                  {/* Select Purchase to Return (Only for Return) */}
+                  {purchaseType === 'return' && (
+                    <Grid size={{ xs: 12, md: 3 }}>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, position: 'relative' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                          SELECT PURCHASE
+                        </Typography>
+                        <Autocomplete
+                          open={purchaseSearchOpen}
+                          onOpen={() => {
+                            setPurchaseSearchOpen(true);
+                            // Show all purchases when opening dropdown
+                            if (formSelectedCustomer) {
+                              const supplierPurchases = purchases.filter(p => p.cus_id === formSelectedCustomer.cus_id);
+                              setPurchaseSearchResults(supplierPurchases);
+                            }
+                          }}
+                          onClose={() => setPurchaseSearchOpen(false)}
+                          options={purchaseSearchResults}
+                          getOptionLabel={(option) => `#${option.pur_id} - ${option.invoice_number || 'N/A'} (${parseFloat(option.total_amount).toFixed(2)})`}
+                          value={selectedPurchaseForReturn}
+                          onChange={(event, newValue) => {
+                            if (newValue) {
+                              handleLoadPurchaseForReturn(newValue);
+                            }
+                          }}
+                          onInputChange={(event, inputValue) => {
+                            handlePurchaseSearch(inputValue);
+                          }}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              placeholder="Search invoice..."
+                              size="medium"
+                              sx={{
+                                width: '100%',
+                                minHeight: 56,
+                                '& .MuiOutlinedInput-root': {
+                                  borderRadius: 1,
+                                  '& fieldset': { borderColor: '#e5e7eb' },
+                                  '&:hover fieldset': { borderColor: '#dc2626' },
+                                  '&.Mui-focused fieldset': { borderColor: '#b91c1c' }
+                                }
+                              }}
+                              InputProps={{
+                                ...params.InputProps,
+                                startAdornment: (
+                                  <InputAdornment position="start">
+                                    <SearchIcon sx={{ color: 'text.secondary' }} />
+                                  </InputAdornment>
+                                )
+                              }}
+                            />
+                          )}
+                          renderOption={(props, option) => {
+                            const { key, ...optionProps } = props;
+                            return (
+                              <Box component="li" key={key} {...optionProps}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: '100%' }}>
+                                  <ReceiptIcon sx={{ color: 'primary.main', fontSize: 20 }} />
+                                  <Box sx={{ flex: 1 }}>
+                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                      {option.invoice_number || 'N/A'}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary">
+                                      {parseFloat(option.total_amount).toFixed(2)} • {new Date(option.created_at).toLocaleDateString()}
+                                    </Typography>
+                                  </Box>
+                                </Box>
+                              </Box>
+                            );
+                          }}
+                          sx={{ width: '100%' }}
+                          disablePortal={false}
+                          openOnFocus={true}
+                          clearOnBlur={true}
+                          noOptionsText={purchaseSearchResults.length === 0 ? "No purchases found" : ""}
+                        />
+                      </Box>
+                    </Grid>
+                  )}
+
                   {/* Date Field */}
-                  <Grid item xs={12} md={2}>
+                  <Grid size={{ xs: 12, md: purchaseType === 'new' ? 2 : 3 }}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                         DATE
@@ -1883,15 +2169,15 @@ export default function PurchasesPage() {
                     </Box>
                   </Grid>
 
-                  {/* Invoice Number Field (moved to second position) */}
-                  <Grid item xs={12} md={4}>
+                  {/* Invoice Number Field */}
+                  <Grid size={{ xs: 12, md: 3 }}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                        INVOICE NUMBER
+                        {purchaseType === 'new' ? 'INVOICE NUMBER' : 'NEW INVOICE NUMBER (RETURN)'}
                       </Typography>
                       <TextField
                         size="medium"
-                        placeholder="Enter invoice number"
+                        placeholder={purchaseType === 'new' ? 'Enter invoice number' : 'Enter return invoice number'}
                         value={formData.invoice_number || ''}
                         onChange={(e) => setFormData(prev => ({ ...prev, invoice_number: e.target.value }))}
                         sx={{ width: '100%', minHeight: 56 }}
@@ -1899,57 +2185,59 @@ export default function PurchasesPage() {
                     </Box>
                   </Grid>
 
-                  {/* Row 2 - Vehicle, Transport Amount, Labour Amount */}
-                  <Grid item xs={12} md={4}>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                          VEHICLE
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: 'error.main', fontWeight: 'bold' }}>
-                          *
-                        </Typography>
+                  {/* Row 2 - Vehicle (only for new purchases) */}
+                  {purchaseType === 'new' && (
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                            VEHICLE
+                          </Typography>
+                          <Typography variant="body2" sx={{ color: 'error.main', fontWeight: 'bold' }}>
+                            *
+                          </Typography>
+                        </Box>
+                        <Autocomplete
+                          size="medium"
+                          open={vehicleDropdownOpen}
+                          onOpen={() => setVehicleDropdownOpen(true)}
+                          onClose={() => setVehicleDropdownOpen(false)}
+                          options={vehicles}
+                          getOptionLabel={(option) => `${option.vehicle_no} - ${option.driver_name}`}
+                          value={vehicles.find(v => v.vehicle_no === formData.vehicle_no) || null}
+                          onChange={(event, newValue) => {
+                            setFormData(prev => ({
+                              ...prev,
+                              vehicle_no: newValue ? newValue.vehicle_no : ''
+                            }));
+                            setVehicleDropdownOpen(false);
+                          }}
+                          filterOptions={(options, { inputValue }) => {
+                            return options.filter(option =>
+                              option.vehicle_no.toLowerCase().includes(inputValue.toLowerCase()) ||
+                              option.driver_name.toLowerCase().includes(inputValue.toLowerCase()) ||
+                              option.vehicle_type.toLowerCase().includes(inputValue.toLowerCase())
+                            );
+                          }}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              placeholder="Select vehicle..."
+                              sx={{ width: '100%', minWidth: 300, minHeight: 56 }}
+                              onClick={() => setVehicleDropdownOpen(true)}
+                              required
+                            />
+                          )}
+                          sx={{ width: '100%', minWidth: 300 }}
+                          disablePortal={false}
+                          openOnFocus={true}
+                          selectOnFocus={true}
+                          clearOnBlur={false}
+                          handleHomeEndKeys={true}
+                        />
                       </Box>
-                      <Autocomplete
-                        size="medium"
-                        open={vehicleDropdownOpen}
-                        onOpen={() => setVehicleDropdownOpen(true)}
-                        onClose={() => setVehicleDropdownOpen(false)}
-                        options={vehicles}
-                        getOptionLabel={(option) => `${option.vehicle_no} - ${option.driver_name}`}
-                        value={vehicles.find(v => v.vehicle_no === formData.vehicle_no) || null}
-                        onChange={(event, newValue) => {
-                          setFormData(prev => ({
-                            ...prev,
-                            vehicle_no: newValue ? newValue.vehicle_no : ''
-                          }));
-                          setVehicleDropdownOpen(false);
-                        }}
-                        filterOptions={(options, { inputValue }) => {
-                          return options.filter(option =>
-                            option.vehicle_no.toLowerCase().includes(inputValue.toLowerCase()) ||
-                            option.driver_name.toLowerCase().includes(inputValue.toLowerCase()) ||
-                            option.vehicle_type.toLowerCase().includes(inputValue.toLowerCase())
-                          );
-                        }}
-                        renderInput={(params) => (
-                          <TextField
-                            {...params}
-                            placeholder="Select vehicle..."
-                            sx={{ width: '100%', minWidth: 300, minHeight: 56 }}
-                            onClick={() => setVehicleDropdownOpen(true)}
-                            required
-                          />
-                        )}
-                        sx={{ width: '100%', minWidth: 300 }}
-                        disablePortal={false}
-                        openOnFocus={true}
-                        selectOnFocus={true}
-                        clearOnBlur={false}
-                        handleHomeEndKeys={true}
-                      />
-                    </Box>
-                  </Grid>
+                    </Grid>
+                  )}
 
 
 

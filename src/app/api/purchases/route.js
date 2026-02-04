@@ -153,6 +153,8 @@ export async function POST(request) {
       vehicle_no,
       invoice_number,
       updated_by,
+      purchase_type = 'new',
+      return_for_purchase_id = null,
       purchase_details = []
     } = body;
 
@@ -270,6 +272,9 @@ export async function POST(request) {
 
     // Create purchase with details and ledger entries in a transaction
     const result = await prisma.$transaction(async (tx) => {
+      // Determine if this is a return (do this first so it can be used throughout)
+      const isReturn = purchase_type === 'return';
+      
       // Get customer's current balance
       const customerData = await tx.customer.findUnique({
         where: { cus_id },
@@ -355,19 +360,25 @@ export async function POST(request) {
         await tx.purchaseDetail.createMany({
           data: detailsData
         });
-
         // Update store stock for each product
         if (store_id) {
           const storeStockUpdatePromises = detailsData.map(async detail => {
-            await updateStoreStock(store_id, detail.pro_id, detail.qnty, 'increment', updated_by, tx);
+            // For NEW PURCHASE: increment stock (items added)
+            // For PURCHASE RETURN: decrement stock (items removed)
+            const stockOperation = isReturn ? 'decrement' : 'increment';
+            await updateStoreStock(store_id, detail.pro_id, detail.qnty, stockOperation, updated_by, tx);
           });
           await Promise.all(storeStockUpdatePromises);
         }
       }
 
       // Create comprehensive ledger entries for purchase
-      // 1. Debit Entry: Supplier Account (Amount owed to supplier increases with net_total)
+      // For NEW PURCHASE: Debit increases supplier balance, Debit decreases cash/bank
+      // For PURCHASE RETURN: Credit decreases supplier balance, Credit increases cash/bank
+      
       let currentSupplierBalance = 0;
+      const amountMultiplier = isReturn ? -1 : 1; // Returns negate the amounts
+      
       if (cus_id) {
         const supplierData = await tx.customer.findUnique({
           where: { cus_id: cus_id },
@@ -375,15 +386,17 @@ export async function POST(request) {
         });
         currentSupplierBalance = parseFloat(supplierData?.cus_balance || 0);
 
-        // Debit Supplier Account (Amount owed increases by invoice net total)
+        // Supplier Account Entry
+        // NEW PURCHASE: Debit (amount owed increases)
+        // PURCHASE RETURN: Credit (amount owed decreases)
         const supplierEntry = createLedgerEntry({
           cus_id: cus_id,
           opening_balance: currentSupplierBalance,
-          debit_amount: net_total,
-          credit_amount: 0,
+          debit_amount: isReturn ? 0 : net_total,
+          credit_amount: isReturn ? net_total : 0,
           bill_no: newPurchase.pur_id.toString(),
           trnx_type: 'CASH',
-          details: `Purchase Invoice${invoice_number ? ` #${invoice_number}` : ''} from ${supplierData?.cus_name || 'Supplier'}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
+          details: `${isReturn ? 'Purchase Return' : 'Purchase Invoice'}${invoice_number ? ` #${invoice_number}` : ''} ${isReturn ? 'to' : 'from'} ${supplierData?.cus_name || 'Supplier'}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
           payments: 0,
           updated_by: updated_by ? parseInt(updated_by) : null
         });
@@ -398,6 +411,8 @@ export async function POST(request) {
       // Use the already calculated values from validation
 
       console.log('🔍 Payment Debug Info:', {
+        purchase_type: purchase_type,
+        isReturn: isReturn,
         payment_type: actualPaymentType,
         credit_account_id,
         total_payment: totalPaymentAmount,
@@ -408,25 +423,28 @@ export async function POST(request) {
 
       // Handle Cash Payment
       if (cashPaymentAmount > 0) {
-        // Cash Payment: Credit Cash Account (reduces asset), Credit Supplier Account (reduces liability)
+        // NEW PURCHASE: Credit Cash Account (reduces asset/cash goes out)
+        // PURCHASE RETURN: Debit Cash Account (increases asset/cash comes in)
         const cashAccountData = await tx.customer.findUnique({
           where: { cus_id: credit_account_id },
           select: { cus_balance: true, cus_name: true }
         });
         const cashCurrentBalance = parseFloat(cashAccountData?.cus_balance || 0);
-        const cashNewBalance = cashCurrentBalance - cashPaymentAmount;
+        const cashNewBalance = isReturn 
+          ? cashCurrentBalance + cashPaymentAmount  // Add cash on return
+          : cashCurrentBalance - cashPaymentAmount; // Reduce cash on purchase
 
-        // Credit Cash Account (Cash decreases when payment is made - FIXED from DEBIT)
+        // Cash Account Entry
         await tx.ledger.create({
           data: {
             cus_id: credit_account_id,
             opening_balance: cashCurrentBalance,
-            debit_amount: 0,  // ← FIXED: Changed from debit_amount to 0
-            credit_amount: cashPaymentAmount,  // ← FIXED: Changed to credit_amount
+            debit_amount: isReturn ? cashPaymentAmount : 0,   // Debit on return (cash increases)
+            credit_amount: isReturn ? 0 : cashPaymentAmount,  // Credit on purchase (cash decreases)
             closing_balance: cashNewBalance,
             bill_no: newPurchase.pur_id.toString(),
             trnx_type: 'CASH',
-            details: `Cash Payment for Purchase - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
+            details: `${isReturn ? 'Cash Refund for Purchase Return' : 'Cash Payment for Purchase'} - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
             payments: cashPaymentAmount,
             updated_by: updated_by ? parseInt(updated_by) : null
           }
@@ -438,25 +456,27 @@ export async function POST(request) {
           data: { cus_balance: cashNewBalance }
         });
 
-        // Credit Supplier Account (Amount owed decreases when payment is made)
+        // Supplier Account Cash Payment Entry
         if (cus_id) {
           const supplierData = await tx.customer.findUnique({
             where: { cus_id: cus_id },
             select: { cus_name: true }
           });
           // Use running balance
-          const supplierNewBalance = currentSupplierBalance - cashPaymentAmount;
+          const supplierNewBalance = isReturn
+            ? currentSupplierBalance + cashPaymentAmount  // Increase supplier balance on return
+            : currentSupplierBalance - cashPaymentAmount; // Decrease supplier balance on purchase
 
           await tx.ledger.create({
             data: {
               cus_id: cus_id,
               opening_balance: currentSupplierBalance,
-              debit_amount: 0,
-              credit_amount: cashPaymentAmount,
+              debit_amount: isReturn ? 0 : cashPaymentAmount,      // Debit on purchase (supplier owes)
+              credit_amount: isReturn ? cashPaymentAmount : 0,     // Credit on return (supplier receives refund)
               closing_balance: supplierNewBalance,
               bill_no: newPurchase.pur_id.toString(),
               trnx_type: 'CASH',
-              details: `Cash Payment to ${supplierData?.cus_name || 'Supplier'} - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
+              details: `${isReturn ? 'Cash Refund to' : 'Cash Payment to'} ${supplierData?.cus_name || 'Supplier'} - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
               payments: cashPaymentAmount,
               updated_by: updated_by ? parseInt(updated_by) : null
             }
@@ -480,25 +500,28 @@ export async function POST(request) {
           return errorResponse('Bank account customer is required for bank payment');
         }
 
-        // Bank Payment: Debit Selected Bank Customer, Credit Supplier Account
+        // NEW PURCHASE: Credit Bank Customer (cash decreases)
+        // PURCHASE RETURN: Debit Bank Customer (cash increases)
         const bankAccountData = await tx.customer.findUnique({
           where: { cus_id: bankAccountId },
           select: { cus_balance: true, cus_name: true }
         });
         const bankCurrentBalance = parseFloat(bankAccountData?.cus_balance || 0);
-        const bankNewBalance = bankCurrentBalance - bankPaymentAmount;
+        const bankNewBalance = isReturn
+          ? bankCurrentBalance + bankPaymentAmount  // Add bank amount on return
+          : bankCurrentBalance - bankPaymentAmount; // Reduce bank amount on purchase
 
-        // Debit Selected Bank Customer (Bank customer balance decreases when payment is made)
+        // Bank Account Entry
         await tx.ledger.create({
           data: {
             cus_id: bankAccountId,
             opening_balance: bankCurrentBalance,
-            debit_amount: 0,
-            credit_amount: bankPaymentAmount,
+            debit_amount: isReturn ? bankPaymentAmount : 0,   // Debit on return (bank increases)
+            credit_amount: isReturn ? 0 : bankPaymentAmount,  // Credit on purchase (bank decreases)
             closing_balance: bankNewBalance,
             bill_no: newPurchase.pur_id.toString(),
             trnx_type: 'BANK_TRANSFER',
-            details: `Bank Payment to ${bankAccountData?.cus_name || 'Selected Bank Customer'} - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
+            details: `${isReturn ? 'Bank Refund for Purchase Return' : 'Bank Payment for Purchase'} - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
             payments: bankPaymentAmount,
             updated_by: updated_by ? parseInt(updated_by) : null
           }
@@ -510,25 +533,27 @@ export async function POST(request) {
           data: { cus_balance: bankNewBalance }
         });
 
-        // Credit Supplier Account (Amount owed decreases when payment is made)
+        // Supplier Account Bank Payment Entry
         if (cus_id) {
           const supplierData = await tx.customer.findUnique({
             where: { cus_id: cus_id },
             select: { cus_name: true }
           });
           // Use running balance
-          const supplierNewBalance = currentSupplierBalance - bankPaymentAmount;
+          const supplierNewBalance = isReturn
+            ? currentSupplierBalance + bankPaymentAmount  // Increase supplier balance on return
+            : currentSupplierBalance - bankPaymentAmount; // Decrease supplier balance on purchase
 
           await tx.ledger.create({
             data: {
               cus_id: cus_id,
               opening_balance: currentSupplierBalance,
-              debit_amount: 0,
-              credit_amount: bankPaymentAmount,
+              debit_amount: isReturn ? 0 : bankPaymentAmount,      // Debit on purchase (supplier owes)
+              credit_amount: isReturn ? bankPaymentAmount : 0,     // Credit on return (supplier receives refund)
               closing_balance: supplierNewBalance,
               bill_no: newPurchase.pur_id.toString(),
               trnx_type: 'BANK_TRANSFER',
-              details: `Bank Payment to ${supplierData?.cus_name || 'Supplier'} - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
+              details: `${isReturn ? 'Bank Refund to' : 'Bank Payment to'} ${supplierData?.cus_name || 'Supplier'} - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
               payments: bankPaymentAmount,
               updated_by: updated_by ? parseInt(updated_by) : null
             }
