@@ -376,7 +376,7 @@ export default function Sidebar({
           </Box>
 
           {/* Menu Sections */}
-          {renderMenuSection('customer-management', 'Customer Management', <PeopleIcon />)}
+          {renderMenuSection('customer-management', 'Account Management', <PeopleIcon />)}
           {renderMenuSection('product-management', 'Product Management', <InventoryIcon />)}
           {renderMenuSection('financial', 'Finance', <AttachMoneyIcon />)}
           {renderMenuSection('sales-operations', 'Sales', <ShoppingCartIcon />)}
