@@ -64,9 +64,7 @@ import {
   LocationOn as MapPinIcon,
   Business as BusinessIcon,
   ListAlt as ListAltIcon,
-  Info as InfoIcon,
-  TrendingUp as TrendingUpIcon,
-  FilterList as FilterListIcon
+  Info as InfoIcon
 } from '@mui/icons-material';
 
 function SalesPageContent() {
@@ -207,13 +205,17 @@ function SalesPageContent() {
   const [formSelectedProduct, setFormSelectedProduct] = useState(null);
   const [formSelectedStore, setFormSelectedStore] = useState(null);
 
+  // Sale Return state for main form
+  const [saleSearchOpen, setSaleSearchOpen] = useState(false);
+  const [saleSearchResults, setSaleSearchResults] = useState([]);
+  const [selectedSaleForReturnMain, setSelectedSaleForReturnMain] = useState(null); // Distinct from dialog state
+
   // Product form state
   const [productFormData, setProductFormData] = useState({
     quantity: '',
     rate: 0,
     amount: 0,
-    stock: 0,
-    purchaseRate: 0
+    stock: 0
   });
 
   // Product table state
@@ -369,7 +371,6 @@ function SalesPageContent() {
         ...prev,
         quantity: '', // Set quantity to empty
         rate: parseFloat(selectedProduct.pro_baser_price) || 0, // Use base price as rate
-        purchaseRate: parseFloat(selectedProduct.pro_cost_price) || 0, // Set purchase rate
         stock: 0, // always derive from store-wise stock when available
         amount: parseFloat(selectedProduct.pro_baser_price) || 0 // Calculate amount (rate * quantity)
       }));
@@ -384,8 +385,7 @@ function SalesPageContent() {
         quantity: '',
         rate: 0,
         amount: 0,
-        stock: 0,
-        purchaseRate: 0
+        stock: 0
       });
     }
   };
@@ -505,7 +505,6 @@ function SalesPageContent() {
         store_name: formSelectedStore.store_name,
         quantity: productFormData.quantity,
         rate: productFormData.rate,
-        purchase_rate: productFormData.purchaseRate,
         amount: productFormData.amount,
         stock: productFormData.stock
       };
@@ -521,8 +520,7 @@ function SalesPageContent() {
       quantity: '',
       rate: 0,
       amount: 0,
-      stock: 0,
-      purchaseRate: 0
+      stock: 0
     });
   };
 
@@ -583,6 +581,25 @@ function SalesPageContent() {
       const fullOrder = await response.json();
 
       console.log('📦 Loaded Order:', fullOrder);
+      console.log('🔍 ORDER DETAILS:');
+      console.log('  Sale ID:', fullOrder.sale_id);
+      console.log('  Customer:', fullOrder.customer?.cus_name || 'N/A');
+      console.log('  Total Amount:', fullOrder.total_amount);
+      console.log('  Payment (Advance):', fullOrder.payment);
+      console.log('  Discount:', fullOrder.discount);
+      console.log('  Shipping/Delivery:', fullOrder.shipping_amount);
+      console.log('  Labour Charges:', fullOrder.labour_charges || fullOrder.labour);
+      console.log('  Store ID:', fullOrder.store_id);
+      console.log('  Bill Type:', fullOrder.bill_type);
+      console.log('  Payment Type:', fullOrder.payment_type);
+      console.log('  Reference:', fullOrder.reference);
+      console.log('  Order Details/Products:', fullOrder.sale_details);
+      if (fullOrder.sale_details && Array.isArray(fullOrder.sale_details)) {
+        console.log('  📦 Product Items Count:', fullOrder.sale_details.length);
+        fullOrder.sale_details.forEach((item, idx) => {
+          console.log(`    Item ${idx + 1}: ${item.product?.pro_title || 'Unknown'} - Qty: ${item.qnty}, Rate: ${item.unit_rate}, Amount: ${item.total_amount}`);
+        });
+      }
 
       // Set Customer
       if (fullOrder.customer) {
@@ -610,11 +627,13 @@ function SalesPageContent() {
 
       // Set payment data - only load advance payment (already paid amount)
       const alreadyPaid = parseFloat(fullOrder.payment || 0);
+      const orderLabourCharges = parseFloat(fullOrder.labour_charges || 0);
 
       setPaymentData(prev => ({
         ...prev,
         advancePayment: alreadyPaid, // Set the already paid amount as advance payment
         discount: 0,
+        labour: parseFloat(fullOrder.labour_charges || fullOrder.labour || 0), // Load labour charges from order
         deliveryCharges: 0,
         notes: `Order #${fullOrder.sale_id} - Advance: ${alreadyPaid.toFixed(2)}. ${fullOrder.reference || ''}`,
         isLoadedOrder: true // Flag to indicate this is a loaded order
@@ -696,11 +715,121 @@ function SalesPageContent() {
   // Save bill to database
   const handleSaveBill = async () => {
     try {
-      // If bill type is SALE_RETURN, guide user to proper return flow
+      // If bill type is SALE_RETURN, process it as a return
       if (billType === 'SALE_RETURN') {
-        showSnackbar('Use Return Sale from the list to process sale returns.', 'info');
-        setCurrentView('list');
-        return;
+        if (!selectedSaleForReturnMain) {
+          showSnackbar('Please select a sale to return (Invoice)', 'error');
+          return;
+        }
+        if (productTableData.length === 0) {
+          showSnackbar('Please add/keep items to return', 'error');
+          return;
+        }
+
+        // Construct return payload matching /api/sale-returns expectation
+        const totalAmount = calculateTotalAmount(); // Based on productTableData
+        const discount = parseFloat(paymentData.discount) || 0;
+        const labourCharges = parseFloat(paymentData.labour) || 0;
+        const deliveryCharges = parseFloat(paymentData.deliveryCharges) || 0;
+        const cashReturn = parseFloat(paymentData.cash) || 0;
+        const bankReturn = parseFloat(paymentData.bank) || 0;
+        const totalReturn = cashReturn + bankReturn; // Total refund amount
+
+        const returnBody = {
+          sale_id: selectedSaleForReturnMain.sale_id,
+          cus_id: formSelectedCustomer ? formSelectedCustomer.cus_id : selectedSaleForReturnMain.cus_id,
+          total_amount: totalAmount.toString(),
+          discount: discount.toString(),
+          labour_charges: labourCharges.toString(),
+          shipping_amount: deliveryCharges.toString(),
+          payment: totalReturn.toString(), // The total amount being refunded to customer
+          payment_type: bankReturn > 0 ? 'BANK_TRANSFER' : 'CASH', // Use BANK_TRANSFER if there's bank amount
+          cash_return: cashReturn.toString(), // Additional: cash portion
+          bank_return: bankReturn.toString(), // Additional: bank portion
+          bank_account_id: paymentData.bankAccountId || null, // Bank account for transfer
+          bill_type: 'SALE_RETURN',
+          reason: paymentData.notes || 'Returned from Sale Entry',
+          reference: paymentData.notes || '',
+
+          // Return details from product table
+          return_details: productTableData.map(item => ({
+            pro_id: item.pro_id,
+            qnty: item.quantity, // Quantity to return
+            unit_rate: item.rate.toString(),
+            total_amount: item.amount.toString(),
+            discount: '0'
+          })),
+          updated_by: 1
+        };
+
+        // Call the return API
+        setLoading(true);
+        const response = await fetch('/api/sale-returns', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(returnBody)
+        });
+
+        if (response.ok) {
+          const saleReturnData = await response.json();
+
+          // Calculate total refund (CASH + BANK)
+          const totalRefund = cashReturn + bankReturn;
+
+          // Prepare bill data for receipt with sale return details
+          const returnReceipt = {
+            ...selectedSaleForReturnMain,
+            return_id: saleReturnData.return_id,
+            sale_details: productTableData.map((item, idx) => ({
+              sale_detail_id: idx,
+              product: { pro_title: item.product_name },
+              qnty: item.quantity,
+              unit_rate: item.rate,
+              total_amount: item.amount
+            })),
+            total_amount: calculateTotalAmount(),
+            labour_charges: paymentData.labour || 0,
+            shipping_amount: paymentData.deliveryCharges || 0,
+            discount: paymentData.discount || 0,
+            payment: totalRefund, // Total of CASH + BANK refund
+            cash_refund: cashReturn, // Breakdown: cash portion
+            bank_refund: bankReturn, // Breakdown: bank portion
+            notes: paymentData.notes,
+            bill_type: 'SALE_RETURN',
+            is_return: true,
+            created_at: new Date()
+          };
+
+          // Set current bill data and open receipt dialog
+          setCurrentBillData(returnReceipt);
+          setReceiptDialogOpen(true);
+
+          showSnackbar('Sale return processed successfully', 'success');
+
+          // Reset form after a delay
+          setTimeout(() => {
+            setFormSelectedCustomer(null);
+            setFormSelectedProduct(null);
+            setFormSelectedStore(null);
+            setProductTableData([]);
+            setPaymentData({
+              cash: 0,
+              bank: 0,
+              totalCashReceived: 0,
+              advancePayment: 0,
+              discount: 0,
+              notes: ''
+            });
+            setSelectedSaleForReturnMain(null);
+            setBillType('BILL'); // Reset to default
+            fetchData(); // Refresh lists
+          }, 1000);
+        } else {
+          const errorData = await response.json();
+          showSnackbar('Error: ' + (errorData.error || 'Failed to process return'), 'error');
+        }
+        setLoading(false);
+        return; // Exit function
       }
 
       // Validation
@@ -784,6 +913,7 @@ function SalesPageContent() {
         debit_account_id: paymentData.bankAccountId || null,
         credit_account_id: null,
         loader_id: null,
+        labour_charges: parseFloat(paymentData.labour) || 0, // Include labour charges
         shipping_amount: totalShippingAmount, // Include both transport and delivery charges
         bill_type: billType || 'BILL',
         reference: paymentData.notes || null,
@@ -1437,6 +1567,27 @@ function SalesPageContent() {
 
       const orderData = await response.json();
 
+      console.log('📦 ORDER LOADED FROM SEARCH:', orderData);
+      console.log('🔍 ORDER DATA DETAILS:');
+      console.log('  Sale ID:', orderData.sale_id);
+      console.log('  Customer:', orderData.customer?.cus_name || 'N/A');
+      console.log('  Total Amount:', orderData.total_amount);
+      console.log('  Payment (Advance):', orderData.payment);
+      console.log('  Discount:', orderData.discount);
+      console.log('  Shipping Amount:', orderData.shipping_amount);
+      console.log('  Labour Charges:', orderData.labour_charges || orderData.labour);
+      console.log('  Store ID:', orderData.store_id);
+      console.log('  Bill Type:', orderData.bill_type);
+      console.log('  Payment Type:', orderData.payment_type);
+      console.log('  Reference:', orderData.reference);
+      console.log('  Order Details/Products:', orderData.sale_details);
+      if (orderData.sale_details && Array.isArray(orderData.sale_details)) {
+        console.log('  📦 Product Items Count:', orderData.sale_details.length);
+        orderData.sale_details.forEach((item, idx) => {
+          console.log(`    Item ${idx + 1}: ${item.product?.pro_title || 'Unknown'} - Qty: ${item.qnty}, Rate: ${item.unit_rate}, Amount: ${item.total_amount}`);
+        });
+      }
+
       if (orderData.bill_type !== 'ORDER') {
         showSnackbar('The found record is not an Order', 'warning');
         return;
@@ -1481,7 +1632,7 @@ function SalesPageContent() {
         discount: parseFloat(orderData.discount) || 0,
         notes: `Converted from Order #${orderData.sale_id}. ${orderData.reference || ''}`,
         deliveryCharges: parseFloat(orderData.shipping_amount) || 0,
-        labour: 0, // Reset labour as it might be specific to the new sale
+        labour: parseFloat(orderData.labour_charges || orderData.labour || 0), // Load labour charges from order
         isLoadedOrder: true, // Mark as loaded order
         sourceOrderId: orderData.sale_id // Store original order ID
       }));
@@ -1546,6 +1697,158 @@ function SalesPageContent() {
     } catch (error) {
       console.error('Error processing sale return:', error);
       showSnackbar('Error processing sale return', 'error');
+    }
+  };
+
+  // Handle loading a sale for return (from main form)
+  const handleLoadSaleForReturnMain = async (sale) => {
+    try {
+      setLoading(true);
+
+      // Fetch full sale details
+      const response = await fetch(`/api/sales?id=${sale.sale_id}`);
+      if (!response.ok) throw new Error('Failed to fetch sale details');
+      const fullSale = await response.json();
+
+      console.log('📦 Loaded Sale for Return:', fullSale);
+      console.log('🔍 SALE DETAILS FOR RETURN:');
+      console.log('  Sale ID:', fullSale.sale_id);
+      console.log('  Customer:', fullSale.customer?.cus_name || 'N/A');
+      console.log('  Total Amount:', fullSale.total_amount);
+      console.log('  Discount:', fullSale.discount, typeof fullSale.discount);
+      console.log('  Labour Charges (labour_charges):', fullSale.labour_charges, typeof fullSale.labour_charges);
+      console.log('  Labour Charges (labour):', fullSale.labour, typeof fullSale.labour);
+      console.log('  Shipping/Delivery:', fullSale.shipping_amount, typeof fullSale.shipping_amount);
+      console.log('  Payment:', fullSale.payment);
+      console.log('  Products:', fullSale.sale_details);
+
+      // Populate the return form data with sale details
+      setReturnFormData({
+        sale_id: fullSale.sale_id,
+        cus_id: fullSale.cus_id,
+        total_amount: fullSale.total_amount?.toString() || '',
+        discount: fullSale.discount?.toString() || '0',
+        payment: fullSale.payment?.toString() || '0',
+        payment_type: fullSale.payment_type || 'CASH',
+        debit_account_id: fullSale.credit_account_id || '',
+        credit_account_id: fullSale.debit_account_id || '',
+        loader_id: fullSale.loader_id || '',
+        shipping_amount: fullSale.shipping_amount?.toString() || '0',
+        bill_type: fullSale.bill_type || 'BILL',
+        reason: '',
+        reference: fullSale.reference || '',
+        return_details: fullSale.sale_details ? fullSale.sale_details.map(detail => ({
+          pro_id: detail.pro_id,
+          qnty: detail.qnty,
+          unit: detail.unit,
+          unit_rate: detail.unit_rate?.toString() || '0',
+          total_amount: detail.total_amount?.toString() || '0',
+          discount: detail.discount?.toString() || '0'
+        })) : []
+      });
+
+      // Calculate labour value
+      const labourValue = parseFloat(fullSale.labour_charges || fullSale.labour || 0);
+      const discountValue = parseFloat(fullSale.discount || 0);
+      const deliveryValue = parseFloat(fullSale.shipping_amount || 0);
+      const advanceValue = parseFloat(fullSale.payment || 0);
+
+      console.log('💾 PAYMENT DATA BEING SET:');
+      console.log('  Labour:', labourValue);
+      console.log('  Discount:', discountValue);
+      console.log('  Delivery:', deliveryValue);
+      console.log('  Advance:', advanceValue);
+
+      // Also update paymentData for main form display
+      setPaymentData(prev => {
+        const newPaymentData = {
+          ...prev,
+          advancePayment: advanceValue,
+          discount: discountValue,
+          labour: labourValue,
+          deliveryCharges: deliveryValue,
+          notes: `Return from Sale #${fullSale.sale_id}. Original Amount: ${fullSale.total_amount}`,
+          isLoadedOrder: false
+        };
+        console.log('🔔 Updated paymentData object:', newPaymentData);
+        return newPaymentData;
+      });
+
+      // Update product table with sale items
+      if (fullSale.sale_details && Array.isArray(fullSale.sale_details)) {
+        const products = fullSale.sale_details.map(detail => ({
+          id: Date.now() + Math.random(),
+          pro_id: detail.pro_id,
+          pro_title: detail.product?.pro_title || detail.product?.pro_name || 'Unknown Product',
+          storeid: fullSale.store_id,
+          store_name: stores.find(s => s.storeid === fullSale.store_id)?.store_name || 'Store',
+          quantity: parseFloat(detail.qnty) || 0,
+          rate: parseFloat(detail.unit_rate) || 0,
+          amount: parseFloat(detail.total_amount) || 0,
+          stock: detail.product?.pro_stock_qnty || 0
+        }));
+        setProductTableData(products);
+        console.log('📦 Products loaded:', products);
+      }
+
+      // Set Customer
+      if (fullSale.customer) {
+        setFormSelectedCustomer(fullSale.customer);
+      } else if (fullSale.cus_id) {
+        const customer = customers.find(c => c.cus_id === fullSale.cus_id);
+        if (customer) setFormSelectedCustomer(customer);
+      }
+
+      // Set Store
+      if (fullSale.store_id) {
+        const store = stores.find(s => s.storeid === fullSale.store_id);
+        if (store) setFormSelectedStore(store);
+      }
+
+      // Keep the selected sale in the select field
+      setSelectedSaleForReturnMain(fullSale);
+
+      console.log('✅ FINAL VALUES BEING DISPLAYED:');
+      console.log('  Labour:', labourValue, '(from labour_charges or labour)');
+      console.log('  Discount:', discountValue);
+      console.log('  Delivery:', deliveryValue);
+
+      showSnackbar(`Sale #${fullSale.sale_id} loaded! Discount: ${discountValue}, Labour: ${labourValue}, Delivery: ${deliveryValue}`, 'success');
+    } catch (error) {
+      console.error('Error loading sale for return:', error);
+      showSnackbar('Failed to load sale for return', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle searching for sales in return form
+  const handleSaleSearch = async (searchTerm) => {
+    try {
+      if (!searchTerm.trim()) {
+        setSaleSearchResults(sales.slice(0, 50));
+        return;
+      }
+
+      // Search by sale_id, reference, or within selected customer's sales
+      const searchLower = searchTerm.toLowerCase();
+      const results = sales.filter(sale => {
+        // Filter by customer if one is selected
+        if (formSelectedCustomer && sale.cus_id !== formSelectedCustomer.cus_id) {
+          return false;
+        }
+
+        return (
+          sale.sale_id?.toString().includes(searchLower) ||
+          sale.invoice_number?.toLowerCase().includes(searchLower) ||
+          sale.reference?.toLowerCase().includes(searchLower)
+        );
+      }).slice(0, 50);
+
+      setSaleSearchResults(results);
+    } catch (error) {
+      console.error('Error searching sales:', error);
+      showSnackbar('Error searching sales', 'error');
     }
   };
 
@@ -2023,11 +2326,11 @@ function SalesPageContent() {
                 <SearchIcon />
               </IconButton>
               <Box>
-                <Typography variant="h5" component="h1" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
-                  Create New Sale
+                <Typography variant="h5" component="h1" sx={{ fontWeight: 'bold', color: billType === 'SALE_RETURN' ? '#d32f2f' : 'text.primary' }}>
+                  {billType === 'SALE_RETURN' ? 'Return Sale' : 'Create New Sale'}
                 </Typography>
                 <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                  Select products and create sale order
+                  {billType === 'SALE_RETURN' ? 'Select an invoice to return items' : 'Select products and create sale order'}
                 </Typography>
               </Box>
             </Box>
@@ -2084,45 +2387,108 @@ function SalesPageContent() {
           {/* Main Form */}
           <Card>
             <CardContent sx={{ p: 2 }}>
-              {/* Order Search Row */}
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3, p: 2, bgcolor: '#f5f5f5', borderRadius: 1 }}>
-                <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'text.primary', whiteSpace: 'nowrap' }}>
-                  Load Order:
-                </Typography>
-                <TextField
-                  size="small"
-                  placeholder="Enter Order Number (e.g. 123)"
-                  value={orderSearchTerm}
-                  onChange={(e) => setOrderSearchTerm(e.target.value)}
-                  sx={{ width: 250, bgcolor: 'white' }}
-                  InputProps={{
-                    endAdornment: (
-                      <SearchIcon color="action" fontSize="small" />
-                    ),
-                  }}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      handleSearchOrder();
-                    }
-                  }}
-                />
-                <Button
-                  variant="contained"
-                  size="small"
-                  onClick={handleSearchOrder}
-                  disabled={isSearchingOrder || !orderSearchTerm}
-                  sx={{ bgcolor: '#1976d2', color: 'white', '&:hover': { bgcolor: '#1565c0' } }}
-                >
-                  {isSearchingOrder ? <CircularProgress size={20} color="inherit" /> : 'Load'}
-                </Button>
-                <Typography variant="caption" sx={{ color: 'text.secondary', ml: 1 }}>
-                  Enter an order number to populate this form with order details.
-                </Typography>
+              {/* Transaction Type Banner */}
+              <Box sx={{ mb: 3 }}>
+                <Box sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  p: 2,
+                  borderRadius: 2,
+                  background: billType === 'SALE_RETURN'
+                    ? 'linear-gradient(45deg, #c62828 30%, #ef5350 90%)' // Red for Return
+                    : 'linear-gradient(45deg, #1976d2 30%, #2196f3 90%)', // Blue for Sale
+                  boxShadow: '0 3px 5px 2px rgba(0,0,0,0.1)',
+                  color: 'white',
+                  transition: 'all 0.3s ease',
+                }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>
+                      {billType === 'SALE_RETURN' ? 'Sale Return Entry' : 'New Sale Entry'}
+                    </Typography>
+                    <Box sx={{
+                      bgcolor: 'rgba(255,255,255,0.2)',
+                      borderRadius: 1,
+                      px: 1,
+                      py: 0.5,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1
+                    }}>
+                      {billType === 'SALE_RETURN' ? <TrendingDownIcon sx={{ color: 'white' }} /> : <ReceiptIcon sx={{ color: 'white' }} />}
+                      <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                        {billType === 'SALE_RETURN' ? 'Return In' : 'Invoice Out'}
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  <FormControl size="small" variant="standard" sx={{ minWidth: 200 }}>
+                    <Select
+                      value={billType}
+                      onChange={(e) => {
+                        setBillType(e.target.value);
+                        if (e.target.value !== 'SALE_RETURN') {
+                          setSelectedSaleForReturnMain(null);
+                        }
+                      }}
+                      sx={{
+                        color: 'white',
+                        '& .MuiSelect-select': {
+                          paddingRight: 2,
+                          fontWeight: 'bold',
+                          fontSize: '1.1rem'
+                        },
+                        '& .MuiSvgIcon-root': { color: 'white' },
+                        '&:before': { borderBottomColor: 'rgba(255,255,255,0.7)' },
+                        '&:after': { borderBottomColor: 'white' },
+                        '&:hover:not(.Mui-disabled):before': { borderBottomColor: 'white' }
+                      }}
+                    >
+                      <MenuItem value="BILL" sx={{ fontWeight: 'medium' }}>New Sale</MenuItem>
+                      <MenuItem value="SALE_RETURN" sx={{ fontWeight: 'medium' }}>Sale Return</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Box>
               </Box>
+
+              {/* Order Search Row (Only show if NOT Return, to avoid clutter) */}
+              {billType !== 'SALE_RETURN' && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3, p: 2, bgcolor: '#f5f5f5', borderRadius: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'text.primary', whiteSpace: 'nowrap' }}>
+                    Load Order:
+                  </Typography>
+                  <TextField
+                    size="small"
+                    placeholder="Enter Order Number (e.g. 123)"
+                    value={orderSearchTerm}
+                    onChange={(e) => setOrderSearchTerm(e.target.value)}
+                    sx={{ width: 250, bgcolor: 'white' }}
+                    InputProps={{
+                      endAdornment: (
+                        <SearchIcon color="action" fontSize="small" />
+                      ),
+                    }}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        handleSearchOrder();
+                      }
+                    }}
+                  />
+                  <Button
+                    variant="contained"
+                    size="small"
+                    onClick={handleSearchOrder}
+                    disabled={isSearchingOrder || !orderSearchTerm}
+                    sx={{ bgcolor: '#1976d2', color: 'white', '&:hover': { bgcolor: '#1565c0' } }}
+                  >
+                    {isSearchingOrder ? <CircularProgress size={20} color="inherit" /> : 'Load'}
+                  </Button>
+                </Box>
+              )}
 
               {/* First Row - Date, Customer, Reference */}
               <Grid container spacing={2} sx={{ mb: 2 }}>
-                <Grid item xs={12} md={3}>
+                <Grid item xs={12} md={billType === 'SALE_RETURN' ? 3 : 4}>
                   <Box sx={{ position: 'relative' }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                       <Typography variant="body2" sx={{ fontWeight: 'medium', color: 'text.secondary' }}>
@@ -2166,58 +2532,106 @@ function SalesPageContent() {
                     <Autocomplete
                       size="small"
                       options={customers.filter(customer => {
-                        // Filter for customers with category "Customer"
                         const isCustomer = customer.customer_category &&
                           customer.customer_category.cus_cat_title &&
                           customer.customer_category.cus_cat_title.toLowerCase().includes('customer');
                         return isCustomer;
                       })}
-                      getOptionLabel={(option) => {
-                        console.log('🔍 getOptionLabel called with:', option);
-                        return option.cus_name || '';
-                      }}
+                      getOptionLabel={(option) => option.cus_name || ''}
                       value={formSelectedCustomer}
                       onChange={(event, newValue) => {
-                        console.log('🔍 Customer selected:', newValue);
                         setFormSelectedCustomer(newValue);
+                        // Reset search results if changing customer
+                        if (billType === 'SALE_RETURN') {
+                          setSaleSearchResults([]);
+                          setSelectedSaleForReturnMain(null);
+                        }
                       }}
                       isOptionEqualToValue={(option, value) => option.cus_id === value?.cus_id}
-                      renderInput={(params) => {
-                        console.log('🔍 renderInput called, customers length:', customers.length);
-                        return (
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          placeholder="Select customer"
+                          sx={{ bgcolor: 'white', minWidth: 250, '& .MuiInputBase-input': { fontWeight: formSelectedCustomer ? 'bold' : 'normal' } }}
+                        />
+                      )}
+                    />
+                  </Box>
+                </Grid>
+
+                {/* Return Invoice Selection (Only for Sale Return) */}
+                {billType === 'SALE_RETURN' && (
+                  <Grid item xs={12} md={3}>
+                    <Box>
+                      <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
+                        SELECT INVOICE
+                      </Typography>
+                      <Autocomplete
+                        open={saleSearchOpen}
+                        onOpen={() => {
+                          setSaleSearchOpen(true);
+                          // Always search when opening, either scoped to customer or all
+                          if (formSelectedCustomer) {
+                            const customerSales = sales.filter(s => s.cus_id === formSelectedCustomer.cus_id);
+                            setSaleSearchResults(customerSales);
+                          } else {
+                            // Show latest sales if no customer selected
+                            setSaleSearchResults(sales.slice(0, 50)); // Limit to prevent lag
+                          }
+                        }}
+                        onClose={() => setSaleSearchOpen(false)}
+                        options={saleSearchResults}
+                        getOptionLabel={(option) => {
+                          // Helper to find customer name
+                          const cName = option.customer?.cus_name || (customers.find(c => c.cus_id === option.cus_id)?.cus_name) || 'Unknown';
+                          return `#${option.sale_id} - ${cName} - ${option.reference || 'No Ref'} (${parseFloat(option.total_amount).toFixed(2)})`;
+                        }}
+                        value={selectedSaleForReturnMain}
+                        onChange={(event, newValue) => {
+                          if (newValue) handleLoadSaleForReturnMain(newValue);
+                        }}
+                        onInputChange={(event, inputValue) => {
+                          if (!formSelectedCustomer) {
+                            // Search across all sales if no customer selected
+                            if (!inputValue) {
+                              setSaleSearchResults(sales.slice(0, 50));
+                              return;
+                            }
+                            const searchLower = inputValue.toLowerCase();
+                            const results = sales.filter(sale =>
+                              sale.sale_id?.toString().includes(searchLower) ||
+                              sale.invoice_number?.toLowerCase().includes(searchLower) ||
+                              sale.reference?.toLowerCase().includes(searchLower)
+                            ).slice(0, 50);
+                            setSaleSearchResults(results);
+                          } else {
+                            handleSaleSearch(inputValue);
+                          }
+                        }}
+                        renderInput={(params) => (
                           <TextField
                             {...params}
-                            placeholder="Select customer"
-                            sx={{ bgcolor: 'white', minWidth: 250, '& .MuiInputBase-input': { fontWeight: formSelectedCustomer ? 'bold' : 'normal' } }}
+                            size="small"
+                            placeholder="Search Sale ID..."
+                            sx={{ bgcolor: 'white', minWidth: 250 }}
+                            InputProps={{
+                              ...params.InputProps,
+                              endAdornment: (
+                                <>
+                                  {params.InputProps.endAdornment}
+                                </>
+                              ),
+                            }}
                           />
-                        );
-                      }}
-                    />
-                    {/* Debug info */}
-                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                      Debug: {customers.length} total customers, {customers.filter(c => c.customer_category?.cus_cat_title?.toLowerCase().includes('customer')).length} customers (filtered)
-                    </Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={12} md={2}>
-                  <Box>
-                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
-                      BILL TYPE
-                    </Typography>
-                    <FormControl fullWidth size="small">
-                      <Select
-                        value={billType}
-                        onChange={(e) => setBillType(e.target.value)}
-                        sx={{ bgcolor: 'white', minWidth: 200, '& .MuiSelect-select': { fontWeight: 'bold' } }}
-                      >
-                        <MenuItem value="BILL">Bill</MenuItem>
-                        <MenuItem value="QUOTATION">Quotation</MenuItem>
-                        <MenuItem value="SALE_RETURN">Sale Return</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Box>
-                </Grid>
-                <Grid item xs={12} md={2}>
+                        )}
+                        noOptionsText="No sales found"
+                      />
+                    </Box>
+                  </Grid>
+                )}
+
+
+                <Grid item xs={12} md={billType === 'SALE_RETURN' ? 3 : 4}>
                   <Box>
                     <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
                       DATE:
@@ -2231,7 +2645,7 @@ function SalesPageContent() {
                     />
                   </Box>
                 </Grid>
-                <Grid item xs={12} md={1.5}>
+                <Grid item xs={12} md={billType === 'SALE_RETURN' ? 3 : 4}>
                   <Box>
                     <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
                       REFERENCE
@@ -2240,6 +2654,8 @@ function SalesPageContent() {
                       fullWidth
                       size="small"
                       sx={{ bgcolor: 'white' }}
+                      value={paymentData.notes || ''} // Bind to paymentData.notes which serves as reference/notes
+                      onChange={(e) => setPaymentData(prev => ({ ...prev, notes: e.target.value }))}
                     />
                   </Box>
                 </Grid>
@@ -2361,34 +2777,6 @@ function SalesPageContent() {
                     />
                   </Box>
                 </Grid>
-                <Grid item xs={12} md={1.2}>
-                  <Box>
-                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
-                      STOCK
-                    </Typography>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      value={productFormData.stock}
-                      disabled
-                      sx={{ bgcolor: '#f8f9fa' }}
-                    />
-                  </Box>
-                </Grid>
-                <Grid item xs={12} md={1.2}>
-                  <Box>
-                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
-                      PURCHASE
-                    </Typography>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      value={productFormData.purchaseRate}
-                      disabled
-                      sx={{ bgcolor: '#f8f9fa' }}
-                    />
-                  </Box>
-                </Grid>
                 <Grid item xs={12} md={1.5}>
                   <Box>
                     <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
@@ -2399,8 +2787,22 @@ function SalesPageContent() {
                       size="small"
                       type="number"
                       value={productFormData.amount}
-                      sx={{ bgcolor: 'white' }}
+                      sx={{ bgcolor: 'white', width: 150, minWidth: 150 }}
                       disabled
+                    />
+                  </Box>
+                </Grid>
+                <Grid item xs={12} md={1.5}>
+                  <Box>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
+                      STOCK
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      value={productFormData.stock}
+                      disabled
+                      sx={{ bgcolor: '#f8f9fa', width: 150, minWidth: 150 }}
                     />
                   </Box>
                 </Grid>
@@ -2433,7 +2835,6 @@ function SalesPageContent() {
                       <TableCell sx={{ fontWeight: 'bold', py: 1 }}>Product</TableCell>
                       <TableCell sx={{ fontWeight: 'bold', py: 1 }}>Qty</TableCell>
                       <TableCell sx={{ fontWeight: 'bold', py: 1 }}>Price</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', py: 1 }}>Purchase</TableCell>
                       <TableCell sx={{ fontWeight: 'bold', py: 1 }}>Amount</TableCell>
                       <TableCell sx={{ fontWeight: 'bold', py: 1 }}>Actions</TableCell>
                     </TableRow>
@@ -2519,7 +2920,6 @@ function SalesPageContent() {
                               }}
                             />
                           </TableCell>
-                          <TableCell sx={{ py: 1 }}>{parseFloat(product.purchase_rate || 0).toFixed(2)}</TableCell>
                           <TableCell sx={{ py: 1 }}>{parseFloat(product.amount || 0).toFixed(2)}</TableCell>
                           <TableCell sx={{ py: 1 }}>
                             <IconButton
@@ -2535,13 +2935,13 @@ function SalesPageContent() {
                     )}
                     {productTableData.length > 0 && (
                       <TableRow sx={{ bgcolor: '#f8f9fa', borderTop: '2px solid #dee2e6' }}>
-                        <TableCell colSpan={6} sx={{ py: 2, fontWeight: 'bold', textAlign: 'right' }}>
+                        <TableCell colSpan={5} sx={{ py: 2, fontWeight: 'bold', textAlign: 'right' }}>
                           Total Amount:
                         </TableCell>
                         <TableCell sx={{ py: 2, fontWeight: 'bold', fontSize: '1.1rem' }} key={`table-total-${calculateTotalAmount()}-${transportOptions.length}`}>
                           {Number(calculateTotalAmount()).toFixed(2)}
                         </TableCell>
-                        <TableCell />
+                        <TableCell sx={{ py: 2 }}></TableCell>
                       </TableRow>
                     )}
                   </TableBody>
@@ -2741,45 +3141,69 @@ function SalesPageContent() {
                   display: 'flex',
                   flexDirection: 'column'
                 }}>
-                  {/* ADVANCE PAYMENT */}
-                  <Box sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 'medium', color: 'success.main', minWidth: '140px' }}>
-                      ADVANCE PAYMENT
-                    </Typography>
-                    <TextField
-                      size="small"
-                      type="number"
-                      value={paymentData.advancePayment === 0 ? '' : paymentData.advancePayment}
-                      onChange={(e) => handlePaymentDataChange('advancePayment', e.target.value)}
-                      sx={{
-                        bgcolor: 'success.50',
-                        '& .MuiInputBase-input': {
-                          padding: '8px',
-                          fontWeight: 'bold',
-                          color: 'success.main'
-                        },
-                        flex: 1
-                      }}
-                      placeholder="0"
-                    />
-                  </Box>
+                  {/* ADVANCE PAYMENT - Hidden for Sale Return */}
+                  {billType !== 'SALE_RETURN' && (
+                    <Box sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'medium', color: 'success.main', minWidth: '140px' }}>
+                        ADVANCE PAYMENT
+                      </Typography>
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={paymentData.advancePayment === 0 ? '' : paymentData.advancePayment}
+                        onChange={(e) => handlePaymentDataChange('advancePayment', e.target.value)}
+                        sx={{
+                          bgcolor: 'success.50',
+                          '& .MuiInputBase-input': {
+                            padding: '8px',
+                            fontWeight: 'bold',
+                            color: 'success.main'
+                          },
+                          flex: 1
+                        }}
+                        placeholder="0"
+                      />
+                    </Box>
+                  )}
 
-                  {/* TOTAL AMOUNT (After Advance Deduction) */}
-                  <Box sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 'medium', color: 'text.secondary', minWidth: '140px' }}>
-                      TOTAL AMOUNT
-                    </Typography>
-                    <TextField
-                      size="small"
-                      type="number"
-                      value={Number(calculateTotalAmount()).toFixed(2)}
-                      sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' }, flex: 1 }}
-                      disabled
-                      inputProps={{
-                        readOnly: true
-                      }}
-                    />
-                  </Box>
+                  {/* SUB TOTAL (Product Total Only) - Show for Sale Return */}
+                  {billType === 'SALE_RETURN' && (
+                    <Box sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'medium', color: 'text.secondary', minWidth: '140px' }}>
+                        SUB TOTAL
+                      </Typography>
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={(() => {
+                          const productTotal = productTableData.reduce((sum, product) => sum + parseFloat(product.amount || 0), 0);
+                          return productTotal.toFixed(2);
+                        })()}
+                        sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' }, flex: 1 }}
+                        disabled
+                        inputProps={{ readOnly: true }}
+                      />
+                    </Box>
+                  )}
+
+                  {/* TOTAL AMOUNT (After Advance Deduction) - Hidden for Sale Return */}
+                  {billType !== 'SALE_RETURN' && (
+                    <Box sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'medium', color: 'text.secondary', minWidth: '140px' }}>
+                        TOTAL AMOUNT
+                      </Typography>
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={Number(calculateTotalAmount()).toFixed(2)}
+                        sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' }, flex: 1 }}
+                        disabled
+                        inputProps={{
+                          readOnly: true
+                        }}
+                      />
+                    </Box>
+                  )}
 
                   {/* LABOUR */}
                   <Box sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -2789,7 +3213,11 @@ function SalesPageContent() {
                     <TextField
                       size="small"
                       type="number"
-                      value={paymentData.labour === 0 ? '' : paymentData.labour}
+                      value={(() => {
+                        const labourVal = parseFloat(paymentData.labour || 0);
+                        console.log('🎨 LABOUR FIELD RENDER - paymentData.labour:', paymentData.labour, 'parsed as:', labourVal, 'display value:', labourVal === 0 ? '' : labourVal);
+                        return labourVal === 0 ? '' : labourVal;
+                      })()}
                       onChange={(e) => handlePaymentDataChange('labour', e.target.value)}
                       sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' }, flex: 1 }}
                       placeholder="0"
@@ -2842,36 +3270,152 @@ function SalesPageContent() {
                     />
                   </Box>
 
-                  {/* BALANCE */}
-                  <Box sx={{
-                    mt: 2,
-                    p: 2,
-                    bgcolor: 'primary.light',
-                    borderRadius: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1
-                  }}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main', minWidth: '140px' }}>
-                      BALANCE
-                    </Typography>
-                    <TextField
-                      size="small"
-                      type="number"
-                      value={calculateBalance().toFixed(2)}
-                      sx={{
-                        bgcolor: 'white',
-                        '& .MuiInputBase-input': {
-                          fontWeight: 'bold',
-                          fontSize: '1.1rem',
-                          color: 'primary.main',
-                          padding: '8px'
-                        },
-                        flex: 1
-                      }}
-                      disabled
-                    />
-                  </Box>
+                  {/* GRAND TOTAL - Show for Sale Return */}
+                  {billType === 'SALE_RETURN' && (
+                    <Box sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'medium', color: 'text.secondary', minWidth: '140px' }}>
+                        GRAND TOTAL
+                      </Typography>
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={(() => {
+                          const productTotal = productTableData.reduce((sum, product) => sum + parseFloat(product.amount || 0), 0);
+                          const labour = parseFloat(paymentData.labour || 0);
+                          const delivery = parseFloat(paymentData.deliveryCharges || 0);
+                          const discount = parseFloat(paymentData.discount || 0);
+                          const grandTotal = productTotal + labour + delivery - discount;
+                          return grandTotal.toFixed(2);
+                        })()}
+                        sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px', fontWeight: 'bold' }, flex: 1 }}
+                        disabled
+                        inputProps={{ readOnly: true }}
+                      />
+                    </Box>
+                  )}
+
+                  {/* TOTAL AMOUNT PAID FOR THAT SALE - Show for Sale Return */}
+                  {billType === 'SALE_RETURN' && (
+                    <Box sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'medium', color: 'success.main', minWidth: '140px' }}>
+                        AMOUNT PAID
+                      </Typography>
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={paymentData.advancePayment === 0 ? '' : paymentData.advancePayment}
+                        sx={{
+                          bgcolor: 'success.50',
+                          '& .MuiInputBase-input': {
+                            padding: '8px',
+                            fontWeight: 'bold',
+                            color: 'success.main'
+                          },
+                          flex: 1
+                        }}
+                        disabled
+                        inputProps={{ readOnly: true }}
+                      />
+                    </Box>
+                  )}
+
+                  {/* RETURN PAYMENT - CASH and BANK (Hidden) for Sale Return */}
+                  {billType === 'SALE_RETURN' && (
+                    <Box sx={{ mb: 2 }}>
+                      {/* RETURN (CASH) - Hidden */}
+                      <Box sx={{ display: 'none' }}>
+                        <TextField
+                          size="small"
+                          type="number"
+                          value={paymentData.cash === 0 ? '' : paymentData.cash}
+                          onChange={(e) => handlePaymentDataChange('cash', e.target.value)}
+                          placeholder="0"
+                        />
+                      </Box>
+
+                      {/* RETURN (BANK) - Hidden */}
+                      <Box sx={{ display: 'none' }}>
+                        <TextField
+                          size="small"
+                          type="number"
+                          value={paymentData.bank === 0 ? '' : paymentData.bank}
+                          onChange={(e) => handlePaymentDataChange('bank', e.target.value)}
+                          placeholder="0"
+                        />
+                      </Box>
+
+                      {/* TOTAL RETURN (CASH + BANK) - Visible */}
+                      <Box sx={{
+                        p: 1.5,
+                        bgcolor: 'error.light',
+                        borderRadius: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                        border: '2px solid',
+                        borderColor: 'error.main'
+                      }}>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'error.main', minWidth: '140px' }}>
+                          TOTAL RETURN
+                        </Typography>
+                        <TextField
+                          size="small"
+                          type="number"
+                          value={(() => {
+                            const cashReturn = parseFloat(paymentData.cash || 0);
+                            const bankReturn = parseFloat(paymentData.bank || 0);
+                            const totalReturn = cashReturn + bankReturn;
+                            return totalReturn === 0 ? '' : totalReturn.toFixed(2);
+                          })()}
+                          sx={{
+                            bgcolor: 'white',
+                            '& .MuiInputBase-input': {
+                              fontWeight: 'bold',
+                              fontSize: '1.1rem',
+                              color: 'error.main',
+                              padding: '8px'
+                            },
+                            flex: 1
+                          }}
+                          disabled
+                          inputProps={{ readOnly: true }}
+                        />
+                      </Box>
+                    </Box>
+                  )}
+
+                  {/* BALANCE - Hidden for Sale Return */}
+                  {billType !== 'SALE_RETURN' && (
+                    <Box sx={{
+                      mt: 2,
+                      p: 2,
+                      bgcolor: 'primary.light',
+                      borderRadius: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1
+                    }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main', minWidth: '140px' }}>
+                        BALANCE
+                      </Typography>
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={calculateBalance().toFixed(2)}
+                        sx={{
+                          bgcolor: 'white',
+                          '& .MuiInputBase-input': {
+                            fontWeight: 'bold',
+                            fontSize: '1.1rem',
+                            color: 'primary.main',
+                            padding: '8px'
+                          },
+                          flex: 1
+                        }}
+                        disabled
+                      />
+                    </Box>
+                  )}
                 </Box>
               </Box>
 
@@ -3304,7 +3848,7 @@ function SalesPageContent() {
         >
           <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-              Receipt - Bill #{currentBillData?.sale_id}
+              {currentBillData?.is_return ? 'Sale Return Invoice' : 'Receipt'} - Bill #{currentBillData?.sale_id || currentBillData?.return_id}
             </Typography>
             <IconButton
               onClick={() => setReceiptDialogOpen(false)}
@@ -3343,9 +3887,10 @@ function SalesPageContent() {
                     fontWeight: 'bold',
                     textTransform: 'uppercase',
                     letterSpacing: 1,
-                    mt: 1
+                    mt: 1,
+                    color: currentBillData?.is_return ? '#d32f2f' : '#000'
                   }}>
-                    SALE INVOICE
+                    {currentBillData?.is_return ? 'SALE RETURN INVOICE' : 'SALE INVOICE'}
                   </Typography>
                 </Box>
 
@@ -3421,31 +3966,74 @@ function SalesPageContent() {
                       <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, border: '1px solid #000', width: '100%' }}>
                         <Table size="small">
                           <TableBody>
-                            <TableRow>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
-                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                {parseFloat(currentBillData.customer?.cus_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </TableCell>
-                            </TableRow>
-                            <TableRow>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</TableCell>
-                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </TableCell>
-                            </TableRow>
-                            <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                {(parseFloat(currentBillData.customer?.cus_balance || 0) + parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </TableCell>
-                            </TableRow>
+                            {currentBillData?.is_return ? (
+                              <>
+                                <TableRow>
+                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>منسوخ کردہ رقم</TableCell>
+                                  <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                    {parseFloat(currentBillData.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>رعایت</TableCell>
+                                  <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                    -{parseFloat(currentBillData.discount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>مزدوری</TableCell>
+                                  <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                    {parseFloat(currentBillData.labour_charges || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>کرایہ</TableCell>
+                                  <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                    {parseFloat(currentBillData.shipping_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow sx={{ bgcolor: '#e8f5e9' }}>
+                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>کل منسوخی</TableCell>
+                                  <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', color: '#2e7d32' }}>
+                                    {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.discount || 0) + parseFloat(currentBillData.labour_charges || 0) + parseFloat(currentBillData.shipping_amount || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow sx={{ bgcolor: '#ffe0b2' }}>
+                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>کل واپسی</TableCell>
+                                  <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', color: '#e65100', fontSize: '1rem' }}>
+                                    {parseFloat(currentBillData.payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </TableCell>
+                                </TableRow>
+                              </>
+                            ) : (
+                              <>
+                                <TableRow>
+                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
+                                  <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                    {parseFloat(currentBillData.customer?.cus_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</TableCell>
+                                  <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                    {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</TableCell>
+                                  <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                    {(parseFloat(currentBillData.customer?.cus_balance || 0) + parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </TableCell>
+                                </TableRow>
+                              </>
+                            )}
                           </TableBody>
                         </Table>
                       </TableContainer>
                       {currentBillData.notes && (
                         <Box sx={{ mt: 1 }}>
                           <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
-                            <strong>Notes:</strong> {currentBillData.notes}
+                            <strong>تبصرے:</strong> {currentBillData.notes}
                           </Typography>
                         </Box>
                       )}
@@ -3463,7 +4051,7 @@ function SalesPageContent() {
                             <TableRow>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>مزدوری</TableCell>
                               <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {parseFloat(currentBillData.labour || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {parseFloat(currentBillData.labour_charges || currentBillData.labour || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </TableCell>
                             </TableRow>
                             <TableRow>
@@ -3749,6 +4337,19 @@ function SalesPageContent() {
     </DashboardLayout>
   );
 
+  // Helper function to get sort label
+  const getSortLabel = (value) => {
+    const labels = {
+      'created_at-desc': 'Newest First',
+      'created_at-asc': 'Oldest First',
+      'customer-asc': 'Customer A-Z',
+      'customer-desc': 'Customer Z-A',
+      'total_amount-desc': 'Amount High-Low',
+      'total_amount-asc': 'Amount Low-High'
+    };
+    return labels[value] || 'Newest First';
+  };
+
   const renderSalesListView = () => (
     <DashboardLayout>
       <Container maxWidth={false} sx={{ py: 4 }}>
@@ -3799,6 +4400,7 @@ function SalesPageContent() {
             </Box>
           </Box>
 
+          {/* Stats Cards - Full Width Layout */}
           {/* Unified Professional Stats Bar */}
           <Box sx={{ flexShrink: 0, mb: 3, width: '100%' }}>
             <Card sx={{
@@ -3817,9 +4419,9 @@ function SalesPageContent() {
               }}>
                 {[
                   { title: 'Total Sales', val: totalSales, color: '#2563eb', bg: '#eff6ff', icon: <ShoppingCartIcon /> },
-                  { title: 'Total Revenue', val: totalSalesValue, color: '#16a34a', bg: '#f0fdf4', icon: <TrendingUpIcon /> },
+                  { title: 'Total Revenue', val: totalSalesValue, color: '#16a34a', bg: '#f0fdf4', icon: <AttachMoneyIcon /> },
                   { title: 'Total Discount', val: totalDiscount, color: '#dc2626', bg: '#fef2f2', icon: <TrendingDownIcon /> },
-                  { title: 'Total Payment', val: totalPayment, color: '#d97706', bg: '#fffbeb', icon: <MoneyIcon /> }
+                  { title: 'Total Payment', val: totalPayment, color: '#d97706', bg: '#fffbeb', icon: <CreditCardIcon /> }
                 ].map((stat, i) => (
                   <Box key={i} sx={{
                     flex: 1,
@@ -3884,6 +4486,7 @@ function SalesPageContent() {
             </Card>
           </Box>
 
+          {/* Sales Filter */}
           {/* Filters & Sorting Section */}
           <Box sx={{ flexShrink: 0, mb: 3, width: '100%' }}>
             <Card sx={{
@@ -3896,7 +4499,7 @@ function SalesPageContent() {
               <CardContent sx={{ p: 3 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
                   <Typography variant="h6" sx={{ fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <FilterListIcon sx={{ color: '#64748b' }} />
+                    <FilterIcon sx={{ color: '#64748b' }} />
                     Filters & Sorting
                   </Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -3952,12 +4555,18 @@ function SalesPageContent() {
                   <Box>
                     <Autocomplete
                       fullWidth
-                      options={customers.filter(customer =>
-                        customer.customer_category?.cus_cat_title?.toLowerCase().includes('customer')
-                      )}
+                      options={customers.filter(customer => {
+                        // Filter for customers with category "Customer"
+                        const isCustomer = customer.customer_category &&
+                          customer.customer_category.cus_cat_title &&
+                          customer.customer_category.cus_cat_title.toLowerCase().includes('customer');
+                        return isCustomer;
+                      })}
                       getOptionLabel={(option) => option.cus_name || ''}
                       value={customers.find(c => c.cus_id.toString() === filterCustomer) || null}
-                      onChange={(event, newValue) => setFilterCustomer(newValue ? newValue.cus_id.toString() : '')}
+                      onChange={(event, newValue) => {
+                        setFilterCustomer(newValue ? newValue.cus_id.toString() : '');
+                      }}
                       renderInput={(params) => (
                         <TextField
                           {...params}
@@ -3969,15 +4578,14 @@ function SalesPageContent() {
                     />
                   </Box>
 
-                  {/* Bill Type */}
+                  {/* Bill Type Filter */}
                   <Box>
-                    <FormControl fullWidth>
+                    <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}>
                       <InputLabel>Bill Type</InputLabel>
                       <Select
                         value={filterBillType}
                         onChange={(e) => setFilterBillType(e.target.value)}
                         label="Bill Type"
-                        sx={{ borderRadius: 1.5, bgcolor: 'white' }}
                       >
                         <MenuItem value="">All Types</MenuItem>
                         <MenuItem value="BILL">Bill</MenuItem>
@@ -4006,15 +4614,66 @@ function SalesPageContent() {
                     />
                   </Box>
 
+                  {/* Date From */}
+                  <Box>
+                    <TextField
+                      fullWidth
+                      label="From Date"
+                      type="date"
+                      value={dateFrom}
+                      onChange={(e) => setDateFrom(e.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
+                    />
+                  </Box>
+
+                  {/* Date To */}
+                  <Box>
+                    <TextField
+                      fullWidth
+                      label="To Date"
+                      type="date"
+                      value={dateTo}
+                      onChange={(e) => setDateTo(e.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
+                    />
+                  </Box>
+
+                  {/* Min Amount */}
+                  <Box>
+                    <TextField
+                      fullWidth
+                      label="Min Amount"
+                      type="number"
+                      placeholder="e.g. 1000"
+                      value={filterMinAmount}
+                      onChange={(e) => setFilterMinAmount(e.target.value)}
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
+                    />
+                  </Box>
+
+                  {/* Max Amount */}
+                  <Box>
+                    <TextField
+                      fullWidth
+                      label="Max Amount"
+                      type="number"
+                      placeholder="e.g. 50000"
+                      value={filterMaxAmount}
+                      onChange={(e) => setFilterMaxAmount(e.target.value)}
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
+                    />
+                  </Box>
+
                   {/* Payment Type */}
                   <Box>
-                    <FormControl fullWidth>
+                    <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}>
                       <InputLabel>Payment Type</InputLabel>
                       <Select
                         value={filterPaymentType}
                         onChange={(e) => setFilterPaymentType(e.target.value)}
-                        label="Payment"
-                        sx={{ borderRadius: 1.5, bgcolor: 'white' }}
+                        label="Payment Type"
                       >
                         <MenuItem value="">All Types</MenuItem>
                         <MenuItem value="CASH">Cash</MenuItem>
@@ -4023,103 +4682,58 @@ function SalesPageContent() {
                     </FormControl>
                   </Box>
 
-                  {/* Status */}
+                  {/* Balance Status */}
                   <Box>
-                    <FormControl fullWidth>
-                      <InputLabel>Status</InputLabel>
+                    <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}>
+                      <InputLabel>Balance Status</InputLabel>
                       <Select
                         value={filterBalanceStatus}
                         onChange={(e) => setFilterBalanceStatus(e.target.value)}
-                        label="Status"
-                        sx={{ borderRadius: 1.5, bgcolor: 'white' }}
+                        label="Balance Status"
                       >
-                        <MenuItem value="">All Statuses</MenuItem>
+                        <MenuItem value="">All</MenuItem>
                         <MenuItem value="with_balance">With Balance</MenuItem>
-                        <MenuItem value="without_balance">Paid</MenuItem>
+                        <MenuItem value="without_balance">Without Balance</MenuItem>
                         <MenuItem value="overpaid">Overpaid</MenuItem>
                       </Select>
                     </FormControl>
                   </Box>
 
-                  {/* Date Range */}
-                  <Box sx={{ gridColumn: { md: 'span 2' } }}>
-                    <Box sx={{ display: 'flex', gap: 2 }}>
+                  {/* Sort */}
+                  <Autocomplete
+                    fullWidth
+                    options={[
+                      { value: 'created_at-desc', label: 'Newest First' },
+                      { value: 'created_at-asc', label: 'Oldest First' },
+                      { value: 'customer-asc', label: 'Customer A-Z' },
+                      { value: 'customer-desc', label: 'Customer Z-A' },
+                      { value: 'total_amount-desc', label: 'Amount High-Low' },
+                      { value: 'total_amount-asc', label: 'Amount Low-High' }
+                    ]}
+                    getOptionLabel={(option) => option.label}
+                    value={{ value: `${sortBy}-${sortOrder}`, label: getSortLabel(`${sortBy}-${sortOrder}`) }}
+                    onChange={(event, newValue) => {
+                      if (newValue) {
+                        const [field, order] = newValue.value.split('-');
+                        setSortBy(field);
+                        setSortOrder(order);
+                      }
+                    }}
+                    renderInput={(params) => (
                       <TextField
-                        fullWidth
-                        type="date"
-                        label="From"
-                        value={dateFrom}
-                        onChange={(e) => setDateFrom(e.target.value)}
-                        InputLabelProps={{ shrink: true }}
-                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
-                      />
-                      <TextField
-                        fullWidth
-                        type="date"
-                        label="To"
-                        value={dateTo}
-                        onChange={(e) => setDateTo(e.target.value)}
-                        InputLabelProps={{ shrink: true }}
-                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
-                      />
-                    </Box>
-                  </Box>
-
-                  {/* Amount Range */}
-                  <Box sx={{ gridColumn: { md: 'span 2' } }}>
-                    <Box sx={{ display: 'flex', gap: 2 }}>
-                      <TextField
-                        fullWidth
-                        type="number"
-                        label="Min Amount"
-                        placeholder="PKR"
-                        value={filterMinAmount}
-                        onChange={(e) => setFilterMinAmount(e.target.value)}
-                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
-                      />
-                      <TextField
-                        fullWidth
-                        type="number"
-                        label="Max Amount"
-                        placeholder="PKR"
-                        value={filterMaxAmount}
-                        onChange={(e) => setFilterMaxAmount(e.target.value)}
-                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
-                      />
-                    </Box>
-                  </Box>
-
-                  {/* Sort Combinations */}
-                  <Box sx={{ gridColumn: { md: 'span 2' } }}>
-                    <FormControl fullWidth>
-                      <InputLabel>Sort By</InputLabel>
-                      <Select
-                        value={`${sortBy}-${sortOrder}`}
-                        onChange={(e) => {
-                          const [field, order] = e.target.value.split('-');
-                          setSortBy(field);
-                          setSortOrder(order);
-                        }}
+                        {...params}
                         label="Sort By"
-                        startAdornment={
-                          <InputAdornment position="start" sx={{ mr: 1, ml: -0.5 }}>
-                            <FilterListIcon size={18} sx={{ color: '#94a3b8' }} />
-                          </InputAdornment>
-                        }
-                        sx={{ borderRadius: 1.5, bgcolor: 'white' }}
-                      >
-                        <MenuItem value="created_at-desc">Newest First</MenuItem>
-                        <MenuItem value="created_at-asc">Oldest First</MenuItem>
-                        <MenuItem value="customer-asc">Customer A-Z</MenuItem>
-                        <MenuItem value="total_amount-desc">Amount High-Low</MenuItem>
-                        <MenuItem value="total_amount-asc">Amount Low-High</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Box>
+                        placeholder="Select..."
+                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
+                      />
+                    )}
+                  />
                 </Box>
               </CardContent>
             </Card>
           </Box>
+
+          {/* Sales Table */}
           <Card>
             <Box sx={{ p: 3, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Typography variant="h6" sx={{ fontWeight: 'semibold' }}>
@@ -4237,8 +4851,8 @@ function SalesPageContent() {
             </TableContainer>
           </Card>
         </Stack>
-      </Container >
-    </DashboardLayout >
+      </Container>
+    </DashboardLayout>
   );
 
   return (

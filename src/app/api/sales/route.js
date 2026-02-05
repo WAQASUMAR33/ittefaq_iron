@@ -552,6 +552,7 @@ export async function POST(request) {
       debit_account_id,
       credit_account_id,
       loader_id,
+      labour_charges, // Added labour_charges field
       shipping_amount,
       bill_type,
       reference,
@@ -649,6 +650,7 @@ export async function POST(request) {
             debit_account_id: debit_account_id || null,
             credit_account_id: credit_account_id || null,
             loader_id: loader_id || null,
+            labour_charges: parseFloat(labour_charges || 0),
             shipping_amount: parseFloat(shipping_amount || 0),
             bill_type: bill_type || 'BILL',
             reference: reference || null,
@@ -665,7 +667,7 @@ export async function POST(request) {
             INSERT INTO sales (
               cus_id, total_amount, discount, payment, payment_type,
               cash_payment, bank_payment, bank_title, advance_payment,
-              debit_account_id, credit_account_id, loader_id, shipping_amount,
+              debit_account_id, credit_account_id, loader_id, labour_charges, shipping_amount,
               bill_type, reference, updated_by, created_at, updated_at
             ) VALUES (
               ${cus_id}, ${parseFloat(total_amount)}, ${parseFloat(discount || 0)},
@@ -673,7 +675,7 @@ export async function POST(request) {
               ${parseFloat(cash_payment || 0)}, ${parseFloat(bank_payment || 0)}, ${bank_title || null},
               ${parseFloat(advance_payment || 0)},
               ${debit_account_id || null}, ${credit_account_id || null},
-              ${loader_id || null}, ${parseFloat(shipping_amount || 0)},
+              ${loader_id || null}, ${parseFloat(labour_charges || 0)}, ${parseFloat(shipping_amount || 0)},
               ${bill_type || 'BILL'}, ${reference || null}, ${updated_by},
               NOW(), NOW()
             )

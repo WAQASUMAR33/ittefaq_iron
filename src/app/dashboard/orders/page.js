@@ -177,7 +177,7 @@ function OrdersPageContent() {
   const [customerPopupOpen, setCustomerPopupOpen] = useState(false);
   const [customerCategories, setCustomerCategories] = useState([]);
   const [cities, setCities] = useState([]);
-  
+
   // Popup states for adding new category, type, and city
   const [showCustomerCategoryPopup, setShowCustomerCategoryPopup] = useState(false);
   const [showCustomerTypePopup, setShowCustomerTypePopup] = useState(false);
@@ -188,7 +188,7 @@ function OrdersPageContent() {
   const [isAddingCustomerCategory, setIsAddingCustomerCategory] = useState(false);
   const [isAddingCustomerType, setIsAddingCustomerType] = useState(false);
   const [isAddingCity, setIsAddingCity] = useState(false);
-  
+
   const [newCustomer, setNewCustomer] = useState({
     cus_name: '',
     cus_phone_no: '',
@@ -540,6 +540,7 @@ function OrdersPageContent() {
         credit_account_id: null,
         loader_id: null,
         shipping_amount: totalShippingAmount, // Include both transport and delivery charges
+        labour_charges: parseFloat(paymentData.labour) || 0, // Add labour charges
         bill_type: billType || 'BILL',
         reference: paymentData.notes || null,
         is_loaded_order: paymentData.isLoadedOrder || false, // Flag for converted orders
@@ -1771,9 +1772,9 @@ function OrdersPageContent() {
   // Render Sales Create View
   const renderSalesCreateView = () => (
     <DashboardLayout>
-      <Container 
+      <Container
         maxWidth={false}
-        sx={{ 
+        sx={{
           py: 1,
           maxWidth: {
             xs: '100%',           // Mobile: full width
@@ -3179,9 +3180,9 @@ function OrdersPageContent() {
 
   const renderSalesListView = () => (
     <DashboardLayout>
-      <Container 
+      <Container
         maxWidth={false}
-        sx={{ 
+        sx={{
           py: 4,
           maxWidth: {
             xs: '100%',           // Mobile: full width
@@ -4313,19 +4314,25 @@ function OrdersPageContent() {
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رقم بل</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {parseFloat(selectedBill.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {(selectedBill.sale_details?.reduce((sum, item) => sum + (parseFloat(item.total_amount) || 0), 0) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>مزدوری</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {parseFloat(selectedBill.labour || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {parseFloat(selectedBill.labour || selectedBill.labour_charges || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>کرایہ</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
                               {parseFloat(selectedBill.shipping_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>ڈسکاؤنٹ</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                              {parseFloat(selectedBill.discount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                           <TableRow sx={{ bgcolor: '#f5f5f5' }}>
@@ -5031,9 +5038,9 @@ export default function OrdersPage() {
   return (
     <Suspense fallback={
       <DashboardLayout>
-        <Container 
+        <Container
           maxWidth={false}
-          sx={{ 
+          sx={{
             py: 4,
             maxWidth: {
               xs: '100%',           // Mobile: full width

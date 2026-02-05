@@ -164,9 +164,13 @@ export async function POST(request) {
       discount,
       payment,
       payment_type,
+      cash_return,
+      bank_return,
+      bank_account_id,
       debit_account_id,
       credit_account_id,
       loader_id,
+      labour_charges,
       shipping_amount,
       bill_type,
       reason,
@@ -184,7 +188,29 @@ export async function POST(request) {
     const computedTotal = Array.isArray(return_details)
       ? return_details.reduce((sum, d) => sum + (parseFloat(d.total_amount) || 0), 0)
       : 0;
-    const netTotal = computedTotal - parseFloat(discount || 0);
+    const discountAmount = parseFloat(discount || 0);
+    const labourChargesAmount = parseFloat(labour_charges || 0);
+    const shippingAmount = parseFloat(shipping_amount || 0);
+    
+    // Grand Total = Product Total - Discount + Labour + Shipping
+    const grandTotal = computedTotal - discountAmount + labourChargesAmount + shippingAmount;
+    const refundAmount = parseFloat(payment || 0); // Amount being refunded to customer
+    const cashRefund = parseFloat(cash_return || 0);
+    const bankRefund = parseFloat(bank_return || 0);
+
+    console.log('📥 Sale Return Request Received:', {
+      sale_id,
+      cus_id,
+      payment,
+      payment_type,
+      cash_return,
+      bank_return,
+      bank_account_id,
+      refundAmount,
+      cashRefund,
+      bankRefund,
+      grandTotal
+    });
 
     // Use transaction to ensure data consistency
     const result = await prisma.$transaction(async (tx) => {
@@ -239,6 +265,7 @@ export async function POST(request) {
           debit_account_id: debit_account_id || null,
           credit_account_id: credit_account_id || null,
           loader_id: loader_id || null,
+          labour_charges: parseFloat(labour_charges || 0),
           shipping_amount: parseFloat(shipping_amount || 0),
           reason: reason || null,
           reference: reference || null,
@@ -247,13 +274,17 @@ export async function POST(request) {
       });
 
       // Create return details
-      const returnDetailPromises = return_details.map(detail => 
-        tx.saleReturnDetail.create({
+      const returnDetailPromises = return_details.map(async detail => {
+        // Get unit from original sale details
+        const originalDetail = sale.sale_details.find(sd => sd.pro_id === detail.pro_id);
+        const unit = originalDetail?.unit || 'PCS'; // Default to PCS if not found
+        
+        return tx.saleReturnDetail.create({
           data: {
             return_id: saleReturn.return_id,
             pro_id: detail.pro_id,
             qnty: parseInt(detail.qnty),
-            unit: detail.unit,
+            unit: unit,
             unit_rate: parseFloat(detail.unit_rate),
             total_amount: parseFloat(detail.total_amount),
             discount: parseFloat(detail.discount || 0),
@@ -261,8 +292,8 @@ export async function POST(request) {
             cus_id,
             updated_by
           }
-        })
-      );
+        });
+      });
 
       await Promise.all(returnDetailPromises);
 
@@ -279,73 +310,173 @@ export async function POST(request) {
 
         await Promise.all(storeStockRestorePromises);
 
-        // Create ledger entries (reverse of sale) - Skip for quotations
-        // Credit entry for return (reduce customer debt)
+        // Create ledger entries for Sale Return
+        // Entry 1: Main return entry - Customer side (credit because return reduces debt)
         await tx.ledger.create({
           data: {
             cus_id,
             opening_balance: customer.cus_balance,
             debit_amount: 0,
-            credit_amount: netTotal,
-            closing_balance: customer.cus_balance - netTotal,
-            bill_no: saleReturn.return_id,
-            trnx_type: 'CASH',
-            details: `Sale Return - ${finalBillType} - ${reason || 'Return'}`,
+            credit_amount: grandTotal, // Grand total with all charges
+            closing_balance: customer.cus_balance - grandTotal,
+            bill_no: saleReturn.return_id.toString(),
+            trnx_type: 'SALE_RETURN',
+            details: `Sale Return - Product: ${computedTotal}, Labour: ${labourChargesAmount}, Delivery: ${shippingAmount}, Discount: -${discountAmount}, Grand Total: ${grandTotal}`,
             payments: 0,
             updated_by
           }
         });
 
-        // Handle payment refund ledger for cash/bank (if payment > 0)
-        const refundAmount = parseFloat(payment || 0);
-        if (refundAmount > 0) {
-          // 1) Customer side: optional debit to reflect refund paid
-          await tx.ledger.create({
-            data: {
-              cus_id,
-              opening_balance: customer.cus_balance - netTotal,
-              debit_amount: refundAmount,
-              credit_amount: 0,
-              closing_balance: customer.cus_balance - netTotal + refundAmount,
-              bill_no: saleReturn.return_id,
-              trnx_type: payment_type,
-              details: `Refund - Sale Return ${finalBillType}`,
-              payments: refundAmount,
-              updated_by
-            }
-          });
+        // Entry 2: Refund entries - Handle CASH and BANK separately if both exist
+        const specialAccounts = await getSpecialAccounts(tx);
 
-          // 2) Cash/Bank account side: credit (cash/bank goes down)
-          const specialAccounts = await getSpecialAccounts(tx);
-          const refundAccount = payment_type === 'CASH' ? specialAccounts.cash : specialAccounts.bank;
-          if (refundAccount) {
+        console.log('🔄 Refund Processing:', { 
+          cashRefund, 
+          bankRefund, 
+          totalRefund: refundAmount, 
+          bank_account_id,
+          specialAccounts: { 
+            cash: specialAccounts.cash?.cus_name, 
+            bank: specialAccounts.bank?.cus_name 
+          } 
+        });
+
+        // SEQUENCE: CASH Account → CASH Customer → BANK Account → BANK Customer
+        
+        // Entry 2a: CASH Account Deduction if cash_return > 0
+        if (cashRefund > 0) {
+          const cashAccount = specialAccounts.cash;
+          if (cashAccount) {
+            // Ledger entry: Cash account credits (money going out)
             await tx.ledger.create({
               data: {
-                cus_id: refundAccount.cus_id,
-                opening_balance: refundAccount.cus_balance,
+                cus_id: cashAccount.cus_id,
+                opening_balance: cashAccount.cus_balance,
                 debit_amount: 0,
-                credit_amount: refundAmount,
-                closing_balance: refundAccount.cus_balance - refundAmount,
-                bill_no: saleReturn.return_id,
-                trnx_type: payment_type,
-                details: `Refund Paid - Sale Return ${finalBillType} - ${payment_type} Account (Credit)`,
-                payments: refundAmount,
+                credit_amount: cashRefund, // Cash decreases (credit)
+                closing_balance: cashAccount.cus_balance - cashRefund,
+                bill_no: saleReturn.return_id.toString(),
+                trnx_type: 'CASH_PAYMENT',
+                details: `Refund Paid Out (CASH) - Sale Return #${saleReturn.return_id} - Amount: ${cashRefund}`,
+                payments: cashRefund,
                 updated_by
               }
             });
+
+            console.log('✅ CASH ACCOUNT: Refund paid out:', { cashRefund, account: cashAccount.cus_name });
+
+            // Update cash account balance - DECREASE
+            await tx.customer.update({
+              where: { cus_id: cashAccount.cus_id },
+              data: {
+                cus_balance: cashAccount.cus_balance - cashRefund
+              }
+            });
+
+            // Entry 2b: CUSTOMER Balance Update after CASH Refund (immediately after cash account)
+            const customerAfterCash = customer.cus_balance - grandTotal + cashRefund;
+            await tx.ledger.create({
+              data: {
+                cus_id,
+                opening_balance: customer.cus_balance - grandTotal, // Balance after main return
+                debit_amount: cashRefund, // Cash payment received/credited to customer
+                credit_amount: 0,
+                closing_balance: customerAfterCash,
+                bill_no: saleReturn.return_id.toString(),
+                trnx_type: 'CASH_PAYMENT',
+                details: `Customer Balance Update - CASH Refund Received: ${cashRefund} for Sale Return #${saleReturn.return_id}`,
+                payments: 0,
+                updated_by
+              }
+            });
+            console.log('✅ CUSTOMER: Balance updated after CASH refund:', { customerAfterCash, cashRefund });
           }
         }
 
-        // Update customer balance (reduce balance for return) - Skip for quotations
+        // Entry 3: BANK Account Deduction if bank_return > 0
+        if (bankRefund > 0) {
+          // If bank_account_id provided from frontend, use it directly (priority)
+          // Otherwise try to find bank account from special accounts
+          let bankAccount = null;
+          
+          if (bank_account_id) {
+            console.log('🔍 Looking up bank account by ID:', bank_account_id);
+            bankAccount = await tx.customer.findUnique({
+              where: { cus_id: parseInt(bank_account_id) }
+            });
+            if (bankAccount) {
+              console.log('✅ Found bank account by ID:', { id: bank_account_id, name: bankAccount.cus_name });
+            }
+          }
+          
+          // Fallback to special accounts if not found by ID
+          if (!bankAccount) {
+            console.log('📍 Falling back to special accounts for bank account');
+            bankAccount = specialAccounts.bank;
+          }
+          
+          if (bankAccount) {
+            // Ledger entry: Bank account credits (money going out)
+            await tx.ledger.create({
+              data: {
+                cus_id: bankAccount.cus_id,
+                opening_balance: bankAccount.cus_balance,
+                debit_amount: 0,
+                credit_amount: bankRefund, // Bank decreases (credit)
+                closing_balance: bankAccount.cus_balance - bankRefund,
+                bill_no: saleReturn.return_id.toString(),
+                trnx_type: 'BANK_PAYMENT',
+                details: `Refund Paid Out (BANK) - Sale Return #${saleReturn.return_id} - Amount: ${bankRefund}`,
+                payments: bankRefund,
+                updated_by
+              }
+            });
+
+            console.log('✅ BANK ACCOUNT: Refund paid out:', { bankRefund, account: bankAccount.cus_name, cus_id: bankAccount.cus_id });
+
+            // Update bank account balance - DECREASE
+            await tx.customer.update({
+              where: { cus_id: bankAccount.cus_id },
+              data: {
+                cus_balance: bankAccount.cus_balance - bankRefund
+              }
+            });
+
+            // Entry 3b: CUSTOMER Balance Update after BANK Refund (immediately after bank account)
+            const customerAfterBank = customer.cus_balance - grandTotal + cashRefund + bankRefund;
+            await tx.ledger.create({
+              data: {
+                cus_id,
+                opening_balance: customer.cus_balance - grandTotal + cashRefund, // Balance after cash refund
+                debit_amount: bankRefund, // Bank payment received/credited to customer
+                credit_amount: 0,
+                closing_balance: customerAfterBank,
+                bill_no: saleReturn.return_id.toString(),
+                trnx_type: 'BANK_PAYMENT',
+                details: `Customer Balance Update - BANK Refund Received: ${bankRefund} for Sale Return #${saleReturn.return_id}`,
+                payments: 0,
+                updated_by
+              }
+            });
+            console.log('✅ CUSTOMER: Balance updated after BANK refund:', { customerAfterBank, bankRefund });
+          } else {
+            console.log('❌ Bank account not found - checked both bank_account_id and specialAccounts:', { bank_account_id, specialAccounts });
+          }
+        } else {
+          console.log('⚠️ Bank refund is 0:', { bankRefund });
+        }
+
+        // Update customer balance - decrease by grand total, but add back the refund amount
+        // Net effect: customer owes less (return reduces debt) + refund paid increases their receivable
         await tx.customer.update({
           where: { cus_id },
           data: {
-            cus_balance: customer.cus_balance - netTotal + (parseFloat(payment || 0))
+            cus_balance: customer.cus_balance - grandTotal + refundAmount
           }
         });
 
-        // If loader is involved, subtract shipping amount from loader balance - Skip for quotations
-        if (loader_id && parseFloat(shipping_amount || 0) > 0) {
+        // If loader is involved, update loader balance for shipping
+        if (loader_id && shippingAmount > 0) {
           const loader = await tx.loader.findUnique({
             where: { loader_id }
           });
@@ -354,21 +485,7 @@ export async function POST(request) {
             await tx.loader.update({
               where: { loader_id },
               data: {
-                loader_balance: loader.loader_balance - parseFloat(shipping_amount)
-              }
-            });
-          }
-        }
-
-        // Update cash/bank balances to reflect refund outflow
-        if (parseFloat(payment || 0) > 0) {
-          const specialAccounts = await getSpecialAccounts(tx);
-          const refundAccount = payment_type === 'CASH' ? specialAccounts.cash : specialAccounts.bank;
-          if (refundAccount) {
-            await tx.customer.update({
-              where: { cus_id: refundAccount.cus_id },
-              data: {
-                cus_balance: refundAccount.cus_balance - parseFloat(payment)
+                loader_balance: loader.loader_balance - shippingAmount
               }
             });
           }
@@ -377,7 +494,7 @@ export async function POST(request) {
 
       return saleReturn;
     }, {
-      timeout: 15000 // 15 seconds timeout for complex transactions
+      timeout: 60000 // 60 seconds timeout for complex transactions with multiple operations
     });
 
     return NextResponse.json(result, { status: 201 });

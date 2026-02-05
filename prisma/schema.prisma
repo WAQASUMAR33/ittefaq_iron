@@ -270,6 +270,7 @@ model Sale {
   credit_account_id Int?
   loader_id         Int?
   shipping_amount   Decimal        @default(0.000000000000000000000000000000)
+  labour_charges    Decimal        @default(0.00) @db.Decimal(10, 2)
   bill_type         BillType
   reference         String?
   updated_by        Int?
@@ -509,6 +510,7 @@ model SaleReturn {
   debit_account_id  Int?
   credit_account_id Int?
   loader_id         Int?
+  labour_charges    Decimal            @default(0.000000000000000000000000000000)
   shipping_amount   Decimal            @default(0.000000000000000000000000000000)
   reason            String?
   reference         String?
