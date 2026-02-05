@@ -341,7 +341,7 @@ export default function PurchaseReturnsPage() {
   // Handle edit
   const handleEdit = async (returnItem) => {
     setEditingReturn(returnItem);
-    
+
     // Find the purchase
     const purchase = Array.isArray(purchases) ? purchases.find(p => p.pur_id === returnItem.purchase_id) : null;
     if (purchase) {
@@ -439,12 +439,12 @@ export default function PurchaseReturnsPage() {
         notes: formData.notes
       };
 
-      const url = editingReturn 
+      const url = editingReturn
         ? '/api/purchase-returns'
         : '/api/purchase-returns';
-      
+
       const method = editingReturn ? 'PUT' : 'POST';
-      
+
       if (editingReturn) {
         payload.id = editingReturn.id;
       }
@@ -482,7 +482,7 @@ export default function PurchaseReturnsPage() {
 
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(r => 
+      filtered = filtered.filter(r =>
         r.return_reason?.toLowerCase().includes(term) ||
         r.id?.toString().includes(term) ||
         r.purchase?.invoice_number?.toLowerCase().includes(term)
@@ -654,8 +654,11 @@ export default function PurchaseReturnsPage() {
                     getOptionLabel={(option) => `${option.cus_name} (ID: ${option.cus_id})`}
                     value={selectedSupplier}
                     onChange={(e, val) => setSelectedSupplier(val)}
+                    autoSelect={true}
+                    openOnFocus={true}
+                    selectOnFocus={true}
                     renderInput={(params) => (
-                      <TextField {...params} placeholder="Filter by Supplier" sx={STYLES.input} />
+                      <TextField {...params} placeholder="Filter by Supplier" onFocus={(e) => e.target.select()} sx={STYLES.input} />
                     )}
                   />
                 </Grid>
@@ -729,14 +732,14 @@ export default function PurchaseReturnsPage() {
                       </TableRow>
                     ) : (
                       filteredReturns.map((returnItem) => (
-                        <TableRow 
+                        <TableRow
                           key={returnItem.id}
                           sx={{ '&:hover': { bgcolor: '#fef2f2' } }}
                         >
                           <TableCell>
-                            <Chip 
-                              label={`#${returnItem.id}`} 
-                              size="small" 
+                            <Chip
+                              label={`#${returnItem.id}`}
+                              size="small"
                               sx={{ bgcolor: '#fef2f2', color: '#dc2626', fontWeight: 600 }}
                             />
                           </TableCell>
@@ -752,12 +755,12 @@ export default function PurchaseReturnsPage() {
                             {new Date(returnItem.return_date).toLocaleDateString('en-PK')}
                           </TableCell>
                           <TableCell>
-                            <Typography 
-                              sx={{ 
-                                maxWidth: 200, 
-                                overflow: 'hidden', 
-                                textOverflow: 'ellipsis', 
-                                whiteSpace: 'nowrap' 
+                            <Typography
+                              sx={{
+                                maxWidth: 200,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap'
                               }}
                             >
                               {returnItem.return_reason}
@@ -782,8 +785,8 @@ export default function PurchaseReturnsPage() {
                           <TableCell align="center">
                             <Stack direction="row" spacing={1} justifyContent="center">
                               <Tooltip title="Edit">
-                                <IconButton 
-                                  size="small" 
+                                <IconButton
+                                  size="small"
                                   onClick={() => handleEdit(returnItem)}
                                   sx={{ color: '#3b82f6' }}
                                 >
@@ -791,8 +794,8 @@ export default function PurchaseReturnsPage() {
                                 </IconButton>
                               </Tooltip>
                               <Tooltip title="Delete">
-                                <IconButton 
-                                  size="small" 
+                                <IconButton
+                                  size="small"
                                   onClick={() => handleDelete(returnItem.id)}
                                   sx={{ color: '#ef4444' }}
                                 >
@@ -825,7 +828,7 @@ export default function PurchaseReturnsPage() {
         <Box sx={STYLES.gradientHeader}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <IconButton 
+              <IconButton
                 onClick={() => {
                   resetForm();
                   setCurrentView('list');
@@ -857,7 +860,7 @@ export default function PurchaseReturnsPage() {
                     <InfoIcon sx={{ color: '#dc2626' }} />
                     General Information
                   </Typography>
-                  
+
                   <Grid container spacing={3}>
                     {/* Step 1: Select Supplier Account */}
                     <Grid item xs={12} md={6}>
@@ -869,10 +872,14 @@ export default function PurchaseReturnsPage() {
                         getOptionLabel={(option) => `${option.cus_name} (ID: ${option.cus_id})`}
                         value={selectedCustomerAccount}
                         onChange={(e, val) => handleCustomerAccountSelect(val)}
+                        autoSelect={true}
+                        openOnFocus={true}
+                        selectOnFocus={true}
                         renderInput={(params) => (
-                          <TextField 
-                            {...params} 
-                            placeholder="👥 Select Supplier Account" 
+                          <TextField
+                            {...params}
+                            placeholder="👥 Select Supplier Account"
+                            onFocus={(e) => e.target.select()}
                             sx={STYLES.input}
                           />
                         )}
@@ -904,10 +911,14 @@ export default function PurchaseReturnsPage() {
                         value={selectedPurchase}
                         onChange={(e, val) => handlePurchaseSelect(val)}
                         disabled={!selectedCustomerAccount}
+                        autoSelect={true}
+                        openOnFocus={true}
+                        selectOnFocus={true}
                         renderInput={(params) => (
-                          <TextField 
-                            {...params} 
-                            placeholder={selectedCustomerAccount ? "📦 Select Purchase" : "Select supplier first"} 
+                          <TextField
+                            {...params}
+                            placeholder={selectedCustomerAccount ? "📦 Select Purchase" : "Select supplier first"}
+                            onFocus={(e) => e.target.select()}
                             sx={STYLES.input}
                           />
                         )}
@@ -920,7 +931,7 @@ export default function PurchaseReturnsPage() {
                                   {option.invoice_number || `PUR-${option.pur_id}`}
                                 </Typography>
                                 <Typography variant="caption" color="text.secondary">
-                                  Amount: {formatCurrency(option.net_total || option.total_amount)} | 
+                                  Amount: {formatCurrency(option.net_total || option.total_amount)} |
                                   Date: {new Date(option.created_at).toLocaleDateString('en-PK')}
                                 </Typography>
                               </Box>
@@ -939,6 +950,7 @@ export default function PurchaseReturnsPage() {
                         label="Return Date"
                         value={formData.return_date}
                         onChange={(e) => setFormData(prev => ({ ...prev, return_date: e.target.value }))}
+                        onFocus={(e) => e.target.select()}
                         InputLabelProps={{ shrink: true }}
                         sx={STYLES.input}
                       />
@@ -952,6 +964,7 @@ export default function PurchaseReturnsPage() {
                         placeholder="Enter reason for returning items..."
                         value={formData.return_reason}
                         onChange={(e) => setFormData(prev => ({ ...prev, return_reason: e.target.value }))}
+                        onFocus={(e) => e.target.select()}
                         sx={STYLES.input}
                       />
                     </Grid>
@@ -1053,9 +1066,9 @@ export default function PurchaseReturnsPage() {
                                 </Typography>
                               </TableCell>
                               <TableCell align="center">
-                                <Chip 
-                                  label={item.max_quantity} 
-                                  size="small" 
+                                <Chip
+                                  label={item.max_quantity}
+                                  size="small"
                                   sx={{ bgcolor: '#f1f5f9', fontWeight: 600 }}
                                 />
                               </TableCell>
@@ -1064,12 +1077,13 @@ export default function PurchaseReturnsPage() {
                                   type="number"
                                   value={item.return_quantity}
                                   onChange={(e) => handleReturnQuantityChange(index, e.target.value)}
-                                  inputProps={{ 
-                                    min: 0, 
+                                  onFocus={(e) => e.target.select()}
+                                  inputProps={{
+                                    min: 0,
                                     max: item.max_quantity,
                                     style: { textAlign: 'center' }
                                   }}
-                                  sx={{ 
+                                  sx={{
                                     width: 100,
                                     '& .MuiOutlinedInput-root': {
                                       borderRadius: 2,
@@ -1084,8 +1098,8 @@ export default function PurchaseReturnsPage() {
                                 </Typography>
                               </TableCell>
                               <TableCell align="right">
-                                <Typography 
-                                  fontWeight="700" 
+                                <Typography
+                                  fontWeight="700"
                                   color={item.return_amount > 0 ? '#dc2626' : 'text.secondary'}
                                 >
                                   {formatCurrency(item.return_amount)}
@@ -1152,6 +1166,12 @@ export default function PurchaseReturnsPage() {
                       variant="contained"
                       size="large"
                       onClick={handleSubmit}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Tab' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSubmit();
+                        }
+                      }}
                       disabled={isSubmitting || !selectedPurchase}
                       startIcon={isSubmitting ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
                       sx={{
@@ -1209,8 +1229,8 @@ export default function PurchaseReturnsPage() {
         onClose={handleSnackbarClose}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
-        <Alert 
-          onClose={handleSnackbarClose} 
+        <Alert
+          onClose={handleSnackbarClose}
           severity={snackbar.severity}
           sx={{ borderRadius: 2 }}
         >

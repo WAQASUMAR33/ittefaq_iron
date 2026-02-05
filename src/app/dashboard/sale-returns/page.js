@@ -346,6 +346,29 @@ export default function SaleReturnsPage() {
     showSnackbar('Item added to return list', 'success');
   };
 
+  // Keyboard shortcut 'a' to add product
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      const activeEl = document.activeElement;
+      const isTextInput = (activeEl?.tagName === 'INPUT' &&
+        !['number', 'radio', 'checkbox', 'submit', 'button'].includes(activeEl?.type)) ||
+        activeEl?.tagName === 'TEXTAREA' ||
+        activeEl?.isContentEditable;
+
+      // Trigger if 'a' is pressed (case-insensitive) and not in a text input/textarea
+      if (e.key.toLowerCase() === 'a' && !isTextInput) {
+        const addBtn = document.getElementById('add-product-btn');
+        if (addBtn && !addBtn.disabled) {
+          e.preventDefault();
+          addBtn.click();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
+
   // Handle return quantity change
   const handleReturnQuantityChange = (index, quantity) => {
     const item = formData.return_details[index];
@@ -625,6 +648,7 @@ export default function SaleReturnsPage() {
                         placeholder="Search by ID, Customer or Reason..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
+                        onFocus={(e) => e.target.select()}
                         sx={STYLES.input}
                         InputProps={{
                           startAdornment: (
@@ -642,8 +666,12 @@ export default function SaleReturnsPage() {
                         getOptionLabel={(option) => option.cus_name}
                         value={selectedCustomer}
                         onChange={(event, newValue) => setSelectedCustomer(newValue)}
+                        autoSelect={true}
+                        autoHighlight={true}
+                        openOnFocus={true}
+                        selectOnFocus={true}
                         renderInput={(params) => (
-                          <TextField {...params} placeholder="Select Customer" sx={STYLES.input} />
+                          <TextField {...params} placeholder="Select Customer" onFocus={(e) => e.target.select()} sx={STYLES.input} />
                         )}
                       />
                     </Grid>
@@ -655,6 +683,7 @@ export default function SaleReturnsPage() {
                         label="From Date"
                         value={dateFrom}
                         onChange={(e) => setDateFrom(e.target.value)}
+                        onFocus={(e) => e.target.select()}
                         InputLabelProps={{ shrink: true }}
                         sx={STYLES.input}
                       />
@@ -667,6 +696,7 @@ export default function SaleReturnsPage() {
                         label="To Date"
                         value={dateTo}
                         onChange={(e) => setDateTo(e.target.value)}
+                        onFocus={(e) => e.target.select()}
                         InputLabelProps={{ shrink: true }}
                         sx={STYLES.input}
                       />
@@ -907,6 +937,20 @@ export default function SaleReturnsPage() {
                       </Button>
                     </Paper>
                   )}
+                  <Button
+                    variant="contained"
+                    onClick={() => setCurrentView('list')}
+                    sx={{
+                      bgcolor: 'rgba(255,255,255,0.2)',
+                      color: 'white',
+                      borderRadius: '10px',
+                      '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' },
+                      fontWeight: 'bold',
+                      tabIndex: -1
+                    }}
+                  >
+                    Cancel
+                  </Button>
                 </Box>
               </Stack>
             </Container>
@@ -978,7 +1022,11 @@ export default function SaleReturnsPage() {
                               onChange={(event, newValue) => {
                                 setFormData(prev => ({ ...prev, cus_id: newValue ? newValue.cus_id : '' }));
                               }}
-                              renderInput={(params) => <TextField {...params} label="Select Customer" sx={STYLES.input} />}
+                              autoSelect={true}
+                              autoHighlight={true}
+                              openOnFocus={true}
+                              selectOnFocus={true}
+                              renderInput={(params) => <TextField {...params} label="Select Customer" onFocus={(e) => e.target.select()} sx={STYLES.input} />}
                             />
                           )}
                         </Grid>
@@ -1002,7 +1050,11 @@ export default function SaleReturnsPage() {
                             getOptionLabel={(o) => `${o.loader_name} (${o.loader_number})`}
                             value={loaders.find(l => l.loader_id === formData.loader_id) || null}
                             onChange={(e, v) => setFormData(p => ({ ...p, loader_id: v ? v.loader_id : '' }))}
-                            renderInput={(params) => <TextField {...params} label="Affected Loader" sx={STYLES.input} />}
+                            autoSelect={true}
+                            autoHighlight={true}
+                            openOnFocus={true}
+                            selectOnFocus={true}
+                            renderInput={(params) => <TextField {...params} label="Affected Loader" onFocus={(e) => e.target.select()} sx={STYLES.input} />}
                           />
                         </Grid>
                         <Grid item xs={12} md={6}>
@@ -1012,6 +1064,7 @@ export default function SaleReturnsPage() {
                             label="Shipping Deduction Amount"
                             value={formData.shipping_amount}
                             onChange={(e) => setFormData(p => ({ ...p, shipping_amount: parseFloat(e.target.value) || 0 }))}
+                            onFocus={(e) => e.target.select()}
                             sx={STYLES.input}
                             InputProps={{
                               startAdornment: <InputAdornment position="start">PKR</InputAdornment>
@@ -1067,7 +1120,11 @@ export default function SaleReturnsPage() {
                             getOptionLabel={(option) => option.pro_title || ''}
                             value={manualProduct}
                             onChange={(event, newValue) => handleManualProductSelect(newValue)}
-                            renderInput={(params) => <TextField {...params} label="Select Product" sx={STYLES.input} />}
+                            autoSelect={true}
+                            autoHighlight={true}
+                            openOnFocus={true}
+                            selectOnFocus={true}
+                            renderInput={(params) => <TextField {...params} label="Select Product" onFocus={(e) => e.target.select()} sx={STYLES.input} />}
                           />
                         </Grid>
                         <Grid item xs={12} md={3}>
@@ -1076,7 +1133,11 @@ export default function SaleReturnsPage() {
                             getOptionLabel={(option) => option.store_name || ''}
                             value={manualStore}
                             onChange={(event, newValue) => setManualStore(newValue)}
-                            renderInput={(params) => <TextField {...params} label="Target Store" sx={STYLES.input} />}
+                            autoSelect={true}
+                            autoHighlight={true}
+                            openOnFocus={true}
+                            selectOnFocus={true}
+                            renderInput={(params) => <TextField {...params} label="Target Store" onFocus={(e) => e.target.select()} sx={STYLES.input} />}
                           />
                         </Grid>
                         <Grid item xs={6} md={2}>
@@ -1085,6 +1146,7 @@ export default function SaleReturnsPage() {
                             label="Qty"
                             value={manualQty}
                             onChange={(e) => setManualQty(e.target.value)}
+                            onFocus={(e) => e.target.select()}
                             fullWidth
                             sx={STYLES.input}
                           />
@@ -1095,6 +1157,7 @@ export default function SaleReturnsPage() {
                             label="R-Rate"
                             value={manualRate}
                             onChange={(e) => setManualRate(e.target.value)}
+                            onFocus={(e) => e.target.select()}
                             fullWidth
                             sx={STYLES.input}
                           />
@@ -1103,6 +1166,7 @@ export default function SaleReturnsPage() {
                           <Button
                             fullWidth
                             variant="contained"
+                            id="add-product-btn"
                             onClick={handleAddManualProduct}
                             sx={{
                               height: 54,
@@ -1181,6 +1245,7 @@ export default function SaleReturnsPage() {
                                       size="small"
                                       value={detail.return_quantity || 0}
                                       onChange={(e) => handleReturnQuantityChange(index, parseFloat(e.target.value) || 0)}
+                                      onFocus={(e) => e.target.select()}
                                       inputProps={{
                                         min: 0,
                                         max: detail.max_quantity !== null ? detail.max_quantity : undefined,
@@ -1240,6 +1305,7 @@ export default function SaleReturnsPage() {
                                   label="Refund Amount (Cash/Paid)"
                                   value={formData.payment}
                                   onChange={(e) => setFormData(prev => ({ ...prev, payment: parseFloat(e.target.value) || 0 }))}
+                                  onFocus={(e) => e.target.select()}
                                   sx={STYLES.input}
                                   InputProps={{ startAdornment: <InputAdornment position="start">PKR</InputAdornment> }}
                                 />
@@ -1249,7 +1315,11 @@ export default function SaleReturnsPage() {
                                   options={['CASH', 'BANK_TRANSFER', 'CHEQUE']}
                                   value={formData.payment_type}
                                   onChange={(e, v) => setFormData(prev => ({ ...prev, payment_type: v || 'CASH' }))}
-                                  renderInput={(params) => <TextField {...params} label="Refund Via" sx={STYLES.input} />}
+                                  autoSelect={true}
+                                  autoHighlight={true}
+                                  openOnFocus={true}
+                                  selectOnFocus={true}
+                                  renderInput={(params) => <TextField {...params} label="Refund Via" onFocus={(e) => e.target.select()} sx={STYLES.input} />}
                                 />
                               </Grid>
                             </Grid>
@@ -1281,6 +1351,14 @@ export default function SaleReturnsPage() {
                                 variant="contained"
                                 size="large"
                                 type="submit"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Tab' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    // Trigger form submission
+                                    const form = e.target.closest('form');
+                                    if (form) form.requestSubmit();
+                                  }
+                                }}
                                 disabled={isSubmitting || formData.total_return_amount <= 0}
                                 startIcon={isSubmitting ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
                                 sx={{ ...STYLES.primaryGradientBtn, py: 2, fontSize: '1.1rem' }}

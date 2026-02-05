@@ -524,6 +524,29 @@ function SalesPageContent() {
     });
   };
 
+  // Keyboard shortcut 'a' to add product
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      const activeEl = document.activeElement;
+      const isTextInput = (activeEl?.tagName === 'INPUT' &&
+        !['number', 'radio', 'checkbox', 'submit', 'button'].includes(activeEl?.type)) ||
+        activeEl?.tagName === 'TEXTAREA' ||
+        activeEl?.isContentEditable;
+
+      // Trigger if 'a' is pressed and not in a text input/textarea
+      if (e.key.toLowerCase() === 'a' && !isTextInput) {
+        const addBtn = document.getElementById('add-product-btn');
+        if (addBtn && !addBtn.disabled) {
+          e.preventDefault();
+          addBtn.click();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
+
   // Handle removing product from table
   const handleRemoveProductFromTable = (productId) => {
     setProductTableData(prev => prev.filter(item => item.id !== productId));
@@ -2422,32 +2445,41 @@ function SalesPageContent() {
                     </Box>
                   </Box>
 
-                  <FormControl size="small" variant="standard" sx={{ minWidth: 200 }}>
-                    <Select
-                      value={billType}
-                      onChange={(e) => {
-                        setBillType(e.target.value);
-                        if (e.target.value !== 'SALE_RETURN') {
-                          setSelectedSaleForReturnMain(null);
-                        }
-                      }}
-                      sx={{
-                        color: 'white',
-                        '& .MuiSelect-select': {
-                          paddingRight: 2,
-                          fontWeight: 'bold',
-                          fontSize: '1.1rem'
-                        },
-                        '& .MuiSvgIcon-root': { color: 'white' },
-                        '&:before': { borderBottomColor: 'rgba(255,255,255,0.7)' },
-                        '&:after': { borderBottomColor: 'white' },
-                        '&:hover:not(.Mui-disabled):before': { borderBottomColor: 'white' }
-                      }}
-                    >
-                      <MenuItem value="BILL" sx={{ fontWeight: 'medium' }}>New Sale</MenuItem>
-                      <MenuItem value="SALE_RETURN" sx={{ fontWeight: 'medium' }}>Sale Return</MenuItem>
-                    </Select>
-                  </FormControl>
+                  <Autocomplete
+                    size="small"
+                    options={['BILL', 'SALE_RETURN']}
+                    value={billType}
+                    onChange={(e, newValue) => {
+                      setBillType(newValue || 'BILL');
+                      if (newValue !== 'SALE_RETURN') {
+                        setSelectedSaleForReturnMain(null);
+                      }
+                    }}
+                    autoSelect={true}
+                    autoHighlight={true}
+                    openOnFocus={true}
+                    selectOnFocus={true}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        placeholder="Select Transaction Type"
+                        variant="standard"
+                        onFocus={(e) => e.target.select()}
+                        sx={{
+                          minWidth: 200,
+                          '& .MuiInputBase-input': {
+                            color: 'white',
+                            fontWeight: 'bold',
+                            fontSize: '1.1rem',
+                            paddingRight: 2
+                          },
+                          '& .MuiInput-underline:before': { borderBottomColor: 'rgba(255,255,255,0.7)' },
+                          '& .MuiInput-underline:after': { borderBottomColor: 'white' },
+                          '& .MuiInput-underline:hover:not(.Mui-disabled):before': { borderBottomColor: 'white' }
+                        }}
+                      />
+                    )}
+                  />
                 </Box>
               </Box>
 
@@ -2462,6 +2494,7 @@ function SalesPageContent() {
                     placeholder="Enter Order Number (e.g. 123)"
                     value={orderSearchTerm}
                     onChange={(e) => setOrderSearchTerm(e.target.value)}
+                    onFocus={(e) => e.target.select()}
                     sx={{ width: 250, bgcolor: 'white' }}
                     InputProps={{
                       endAdornment: (
@@ -2548,10 +2581,15 @@ function SalesPageContent() {
                         }
                       }}
                       isOptionEqualToValue={(option, value) => option.cus_id === value?.cus_id}
+                      autoSelect={true}
+                      autoHighlight={true}
+                      openOnFocus={true}
+                      selectOnFocus={true}
                       renderInput={(params) => (
                         <TextField
                           {...params}
                           placeholder="Select customer"
+                          onFocus={(e) => e.target.select()}
                           sx={{ bgcolor: 'white', minWidth: 250, '& .MuiInputBase-input': { fontWeight: formSelectedCustomer ? 'bold' : 'normal' } }}
                         />
                       )}
@@ -2590,6 +2628,10 @@ function SalesPageContent() {
                         onChange={(event, newValue) => {
                           if (newValue) handleLoadSaleForReturnMain(newValue);
                         }}
+                        autoSelect={true}
+                        autoHighlight={true}
+                        openOnFocus={true}
+                        selectOnFocus={true}
                         onInputChange={(event, inputValue) => {
                           if (!formSelectedCustomer) {
                             // Search across all sales if no customer selected
@@ -2613,6 +2655,7 @@ function SalesPageContent() {
                             {...params}
                             size="small"
                             placeholder="Search Sale ID..."
+                            onFocus={(e) => e.target.select()}
                             sx={{ bgcolor: 'white', minWidth: 250 }}
                             InputProps={{
                               ...params.InputProps,
@@ -2641,6 +2684,7 @@ function SalesPageContent() {
                       type="date"
                       size="small"
                       defaultValue={new Date().toISOString().split('T')[0]}
+                      onFocus={(e) => e.target.select()}
                       sx={{ bgcolor: 'white' }}
                     />
                   </Box>
@@ -2654,8 +2698,9 @@ function SalesPageContent() {
                       fullWidth
                       size="small"
                       sx={{ bgcolor: 'white' }}
-                      value={paymentData.notes || ''} // Bind to paymentData.notes which serves as reference/notes
+                      value={paymentData.notes || ''}
                       onChange={(e) => setPaymentData(prev => ({ ...prev, notes: e.target.value }))}
+                      onFocus={(e) => e.target.select()}
                     />
                   </Box>
                 </Grid>
@@ -2679,10 +2724,15 @@ function SalesPageContent() {
                         handleProductSelect(newValue);
                       }}
                       isOptionEqualToValue={(option, value) => option.pro_id === value?.pro_id}
+                      autoSelect={true}
+                      autoHighlight={true}
+                      openOnFocus={true}
+                      selectOnFocus={true}
                       renderInput={(params) => (
                         <TextField
                           {...params}
                           placeholder={products.length === 0 ? "No products available" : "Select product"}
+                          onFocus={(e) => e.target.select()}
                           sx={{ bgcolor: 'white', width: 350, minWidth: 350, '& .MuiInputBase-input': { fontWeight: formSelectedProduct ? 'bold' : 'normal' } }}
                         />
                       )}
@@ -2699,27 +2749,28 @@ function SalesPageContent() {
                     <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
                       SELECT STORE
                     </Typography>
-                    <FormControl fullWidth size="small">
-                      <Select
-                        value={formSelectedStore?.storeid || ''}
-                        onChange={(event) => {
-                          const selectedStoreId = event.target.value;
-                          const selectedStore = stores.find(store => store.storeid == selectedStoreId);
-                          setFormSelectedStore(selectedStore || null);
-                        }}
-                        sx={{ bgcolor: 'white', '& .MuiSelect-select': { fontWeight: formSelectedStore ? 'bold' : 'normal' } }}
-                        displayEmpty
-                      >
-                        <MenuItem value="">Select Store</MenuItem>
-                        {Array.isArray(stores) && stores.length > 0 ? stores.map((store) => (
-                          <MenuItem key={store.storeid} value={store.storeid}>
-                            {store.store_name}
-                          </MenuItem>
-                        )) : (
-                          <MenuItem disabled>No stores available</MenuItem>
-                        )}
-                      </Select>
-                    </FormControl>
+                    <Autocomplete
+                      size="small"
+                      options={stores || []}
+                      getOptionLabel={(option) => option.store_name || ''}
+                      value={formSelectedStore}
+                      onChange={(event, newValue) => {
+                        setFormSelectedStore(newValue);
+                      }}
+                      isOptionEqualToValue={(option, value) => option.storeid === value?.storeid}
+                      autoSelect={true}
+                      autoHighlight={true}
+                      openOnFocus={true}
+                      selectOnFocus={true}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          placeholder="Select Store"
+                          onFocus={(e) => e.target.select()}
+                          sx={{ bgcolor: 'white', '& .MuiInputBase-input': { fontWeight: formSelectedStore ? 'bold' : 'normal' } }}
+                        />
+                      )}
+                    />
                   </Box>
                 </Grid>
                 <Grid item xs={12} md={3}>
@@ -2733,6 +2784,7 @@ function SalesPageContent() {
                       type="number"
                       value={productFormData.quantity === 0 ? '' : productFormData.quantity}
                       onChange={(e) => handleQuantityChange(e.target.value)}
+                      onFocus={(e) => e.target.select()}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
@@ -2766,6 +2818,7 @@ function SalesPageContent() {
                       type="number"
                       value={productFormData.rate === 0 ? '' : productFormData.rate}
                       onChange={(e) => handleRateChange(e.target.value)}
+                      onFocus={(e) => e.target.select()}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
@@ -2810,6 +2863,7 @@ function SalesPageContent() {
                   <Box sx={{ mt: 2 }}>
                     <Button
                       variant="contained"
+                      id="add-product-btn"
                       onClick={handleAddProductToTable}
                       sx={{
                         bgcolor: '#6f42c1',
@@ -2957,22 +3011,28 @@ function SalesPageContent() {
                 {/* Transport Input Fields */}
                 <Grid container spacing={2} sx={{ mb: 2 }}>
                   <Grid item xs={12} md={6}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Transport Account</InputLabel>
-                      <Select
-                        value={newTransport.accountId}
-                        onChange={(e) => setNewTransport(prev => ({ ...prev, accountId: e.target.value }))}
-                        label="Transport Account"
-                        sx={{ minWidth: 300 }}
-                      >
-                        <MenuItem value="">Select Transport Account</MenuItem>
-                        {transportAccounts.map((account) => (
-                          <MenuItem key={account.cus_id} value={account.cus_id}>
-                            {account.cus_name}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
+                    <Autocomplete
+                      size="small"
+                      options={transportAccounts || []}
+                      getOptionLabel={(option) => option.cus_name || ''}
+                      value={transportAccounts.find(account => account.cus_id === newTransport.accountId) || null}
+                      onChange={(event, newValue) => {
+                        setNewTransport(prev => ({ ...prev, accountId: newValue ? newValue.cus_id : '', accountName: newValue ? newValue.cus_name : '' }));
+                      }}
+                      isOptionEqualToValue={(option, value) => option.cus_id === value?.cus_id}
+                      autoSelect={true}
+                      autoHighlight={true}
+                      openOnFocus={true}
+                      selectOnFocus={true}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          placeholder="Select Transport Account"
+                          onFocus={(e) => e.target.select()}
+                          sx={{ minWidth: 300, bgcolor: 'white' }}
+                        />
+                      )}
+                    />
                   </Grid>
                   <Grid item xs={12} md={4}>
                     <TextField
@@ -2981,6 +3041,7 @@ function SalesPageContent() {
                       type="number"
                       value={newTransport.amount === 0 ? '' : newTransport.amount}
                       onChange={(e) => setNewTransport(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
+                      onFocus={(e) => e.target.select()}
                       placeholder="0.00"
                       size="small"
                     />
@@ -3053,6 +3114,7 @@ function SalesPageContent() {
                           type="number"
                           value={paymentData.cash === 0 ? '' : paymentData.cash}
                           onChange={(e) => handlePaymentDataChange('cash', e.target.value)}
+                          onFocus={(e) => e.target.select()}
                           sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' } }}
                           placeholder="0"
                         />
@@ -3069,6 +3131,7 @@ function SalesPageContent() {
                           type="number"
                           value={paymentData.bank === 0 ? '' : paymentData.bank}
                           onChange={(e) => handlePaymentDataChange('bank', e.target.value)}
+                          onFocus={(e) => e.target.select()}
                           sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' } }}
                           placeholder="0"
                         />
@@ -3079,20 +3142,28 @@ function SalesPageContent() {
                         <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
                           BANK ACCOUNT
                         </Typography>
-                        <FormControl fullWidth size="small">
-                          <Select
-                            value={paymentData.bankAccountId}
-                            onChange={(e) => handlePaymentDataChange('bankAccountId', e.target.value)}
-                            sx={{ bgcolor: 'white', '& .MuiSelect-select': { padding: '8px' } }}
-                          >
-                            <MenuItem value="">Select Bank</MenuItem>
-                            {bankAccounts.map((account) => (
-                              <MenuItem key={account.cus_id} value={account.cus_id}>
-                                {account.cus_name}
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
+                        <Autocomplete
+                          size="small"
+                          options={bankAccounts || []}
+                          getOptionLabel={(option) => option.cus_name || ''}
+                          value={bankAccounts.find(account => account.cus_id === paymentData.bankAccountId) || null}
+                          onChange={(event, newValue) => {
+                            handlePaymentDataChange('bankAccountId', newValue ? newValue.cus_id : '');
+                          }}
+                          isOptionEqualToValue={(option, value) => option.cus_id === value?.cus_id}
+                          autoSelect={true}
+                          autoHighlight={true}
+                          openOnFocus={true}
+                          selectOnFocus={true}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              placeholder="Select Bank"
+                              onFocus={(e) => e.target.select()}
+                              sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' } }}
+                            />
+                          )}
+                        />
                       </Box>
                     </Grid>
                     <Grid item xs={3}>
@@ -3124,6 +3195,7 @@ function SalesPageContent() {
                       size="small"
                       value={paymentData.notes}
                       onChange={(e) => handlePaymentDataChange('notes', e.target.value)}
+                      onFocus={(e) => e.target.select()}
                       sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' } }}
                       placeholder="Enter any notes..."
                     />
@@ -3152,6 +3224,7 @@ function SalesPageContent() {
                         type="number"
                         value={paymentData.advancePayment === 0 ? '' : paymentData.advancePayment}
                         onChange={(e) => handlePaymentDataChange('advancePayment', e.target.value)}
+                        onFocus={(e) => e.target.select()}
                         sx={{
                           bgcolor: 'success.50',
                           '& .MuiInputBase-input': {
@@ -3219,6 +3292,7 @@ function SalesPageContent() {
                         return labourVal === 0 ? '' : labourVal;
                       })()}
                       onChange={(e) => handlePaymentDataChange('labour', e.target.value)}
+                      onFocus={(e) => e.target.select()}
                       sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' }, flex: 1 }}
                       placeholder="0"
                     />
@@ -3245,6 +3319,7 @@ function SalesPageContent() {
                         const deliveryOnly = totalValue - transportTotal;
                         handlePaymentDataChange('deliveryCharges', deliveryOnly >= 0 ? deliveryOnly : 0);
                       }}
+                      onFocus={(e) => e.target.select()}
                       sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px', fontWeight: 'bold' }, flex: 1 }}
                       placeholder="0"
                     />
@@ -3265,6 +3340,7 @@ function SalesPageContent() {
                       type="number"
                       value={paymentData.discount === 0 ? '' : paymentData.discount}
                       onChange={(e) => handlePaymentDataChange('discount', e.target.value)}
+                      onFocus={(e) => e.target.select()}
                       sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' }, flex: 1 }}
                       placeholder="0"
                     />
@@ -3504,8 +3580,9 @@ function SalesPageContent() {
                     bgcolor: '#dc3545',
                     color: 'white',
                     borderRadius: 2,
-                    '&:hover': { bgcolor: '#c82333' }
+                    '&:hover': { bgcolor: '#dc3545' }
                   }}
+                  tabIndex={-1}
                   onClick={() => setCurrentView('list')}
                 >
                   Cancel
@@ -3519,6 +3596,12 @@ function SalesPageContent() {
                     '&:hover': { bgcolor: '#218838' }
                   }}
                   onClick={handleSaveBill}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Tab' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSaveBill();
+                    }
+                  }}
                   disabled={loading}
                 >
                   {loading ? (
@@ -4540,6 +4623,7 @@ function SalesPageContent() {
                       placeholder="ID, Customer, or Reference..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
+                      onFocus={(e) => e.target.select()}
                       InputProps={{
                         startAdornment: (
                           <InputAdornment position="start">
@@ -4567,11 +4651,16 @@ function SalesPageContent() {
                       onChange={(event, newValue) => {
                         setFilterCustomer(newValue ? newValue.cus_id.toString() : '');
                       }}
+                      autoSelect={true}
+                      autoHighlight={true}
+                      openOnFocus={true}
+                      selectOnFocus={true}
                       renderInput={(params) => (
                         <TextField
                           {...params}
                           label="Customer"
                           placeholder="All Customers"
+                          onFocus={(e) => e.target.select()}
                           sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
                         />
                       )}
@@ -4603,11 +4692,16 @@ function SalesPageContent() {
                       getOptionLabel={(option) => option.store_name || ''}
                       value={stores.find(s => s.storeid.toString() === filterStore) || null}
                       onChange={(event, newValue) => setFilterStore(newValue ? newValue.storeid.toString() : '')}
+                      autoSelect={true}
+                      autoHighlight={true}
+                      openOnFocus={true}
+                      selectOnFocus={true}
                       renderInput={(params) => (
                         <TextField
                           {...params}
                           label="Store"
                           placeholder="All Stores"
+                          onFocus={(e) => e.target.select()}
                           sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
                         />
                       )}
@@ -4719,11 +4813,16 @@ function SalesPageContent() {
                         setSortOrder(order);
                       }
                     }}
+                    autoSelect={true}
+                    autoHighlight={true}
+                    openOnFocus={true}
+                    selectOnFocus={true}
                     renderInput={(params) => (
                       <TextField
                         {...params}
                         label="Sort By"
                         placeholder="Select..."
+                        onFocus={(e) => e.target.select()}
                         sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
                       />
                     )}
@@ -5158,6 +5257,7 @@ function SalesPageContent() {
                   type="tel"
                   value={newCustomer.cus_phone_no2}
                   onChange={(e) => setNewCustomer(prev => ({ ...prev, cus_phone_no2: e.target.value }))}
+                  onFocus={(e) => e.target.select()}
                   sx={{ minWidth: 250 }}
                   placeholder="Enter secondary phone number"
                   InputProps={{
@@ -5178,6 +5278,7 @@ function SalesPageContent() {
                   name="cus_address"
                   value={newCustomer.cus_address}
                   onChange={(e) => setNewCustomer(prev => ({ ...prev, cus_address: e.target.value }))}
+                  onFocus={(e) => e.target.select()}
                   placeholder="Enter complete address"
                   InputProps={{
                     startAdornment: (
@@ -5219,10 +5320,15 @@ function SalesPageContent() {
                     }));
                   }}
                   getOptionLabel={(option) => option.title}
+                  autoSelect={true}
+                  autoHighlight={true}
+                  openOnFocus={true}
+                  selectOnFocus={true}
                   renderInput={(params) => (
                     <TextField
                       {...params}
                       label="Account Type"
+                      onFocus={(e) => e.target.select()}
                       sx={{ minWidth: 250 }}
                       InputProps={{
                         ...params.InputProps,
@@ -5265,10 +5371,15 @@ function SalesPageContent() {
                     }));
                   }}
                   getOptionLabel={(option) => option.title}
+                  autoSelect={true}
+                  autoHighlight={true}
+                  openOnFocus={true}
+                  selectOnFocus={true}
                   renderInput={(params) => (
                     <TextField
                       {...params}
                       label="Account Category"
+                      onFocus={(e) => e.target.select()}
                       sx={{ minWidth: 250 }}
                       InputProps={{
                         ...params.InputProps,
@@ -5335,10 +5446,15 @@ function SalesPageContent() {
                     }));
                   }}
                   getOptionLabel={(option) => option.title}
+                  autoSelect={true}
+                  autoHighlight={true}
+                  openOnFocus={true}
+                  selectOnFocus={true}
                   renderInput={(params) => (
                     <TextField
                       {...params}
                       label="City"
+                      onFocus={(e) => e.target.select()}
                       sx={{ minWidth: 250 }}
                       InputProps={{
                         ...params.InputProps,
@@ -5361,6 +5477,7 @@ function SalesPageContent() {
                   name="CNIC"
                   value={newCustomer.CNIC}
                   onChange={(e) => setNewCustomer(prev => ({ ...prev, CNIC: e.target.value }))}
+                  onFocus={(e) => e.target.select()}
                   sx={{ minWidth: 250 }}
                   placeholder="Enter CNIC number"
                 />
@@ -5373,6 +5490,7 @@ function SalesPageContent() {
                   name="NTN_NO"
                   value={newCustomer.NTN_NO}
                   onChange={(e) => setNewCustomer(prev => ({ ...prev, NTN_NO: e.target.value }))}
+                  onFocus={(e) => e.target.select()}
                   sx={{ minWidth: 250 }}
                   placeholder="Enter NTN number"
                 />
@@ -5387,6 +5505,7 @@ function SalesPageContent() {
                   inputProps={{ step: "0.01" }}
                   value={newCustomer.cus_balance}
                   onChange={(e) => setNewCustomer(prev => ({ ...prev, cus_balance: e.target.value }))}
+                  onFocus={(e) => e.target.select()}
                   sx={{ minWidth: 250 }}
                   placeholder="Enter customer balance"
                   InputProps={{
@@ -5407,6 +5526,7 @@ function SalesPageContent() {
                   name="other"
                   value={newCustomer.other}
                   onChange={(e) => setNewCustomer(prev => ({ ...prev, other: e.target.value }))}
+                  onFocus={(e) => e.target.select()}
                   sx={{ minWidth: 250 }}
                   placeholder="Enter other information"
                 />
@@ -5419,6 +5539,7 @@ function SalesPageContent() {
                   name="name_urdu"
                   value={newCustomer.name_urdu}
                   onChange={(e) => setNewCustomer(prev => ({ ...prev, name_urdu: e.target.value }))}
+                  onFocus={(e) => e.target.select()}
                   sx={{ minWidth: 250 }}
                   placeholder="Enter name in Urdu"
                 />

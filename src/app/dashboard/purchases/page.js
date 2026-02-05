@@ -622,6 +622,25 @@ export default function PurchasesPage() {
     });
   };
 
+  // Keyboard shortcut 'a' to add product
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      // Trigger if 'a' is pressed (case-insensitive) and not in an input/textarea
+      if (e.key.toLowerCase() === 'a' &&
+        !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) &&
+        !document.activeElement?.isContentEditable) {
+        const addBtn = document.getElementById('add-product-btn');
+        if (addBtn && !addBtn.disabled) {
+          e.preventDefault();
+          addBtn.click();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
+
   const selectCustomer = (customer) => {
     setFormData(prev => ({ ...prev, cus_id: customer.cus_id }));
     setCustomerSearchTerm(customer.cus_name);
@@ -1486,6 +1505,7 @@ export default function PurchasesPage() {
                       placeholder="ID, Supplier, or Reference..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
+                      onFocus={(e) => e.target.select()}
                       InputProps={{
                         startAdornment: (
                           <InputAdornment position="start">
@@ -1507,11 +1527,15 @@ export default function PurchasesPage() {
                       getOptionLabel={(option) => option.cus_name || ''}
                       value={customers.find(c => c.cus_id === selectedCustomer) || null}
                       onChange={(event, newValue) => setSelectedCustomer(newValue ? newValue.cus_id : '')}
+                      autoSelect={true}
+                      openOnFocus={true}
+                      selectOnFocus={true}
                       renderInput={(params) => (
                         <TextField
                           {...params}
                           label="Supplier"
                           placeholder="All Suppliers"
+                          onFocus={(e) => e.target.select()}
                           sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
                         />
                       )}
@@ -1526,6 +1550,7 @@ export default function PurchasesPage() {
                       type="date"
                       value={dateFrom}
                       onChange={(e) => setDateFrom(e.target.value)}
+                      onFocus={(e) => e.target.select()}
                       InputLabelProps={{ shrink: true }}
                       sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
                     />
@@ -1539,6 +1564,7 @@ export default function PurchasesPage() {
                       type="date"
                       value={dateTo}
                       onChange={(e) => setDateTo(e.target.value)}
+                      onFocus={(e) => e.target.select()}
                       InputLabelProps={{ shrink: true }}
                       sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
                     />
@@ -1552,11 +1578,15 @@ export default function PurchasesPage() {
                       getOptionLabel={(option) => option.store_name || ''}
                       value={stores.find(s => s.storeid.toString() === filterStore) || null}
                       onChange={(event, newValue) => setFilterStore(newValue ? newValue.storeid.toString() : '')}
+                      autoSelect={true}
+                      openOnFocus={true}
+                      selectOnFocus={true}
                       renderInput={(params) => (
                         <TextField
                           {...params}
                           label="Store"
                           placeholder="All Stores"
+                          onFocus={(e) => e.target.select()}
                           sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
                         />
                       )}
@@ -1572,6 +1602,7 @@ export default function PurchasesPage() {
                       placeholder="e.g. 1000"
                       value={filterMinAmount}
                       onChange={(e) => setFilterMinAmount(e.target.value)}
+                      onFocus={(e) => e.target.select()}
                       sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
                     />
                   </Box>
@@ -1907,44 +1938,42 @@ export default function PurchasesPage() {
                       </Box>
 
                       <FormControl size="small" variant="standard" sx={{ minWidth: 200 }}>
-                        <Select
+                        <Autocomplete
+                          size="small"
+                          options={['new', 'return']}
+                          getOptionLabel={(option) => option === 'new' ? 'New Purchase' : 'Return Purchase'}
                           value={purchaseType}
-                          onChange={(e) => {
-                            setPurchaseType(e.target.value);
-                            if (e.target.value === 'new') {
+                          onChange={(e, newValue) => {
+                            setPurchaseType(newValue || 'new');
+                            if (newValue === 'new') {
                               setPurchaseSearchOpen(false);
                               setPurchaseSearchResults([]);
                               setSelectedPurchaseForReturn(null);
                             }
                           }}
-                          sx={{
-                            color: 'white',
-                            '& .MuiSelect-select': {
-                              paddingRight: 2,
-                              fontWeight: 'bold',
-                              fontSize: '1.1rem'
-                            },
-                            '& .MuiSvgIcon-root': {
-                              color: 'white'
-                            },
-                            '&:before': {
-                              borderBottomColor: 'rgba(255,255,255,0.7)'
-                            },
-                            '&:after': {
-                              borderBottomColor: 'white'
-                            },
-                            '&:hover:not(.Mui-disabled):before': {
-                              borderBottomColor: 'white'
-                            }
-                          }}
-                        >
-                          <MenuItem value="new" sx={{ fontWeight: 'medium' }}>
-                            New Purchase
-                          </MenuItem>
-                          <MenuItem value="return" sx={{ fontWeight: 'medium' }}>
-                            Return Purchase
-                          </MenuItem>
-                        </Select>
+                          autoSelect={true}
+                          openOnFocus={true}
+                          selectOnFocus={true}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              placeholder="Select Transaction"
+                              variant="standard"
+                              sx={{
+                                minWidth: 200,
+                                '& .MuiInputBase-input': {
+                                  color: 'white',
+                                  fontWeight: 'bold',
+                                  fontSize: '1.1rem',
+                                  paddingRight: 2
+                                },
+                                '& .MuiInput-underline:before': { borderBottomColor: 'rgba(255,255,255,0.7)' },
+                                '& .MuiInput-underline:after': { borderBottomColor: 'white' },
+                                '& .MuiInput-underline:hover:not(.Mui-disabled):before': { borderBottomColor: 'white' }
+                              }}
+                            />
+                          )}
+                        />
                       </FormControl>
                     </Box>
                   </Grid>
@@ -2020,6 +2049,7 @@ export default function PurchasesPage() {
                           <TextField
                             {...params}
                             placeholder="Select supplier..."
+                            onFocus={(e) => e.target.select()}
                             sx={{
                               width: '100%',
                               minWidth: 200,
@@ -2028,7 +2058,6 @@ export default function PurchasesPage() {
                                 fontWeight: formSelectedCustomer ? 'bold' : 'normal'
                               }
                             }}
-                            onClick={() => setCustomerDropdownOpen(true)}
                           />
                         )}
                         renderOption={(props, option) => {
@@ -2059,6 +2088,7 @@ export default function PurchasesPage() {
                         disablePortal={false}
                         openOnFocus={true}
                         selectOnFocus={true}
+                        autoSelect={true}
                         clearOnBlur={false}
                         handleHomeEndKeys={true}
                       />
@@ -2140,6 +2170,8 @@ export default function PurchasesPage() {
                           sx={{ width: '100%' }}
                           disablePortal={false}
                           openOnFocus={true}
+                          selectOnFocus={true}
+                          autoSelect={true}
                           clearOnBlur={true}
                           noOptionsText={purchaseSearchResults.length === 0 ? "No purchases found" : ""}
                         />
@@ -2157,6 +2189,7 @@ export default function PurchasesPage() {
                         size="medium"
                         type="date"
                         value={new Date().toISOString().split('T')[0]}
+                        onFocus={(e) => e.target.select()}
                         sx={{ width: '100%', minHeight: 56 }}
                         InputProps={{
                           endAdornment: (
@@ -2180,6 +2213,7 @@ export default function PurchasesPage() {
                         placeholder={purchaseType === 'new' ? 'Enter invoice number' : 'Enter return invoice number'}
                         value={formData.invoice_number || ''}
                         onChange={(e) => setFormData(prev => ({ ...prev, invoice_number: e.target.value }))}
+                        onFocus={(e) => e.target.select()}
                         sx={{ width: '100%', minHeight: 56 }}
                       />
                     </Box>
@@ -2223,8 +2257,8 @@ export default function PurchasesPage() {
                             <TextField
                               {...params}
                               placeholder="Select vehicle..."
+                              onFocus={(e) => e.target.select()}
                               sx={{ width: '100%', minWidth: 300, minHeight: 56 }}
-                              onClick={() => setVehicleDropdownOpen(true)}
                               required
                             />
                           )}
@@ -2232,6 +2266,7 @@ export default function PurchasesPage() {
                           disablePortal={false}
                           openOnFocus={true}
                           selectOnFocus={true}
+                          autoSelect={true}
                           clearOnBlur={false}
                           handleHomeEndKeys={true}
                         />
@@ -2273,6 +2308,7 @@ export default function PurchasesPage() {
                           <TextField
                             {...params}
                             placeholder={formData.store_id ? "Store Selected" : "Select store"}
+                            onFocus={(e) => e.target.select()}
                             sx={{
                               width: '100%',
                               minWidth: 200,
@@ -2309,6 +2345,14 @@ export default function PurchasesPage() {
                             </Box>
                           );
                         }}
+                        disablePortal={false}
+                        openOnFocus={true}
+                        selectOnFocus={true}
+                        autoSelect={true}
+                        sx={{
+                          width: '100%',
+                          minWidth: 200,
+                        }}
                       />
                     </Box>
                   </Grid>
@@ -2339,10 +2383,14 @@ export default function PurchasesPage() {
                             {...params}
                             placeholder="Select product..."
                             size="small"
+                            onFocus={(e) => e.target.select()}
                             sx={{ width: '100%', minWidth: 300 }}
                           />
                         )}
                         sx={{ width: '100%', minWidth: 300 }}
+                        openOnFocus={true}
+                        selectOnFocus={true}
+                        autoSelect={true}
                       />
                     </Box>
                   </Grid>
@@ -2357,6 +2405,7 @@ export default function PurchasesPage() {
                         type="number"
                         value={productFormData.qnty}
                         onChange={(e) => setProductFormData(prev => ({ ...prev, qnty: e.target.value }))}
+                        onFocus={(e) => e.target.select()}
                         inputProps={{ min: 1 }}
                         sx={{ width: '100%' }}
                       />
@@ -2373,6 +2422,7 @@ export default function PurchasesPage() {
                         type="number"
                         value={productFormData.unit_rate}
                         onChange={(e) => setProductFormData(prev => ({ ...prev, unit_rate: e.target.value }))}
+                        onFocus={(e) => e.target.select()}
                         inputProps={{ step: 0.01, min: 0 }}
                         sx={{ width: '100%' }}
                       />
@@ -2389,6 +2439,7 @@ export default function PurchasesPage() {
                         type="number"
                         value={productFormData.crate || productFormData.unit_rate}
                         onChange={(e) => setProductFormData(prev => ({ ...prev, crate: e.target.value }))}
+                        onFocus={(e) => e.target.select()}
                         inputProps={{ step: 0.01, min: 0 }}
                         sx={{ width: 100, minWidth: 100 }}
                       />
@@ -2412,7 +2463,17 @@ export default function PurchasesPage() {
                   <Grid item xs={12} md={1.5}>
                     <Button
                       variant="contained"
+                      id="add-product-btn"
                       onClick={addProductToPurchase}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Tab' && !e.shiftKey) {
+                          e.preventDefault();
+                          addProductToPurchase();
+                          // Move focus back to product search
+                          const productInput = document.querySelector('input[placeholder*="Select product"]');
+                          if (productInput) productInput.focus();
+                        }
+                      }}
                       disabled={!productFormData.qnty || !productFormData.unit_rate}
                       sx={{
                         bgcolor: 'secondary.main',
@@ -2638,6 +2699,7 @@ export default function PurchasesPage() {
                             <TextField
                               {...params}
                               placeholder="Select Bank Account"
+                              onFocus={(e) => e.target.select()}
                               sx={
                                 {
                                   '& .MuiInputBase-input': {
@@ -2645,7 +2707,6 @@ export default function PurchasesPage() {
                                   }
                                 }
                               }
-                              onClick={() => setBankAccountDropdownOpen(true)}
                             />
                           )}
                           renderOption={(props, option) => {
@@ -2676,6 +2737,7 @@ export default function PurchasesPage() {
                           disablePortal={false}
                           openOnFocus={true}
                           selectOnFocus={true}
+                          autoSelect={true}
                           clearOnBlur={false}
                           handleHomeEndKeys={true}
                         />
@@ -2735,6 +2797,7 @@ export default function PurchasesPage() {
                         type="number"
                         value={formData.transport_amount || ''}
                         onChange={(e) => setFormData(prev => ({ ...prev, transport_amount: e.target.value }))}
+                        onFocus={(e) => e.target.select()}
                         inputProps={{ step: 0.01, min: 0 }}
                         sx={{ width: 150 }}
                       />
@@ -2812,6 +2875,7 @@ export default function PurchasesPage() {
                         type="number"
                         value={formData.discount || ''}
                         onChange={(e) => setFormData(prev => ({ ...prev, discount: e.target.value }))}
+                        onFocus={(e) => e.target.select()}
                         inputProps={{ step: 0.01, min: 0 }}
                         sx={{ width: 150 }}
                       />
@@ -2874,6 +2938,7 @@ export default function PurchasesPage() {
                   type="button"
                   onClick={() => setCurrentView('list')}
                   variant="outlined"
+                  tabIndex={-1}
                   sx={{ px: 3, py: 1.5 }}
                 >
                   Cancel
@@ -2882,6 +2947,14 @@ export default function PurchasesPage() {
                   type="submit"
                   disabled={isSubmitting}
                   variant="contained"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Tab' && !e.shiftKey) {
+                      e.preventDefault();
+                      // Trigger form submission
+                      const form = e.target.closest('form');
+                      if (form) form.requestSubmit();
+                    }
+                  }}
                   startIcon={isSubmitting ? <CircularProgress size={20} /> : null}
                   sx={{
                     px: 4,

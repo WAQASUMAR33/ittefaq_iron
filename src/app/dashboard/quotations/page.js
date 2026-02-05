@@ -247,7 +247,7 @@ function QuotationsPageContent() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      
+
       const salesRes = await fetch('/api/sales');
       if (salesRes.ok) {
         const salesData = await salesRes.json();
@@ -273,7 +273,7 @@ function QuotationsPageContent() {
         const customersData = customersResponse.value || customersResponse;
         setCustomers(customersData || []);
       }
-      
+
       if (productsRes.ok) {
         const productsData = await productsRes.json();
         setProducts(productsData || []);
@@ -1116,10 +1116,15 @@ function QuotationsPageContent() {
                       getOptionLabel={(option) => option.cus_name || ''}
                       value={formSelectedCustomer}
                       onChange={(event, newValue) => setFormSelectedCustomer(newValue)}
+                      autoSelect={true}
+                      autoHighlight={true}
+                      openOnFocus={true}
+                      selectOnFocus={true}
                       renderInput={(params) => (
                         <TextField
                           {...params}
                           placeholder="Select Customer"
+                          onFocus={(e) => e.target.select()}
                           sx={{ bgcolor: 'white', '& .MuiInputBase-input': { fontWeight: formSelectedCustomer ? 'bold' : 'normal' } }}
                         />
                       )}
@@ -1144,10 +1149,15 @@ function QuotationsPageContent() {
                       getOptionLabel={(option) => option.pro_title || ''}
                       value={formSelectedProduct}
                       onChange={(event, newValue) => handleProductSelect(newValue)}
+                      autoSelect={true}
+                      autoHighlight={true}
+                      openOnFocus={true}
+                      selectOnFocus={true}
                       renderInput={(params) => (
                         <TextField
                           {...params}
                           placeholder="Select Product"
+                          onFocus={(e) => e.target.select()}
                           sx={{ bgcolor: 'white', '& .MuiInputBase-input': { fontWeight: formSelectedProduct ? 'bold' : 'normal' } }}
                         />
                       )}
@@ -1407,6 +1417,7 @@ function QuotationsPageContent() {
                   placeholder="Search quotations..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
+                  onFocus={(e) => e.target.select()}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -1456,33 +1467,33 @@ function QuotationsPageContent() {
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="View Receipt">
-                              <IconButton size="small" onClick={() => handleViewReceipt(sale)}>
-                                <ReceiptIcon />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Print A4">
-                              <IconButton 
-                                size="small" 
-                                color="secondary" 
-                                onClick={() => {
-                                  setCurrentBillData(sale);
-                                  setTimeout(() => handlePrintBill('A4'), 100);
-                                }}
-                              >
-                                <PrintIcon />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Edit">
-                              <IconButton size="small" color="primary" onClick={() => handleEdit(sale)}>
-                                <EditIcon />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Delete">
-                              <IconButton size="small" color="error" onClick={() => handleDelete(sale.sale_id)}>
-                                <DeleteIcon />
-                              </IconButton>
-                            </Tooltip>
-                          </Stack>
+                        <IconButton size="small" onClick={() => handleViewReceipt(sale)}>
+                          <ReceiptIcon />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Print A4">
+                        <IconButton
+                          size="small"
+                          color="secondary"
+                          onClick={() => {
+                            setCurrentBillData(sale);
+                            setTimeout(() => handlePrintBill('A4'), 100);
+                          }}
+                        >
+                          <PrintIcon />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Edit">
+                        <IconButton size="small" color="primary" onClick={() => handleEdit(sale)}>
+                          <EditIcon />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Delete">
+                        <IconButton size="small" color="error" onClick={() => handleDelete(sale.sale_id)}>
+                          <DeleteIcon />
+                        </IconButton>
+                      </Tooltip>
+                    </Stack>
                   </TableCell>
                 </TableRow>
               ))}
