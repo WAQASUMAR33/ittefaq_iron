@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '../components/dashboard-layout';
 
 // Material-UI imports
@@ -81,7 +82,7 @@ import {
   Money as MoneyIcon
 } from '@mui/icons-material';
 
-export default function PurchasesPage() {
+function PurchasesPageContent() {
   // State management
   const [purchases, setPurchases] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -149,6 +150,23 @@ export default function PurchasesPage() {
   const [viewingPurchase, setViewingPurchase] = useState(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [currentView, setCurrentView] = useState('list'); // 'list' or 'create'
+
+  const searchParams = useSearchParams();
+
+  // Handle URL query parameter for view
+  useEffect(() => {
+    const viewParam = searchParams?.get('view');
+    const typeParam = searchParams?.get('type');
+
+    if (viewParam === 'create') {
+      setCurrentView('create');
+    }
+
+    if (typeParam === 'return') {
+      setPurchaseType('return');
+      setCurrentView('create');
+    }
+  }, [searchParams]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [snackbar, setSnackbar] = useState({
     open: false,
@@ -4236,5 +4254,19 @@ export default function PurchasesPage() {
         </DialogActions>
       </Dialog>
     </>
+  );
+}
+
+export default function PurchasesPage() {
+  return (
+    <Suspense fallback={
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-screen">
+          <CircularProgress />
+        </div>
+      </DashboardLayout>
+    }>
+      <PurchasesPageContent />
+    </Suspense>
   );
 }

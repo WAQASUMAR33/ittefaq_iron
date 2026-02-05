@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  DollarSign, 
-  ShoppingCart, 
-  Users, 
+import {
+  DollarSign,
+  ShoppingCart,
+  Users,
   TrendingUp,
   Package,
   Eye,
@@ -18,7 +18,8 @@ import {
   ClipboardList,
   RotateCcw,
   ScrollText,
-  ListOrdered
+  ListOrdered,
+  TrendingDown
 } from 'lucide-react';
 
 export default function DashboardContent({ activeTab }) {
@@ -156,16 +157,17 @@ export default function DashboardContent({ activeTab }) {
   const quickActions = [
     { title: 'New Sale', icon: ShoppingCart, color: 'from-blue-500 to-cyan-500', path: '/dashboard/sales?view=create' },
     { title: 'New Purchase', icon: ShoppingBag, color: 'from-indigo-500 to-blue-500', path: '/dashboard/purchases' },
+    { title: 'Order Page', icon: ListOrdered, color: 'from-blue-600 to-indigo-600', path: '/dashboard/orders' },
     { title: 'Add Product', icon: Package, color: 'from-green-500 to-emerald-500', path: '/dashboard/products' },
     { title: 'Add Customer', icon: Users, color: 'from-purple-500 to-pink-500', path: '/dashboard/customers' },
     { title: 'Hold Bills', icon: ClipboardList, color: 'from-yellow-500 to-orange-500', path: '/dashboard/hold-bills' },
-    { title: 'Sale Returns', icon: RotateCcw, color: 'from-red-500 to-pink-500', path: '/dashboard/sale-returns' },
     { title: 'Stock Transfer', icon: ArrowLeftRight, color: 'from-teal-500 to-cyan-500', path: '/dashboard/stock-transfer' },
     { title: 'Store Stock', icon: Warehouse, color: 'from-violet-500 to-purple-500', path: '/dashboard/store-stock' },
     { title: 'Expenses', icon: DollarSign, color: 'from-rose-500 to-red-500', path: '/dashboard/expenses' },
     { title: 'Ledger', icon: FileText, color: 'from-slate-500 to-gray-600', path: '/dashboard/finance' },
     { title: 'View Reports', icon: TrendingUp, color: 'from-orange-500 to-red-500', path: '/dashboard/reports' },
-    { title: 'Orders List', icon: ListOrdered, color: 'from-blue-600 to-indigo-600', path: '/dashboard/orders' },
+    { title: 'New Sale Return', icon: RotateCcw, color: 'from-orange-600 to-red-600', path: '/dashboard/sales?view=create&type=return' },
+    { title: 'New Purchase Return', icon: TrendingDown, color: 'from-red-600 to-rose-600', path: '/dashboard/purchases?view=create&type=return' },
     { title: 'Quotations List', icon: ScrollText, color: 'from-teal-500 to-emerald-500', path: '/dashboard/quotations' },
     { title: 'Sales List', icon: Receipt, color: 'from-cyan-500 to-blue-500', path: '/dashboard/sales' }
   ];
@@ -196,9 +198,8 @@ export default function DashboardContent({ activeTab }) {
                     <p className="text-sm font-medium text-gray-600 mb-1">{kpi.title}</p>
                     <p className="text-3xl font-bold text-gray-900">{kpi.value}</p>
                     <div className="flex items-center mt-2">
-                      <span className={`text-sm font-medium ${
-                        kpi.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
-                      }`}>
+                      <span className={`text-sm font-medium ${kpi.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
+                        }`}>
                         {kpi.change}
                       </span>
                       <span className="text-sm text-gray-500 ml-1">from last month</span>
@@ -221,8 +222,8 @@ export default function DashboardContent({ activeTab }) {
           <div className="p-6">
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
               {quickActions.map((action, index) => (
-                <button 
-                  key={index} 
+                <button
+                  key={index}
                   onClick={() => handleQuickActionClick(action.path)}
                   className="group p-4 rounded-xl border border-gray-200 hover:border-gray-300 transition-all duration-200 hover:shadow-md cursor-pointer"
                 >
@@ -292,11 +293,10 @@ export default function DashboardContent({ activeTab }) {
             <div className="space-y-4">
               {recentActivity.map((activity) => (
                 <div key={activity.id} className="flex items-center space-x-4 p-3 rounded-lg hover:bg-gray-50 transition-colors duration-200">
-                  <div className={`w-3 h-3 rounded-full ${
-                    activity.status === 'success' ? 'bg-green-500' :
+                  <div className={`w-3 h-3 rounded-full ${activity.status === 'success' ? 'bg-green-500' :
                     activity.status === 'warning' ? 'bg-yellow-500' :
-                    'bg-blue-500'
-                  }`}></div>
+                      'bg-blue-500'
+                    }`}></div>
                   <div className="flex-1">
                     <p className="text-sm font-medium text-gray-900">{activity.action}</p>
                     <p className="text-xs text-gray-500">{activity.time}</p>

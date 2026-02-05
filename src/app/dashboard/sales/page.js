@@ -98,7 +98,14 @@ function SalesPageContent() {
   // Handle URL query parameter for view
   useEffect(() => {
     const viewParam = searchParams?.get('view');
+    const typeParam = searchParams?.get('type');
+
     if (viewParam === 'create') {
+      setCurrentView('create');
+    }
+
+    if (typeParam === 'return') {
+      setBillType('SALE_RETURN');
       setCurrentView('create');
     }
   }, [searchParams]);
