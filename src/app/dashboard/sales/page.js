@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, Suspense, useRef } from 'react';
+import { useState, useEffect, useMemo, Suspense, useRef, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '../components/dashboard-layout';
 
@@ -64,7 +64,8 @@ import {
   LocationOn as MapPinIcon,
   Business as BusinessIcon,
   ListAlt as ListAltIcon,
-  Info as InfoIcon
+  Info as InfoIcon,
+  Save as SaveIcon
 } from '@mui/icons-material';
 
 function SalesPageContent() {
@@ -94,6 +95,11 @@ function SalesPageContent() {
   const [viewBillDialog, setViewBillDialog] = useState(false);
   const [selectedBill, setSelectedBill] = useState(null);
   const [currentView, setCurrentView] = useState('list');
+
+  // Screen Stack State
+  const [screenStack, setScreenStack] = useState([]);
+  const [currentScreenIndex, setCurrentScreenIndex] = useState(-1);
+  const [showScreenIndicator, setShowScreenIndicator] = useState(false);
 
   // Handle URL query parameter for view
   useEffect(() => {
@@ -296,6 +302,13 @@ function SalesPageContent() {
     city_id: ''
   });
 
+  // Draft Sales state
+  const [drafts, setDrafts] = useState([]);
+  const [draftModalOpen, setDraftModalOpen] = useState(false);
+  const [currentDraftId, setCurrentDraftId] = useState(null);
+  const [draftSearchTerm, setDraftSearchTerm] = useState('');
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+
   // Additional filter states
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [sortBy, setSortBy] = useState('created_at');
@@ -366,6 +379,237 @@ function SalesPageContent() {
   const handleSnackbarClose = () => {
     setSnackbar(prev => ({ ...prev, open: false }));
   };
+
+  // ========== SCREEN STACK MANAGEMENT FUNCTIONS ==========
+  // Capture current form state (deep copy to avoid reference issues)
+  const captureScreenState = () => {
+    const state = {
+      // Customer and store selection
+      formSelectedCustomer: formSelectedCustomer ? { ...formSelectedCustomer } : null,
+      formSelectedStore: formSelectedStore ? { ...formSelectedStore } : null,
+      
+      // Product table (deep copy array)
+      productTableData: JSON.parse(JSON.stringify(productTableData)),
+      
+      // Payment data (deep copy)
+      paymentData: JSON.parse(JSON.stringify(paymentData)),
+      
+      // Bill type
+      billType: billType,
+      
+      // Product form
+      formSelectedProduct: formSelectedProduct ? { ...formSelectedProduct } : null,
+      productFormData: JSON.parse(JSON.stringify(productFormData)),
+      
+      // Transport
+      newTransport: JSON.parse(JSON.stringify(newTransport)),
+      transportAccounts: transportAccounts.map(t => ({ ...t })),
+      transportOptions: transportOptions.map(t => ({ ...t })),
+      
+      // Metadata
+      timestamp: new Date().toLocaleTimeString(),
+      customerName: formSelectedCustomer?.cus_name || 'New Sale'
+    };
+    
+    console.log('📸 Screen state captured:', state);
+    return state;
+  };
+
+  // Auto-save current form state to the current screen in stack
+  // (Inline auto-save in useEffects to avoid circular dependencies)
+
+  // Restore form state (ensure all updates happen)
+  const restoreScreenState = (state) => {
+    if (!state) {
+      console.warn('⚠️ No state to restore');
+      return;
+    }
+    
+    console.log('🔄 Restoring screen state:', state);
+    
+    // Restore all state at once to ensure consistency
+    setFormSelectedCustomer(state.formSelectedCustomer);
+    setFormSelectedStore(state.formSelectedStore);
+    setProductTableData(state.productTableData);
+    setPaymentData(state.paymentData);
+    setBillType(state.billType);
+    setFormSelectedProduct(state.formSelectedProduct);
+    setProductFormData(state.productFormData);
+    setNewTransport(state.newTransport);
+    setTransportAccounts(state.transportAccounts);
+    setTransportOptions(state.transportOptions);
+  };
+
+  // Clear form to new sale state
+  const clearFormState = () => {
+    console.log('🧹 Clearing form state');
+    setFormSelectedCustomer(null);
+    setFormSelectedProduct(null);
+    setFormSelectedStore(null);
+    setProductTableData([]);
+    setPaymentData({
+      cash: '',
+      bank: '',
+      bankAccountId: '',
+      totalCashReceived: 0,
+      advancePayment: 0,
+      discount: '',
+      labour: '',
+      deliveryCharges: '',
+      notes: ''
+    });
+    setBillType('BILL');
+    setProductFormData({
+      quantity: '',
+      rate: 0,
+      amount: 0,
+      stock: 0
+    });
+    setNewTransport({ amount: 0, accountId: '' });
+    setTransportAccounts([]);
+    setTransportOptions([]);
+    setShowScreenIndicator(true);
+    setTimeout(() => setShowScreenIndicator(false), 1000);
+    showSnackbar('📋 Form cleared - ready for new entry', 'info');
+  };
+
+  // Open new screen (Ctrl+Right)
+  const openNewScreen = useCallback(() => {
+    console.log('➡️ OPENING NEW SCREEN');
+    console.log('📷 Current state before capture:', {
+      customer: formSelectedCustomer?.cus_name,
+      products: productTableData.length,
+      totalAmount: paymentData
+    });
+    
+    const currentState = captureScreenState();
+    const newStack = screenStack.slice(0, currentScreenIndex + 1);
+    newStack.push(currentState);
+    
+    console.log('📚 New stack created:', newStack.length, 'screens');
+    
+    setScreenStack(newStack);
+    setCurrentScreenIndex(newStack.length - 1);
+    
+    // NOW clear form for the new blank screen
+    clearFormState();
+    showSnackbar(`📋 Screen ${newStack.length} | Starting fresh (previous state saved)`, 'info');
+  }, [formSelectedCustomer, formSelectedStore, productTableData, paymentData, billType, formSelectedProduct, productFormData, newTransport, transportAccounts, transportOptions, currentScreenIndex, screenStack]);
+
+  // Go back to previous screen (Ctrl+Left) - NO AUTO-CLEAR, only navigate if possible
+  const goToPreviousScreen = useCallback(() => {
+    console.log('⬅️ GOING TO PREVIOUS SCREEN');
+    console.log('📊 Current stack:', {
+      currentIndex: currentScreenIndex,
+      stackLength: screenStack.length,
+      stateAtCurrentIndex: screenStack[currentScreenIndex]
+    });
+    
+    if (currentScreenIndex > 0) {
+      const previousIndex = currentScreenIndex - 1;
+      const previousState = screenStack[previousIndex];
+      
+      console.log('🔄 Restoring from index:', previousIndex);
+      console.log('🔄 State to restore:', previousState);
+      
+      restoreScreenState(previousState);
+      setCurrentScreenIndex(previousIndex);
+      showSnackbar(`📋 Screen ${previousIndex + 1} | ${previousState.customerName}`, 'info');
+    } else if (currentScreenIndex === 0) {
+      // At first screen - can't go back, just notify user
+      console.log('ℹ️ Already at first screen, cannot go back');
+      showSnackbar('📋 You are at the first screen. Click "Cancel Current" to discard or "Cancel" to save later.', 'info');
+    }
+  }, [currentScreenIndex, screenStack]);
+
+  // Go forward to next screen (Ctrl+Right after going back) - NO AUTO-CLEAR
+  const goToNextScreen = useCallback(() => {
+    console.log('➡️ GOING TO NEXT SCREEN');
+    if (currentScreenIndex < screenStack.length - 1) {
+      const nextIndex = currentScreenIndex + 1;
+      const nextState = screenStack[nextIndex];
+      restoreScreenState(nextState);
+      setCurrentScreenIndex(nextIndex);
+      showSnackbar(`📋 Screen ${nextIndex + 1} | ${nextState.customerName}`, 'info');
+    } else {
+      console.log('ℹ️ Already at last screen');
+      showSnackbar('📋 You are at the last screen. Press Ctrl+Right to create a new screen.', 'info');
+    }
+  }, [currentScreenIndex, screenStack]);
+
+  // Smart forward navigation - Go to next screen OR create new if at the end
+  const handleForwardNavigation = useCallback(() => {
+    console.log('➡️ SMART FORWARD NAVIGATION');
+    console.log('📊 Current status:', {
+      currentIndex: currentScreenIndex,
+      stackLength: screenStack.length,
+      isAtEnd: currentScreenIndex === screenStack.length - 1
+    });
+    
+    if (currentScreenIndex < screenStack.length - 1) {
+      // Not at end - go to next existing screen
+      console.log('↪️ Going to next existing screen');
+      goToNextScreen();
+    } else {
+      // At end - create new screen
+      console.log('✨ Creating new screen');
+      openNewScreen();
+    }
+  }, [currentScreenIndex, screenStack, goToNextScreen, openNewScreen]);
+
+  // Cancel current screen - Remove it from the stack and go to previous or clear
+  const cancelCurrentScreen = useCallback(() => {
+    console.log('❌ CANCELING CURRENT SCREEN');
+    console.log('📊 Stack before cancel:', {
+      currentIndex: currentScreenIndex,
+      stackLength: screenStack.length
+    });
+    
+    if (screenStack.length === 0) {
+      // No screens to cancel, just clear form
+      clearFormState();
+      setCurrentScreenIndex(-1);
+      showSnackbar('📋 Form cleared - ready for new sale', 'info');
+    } else if (currentScreenIndex > 0) {
+      // Remove current screen and go back to previous
+      const newStack = screenStack.filter((_, index) => index !== currentScreenIndex);
+      setScreenStack(newStack);
+      const previousIndex = currentScreenIndex - 1;
+      const previousState = newStack[previousIndex];
+      restoreScreenState(previousState);
+      setCurrentScreenIndex(previousIndex);
+      showSnackbar(`📋 Screen canceled. Returned to Screen ${previousIndex + 1}`, 'info');
+    } else if (currentScreenIndex === 0) {
+      // Remove only screen, go to blank form
+      setScreenStack([]);
+      setCurrentScreenIndex(-1);
+      clearFormState();
+      showSnackbar('📋 All screens canceled - ready for new sale', 'info');
+    }
+  }, [currentScreenIndex, screenStack]);
+
+  // Screen navigation keyboard shortcuts - FIX: Use memoized callbacks
+  // Ctrl+Right: Go to next screen if exists, or create new
+  // Ctrl+Left: Go to previous screen
+  useEffect(() => {
+    const handleScreenNavigation = (e) => {
+      // Ctrl+Right Arrow = Go to next existing screen OR create new
+      if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowRight') {
+        e.preventDefault();
+        console.log('⌨️ Ctrl+Right pressed');
+        handleForwardNavigation();
+      }
+      // Ctrl+Left Arrow = Go to previous screen
+      if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        console.log('⌨️ Ctrl+Left pressed');
+        goToPreviousScreen();
+      }
+    };
+
+    window.addEventListener('keydown', handleScreenNavigation);
+    return () => window.removeEventListener('keydown', handleScreenNavigation);
+  }, [handleForwardNavigation, goToPreviousScreen]);
 
   // Handle product selection
   const handleProductSelect = (selectedProduct) => {
@@ -1022,22 +1266,48 @@ function SalesPageContent() {
         // Open receipt dialog
         setReceiptDialogOpen(true);
 
-        // Reset form
-        setFormSelectedCustomer(null);
-        setFormSelectedProduct(null);
-        setFormSelectedStore(null);
-        setProductTableData([]);
-        setPaymentData({
-          cash: 0,
-          bank: 0,
-          bankAccountId: '',
-          totalCashReceived: 0,
-          advancePayment: 0,
-          discount: 0,
-          labour: 0,
-          deliveryCharges: 0,
-          notes: ''
-        });
+        // After successful sale creation, restore previous screen state if available
+        if (currentScreenIndex > 0) {
+          // There's a previous screen - restore it
+          console.log('✅ Sale created! Restoring previous screen...');
+          const previousIndex = currentScreenIndex - 1;
+          const previousState = screenStack[previousIndex];
+          
+          // Trim stack to remove current and any forward screens
+          const trimmedStack = screenStack.slice(0, currentScreenIndex);
+          
+          console.log('📚 Trimmed screen stack from', screenStack.length, 'to', trimmedStack.length);
+          
+          // Set new stack and restore previous state
+          setScreenStack(trimmedStack);
+          setCurrentScreenIndex(previousIndex);
+          restoreScreenState(previousState);
+          
+          showSnackbar(`✅ Sale created! Restored previous screen (${previousState.customerName})`, 'success');
+        } else {
+          // No previous screen - clear form to start fresh
+          console.log('✅ Sale created! No previous screen, clearing form...');
+          setFormSelectedCustomer(null);
+          setFormSelectedProduct(null);
+          setFormSelectedStore(null);
+          setProductTableData([]);
+          setPaymentData({
+            cash: 0,
+            bank: 0,
+            bankAccountId: '',
+            totalCashReceived: 0,
+            advancePayment: 0,
+            discount: 0,
+            labour: 0,
+            deliveryCharges: 0,
+            notes: ''
+          });
+
+          // Reset screen stack for next sale only if we're at index 0
+          setScreenStack([]);
+          setCurrentScreenIndex(-1);
+          showSnackbar('✅ Sale created! Form cleared for next entry', 'success');
+        }
 
         // Refresh sales data
         fetchData();
@@ -1060,6 +1330,7 @@ function SalesPageContent() {
   useEffect(() => {
     console.log('🔍 Component mounted, calling fetchData...');
     fetchData();
+    fetchDrafts();
   }, []);
 
   // Open create view preconfigured for Sale Return when flagged (from /dashboard/sale-returns)
@@ -1087,6 +1358,61 @@ function SalesPageContent() {
       totalCashReceived: totalCashReceived
     }));
   }, [paymentData.cash, paymentData.bank]);
+
+  // Auto-save when customer changes
+  useEffect(() => {
+    if (currentScreenIndex >= 0 && screenStack[currentScreenIndex]) {
+      const updatedState = captureScreenState();
+      const newStack = [...screenStack];
+      newStack[currentScreenIndex] = updatedState;
+      setScreenStack(newStack);
+      console.log(`💾 Auto-saved on customer change - Screen ${currentScreenIndex + 1}`);
+    }
+  }, [formSelectedCustomer]);
+
+  // Auto-save when store changes
+  useEffect(() => {
+    if (currentScreenIndex >= 0 && screenStack[currentScreenIndex]) {
+      const updatedState = captureScreenState();
+      const newStack = [...screenStack];
+      newStack[currentScreenIndex] = updatedState;
+      setScreenStack(newStack);
+      console.log(`💾 Auto-saved on store change - Screen ${currentScreenIndex + 1}`);
+    }
+  }, [formSelectedStore]);
+
+  // Auto-save when product table changes
+  useEffect(() => {
+    if (currentScreenIndex >= 0 && screenStack[currentScreenIndex]) {
+      const updatedState = captureScreenState();
+      const newStack = [...screenStack];
+      newStack[currentScreenIndex] = updatedState;
+      setScreenStack(newStack);
+      console.log(`💾 Auto-saved on product table change - Screen ${currentScreenIndex + 1}`);
+    }
+  }, [productTableData]);
+
+  // Auto-save when payment data changes
+  useEffect(() => {
+    if (currentScreenIndex >= 0 && screenStack[currentScreenIndex]) {
+      const updatedState = captureScreenState();
+      const newStack = [...screenStack];
+      newStack[currentScreenIndex] = updatedState;
+      setScreenStack(newStack);
+      console.log(`💾 Auto-saved on payment change - Screen ${currentScreenIndex + 1}`);
+    }
+  }, [paymentData]);
+
+  // Auto-save when bill type changes
+  useEffect(() => {
+    if (currentScreenIndex >= 0 && screenStack[currentScreenIndex]) {
+      const updatedState = captureScreenState();
+      const newStack = [...screenStack];
+      newStack[currentScreenIndex] = updatedState;
+      setScreenStack(newStack);
+      console.log(`💾 Auto-saved on bill type change - Screen ${currentScreenIndex + 1}`);
+    }
+  }, [billType]);
 
   // Transport functions
   const fetchTransportAccounts = async (providedCustomers = null) => {
@@ -1436,6 +1762,170 @@ function SalesPageContent() {
       setLoading(false);
     }
   };
+
+  // ======================== DRAFT SALES FUNCTIONS ========================
+  // Fetch all drafts
+  const fetchDrafts = async () => {
+    try {
+      const response = await fetch('/api/draft-sales');
+      if (response.ok) {
+        const draftsList = await response.json();
+        setDrafts(Array.isArray(draftsList) ? draftsList : []);
+        console.log('📝 Drafts loaded:', draftsList.length);
+      } else {
+        console.error('❌ Failed to fetch drafts');
+        setDrafts([]);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching drafts:', error);
+      setDrafts([]);
+    }
+  };
+
+  // Save current form as draft
+  const handleSaveDraft = async () => {
+    try {
+      if (!formSelectedStore) {
+        showSnackbar('Please select a store before saving draft', 'error');
+        return;
+      }
+
+      // Collect form data
+      const formState = {
+        customer: formSelectedCustomer,
+        store: formSelectedStore,
+        products: productTableData,
+        paymentData: paymentData,
+        billType: billType,
+        transportOptions: transportOptions
+      };
+
+      setIsSavingDraft(true);
+
+      const method = currentDraftId ? 'PUT' : 'POST';
+      const endpoint = currentDraftId 
+        ? `/api/draft-sales?id=${currentDraftId}` 
+        : '/api/draft-sales';
+
+      const payload = currentDraftId
+        ? {
+            id: currentDraftId,
+            store_id: formSelectedStore.storeid,
+            cus_id: formSelectedCustomer?.cus_id || null,
+            form_state: formState,
+            updated_by: 1
+          }
+        : {
+            store_id: formSelectedStore.storeid,
+            cus_id: formSelectedCustomer?.cus_id || null,
+            form_state: formState,
+            updated_by: 1
+          };
+
+      const response = await fetch(endpoint, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.ok) {
+        const savedDraft = await response.json();
+        setCurrentDraftId(savedDraft.draft_id);
+        showSnackbar(`✅ Draft saved as ${savedDraft.draft_code}`, 'success');
+        
+        // Refresh drafts list
+        await fetchDrafts();
+      } else {
+        const error = await response.json();
+        showSnackbar(`Failed to save draft: ${error.error}`, 'error');
+      }
+    } catch (error) {
+      console.error('❌ Error saving draft:', error);
+      showSnackbar(`Error saving draft: ${error.message}`, 'error');
+    } finally {
+      setIsSavingDraft(false);
+    }
+  };
+
+  // Load draft into form
+  const handleLoadDraft = async (draft) => {
+    try {
+      setLoading(true);
+
+      // Get full draft details
+      const response = await fetch(`/api/draft-sales?id=${draft.draft_id}`);
+      if (!response.ok) throw new Error('Failed to load draft');
+
+      const fullDraft = await response.json();
+      const formState = JSON.parse(fullDraft.form_state_json);
+
+      console.log('📖 Loading draft:', formState);
+
+      // Restore form state
+      if (formState.customer) {
+        setFormSelectedCustomer(formState.customer);
+      }
+      if (formState.store) {
+        setFormSelectedStore(formState.store);
+      }
+      if (formState.products) {
+        setProductTableData(formState.products);
+      }
+      if (formState.paymentData) {
+        setPaymentData(formState.paymentData);
+      }
+      if (formState.billType) {
+        setBillType(formState.billType);
+      }
+      if (formState.transportOptions) {
+        setTransportOptions(formState.transportOptions);
+      }
+
+      setCurrentDraftId(draft.draft_id);
+      setDraftModalOpen(false);
+
+      showSnackbar(`✅ Draft ${draft.draft_code} loaded successfully`, 'success');
+    } catch (error) {
+      console.error('❌ Error loading draft:', error);
+      showSnackbar(`Failed to load draft: ${error.message}`, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Delete draft
+  const handleDeleteDraft = async (draftId, draftCode) => {
+    try {
+      const response = await fetch(`/api/draft-sales?id=${draftId}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        showSnackbar(`✅ Draft ${draftCode} deleted`, 'success');
+        
+        // Clear current draft if it's the one being deleted
+        if (currentDraftId === draftId) {
+          setCurrentDraftId(null);
+        }
+
+        // Refresh drafts list
+        await fetchDrafts();
+      } else {
+        showSnackbar('Failed to delete draft', 'error');
+      }
+    } catch (error) {
+      console.error('❌ Error deleting draft:', error);
+      showSnackbar(`Error deleting draft: ${error.message}`, 'error');
+    }
+  };
+
+  // Open draft modal
+  const handleOpenDraftModal = async () => {
+    await fetchDrafts();
+    setDraftModalOpen(true);
+  };
+
+  // ======================== END DRAFT SALES FUNCTIONS ========================
 
   // Handle viewing a bill
   const handleViewBill = async (sale) => {
@@ -2410,6 +2900,39 @@ function SalesPageContent() {
               }}
             >
               Create Customer
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<SaveIcon />}
+              onClick={handleSaveDraft}
+              loading={isSavingDraft}
+              disabled={!formSelectedStore}
+              sx={{
+                mr: 2,
+                borderColor: '#388e3c',
+                color: '#388e3c',
+                '&:hover': {
+                  borderColor: '#2e7d32',
+                  backgroundColor: '#e8f5e9'
+                }
+              }}
+            >
+              Save Draft
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<InfoIcon />}
+              onClick={handleOpenDraftModal}
+              sx={{
+                borderColor: '#f57c00',
+                color: '#f57c00',
+                '&:hover': {
+                  borderColor: '#e65100',
+                  backgroundColor: '#fff3e0'
+                }
+              }}
+            >
+              Load Draft
             </Button>
           </Box>
 
@@ -3590,9 +4113,41 @@ function SalesPageContent() {
                     '&:hover': { bgcolor: '#dc3545' }
                   }}
                   tabIndex={-1}
-                  onClick={() => setCurrentView('list')}
+                  onClick={cancelCurrentScreen}
+                  title="Remove current screen from stack"
                 >
-                  Cancel
+                  ✕ Cancel Current
+                </Button>
+                <Button
+                  variant="contained"
+                  sx={{
+                    bgcolor: '#6c757d',
+                    color: 'white',
+                    borderRadius: 2,
+                    '&:hover': { bgcolor: '#5a6268' }
+                  }}
+                  tabIndex={-1}
+                  onClick={() => setCurrentView('list')}
+                  title="Return to sales list (current screen saved)"
+                >
+                  ← Back to List
+                </Button>
+                <Button
+                  variant="outlined"
+                  sx={{
+                    color: '#ff9800',
+                    borderColor: '#ff9800',
+                    borderRadius: 2,
+                    '&:hover': { 
+                      bgcolor: 'rgba(255, 152, 0, 0.04)',
+                      borderColor: '#f57c00'
+                    }
+                  }}
+                  onClick={clearFormState}
+                  disabled={loading}
+                  title="Clear current form only (screen stays in stack)"
+                >
+                  🧹 Clear Form
                 </Button>
                 <Button
                   variant="contained"
@@ -4367,6 +4922,143 @@ function SalesPageContent() {
           </DialogActions>
         </Dialog>
 
+        {/* Draft Sales Modal */}
+        <Dialog
+          open={draftModalOpen}
+          onClose={() => setDraftModalOpen(false)}
+          maxWidth="md"
+          fullWidth
+          PaperProps={{
+            sx: { borderRadius: 3 }
+          }}
+        >
+          <DialogTitle sx={{
+            background: 'linear-gradient(45deg, #f57c00 30%, #ff9800 90%)',
+            color: 'white',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <SaveIcon sx={{ mr: 2, fontSize: 28 }} />
+              <Box>
+                <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
+                  Draft Sales
+                </Typography>
+                <Typography variant="caption" sx={{ opacity: 0.9 }}>
+                  Load a saved draft or create a new one
+                </Typography>
+              </Box>
+            </Box>
+            <IconButton onClick={() => setDraftModalOpen(false)} sx={{ color: 'white' }}>
+              <CloseIcon />
+            </IconButton>
+          </DialogTitle>
+          <DialogContent sx={{ p: 2 }}>
+            <Box sx={{ mb: 2 }}>
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="Search drafts..."
+                value={draftSearchTerm}
+                onChange={(e) => setDraftSearchTerm(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            </Box>
+            
+            {drafts.length === 0 ? (
+              <Box sx={{ 
+                textAlign: 'center', 
+                py: 4,
+                color: 'text.secondary'
+              }}>
+                <SaveIcon sx={{ fontSize: 48, mb: 2, opacity: 0.3 }} />
+                <Typography>
+                  No drafts available. Save your current form as a draft to get started!
+                </Typography>
+              </Box>
+            ) : (
+              <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 400 }}>
+                <Table stickyHeader size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Draft Code</TableCell>
+                      <TableCell>Customer</TableCell>
+                      <TableCell>Updated</TableCell>
+                      <TableCell align="center">Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {drafts
+                      .filter(draft => {
+                        if (!draftSearchTerm) return true;
+                        const searchLower = draftSearchTerm.toLowerCase();
+                        return (
+                          draft.draft_code?.toLowerCase().includes(searchLower) ||
+                          draft.customer?.cus_name?.toLowerCase().includes(searchLower)
+                        );
+                      })
+                      .map((draft) => (
+                        <TableRow key={draft.draft_id} hover>
+                          <TableCell sx={{ fontWeight: 'bold', color: '#f57c00' }}>
+                            {draft.draft_code}
+                          </TableCell>
+                          <TableCell>
+                            {draft.customer?.cus_name || 'No customer'}
+                          </TableCell>
+                          <TableCell>
+                            {new Date(draft.updated_at).toLocaleDateString()} {new Date(draft.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </TableCell>
+                          <TableCell align="center">
+                            <Tooltip title="Load this draft">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleLoadDraft(draft)}
+                                sx={{ color: '#2196f3' }}
+                              >
+                                <VisibilityIcon />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Delete this draft">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleDeleteDraft(draft.draft_id, draft.draft_code)}
+                                sx={{ color: '#f44336' }}
+                              >
+                                <DeleteIcon />
+                              </IconButton>
+                            </Tooltip>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </DialogContent>
+          <DialogActions sx={{ p: 2, bgcolor: 'grey.50' }}>
+            <Button onClick={() => setDraftModalOpen(false)}>Close</Button>
+            {drafts.length > 0 && (
+              <Button 
+                variant="text" 
+                sx={{ color: '#f57c00' }}
+                onClick={() => {
+                  setDrafts([]);
+                  fetchDrafts();
+                }}
+              >
+                Refresh
+              </Button>
+            )}
+          </DialogActions>
+        </Dialog>
+
         {/* Print Styles for Create View */}
         <style jsx global>{`
           @media print {
@@ -4963,6 +5655,49 @@ function SalesPageContent() {
 
   return (
     <>
+      {/* Screen Stack Indicator */}
+      {currentView === 'create' && (currentScreenIndex >= 0 || screenStack.length > 0) && (
+        <Box
+          sx={{
+            position: 'fixed',
+            top: 20,
+            right: 20,
+            zIndex: 1000,
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: 'white',
+            padding: '12px 20px',
+            borderRadius: '8px',
+            boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
+            animation: showScreenIndicator ? 'pulse 0.5s ease-in-out' : 'none',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 1,
+            '@keyframes pulse': {
+              '0%': { transform: 'scale(1)' },
+              '50%': { transform: 'scale(1.05)' },
+              '100%': { transform: 'scale(1)' }
+            }
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+              📋 Screen {currentScreenIndex + 1}
+            </Typography>
+            {screenStack.length > 0 && (
+              <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                ({currentScreenIndex + 1} of {screenStack.length})
+              </Typography>
+            )}
+          </Box>
+          <Typography variant="caption" sx={{ fontSize: '11px', opacity: 0.85, lineHeight: 1.3 }}>
+            Ctrl+← Previous | Ctrl+→ Save &amp; New
+          </Typography>
+          <Typography variant="caption" sx={{ fontSize: '10px', opacity: 0.7 }}>
+            ✕ Cancel Current removes screen | ← saves to list | No auto-clear
+          </Typography>
+        </Box>
+      )}
+
       {currentView === 'list' ? renderSalesListView() : renderSalesCreateView()}
 
       {/* Snackbar */}

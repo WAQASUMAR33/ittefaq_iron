@@ -25,6 +25,7 @@ model Users {
   customer_types      CustomerType[]
   customers           Customer[]
   day_ends            DayEnd[]
+  draft_sales         DraftSale[]
   expenses            Expense[]
   hold_bill_details   HoldBillDetail[]
   hold_bills          HoldBill[]
@@ -132,6 +133,7 @@ model Customer {
   split_payments_credit SplitPayment[]     @relation("SplitPaymentCreditAccount")
   split_payments_debit  SplitPayment[]     @relation("SplitPaymentDebitAccount")
   subscriptions         Subscription[]
+  draft_sales           DraftSale[]
 
   @@index([city_id], map: "customers_city_id_fkey")
   @@index([cus_category], map: "customers_cus_category_fkey")
@@ -809,6 +811,27 @@ model StockTransferDetail {
   @@index([transfer_id], map: "stock_transfer_details_transfer_id_fkey")
   @@index([pro_id], map: "stock_transfer_details_pro_id_fkey")
   @@map("stock_transfer_details")
+}
+
+model DraftSale {
+  draft_id         Int       @id @default(autoincrement())
+  draft_code       String    @unique // Auto-generated like DRAFT-001, DRAFT-002
+  store_id         Int?
+  cus_id           Int?
+  form_state_json  String    @db.LongText // Stores entire form state as JSON
+  is_active        Boolean   @default(true)
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+  updated_by       Int?
+  customer         Customer? @relation(fields: [cus_id], references: [cus_id])
+  updated_by_user  Users?    @relation(fields: [updated_by], references: [user_id])
+
+  @@index([store_id], map: "draft_sales_store_id_idx")
+  @@index([cus_id], map: "draft_sales_cus_id_fkey")
+  @@index([updated_by], map: "draft_sales_updated_by_fkey")
+  @@index([is_active], map: "draft_sales_is_active_idx")
+  @@index([created_at], map: "draft_sales_created_at_idx")
+  @@map("draft_sales")
 }
 
 enum UserRole {
