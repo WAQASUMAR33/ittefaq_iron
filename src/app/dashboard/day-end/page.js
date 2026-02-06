@@ -169,8 +169,16 @@ export default function DayEndPage() {
       });
 
       if (response.ok) {
+        const data = await response.json();
         await fetchDayEndData();
-        alert('Day end data saved successfully!');
+        if (data.warning) {
+          alert('⚠️ Warning: ' + data.warning + '\n\nDay end data saved successfully!');
+        } else {
+          alert('Day end data saved successfully!');
+        }
+      } else {
+        const error = await response.json();
+        alert('Error: ' + (error.error || 'Failed to save day end data'));
       }
     } catch (error) {
       console.error('Error saving day end:', error);
@@ -201,8 +209,16 @@ export default function DayEndPage() {
         });
 
         if (response.ok) {
+          const data = await response.json();
           await fetchDayEndData();
-          alert('Day closed successfully!');
+          if (data.warning) {
+            alert('⚠️ Warning: ' + data.warning + '\n\nDay closed successfully!');
+          } else {
+            alert('Day closed successfully!');
+          }
+        } else {
+          const error = await response.json();
+          alert('Error: ' + (error.error || 'Failed to close day'));
         }
       } catch (error) {
         console.error('Error closing day:', error);

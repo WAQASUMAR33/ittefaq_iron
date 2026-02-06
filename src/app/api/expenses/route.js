@@ -78,7 +78,7 @@ export async function POST(request) {
 
     // Check if expense title exists
     const expenseTitle = await prisma.expenseTitle.findUnique({
-      where: { id: exp_type }
+      where: { id: parseInt(exp_type) }
     });
 
     if (!expenseTitle) {
@@ -89,7 +89,7 @@ export async function POST(request) {
     const expense = await prisma.expense.create({
       data: {
         exp_title: exp_title.trim(),
-        exp_type,
+        exp_type: parseInt(exp_type),
         exp_detail: exp_detail?.trim() || null,
         exp_amount: parseFloat(exp_amount),
         updated_by
@@ -140,7 +140,7 @@ export async function PUT(request) {
 
     // Check if expense title exists
     const expenseTitle = await prisma.expenseTitle.findUnique({
-      where: { id: exp_type }
+      where: { id: parseInt(exp_type) }
     });
 
     if (!expenseTitle) {
@@ -152,7 +152,7 @@ export async function PUT(request) {
       where: { exp_id: id },
       data: {
         exp_title: exp_title.trim(),
-        exp_type,
+        exp_type: parseInt(exp_type),
         exp_detail: exp_detail?.trim() || null,
         exp_amount: parseFloat(exp_amount),
         updated_by

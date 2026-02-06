@@ -3,6 +3,22 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+// Helper function to map TransactionType to PaymentType
+function mapTransactionTypeToPaymentType(transactionType) {
+  const mapping = {
+    'CASH': 'CASH',
+    'CHEQUE': 'CHEQUE',
+    'BANK_TRANSFER': 'BANK_TRANSFER',
+    'BANK_PAYMENT': 'BANK_TRANSFER',
+    'CASH_PAYMENT': 'CASH',
+    'PURCHASE': 'CASH', // Default to CASH for unspecified types
+    'SALE': 'CASH',
+    'SALE_RETURN': 'CASH',
+    'PURCHASE_RETURN': 'CASH'
+  };
+  return mapping[transactionType] || 'CASH'; // Default to CASH if not found
+}
+
 // GET - Fetch day end data for a specific date or current day
 export async function GET(request) {
   try {
@@ -194,6 +210,14 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Day is already closed' }, { status: 400 });
     }
 
+    // Validate closing_cash if closing the day
+    if (closing_cash) {
+      const closingCashNum = parseFloat(closing_cash);
+      if (isNaN(closingCashNum) || closingCashNum < 0) {
+        return NextResponse.json({ error: 'Closing cash must be a valid positive number' }, { status: 400 });
+      }
+    }
+
     // Calculate daily transactions
     const startOfDay = new Date(businessDate);
     startOfDay.setHours(0, 0, 0, 0);
@@ -261,20 +285,28 @@ export async function POST(request) {
     // Use transaction to ensure data consistency
     const result = await prisma.$transaction(async (tx) => {
       let dayEnd;
+      
+      // Determine opening_cash value: use provided value or existing value or default to 0
+      const finalOpeningCash = opening_cash !== undefined && opening_cash !== null && opening_cash !== '' 
+        ? parseFloat(opening_cash) 
+        : (existingDayEnd?.opening_cash ? parseFloat(existingDayEnd.opening_cash) : 0);
+      
+      // Calculate cash_in_hand based on final opening cash
+      const finalCashInHand = finalOpeningCash + totalReceipts - totalPayments;
 
       if (existingDayEnd) {
         // Update existing day end
         dayEnd = await tx.dayEnd.update({
           where: { day_end_id: existingDayEnd.day_end_id },
           data: {
-            opening_cash: parseFloat(opening_cash || 0),
+            opening_cash: finalOpeningCash,
             closing_cash: closing_cash ? parseFloat(closing_cash) : null,
             total_sales: totalSales,
             total_purchases: totalPurchases,
             total_expenses: totalExpenses,
             total_receipts: totalReceipts,
             total_payments: totalPayments,
-            cash_in_hand: parseFloat(opening_cash || 0) + totalReceipts - totalPayments,
+            cash_in_hand: finalCashInHand,
             status: closing_cash ? 'CLOSED' : 'OPEN',
             notes: notes || null,
             closed_by: closing_cash ? closed_by : null,
@@ -291,14 +323,14 @@ export async function POST(request) {
         dayEnd = await tx.dayEnd.create({
           data: {
             business_date: businessDate,
-            opening_cash: parseFloat(opening_cash || 0),
+            opening_cash: finalOpeningCash,
             closing_cash: closing_cash ? parseFloat(closing_cash) : null,
             total_sales: totalSales,
             total_purchases: totalPurchases,
             total_expenses: totalExpenses,
             total_receipts: totalReceipts,
             total_payments: totalPayments,
-            cash_in_hand: parseFloat(opening_cash || 0) + totalReceipts - totalPayments,
+            cash_in_hand: finalCashInHand,
             status: closing_cash ? 'CLOSED' : 'OPEN',
             notes: notes || null,
             closed_by: closing_cash ? closed_by : null,
@@ -349,13 +381,15 @@ export async function POST(request) {
 
       // Add ledger entries
       ledgerEntries.forEach(entry => {
+        const paymentType = mapTransactionTypeToPaymentType(entry.trnx_type);
+        
         if (entry.credit_amount > 0) {
           dayEndDetails.push({
             day_end_id: dayEnd.day_end_id,
             transaction_type: 'RECEIPT',
             transaction_id: entry.l_id,
             amount: parseFloat(entry.credit_amount),
-            payment_type: entry.trnx_type,
+            payment_type: paymentType,
             description: entry.details || 'Receipt'
           });
         }
@@ -365,7 +399,7 @@ export async function POST(request) {
             transaction_type: 'PAYMENT',
             transaction_id: entry.l_id,
             amount: parseFloat(entry.debit_amount),
-            payment_type: entry.trnx_type,
+            payment_type: paymentType,
             description: entry.details || 'Payment'
           });
         }
@@ -383,7 +417,22 @@ export async function POST(request) {
       timeout: 15000
     });
 
-    return NextResponse.json(result, { status: 201 });
+    // Calculate cash discrepancy if day is closed
+    let warning = null;
+    if (closing_cash) {
+      const closingCashNum = parseFloat(closing_cash);
+      const finalCashInHand = result.cash_in_hand ? parseFloat(result.cash_in_hand) : 0;
+      const discrepancy = Math.abs(closingCashNum - finalCashInHand);
+      
+      if (discrepancy > 0.01) { // Allow small floating-point differences
+        warning = `Cash discrepancy detected: Calculated cash in hand is ${finalCashInHand.toFixed(2)}, but closing cash is ${closingCashNum.toFixed(2)}. Difference: ${discrepancy.toFixed(2)}`;
+      }
+    }
+
+    return NextResponse.json({ 
+      ...result,
+      warning 
+    }, { status: 201 });
   } catch (error) {
     console.error('Error creating/updating day end:', error);
     return NextResponse.json({ error: 'Failed to create/update day end' }, { status: 500 });
@@ -405,10 +454,32 @@ export async function PUT(request) {
       return NextResponse.json({ error: 'Day end ID is required' }, { status: 400 });
     }
 
+    if (!closing_cash) {
+      return NextResponse.json({ error: 'Closing cash is required' }, { status: 400 });
+    }
+
+    const closingCashNum = parseFloat(closing_cash);
+    if (isNaN(closingCashNum) || closingCashNum < 0) {
+      return NextResponse.json({ error: 'Closing cash must be a valid positive number' }, { status: 400 });
+    }
+
+    // Get the day end record to calculate discrepancy
+    const dayEndRecord = await prisma.dayEnd.findUnique({
+      where: { day_end_id }
+    });
+
+    if (!dayEndRecord) {
+      return NextResponse.json({ error: 'Day end record not found' }, { status: 404 });
+    }
+
+    if (dayEndRecord.status === 'CLOSED') {
+      return NextResponse.json({ error: 'Day is already closed' }, { status: 400 });
+    }
+
     const result = await prisma.dayEnd.update({
       where: { day_end_id },
       data: {
-        closing_cash: parseFloat(closing_cash),
+        closing_cash: closingCashNum,
         status: 'CLOSED',
         notes: notes || null,
         closed_by,
@@ -416,7 +487,19 @@ export async function PUT(request) {
       }
     });
 
-    return NextResponse.json(result);
+    // Calculate cash discrepancy
+    const calculatedCashInHand = result.cash_in_hand ? parseFloat(result.cash_in_hand) : 0;
+    const discrepancy = Math.abs(closingCashNum - calculatedCashInHand);
+    let warning = null;
+
+    if (discrepancy > 0.01) {
+      warning = `Cash discrepancy detected: Calculated cash in hand is ${calculatedCashInHand.toFixed(2)}, but closing cash is ${closingCashNum.toFixed(2)}. Difference: ${discrepancy.toFixed(2)}`;
+    }
+
+    return NextResponse.json({ 
+      ...result,
+      warning 
+    });
   } catch (error) {
     console.error('Error updating day end:', error);
     return NextResponse.json({ error: 'Failed to update day end' }, { status: 500 });

@@ -36,7 +36,7 @@ export async function GET(request) {
     // Get sales data for the date
     const salesData = await prisma.sale.findMany({
       where: {
-        sale_date: {
+        created_at: {
           gte: new Date(date + 'T00:00:00.000Z'),
           lt: new Date(new Date(date).getTime() + 24 * 60 * 60 * 1000)
         }
@@ -50,7 +50,7 @@ export async function GET(request) {
     // Get purchase data for the date
     const purchaseData = await prisma.purchase.findMany({
       where: {
-        purchase_date: {
+        created_at: {
           gte: new Date(date + 'T00:00:00.000Z'),
           lt: new Date(new Date(date).getTime() + 24 * 60 * 60 * 1000)
         }
@@ -64,14 +64,13 @@ export async function GET(request) {
     // Get expense data for the date
     const expenseData = await prisma.expense.findMany({
       where: {
-        expense_date: {
+        created_at: {
           gte: new Date(date + 'T00:00:00.000Z'),
           lt: new Date(new Date(date).getTime() + 24 * 60 * 60 * 1000)
         }
       },
       select: {
-        amount: true,
-        payment_type: true
+        exp_amount: true
       }
     });
 
@@ -100,7 +99,7 @@ export async function GET(request) {
     // Calculate daily cash flow
     const totalSales = salesData.reduce((sum, s) => sum + parseFloat(s.total_amount), 0);
     const totalPurchases = purchaseData.reduce((sum, p) => sum + parseFloat(p.total_amount), 0);
-    const totalExpenses = expenseData.reduce((sum, e) => sum + parseFloat(e.amount), 0);
+    const totalExpenses = expenseData.reduce((sum, e) => sum + parseFloat(e.exp_amount), 0);
 
     // Calculate cash sales and purchases
     const cashSales = salesData
@@ -111,9 +110,7 @@ export async function GET(request) {
       .filter(p => p.payment_type === 'CASH')
       .reduce((sum, p) => sum + parseFloat(p.total_amount), 0);
 
-    const cashExpenses = expenseData
-      .filter(e => e.payment_type === 'CASH')
-      .reduce((sum, e) => sum + parseFloat(e.amount), 0);
+    const cashExpenses = totalExpenses;
 
     // Calculate net cash flow
     const netCashFlow = cashSales - cashPurchases - cashExpenses;

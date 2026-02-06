@@ -74,9 +74,9 @@ export async function POST(request) {
             data: {
               cus_id: detail.account_id,
               opening_balance: customer.cus_balance,
-              debit_amount: detail.debit_amount,
+              debit_amount: parseFloat(detail.debit_amount),
               credit_amount: 0,
-              closing_balance: customer.cus_balance + detail.debit_amount,
+              closing_balance: customer.cus_balance + parseFloat(detail.debit_amount),
               bill_no: `JRN-${journal.journal_id}`,
               trnx_type: 'CASH',
               details: detail.description || `Journal Entry - ${journal.journal_type}`,
@@ -89,7 +89,7 @@ export async function POST(request) {
           await tx.customer.update({
             where: { cus_id: detail.account_id },
             data: {
-              cus_balance: customer.cus_balance + detail.debit_amount
+              cus_balance: customer.cus_balance + parseFloat(detail.debit_amount)
             }
           });
         }
@@ -101,12 +101,12 @@ export async function POST(request) {
               cus_id: detail.account_id,
               opening_balance: customer.cus_balance,
               debit_amount: 0,
-              credit_amount: detail.credit_amount,
-              closing_balance: customer.cus_balance - detail.credit_amount,
+              credit_amount: parseFloat(detail.credit_amount),
+              closing_balance: customer.cus_balance - parseFloat(detail.credit_amount),
               bill_no: `JRN-${journal.journal_id}`,
               trnx_type: 'CASH',
               details: detail.description || `Journal Entry - ${journal.journal_type}`,
-              payments: detail.credit_amount,
+              payments: parseFloat(detail.credit_amount),
               updated_by: posted_by
             }
           });
@@ -115,7 +115,7 @@ export async function POST(request) {
           await tx.customer.update({
             where: { cus_id: detail.account_id },
             data: {
-              cus_balance: customer.cus_balance - detail.credit_amount
+              cus_balance: customer.cus_balance - parseFloat(detail.credit_amount)
             }
           });
         }
