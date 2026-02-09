@@ -256,6 +256,9 @@ function SalesPageContent() {
     stock: 0
   });
 
+  // Stock error state
+  const [stockError, setStockError] = useState('');
+
   // Product table state
   const [productTableData, setProductTableData] = useState([]);
 
@@ -756,6 +759,7 @@ function SalesPageContent() {
 
   // When store or product changes, refresh store-wise stock
   useEffect(() => {
+    setStockError(''); // Clear stock error when product/store changes
     if (formSelectedStore?.storeid && formSelectedProduct?.pro_id) {
       fetchStoreStock(formSelectedStore.storeid, formSelectedProduct.pro_id);
     }
@@ -766,6 +770,15 @@ function SalesPageContent() {
     const quantity = parseFloat(newQuantity) || 0;
     const rate = productFormData.rate;
     const amount = quantity * rate;
+    
+    // Check if quantity exceeds available stock
+    if (quantity > productFormData.stock && productFormData.stock >= 0) {
+      setStockError(`Stock not available - Available: ${productFormData.stock}, Requested: ${quantity}`);
+    } else if (quantity <= 0) {
+      setStockError('');
+    } else {
+      setStockError('');
+    }
 
     setProductFormData(prev => ({
       ...prev,
@@ -806,6 +819,12 @@ function SalesPageContent() {
       showSnackbar('Please enter a valid rate', 'error');
       return;
     }
+    
+    // Check stock availability
+    if (productFormData.quantity > productFormData.stock && productFormData.stock >= 0) {
+      showSnackbar(`Insufficient stock! Available: ${productFormData.stock}, Requested: ${productFormData.quantity}`, 'error');
+      return;
+    }
 
     // Check if product already exists in table
     const existingProductIndex = productTableData.findIndex(
@@ -813,6 +832,13 @@ function SalesPageContent() {
     );
 
     if (existingProductIndex >= 0) {
+      // Check total quantity including existing quantity
+      const totalQty = productTableData[existingProductIndex].quantity + productFormData.quantity;
+      if (totalQty > productFormData.stock && productFormData.stock >= 0) {
+        showSnackbar(`Total quantity would exceed stock! Available: ${productFormData.stock}, Total would be: ${totalQty}`, 'error');
+        return;
+      }
+      
       // Update existing product quantity and amount
       const updatedData = [...productTableData];
       updatedData[existingProductIndex].quantity += productFormData.quantity;
@@ -839,6 +865,7 @@ function SalesPageContent() {
 
     // Reset form
     setFormSelectedProduct(null);
+    setStockError('');
     // Don't reset store - it should remain selected
     setProductFormData({
       quantity: '',
@@ -1667,16 +1694,6 @@ function SalesPageContent() {
     }
     if (!newCustomer.cus_type) {
       showSnackbar('Customer type is required', 'error');
-      return;
-    }
-
-    // Check if customer with same phone number already exists
-    const existingCustomer = customers.find(customer =>
-      customer.cus_phone_no === newCustomer.cus_phone_no.trim()
-    );
-
-    if (existingCustomer) {
-      showSnackbar(`A customer with phone number ${newCustomer.cus_phone_no} already exists. Please use a different phone number.`, 'error');
       return;
     }
 
@@ -3310,8 +3327,14 @@ function SalesPageContent() {
                           }
                         }
                       }}
+                      error={!!stockError}
                       sx={{ bgcolor: 'white', width: 130, minWidth: 130 }}
                     />
+                    {stockError && (
+                      <Typography variant="caption" sx={{ color: '#d32f2f', display: 'block', mt: 0.5, fontWeight: 500 }}>
+                        🔴 {stockError}
+                      </Typography>
+                    )}
                   </Box>
                 </Grid>
                 <Grid item xs={12} md={1.5}>

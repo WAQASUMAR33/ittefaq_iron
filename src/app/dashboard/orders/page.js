@@ -1119,16 +1119,6 @@ function OrdersPageContent() {
       return;
     }
 
-    // Check if customer with same phone number already exists
-    const existingCustomer = customers.find(customer =>
-      customer.cus_phone_no === newCustomer.cus_phone_no.trim()
-    );
-
-    if (existingCustomer) {
-      showSnackbar(`A customer with phone number ${newCustomer.cus_phone_no} already exists. Please use a different phone number.`, 'error');
-      return;
-    }
-
     try {
       const customerData = {
         cus_name: newCustomer.cus_name.trim(),
