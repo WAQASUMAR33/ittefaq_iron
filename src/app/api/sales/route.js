@@ -107,16 +107,16 @@ export async function GET(request) {
         return NextResponse.json(sale);
       } catch (prismaError) {
         console.error('❌ Prisma error:', prismaError.code, prismaError.message);
-        
+
         // Handle missing advance_payment column
         if (prismaError.code === 'P2022' && prismaError.message?.includes('advance_payment')) {
-          return NextResponse.json({ 
+          return NextResponse.json({
             error: 'Database migration required: advance_payment column is missing',
             details: 'Please run the migration SQL to add advance_payment column to sales table.',
             sql: 'ALTER TABLE `sales` ADD COLUMN `advance_payment` DOUBLE NOT NULL DEFAULT 0 AFTER `bank_title`;'
           }, { status: 500 });
         }
-        
+
         // If store_id column doesn't exist, use raw SQL
         if (prismaError.code === 'P2022' && prismaError.message?.includes('store_id')) {
           console.warn('⚠️ store_id column not found in GET, using raw SQL fallback');
@@ -591,6 +591,7 @@ export async function POST(request) {
 
     // Check if this is a quotation or order (skip stock check for quotations and orders)
     const isQuotation = bill_type === 'QUOTATION';
+    const isOrder = bill_type === 'ORDER';
 
     // Stock validation removed - allow negative stock
     // if (!isQuotation) {
@@ -611,7 +612,7 @@ export async function POST(request) {
     // Detect if this is a loaded order (order being converted to sale)
     // Check: (1) explicit flag, or (2) reference contains "Converted from Order"
     const actualIsLoadedOrder = is_loaded_order || (reference && reference.includes('Converted from Order'));
-    
+
     console.log(`\n🔍 SALE/ORDER CREATION DEBUG:`);
     console.log(`   is_loaded_order flag: ${is_loaded_order}`);
     console.log(`   reference: ${reference}`);
@@ -799,9 +800,9 @@ export async function POST(request) {
         console.log('⚠️ No split payments to create - array is', split_payments === null ? 'NULL' : split_payments === undefined ? 'UNDEFINED' : 'EMPTY');
       }
 
-      // isQuotation is already defined above (before transaction)
-      // Update store stock quantities (instead of global product stock) - Skip for quotations
-      if (!isQuotation && store_id) {
+      // isQuotation and isOrder are already defined above (before transaction)
+      // Update store stock quantities (instead of global product stock) - Skip for quotations and orders
+      if (!isQuotation && !isOrder && store_id) {
         const storeStockUpdatePromises = sale_details.map(async detail => {
           await updateStoreStock(store_id, detail.pro_id, parseInt(detail.qnty), 'decrement', updated_by);
         });
@@ -814,15 +815,13 @@ export async function POST(request) {
       let runningBalance = customer.cus_balance;
 
       if (!isQuotation) {
-        // 1. Customer Bill Entry - Debit Customer Account
-        // For NEW sales: Debit full netTotal
-        // For LOADED orders: Skip bill entry (already debited when order was created) - ONLY create payment entries
-        
-        if (!actualIsLoadedOrder) {
-          console.log(`\n📝 CREATING BILL ENTRY (New Sale Mode)`);
-          // New sale from scratch: Debit full netTotal
+        if (!isOrder && !isQuotation) {
+          console.log(`\n📝 CREATING BILL ENTRY (Bill/Sale Mode)`);
+          // Note: Previously we skipped bill entry if actualIsLoadedOrder was true.
+          // Now we ALWAYS create bill entry for BILLs, even if loaded from an order,
+          // because orders no longer create bill entries themselves.
           const debitAmount = netTotal;
-          
+
           if (debitAmount > 0) {
             const billEntry = createLedgerEntry({
               cus_id,
@@ -850,7 +849,7 @@ export async function POST(request) {
           console.log(`   Opening Balance: ${runningBalance}`);
           // Build description with payment breakdown
           let paymentDescription = `Payment Received - ${bill_type || 'BILL'} - Customer Account (Credit)`;
-          
+
           // Add split payment details if split payments exist
           if (split_payments && split_payments.length > 0 && (parseFloat(cash_payment || 0) > 0 || parseFloat(bank_payment || 0) > 0)) {
             const paymentBreakdown = [];
@@ -864,7 +863,7 @@ export async function POST(request) {
               paymentDescription += ` | Split: ${paymentBreakdown.join(', ')}`;
             }
           }
-          
+
           const paymentEntry = createLedgerEntry({
             cus_id,
             opening_balance: runningBalance,  // Use previous entry's closing
@@ -887,7 +886,7 @@ export async function POST(request) {
         if (parseFloat(cash_payment || 0) > 0 && specialAccounts.cash) {
           console.log(`💵 CASH PAYMENT DETECTED: ${cash_payment}`);
           console.log(`💵 Cash Account Before: ID=${specialAccounts.cash.cus_id}, Name=${specialAccounts.cash.cus_name}, Balance=${specialAccounts.cash.cus_balance}`);
-          
+
           const cashEntry = createLedgerEntry({
             cus_id: specialAccounts.cash.cus_id,
             opening_balance: specialAccounts.cash.cus_balance,
@@ -908,7 +907,7 @@ export async function POST(request) {
         if (parseFloat(bank_payment || 0) > 0 && specialAccounts.bank) {
           console.log(`🏦 BANK PAYMENT DETECTED: ${bank_payment}`);
           console.log(`🏦 Bank Account Before: ID=${specialAccounts.bank.cus_id}, Name=${specialAccounts.bank.cus_name}, Balance=${specialAccounts.bank.cus_balance}`);
-          
+
           const bankEntry = createLedgerEntry({
             cus_id: specialAccounts.bank.cus_id,
             opening_balance: specialAccounts.bank.cus_balance,
@@ -982,56 +981,56 @@ export async function POST(request) {
           }
         }
 
-      // Create all ledger entries (skip for quotations)
-      if (!isQuotation) {
-        console.log(`\n📊 CREATING LEDGER ENTRIES IN DATABASE`);
-        console.log(`   Total entries to create: ${ledgerEntries.length}`);
-        
-        for (let i = 0; i < ledgerEntries.length; i++) {
-          const entry = ledgerEntries[i];
-          console.log(`   Entry ${i + 1}: Customer=${entry.cus_id}, Debit=${entry.debit_amount}, Credit=${entry.credit_amount}, Details=${entry.details.substring(0, 50)}...`);
-          
-          await tx.ledger.create({
-            data: {
-              cus_id: entry.cus_id,
-              opening_balance: entry.opening_balance,
-              debit_amount: entry.debit_amount,
-              credit_amount: entry.credit_amount,
-              closing_balance: entry.closing_balance,
-              bill_no: entry.bill_no,
-              trnx_type: entry.trnx_type,
-              details: entry.details,
-              payments: entry.payments,
-              updated_by: entry.updated_by
-            }
-          });
-          console.log(`   ✅ Entry ${i + 1} created in database`);
+        // Create all ledger entries (skip for quotations)
+        if (!isQuotation) {
+          console.log(`\n📊 CREATING LEDGER ENTRIES IN DATABASE`);
+          console.log(`   Total entries to create: ${ledgerEntries.length}`);
+
+          for (let i = 0; i < ledgerEntries.length; i++) {
+            const entry = ledgerEntries[i];
+            console.log(`   Entry ${i + 1}: Customer=${entry.cus_id}, Debit=${entry.debit_amount}, Credit=${entry.credit_amount}, Details=${entry.details.substring(0, 50)}...`);
+
+            await tx.ledger.create({
+              data: {
+                cus_id: entry.cus_id,
+                opening_balance: entry.opening_balance,
+                debit_amount: entry.debit_amount,
+                credit_amount: entry.credit_amount,
+                closing_balance: entry.closing_balance,
+                bill_no: entry.bill_no,
+                trnx_type: entry.trnx_type,
+                details: entry.details,
+                payments: entry.payments,
+                updated_by: entry.updated_by
+              }
+            });
+            console.log(`   ✅ Entry ${i + 1} created in database`);
+          }
+          console.log(`📊 All ${ledgerEntries.length} ledger entries created successfully\n`);
+
+          // Update customer balance to match the LAST customer ledger entry's closing balance
+          // Find the LAST entry where cus_id matches the customer being invoiced
+          const customerLedgerEntries = ledgerEntries.filter(e => e.cus_id === cus_id);
+          if (customerLedgerEntries.length > 0) {
+            const lastCustomerEntry = customerLedgerEntries[customerLedgerEntries.length - 1];
+            const ledgerClosingBalance = parseFloat(lastCustomerEntry.closing_balance);
+
+            console.log(`\n========== CUSTOMER BALANCE UPDATE START ==========`);
+            console.log(`Customer: ${customer.cus_name} (ID: ${cus_id})`);
+            console.log(`Bill Type: ${bill_type}`);
+            console.log(`Found ${customerLedgerEntries.length} ledger entries for customer`);
+            console.log(`Setting balance to match last customer ledger closing: ${ledgerClosingBalance}`);
+
+            await tx.customer.update({
+              where: { cus_id },
+              data: {
+                cus_balance: ledgerClosingBalance
+              }
+            });
+            console.log(`✅ CUSTOMER BALANCE UPDATED: ${customer.cus_name} balance set to ${ledgerClosingBalance}`);
+            console.log(`========== CUSTOMER BALANCE UPDATE END ==========\n`);
+          }
         }
-        console.log(`📊 All ${ledgerEntries.length} ledger entries created successfully\n`);
-        
-        // Update customer balance to match the LAST customer ledger entry's closing balance
-        // Find the LAST entry where cus_id matches the customer being invoiced
-        const customerLedgerEntries = ledgerEntries.filter(e => e.cus_id === cus_id);
-        if (customerLedgerEntries.length > 0) {
-          const lastCustomerEntry = customerLedgerEntries[customerLedgerEntries.length - 1];
-          const ledgerClosingBalance = parseFloat(lastCustomerEntry.closing_balance);
-          
-          console.log(`\n========== CUSTOMER BALANCE UPDATE START ==========`);
-          console.log(`Customer: ${customer.cus_name} (ID: ${cus_id})`);
-          console.log(`Bill Type: ${bill_type}`);
-          console.log(`Found ${customerLedgerEntries.length} ledger entries for customer`);
-          console.log(`Setting balance to match last customer ledger closing: ${ledgerClosingBalance}`);
-          
-          await tx.customer.update({
-            where: { cus_id },
-            data: {
-              cus_balance: ledgerClosingBalance
-            }
-          });
-          console.log(`✅ CUSTOMER BALANCE UPDATED: ${customer.cus_name} balance set to ${ledgerClosingBalance}`);
-          console.log(`========== CUSTOMER BALANCE UPDATE END ==========\n`);
-        }
-      }
 
 
         // Update cash account balance - SET directly to closing balance
@@ -1040,7 +1039,7 @@ export async function POST(request) {
           const cashLedgerEntry = ledgerEntries.find(e => e.cus_id === specialAccounts.cash.cus_id);
           if (cashLedgerEntry) {
             console.log(`💵 UPDATING CASH ACCOUNT: Setting balance from ledger closing balance ${cashLedgerEntry.closing_balance}`);
-            
+
             await tx.customer.update({
               where: { cus_id: specialAccounts.cash.cus_id },
               data: {
@@ -1057,7 +1056,7 @@ export async function POST(request) {
           const bankLedgerEntry = ledgerEntries.find(e => e.cus_id === specialAccounts.bank.cus_id);
           if (bankLedgerEntry) {
             console.log(`🏦 UPDATING BANK ACCOUNT: Setting balance from ledger closing balance ${bankLedgerEntry.closing_balance}`);
-            
+
             await tx.customer.update({
               where: { cus_id: specialAccounts.bank.cus_id },
               data: {

@@ -1,16 +1,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { 
+import {
   Download,
   Printer,
   ArrowLeft,
   FileText,
   Search,
-  X
+  X,
+  User
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
+import { Autocomplete, TextField, InputAdornment } from '@mui/material';
 
 export default function CustomerLedgerReport() {
   const router = useRouter();
@@ -41,7 +43,9 @@ export default function CustomerLedgerReport() {
 
   const filteredCustomers = customers.filter(customer => {
     const matchesSearch = customer.cus_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
-                         customer.cus_phone_no?.toLowerCase().includes(customerSearchTerm.toLowerCase());
+      customer.cus_phone_no?.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
+      customer.cus_phone_no2?.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
+      customer.cus_reference?.toLowerCase().includes(customerSearchTerm.toLowerCase());
     return matchesSearch;
   });
 
@@ -65,7 +69,7 @@ export default function CustomerLedgerReport() {
       setLoading(true);
       const response = await fetch(`/api/reports?type=customer-ledger&customerId=${selectedCustomer.cus_id}&startDate=${startDate}&endDate=${endDate}`);
       const data = await response.json();
-      
+
       if (response.ok) {
         setReportData(data);
       } else {
@@ -94,7 +98,7 @@ export default function CustomerLedgerReport() {
     csv += `From: ${new Date(startDate).toLocaleDateString()} To: ${new Date(endDate).toLocaleDateString()}\n`;
     csv += `Generated on: ${new Date().toLocaleString()}\n\n`;
     csv += 'Date,Type,Bill No,Details,Debit,Credit,Balance,Payments\n';
-    
+
     reportData.ledgerEntries.forEach(entry => {
       csv += `${new Date(entry.created_at).toLocaleDateString()},${entry.trnx_type},${entry.bill_no || ''},${entry.details || ''},${parseFloat(entry.debit_amount).toFixed(2)},${parseFloat(entry.credit_amount).toFixed(2)},${parseFloat(entry.closing_balance).toFixed(2)},${parseFloat(entry.payments).toFixed(2)}\n`;
     });
@@ -140,40 +144,48 @@ export default function CustomerLedgerReport() {
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div className="sm:col-span-2 relative">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Select Customer *</label>
-                <input
-                  type="text"
-                  value={customerSearchTerm}
-                  onChange={(e) => {
-                    setCustomerSearchTerm(e.target.value);
-                    setShowCustomerDropdown(true);
-                    if (!e.target.value) {
-                      setSelectedCustomer(null);
+                <Autocomplete
+                  options={customers}
+                  getOptionLabel={(option) => `${option.cus_name} (${option.cus_phone_no || option.cus_phone_no2 || 'No Phone'}) ${option.cus_reference ? `[Ref: ${option.cus_reference}]` : ''}`}
+                  value={selectedCustomer}
+                  onChange={(event, newValue) => {
+                    setSelectedCustomer(newValue);
+                    if (newValue) {
+                      setCustomerSearchTerm(newValue.cus_name);
+                    } else {
+                      setCustomerSearchTerm('');
                     }
                   }}
-                  onFocus={() => setShowCustomerDropdown(true)}
-                  placeholder="Search customers..."
-                  className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
+                  autoSelect={true}
+                  autoHighlight={true}
+                  openOnFocus={true}
+                  selectOnFocus={true}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      placeholder="Search and select customer..."
+                      onFocus={(e) => e.target.select()}
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: '0.5rem',
+                          backgroundColor: 'white',
+                          minHeight: '42px',
+                        }
+                      }}
+                      InputProps={{
+                        ...params.InputProps,
+                        startAdornment: (
+                          <>
+                            <InputAdornment position="start">
+                              <Search size={18} className="text-gray-400" />
+                            </InputAdornment>
+                            {params.InputProps.startAdornment}
+                          </>
+                        ),
+                      }}
+                    />
+                  )}
                 />
-                <Search className="w-4 h-4 text-gray-400 absolute right-3 top-11" />
-                
-                {showCustomerDropdown && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                    {filteredCustomers.length > 0 ? (
-                      filteredCustomers.map((customer) => (
-                        <div
-                          key={customer.cus_id}
-                          onClick={() => selectCustomer(customer)}
-                          className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                        >
-                          <div className="font-medium text-gray-900">{customer.cus_name}</div>
-                          <div className="text-sm text-gray-500">{customer.cus_phone_no}</div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="px-4 py-3 text-gray-500 text-center">No customers found</div>
-                    )}
-                  </div>
-                )}
 
                 {selectedCustomer && (
                   <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
@@ -276,7 +288,7 @@ export default function CustomerLedgerReport() {
                 <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200">
                   <h3 className="text-lg font-semibold text-gray-900">Ledger Entries</h3>
                 </div>
-                
+
                 <div className="flex-1 overflow-auto print:overflow-visible print:block">
                   <table className="min-w-full divide-y divide-gray-200 print:block print:table">
                     <thead className="bg-white border-b-2 border-gray-300 sticky top-0 print:relative">

@@ -274,7 +274,7 @@ export async function POST(request) {
     const result = await prisma.$transaction(async (tx) => {
       // Determine if this is a return (do this first so it can be used throughout)
       const isReturn = purchase_type === 'return';
-      
+
       // Get customer's current balance
       const customerData = await tx.customer.findUnique({
         where: { cus_id },
@@ -375,10 +375,13 @@ export async function POST(request) {
       // Create comprehensive ledger entries for purchase
       // For NEW PURCHASE: Debit increases supplier balance, Debit decreases cash/bank
       // For PURCHASE RETURN: Credit decreases supplier balance, Credit increases cash/bank
-      
+
       let currentSupplierBalance = 0;
       const amountMultiplier = isReturn ? -1 : 1; // Returns negate the amounts
-      
+
+      // Calculate supplier amount (ONLY product subtotal minus discount)
+      const supplierAmount = safeParseFloat(total_amount) - safeParseFloat(discount);
+
       if (cus_id) {
         const supplierData = await tx.customer.findUnique({
           where: { cus_id: cus_id },
@@ -386,14 +389,14 @@ export async function POST(request) {
         });
         currentSupplierBalance = parseFloat(supplierData?.cus_balance || 0);
 
-        // Supplier Account Entry
+        // Supplier Account Entry - ONLY for product subtotal (excluding labour and delivery)
         // NEW PURCHASE: Debit (amount owed increases)
         // PURCHASE RETURN: Credit (amount owed decreases)
         const supplierEntry = createLedgerEntry({
           cus_id: cus_id,
           opening_balance: currentSupplierBalance,
-          debit_amount: isReturn ? 0 : net_total,
-          credit_amount: isReturn ? net_total : 0,
+          debit_amount: isReturn ? 0 : supplierAmount,
+          credit_amount: isReturn ? supplierAmount : 0,
           bill_no: newPurchase.pur_id.toString(),
           trnx_type: 'CASH',
           details: `${isReturn ? 'Purchase Return' : 'Purchase Invoice'}${invoice_number ? ` #${invoice_number}` : ''} ${isReturn ? 'to' : 'from'} ${supplierData?.cus_name || 'Supplier'}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
@@ -405,6 +408,61 @@ export async function POST(request) {
 
         // Update running balance
         currentSupplierBalance = supplierEntry.closing_balance;
+      }
+
+      // Create expense entries for Labour and Delivery charges
+      // First, ensure expense titles exist
+      const labourAmount = safeParseFloat(labour_amount);
+      const deliveryAmount = safeParseFloat(transport_amount);
+
+      if (!isReturn && (labourAmount > 0 || deliveryAmount > 0)) {
+        // Get or create "Labour" expense title
+        if (labourAmount > 0) {
+          let labourExpenseTitle = await tx.expenseTitle.findFirst({
+            where: { title: 'Labour' }
+          });
+
+          if (!labourExpenseTitle) {
+            labourExpenseTitle = await tx.expenseTitle.create({
+              data: { title: 'Labour' }
+            });
+          }
+
+          // Create labour expense
+          await tx.expense.create({
+            data: {
+              exp_title: `Labour charges for Purchase #${newPurchase.pur_id}${invoice_number ? ` (Invoice: ${invoice_number})` : ''}`,
+              exp_type: labourExpenseTitle.id,
+              exp_detail: `Labour charges for purchase${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
+              exp_amount: labourAmount,
+              updated_by: updated_by ? safeParseInt(updated_by) : null
+            }
+          });
+        }
+
+        // Get or create "Delivery" expense title
+        if (deliveryAmount > 0) {
+          let deliveryExpenseTitle = await tx.expenseTitle.findFirst({
+            where: { title: 'Delivery' }
+          });
+
+          if (!deliveryExpenseTitle) {
+            deliveryExpenseTitle = await tx.expenseTitle.create({
+              data: { title: 'Delivery' }
+            });
+          }
+
+          // Create delivery expense
+          await tx.expense.create({
+            data: {
+              exp_title: `Delivery charges for Purchase #${newPurchase.pur_id}${invoice_number ? ` (Invoice: ${invoice_number})` : ''}`,
+              exp_type: deliveryExpenseTitle.id,
+              exp_detail: `Delivery/Transport charges for purchase${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
+              exp_amount: deliveryAmount,
+              updated_by: updated_by ? safeParseInt(updated_by) : null
+            }
+          });
+        }
       }
 
       // 2. Payment Entries based on payment type
@@ -430,7 +488,7 @@ export async function POST(request) {
           select: { cus_balance: true, cus_name: true }
         });
         const cashCurrentBalance = parseFloat(cashAccountData?.cus_balance || 0);
-        const cashNewBalance = isReturn 
+        const cashNewBalance = isReturn
           ? cashCurrentBalance + cashPaymentAmount  // Add cash on return
           : cashCurrentBalance - cashPaymentAmount; // Reduce cash on purchase
 
@@ -747,20 +805,21 @@ export async function PUT(request) {
         }
       }
 
-      // Supplier debit entry for purchase amount
+      // Supplier debit entry for purchase amount (ONLY product subtotal minus discount)
       if (cus_id) {
         const supplierData = await tx.customer.findUnique({
           where: { cus_id: cus_id },
           select: { cus_balance: true, cus_name: true }
         });
         const supplierCurrentBalance = parseFloat(supplierData?.cus_balance || 0);
-        const supplierNewBalance = supplierCurrentBalance + parseFloat(net_total || 0);
+        const supplierAmount = safeParseFloat(total_amount) - safeParseFloat(discount);
+        const supplierNewBalance = supplierCurrentBalance + supplierAmount;
 
         await tx.ledger.create({
           data: {
             cus_id: cus_id,
             opening_balance: supplierCurrentBalance,
-            debit_amount: parseFloat(net_total || 0),
+            debit_amount: supplierAmount,
             credit_amount: 0,
             closing_balance: supplierNewBalance,
             bill_no: id.toString(),

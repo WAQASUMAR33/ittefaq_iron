@@ -23,7 +23,9 @@ export async function GET(request) {
             select: {
               cus_id: true,
               cus_name: true,
-              cus_phone_no: true
+              cus_phone_no: true,
+              cus_category: true,
+              cus_type: true
             }
           },
           updated_by_user: {
@@ -56,7 +58,9 @@ export async function GET(request) {
           select: {
             cus_id: true,
             cus_name: true,
-            cus_phone_no: true
+            cus_phone_no: true,
+            cus_category: true,
+            cus_type: true
           }
         },
         updated_by_user: {
@@ -83,13 +87,13 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { 
-      cus_id, 
-      debit_amount = 0, 
-      credit_amount = 0, 
-      bill_no, 
-      trnx_type, 
-      details, 
+    const {
+      cus_id,
+      debit_amount = 0,
+      credit_amount = 0,
+      bill_no,
+      trnx_type,
+      details,
       payments = 0,
       updated_by
     } = body;
@@ -161,7 +165,9 @@ export async function POST(request) {
           select: {
             cus_id: true,
             cus_name: true,
-            cus_phone_no: true
+            cus_phone_no: true,
+            cus_category: true,
+            cus_type: true
           }
         },
         updated_by_user: {
@@ -187,14 +193,14 @@ export async function POST(request) {
 export async function PUT(request) {
   try {
     const body = await request.json();
-    const { 
+    const {
       id,
-      cus_id, 
-      debit_amount = 0, 
-      credit_amount = 0, 
-      bill_no, 
-      trnx_type, 
-      details, 
+      cus_id,
+      debit_amount = 0,
+      credit_amount = 0,
+      bill_no,
+      trnx_type,
+      details,
       payments = 0,
       updated_by
     } = body;
@@ -274,7 +280,9 @@ export async function PUT(request) {
           select: {
             cus_id: true,
             cus_name: true,
-            cus_phone_no: true
+            cus_phone_no: true,
+            cus_category: true,
+            cus_type: true
           }
         },
         updated_by_user: {

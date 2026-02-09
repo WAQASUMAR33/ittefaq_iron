@@ -24,7 +24,13 @@ import {
   Alert,
   Snackbar,
   CircularProgress,
-  InputAdornment
+  InputAdornment,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Avatar,
+  Divider
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -39,7 +45,11 @@ import {
   Print as PrintIcon,
   Save as SaveIcon,
   Clear as ClearIcon,
-  FilterList as FilterIcon
+  FilterList as FilterIcon,
+  Close as CloseIcon,
+  Person as PersonIcon,
+  Business as BusinessIcon,
+  LocationOn as MapPinIcon
 } from '@mui/icons-material';
 
 export default function StockTransferPage() {
@@ -50,14 +60,14 @@ export default function StockTransferPage() {
   const [loading, setLoading] = useState(false);
   const [currentTransferIndex, setCurrentTransferIndex] = useState(-1);
   const [currentView, setCurrentView] = useState('list'); // 'list' or 'form'
-  
+
   // Filter state
   const [searchTerm, setSearchTerm] = useState('');
   const [filterFromStore, setFilterFromStore] = useState('');
   const [filterToStore, setFilterToStore] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  
+
   // Form state
   const [transferNo, setTransferNo] = useState('');
   const [transferDate, setTransferDate] = useState(new Date().toISOString().split('T')[0]);
@@ -69,7 +79,7 @@ export default function StockTransferPage() {
   const [notes, setNotes] = useState('');
   const [transferItems, setTransferItems] = useState([]);
   const [currentStock, setCurrentStock] = useState(null);
-  
+
   // Snackbar
   const [snackbar, setSnackbar] = useState({
     open: false,
@@ -77,12 +87,48 @@ export default function StockTransferPage() {
     severity: 'success'
   });
 
+  // Account creation states
+  const [showAccountForm, setShowAccountForm] = useState(false);
+  const [isSubmittingAccount, setIsSubmittingAccount] = useState(false);
+  const [customerCategories, setCustomerCategories] = useState([]);
+  const [customerTypes, setCustomerTypes] = useState([]);
+  const [cities, setCities] = useState([]);
+  const [accountFormData, setAccountFormData] = useState({
+    cus_name: '',
+    cus_phone_no: '',
+    cus_address: '',
+    cus_type: '',
+    cus_category: '',
+    city_id: '',
+    cus_email: '',
+    cus_reference: '',
+    cus_account_info: '',
+    cus_opening_balance: '0',
+    cus_balance: '0'
+  });
+
   // Fetch data on mount
   useEffect(() => {
     fetchStores();
     fetchProducts();
     fetchTransfers();
+    fetchAccountRelatedData();
   }, []);
+
+  const fetchAccountRelatedData = async () => {
+    try {
+      const [categoriesRes, typesRes, citiesRes] = await Promise.all([
+        fetch('/api/customer-category'),
+        fetch('/api/customer-types'),
+        fetch('/api/cities')
+      ]);
+      if (categoriesRes.ok) setCustomerCategories(await categoriesRes.json());
+      if (typesRes.ok) setCustomerTypes(await typesRes.json());
+      if (citiesRes.ok) setCities(await citiesRes.json());
+    } catch (error) {
+      console.error('Error fetching account related data:', error);
+    }
+  };
 
   const fetchStores = async () => {
     try {
@@ -145,9 +191,51 @@ export default function StockTransferPage() {
     }
   };
 
+  const handleAccountFormChange = (e) => {
+    const { name, value } = e.target;
+    setAccountFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSaveAccount = async (e) => {
+    e.preventDefault();
+    if (isSubmittingAccount) return;
+    setIsSubmittingAccount(true);
+    try {
+      const response = await fetch('/api/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(accountFormData)
+      });
+      if (response.ok) {
+        showSnackbar('Account created successfully', 'success');
+        setShowAccountForm(false);
+        setAccountFormData({
+          cus_name: '',
+          cus_phone_no: '',
+          cus_address: '',
+          cus_type: '',
+          cus_category: '',
+          city_id: '',
+          cus_email: '',
+          cus_reference: '',
+          cus_account_info: '',
+          cus_opening_balance: '0',
+          cus_balance: '0'
+        });
+      } else {
+        showSnackbar('Failed to create account', 'error');
+      }
+    } catch (error) {
+      console.error('Error saving account:', error);
+      showSnackbar('Error saving account', 'error');
+    } finally {
+      setIsSubmittingAccount(false);
+    }
+  };
+
   const loadTransfer = (transfer) => {
     if (!transfer) return;
-    
+
     setTransferNo(transfer.transfer_no || '');
     setTransferDate(transfer.transfer_date ? new Date(transfer.transfer_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
     const storesArray = Array.isArray(stores) ? stores : [];
@@ -233,7 +321,7 @@ export default function StockTransferPage() {
 
     // Check if product already exists
     const existingIndex = transferItems.findIndex(item => item.pro_id === selectedProduct.pro_id);
-    
+
     if (existingIndex !== -1) {
       // Update existing item
       const updatedItems = [...transferItems];
@@ -311,12 +399,12 @@ export default function StockTransferPage() {
 
       // If we have a transfer_id, it's an update
       const currentTransfer = transfers[currentTransferIndex];
-      const url = currentTransfer?.transfer_id 
-        ? `/api/stock-transfers` 
+      const url = currentTransfer?.transfer_id
+        ? `/api/stock-transfers`
         : '/api/stock-transfers';
       const method = currentTransfer?.transfer_id ? 'PUT' : 'POST';
 
-      const body = currentTransfer?.transfer_id 
+      const body = currentTransfer?.transfer_id
         ? { ...transferData, transfer_id: currentTransfer.transfer_id }
         : transferData;
 
@@ -427,39 +515,39 @@ export default function StockTransferPage() {
 
     return transfers.filter(transfer => {
       // Search filter - by transfer no or notes
-      const matchesSearch = searchTerm === '' || 
+      const matchesSearch = searchTerm === '' ||
         (transfer.transfer_no && transfer.transfer_no.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (transfer.notes && transfer.notes.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (transfer.transfer_id && transfer.transfer_id.toString().includes(searchTerm));
 
       // From Store filter
-      const matchesFromStore = filterFromStore === '' || 
+      const matchesFromStore = filterFromStore === '' ||
         (transfer.from_store?.storeid?.toString() === filterFromStore) ||
         (transfer.from_store_id?.toString() === filterFromStore);
 
       // To Store filter
-      const matchesToStore = filterToStore === '' || 
+      const matchesToStore = filterToStore === '' ||
         (transfer.to_store?.storeid?.toString() === filterToStore) ||
         (transfer.to_store_id?.toString() === filterToStore);
 
       // Date range filters
-      const matchesDateFrom = dateFrom === '' || 
+      const matchesDateFrom = dateFrom === '' ||
         (transfer.transfer_date && new Date(transfer.transfer_date) >= new Date(dateFrom));
 
-      const matchesDateTo = dateTo === '' || 
+      const matchesDateTo = dateTo === '' ||
         (transfer.transfer_date && new Date(transfer.transfer_date) <= new Date(dateTo));
 
-      return matchesSearch && matchesFromStore && matchesToStore && 
-             matchesDateFrom && matchesDateTo;
+      return matchesSearch && matchesFromStore && matchesToStore &&
+        matchesDateFrom && matchesDateTo;
     });
   }, [transfers, searchTerm, filterFromStore, filterToStore, dateFrom, dateTo]);
 
   // Render List View
   const renderListView = () => (
     <DashboardLayout>
-      <Container 
+      <Container
         maxWidth={false}
-        sx={{ 
+        sx={{
           py: 2,
           maxWidth: {
             xs: '100%',           // Mobile: full width
@@ -477,17 +565,31 @@ export default function StockTransferPage() {
             <Typography variant="h5" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
               Stock Transfers
             </Typography>
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={handleNew}
-              sx={{
-                bgcolor: '#9c27b0',
-                '&:hover': { bgcolor: '#7b1fa2' }
-              }}
-            >
-              New Transfer
-            </Button>
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <Button
+                variant="outlined"
+                startIcon={<AddIcon />}
+                onClick={() => setShowAccountForm(true)}
+                sx={{
+                  borderColor: '#9c27b0',
+                  color: '#9c27b0',
+                  '&:hover': { borderColor: '#7b1fa2', bgcolor: 'rgba(156, 39, 176, 0.04)' }
+                }}
+              >
+                New Account
+              </Button>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={handleNew}
+                sx={{
+                  bgcolor: '#9c27b0',
+                  '&:hover': { bgcolor: '#7b1fa2' }
+                }}
+              >
+                New Transfer
+              </Button>
+            </Box>
           </Box>
 
           {/* Filter Section */}
@@ -518,6 +620,10 @@ export default function StockTransferPage() {
                 <Grid item xs={12} sm={6} md={2.4}>
                   <Autocomplete
                     fullWidth
+                    autoSelect={true}
+                    autoHighlight={true}
+                    openOnFocus={true}
+                    selectOnFocus={true}
                     size="small"
                     options={Array.isArray(stores) ? stores : []}
                     getOptionLabel={(option) => option?.store_name || ''}
@@ -531,6 +637,7 @@ export default function StockTransferPage() {
                         {...params}
                         label="From Store"
                         placeholder="Select from store"
+                        onFocus={(e) => e.target.select()}
                         sx={{ minWidth: 150 }}
                       />
                     )}
@@ -540,6 +647,10 @@ export default function StockTransferPage() {
                 <Grid item xs={12} sm={6} md={2.4}>
                   <Autocomplete
                     fullWidth
+                    autoSelect={true}
+                    autoHighlight={true}
+                    openOnFocus={true}
+                    selectOnFocus={true}
                     size="small"
                     options={Array.isArray(stores) ? stores : []}
                     getOptionLabel={(option) => option?.store_name || ''}
@@ -553,6 +664,7 @@ export default function StockTransferPage() {
                         {...params}
                         label="To Store"
                         placeholder="Select to store"
+                        onFocus={(e) => e.target.select()}
                         sx={{ minWidth: 150 }}
                       />
                     )}
@@ -638,7 +750,7 @@ export default function StockTransferPage() {
                         <TableRow key={transfer.transfer_id} hover>
                           <TableCell>{transfer.transfer_no || `#${transfer.transfer_id}`}</TableCell>
                           <TableCell>
-                            {transfer.transfer_date 
+                            {transfer.transfer_date
                               ? new Date(transfer.transfer_date).toLocaleDateString('en-GB')
                               : 'N/A'}
                           </TableCell>
@@ -696,9 +808,9 @@ export default function StockTransferPage() {
   // Render Form View
   const renderFormView = () => (
     <DashboardLayout>
-      <Container 
+      <Container
         maxWidth={false}
-        sx={{ 
+        sx={{
           py: 2,
           maxWidth: {
             xs: '100%',           // Mobile: full width
@@ -789,6 +901,10 @@ export default function StockTransferPage() {
                     SELECT FROM STORE:
                   </Typography>
                   <Autocomplete
+                    autoSelect={true}
+                    autoHighlight={true}
+                    openOnFocus={true}
+                    selectOnFocus={true}
                     options={Array.isArray(stores) ? stores : []}
                     getOptionLabel={(option) => option?.store_name || ''}
                     value={fromStore}
@@ -798,6 +914,7 @@ export default function StockTransferPage() {
                       <TextField
                         {...params}
                         placeholder="Select from store"
+                        onFocus={(e) => e.target.select()}
                         sx={{ bgcolor: 'white', minWidth: 250 }}
                       />
                     )}
@@ -811,6 +928,10 @@ export default function StockTransferPage() {
                     SELECT TO STORE:
                   </Typography>
                   <Autocomplete
+                    autoSelect={true}
+                    autoHighlight={true}
+                    openOnFocus={true}
+                    selectOnFocus={true}
                     options={Array.isArray(stores) ? stores : []}
                     getOptionLabel={(option) => option?.store_name || ''}
                     value={toStore}
@@ -820,6 +941,7 @@ export default function StockTransferPage() {
                       <TextField
                         {...params}
                         placeholder="Select to store"
+                        onFocus={(e) => e.target.select()}
                         sx={{ bgcolor: 'white', minWidth: 250 }}
                       />
                     )}
@@ -841,6 +963,10 @@ export default function StockTransferPage() {
                       SELECT PRODUCT:
                     </Typography>
                     <Autocomplete
+                      autoSelect={true}
+                      autoHighlight={true}
+                      openOnFocus={true}
+                      selectOnFocus={true}
                       options={Array.isArray(products) ? products : []}
                       getOptionLabel={(option) => option?.pro_title || ''}
                       value={selectedProduct}
@@ -853,6 +979,7 @@ export default function StockTransferPage() {
                         <TextField
                           {...params}
                           placeholder="Select product"
+                          onFocus={(e) => e.target.select()}
                           sx={{ bgcolor: 'white', minWidth: 350 }}
                         />
                       )}
@@ -1070,6 +1197,226 @@ export default function StockTransferPage() {
           </Snackbar>
         </Stack>
       </Container>
+      {/* Account Creation Dialog */}
+      <Dialog
+        open={showAccountForm}
+        onClose={() => setShowAccountForm(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.12)'
+          }
+        }}
+      >
+        <DialogTitle sx={{
+          bgcolor: '#9c27b0',
+          color: 'white',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          p: 2
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Avatar sx={{ bgcolor: 'white', color: '#9c27b0' }}>
+              <AddIcon />
+            </Avatar>
+            <Box>
+              <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
+                Add New Account
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Create a new customer/supplier account
+              </Typography>
+            </Box>
+          </Box>
+          <IconButton
+            onClick={() => setShowAccountForm(false)}
+            sx={{ color: 'white' }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <form onSubmit={handleSaveAccount}>
+          <DialogContent sx={{ p: 3 }}>
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  label="Account Name"
+                  name="cus_name"
+                  value={accountFormData.cus_name}
+                  onChange={handleAccountFormChange}
+                  required
+                  sx={{ minHeight: 56, minWidth: 200 }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <PersonIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  label="Phone Number"
+                  name="cus_phone_no"
+                  value={accountFormData.cus_phone_no}
+                  onChange={handleAccountFormChange}
+                  sx={{ minHeight: 56, minWidth: 200 }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <PersonIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  label="Email"
+                  name="cus_email"
+                  type="email"
+                  value={accountFormData.cus_email}
+                  onChange={handleAccountFormChange}
+                  sx={{ minHeight: 56, minWidth: 200 }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <PersonIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={4}>
+                <Autocomplete
+                  fullWidth
+                  options={customerTypes}
+                  getOptionLabel={(option) => option.cus_type_title || ''}
+                  value={customerTypes.find(t => t.cus_type_id === accountFormData.cus_type) || null}
+                  onChange={(e, val) => handleAccountFormChange({ target: { name: 'cus_type', value: val?.cus_type_id || '' } })}
+                  autoSelect={true}
+                  autoHighlight={true}
+                  openOnFocus={true}
+                  selectOnFocus={true}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Account Type"
+                      onFocus={(e) => e.target.select()}
+                      sx={{ minHeight: 56, minWidth: 250 }}
+                      InputProps={{
+                        ...params.InputProps,
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <PersonIcon />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  )}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={4}>
+                <Autocomplete
+                  fullWidth
+                  options={customerCategories}
+                  getOptionLabel={(option) => option.cus_cat_title || ''}
+                  value={customerCategories.find(c => c.cus_cat_id === accountFormData.cus_category) || null}
+                  onChange={(e, val) => handleAccountFormChange({ target: { name: 'cus_category', value: val?.cus_cat_id || '' } })}
+                  autoSelect={true}
+                  autoHighlight={true}
+                  openOnFocus={true}
+                  selectOnFocus={true}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Account Category"
+                      onFocus={(e) => e.target.select()}
+                      sx={{ minHeight: 56, minWidth: 250 }}
+                      InputProps={{
+                        ...params.InputProps,
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <BusinessIcon />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  )}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={4}>
+                <Autocomplete
+                  fullWidth
+                  options={cities}
+                  getOptionLabel={(option) => option.city_name || ''}
+                  value={cities.find(c => c.city_id === accountFormData.city_id) || null}
+                  onChange={(e, val) => handleAccountFormChange({ target: { name: 'city_id', value: val?.city_id || '' } })}
+                  autoSelect={true}
+                  autoHighlight={true}
+                  openOnFocus={true}
+                  selectOnFocus={true}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="City"
+                      onFocus={(e) => e.target.select()}
+                      sx={{ minHeight: 56, minWidth: 250 }}
+                      InputProps={{
+                        ...params.InputProps,
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <MapPinIcon />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  )}
+                />
+              </Grid>
+
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Address"
+                  name="cus_address"
+                  multiline
+                  rows={2}
+                  value={accountFormData.cus_address}
+                  onChange={handleAccountFormChange}
+                />
+              </Grid>
+            </Grid>
+          </DialogContent>
+          <DialogActions sx={{ p: 3, bgcolor: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
+            <Button onClick={() => setShowAccountForm(false)} sx={{ color: '#64748b' }}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={isSubmittingAccount}
+              sx={{
+                bgcolor: '#9c27b0',
+                '&:hover': { bgcolor: '#7b1fa2' },
+                px: 4
+              }}
+            >
+              {isSubmittingAccount ? <CircularProgress size={24} color="inherit" /> : 'Create Account'}
+            </Button>
+          </DialogActions>
+        </form>
+      </Dialog>
     </DashboardLayout>
   );
 

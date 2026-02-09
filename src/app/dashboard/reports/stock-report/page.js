@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { ArrowLeft, Download, Printer, Search, Package, AlertTriangle, XCircle, RefreshCw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
+import { Autocomplete, TextField, InputAdornment } from '@mui/material';
 
 export default function StockReport() {
   const router = useRouter();
@@ -16,6 +17,7 @@ export default function StockReport() {
   const [selectedStockStatus, setSelectedStockStatus] = useState('');
   const [minStockValue, setMinStockValue] = useState('');
   const [maxStockValue, setMaxStockValue] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => { fetchCategories(); fetchStores(); fetchReport(); }, []);
 
@@ -37,8 +39,8 @@ export default function StockReport() {
         console.error('Stores API did not return valid data:', result);
         setStores([]);
       }
-    } catch (error) { 
-      console.error('Error fetching stores:', error); 
+    } catch (error) {
+      console.error('Error fetching stores:', error);
       setStores([]);
     }
   };
@@ -70,7 +72,7 @@ export default function StockReport() {
     csv += `As on: ${new Date().toLocaleDateString('en-GB')}\n\n`;
     csv += 'S.No,Category,Item Name,Unit,Quantity,Cost Rate,Sale Rate,Stock Value\n';
     let sno = 1;
-    const filteredCategories = selectedCategory 
+    const filteredCategories = selectedCategory
       ? reportData.stockByCategory.filter(cat => cat.categoryId === parseInt(selectedCategory))
       : reportData.stockByCategory;
     filteredCategories.forEach(category => {
@@ -89,23 +91,23 @@ export default function StockReport() {
 
   const getFilteredData = () => {
     if (!reportData) return null;
-    
+
     let filteredProducts = reportData.products;
     let filteredCategories = reportData.stockByCategory;
-    
+
     // Filter by category
     if (selectedCategory) {
       filteredProducts = filteredProducts.filter(p => p.cat_id === parseInt(selectedCategory));
       filteredCategories = filteredCategories.filter(cat => cat.categoryId === parseInt(selectedCategory));
     }
-    
+
     // Filter by store
     if (selectedStore) {
-      filteredProducts = filteredProducts.filter(p => 
+      filteredProducts = filteredProducts.filter(p =>
         p.store_stocks?.some(ss => ss.store_id === parseInt(selectedStore))
       );
     }
-    
+
     // Helper function to get stock quantity for selected store or all stores
     const getStockQuantity = (product) => {
       if (selectedStore) {
@@ -117,7 +119,7 @@ export default function StockReport() {
         return product.store_stocks?.reduce((sum, ss) => sum + (ss.stock_quantity || 0), 0) || 0;
       }
     };
-    
+
     // Filter by stock status
     if (selectedStockStatus) {
       filteredProducts = filteredProducts.filter(p => {
@@ -131,7 +133,7 @@ export default function StockReport() {
         }
       });
     }
-    
+
     // Filter by value range
     if (minStockValue || maxStockValue) {
       filteredProducts = filteredProducts.filter(p => {
@@ -142,7 +144,15 @@ export default function StockReport() {
         return stockValue >= min && stockValue <= max;
       });
     }
-    
+
+    // Filter by item name search query
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filteredProducts = filteredProducts.filter(p =>
+        p.pro_title?.toLowerCase().includes(query)
+      );
+    }
+
     // Recalculate category totals
     const recalculatedCategories = filteredCategories.map(category => {
       const categoryProducts = filteredProducts.filter(p => p.cat_id === category.categoryId);
@@ -159,7 +169,7 @@ export default function StockReport() {
         }, 0)
       };
     }).filter(cat => cat.products.length > 0);
-    
+
     const summary = {
       totalProducts: filteredProducts.length,
       totalCategories: recalculatedCategories.length,
@@ -179,7 +189,7 @@ export default function StockReport() {
         return totalStock === 0;
       }).length
     };
-    
+
     return {
       ...reportData,
       products: filteredProducts,
@@ -211,7 +221,7 @@ export default function StockReport() {
       return `${storeName}: ${storeStock?.stock_quantity || 0}`;
     } else {
       // Show all stores
-      return product.store_stocks?.map(ss => 
+      return product.store_stocks?.map(ss =>
         `${ss.store?.store_name || `Store ${ss.store_id}`}: ${ss.stock_quantity}`
       ).join(', ') || 'No stores';
     }
@@ -253,21 +263,53 @@ export default function StockReport() {
         {/* Filters Bar */}
         <div className="flex-shrink-0 bg-slate-50 border-b border-slate-200 px-6 py-3 print:hidden">
           <div className="flex flex-wrap items-end gap-3">
-            <div className="flex-1 min-w-[160px] max-w-[200px]">
-              <label className="block text-xs font-semibold text-slate-600 mb-1">CATEGORY</label>
-              <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
-                <option value="">All Categories</option>
-                {categories.map((cat) => (<option key={cat.cat_id} value={cat.cat_id}>{cat.cat_name}</option>))}
-              </select>
+            <div className="flex-1 min-w-[200px] max-w-[250px]">
+              <label className="block text-xs font-semibold text-slate-600 mb-1 caps">CATEGORY</label>
+              <Autocomplete
+                size="small"
+                options={categories}
+                getOptionLabel={(option) => option.cat_name || ''}
+                value={categories.find(c => c.cat_id === parseInt(selectedCategory)) || null}
+                onChange={(e, val) => setSelectedCategory(val ? val.cat_id.toString() : '')}
+                autoSelect={true}
+                autoHighlight={true}
+                openOnFocus={true}
+                selectOnFocus={true}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    placeholder="All Categories"
+                    onFocus={(e) => e.target.select()}
+                    sx={{
+                      '& .MuiOutlinedInput-root': { py: '2px', borderRadius: '8px', bgcolor: 'white' }
+                    }}
+                  />
+                )}
+              />
             </div>
-            <div className="flex-1 min-w-[140px] max-w-[180px]">
-              <label className="block text-xs font-semibold text-slate-600 mb-1">STORE</label>
-              <select value={selectedStore} onChange={(e) => setSelectedStore(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
-                <option value="">All Stores</option>
-                {(stores || []).map((store) => (<option key={store.storeid} value={store.storeid}>{store.store_name}</option>))}
-              </select>
+            <div className="flex-1 min-w-[200px] max-w-[250px]">
+              <label className="block text-xs font-semibold text-slate-600 mb-1 caps">STORE</label>
+              <Autocomplete
+                size="small"
+                options={stores}
+                getOptionLabel={(option) => option.store_name || ''}
+                value={stores.find(s => s.storeid === parseInt(selectedStore)) || null}
+                onChange={(e, val) => setSelectedStore(val ? val.storeid.toString() : '')}
+                autoSelect={true}
+                autoHighlight={true}
+                openOnFocus={true}
+                selectOnFocus={true}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    placeholder="All Stores"
+                    onFocus={(e) => e.target.select()}
+                    sx={{
+                      '& .MuiOutlinedInput-root': { py: '2px', borderRadius: '8px', bgcolor: 'white' }
+                    }}
+                  />
+                )}
+              />
             </div>
             <div className="flex-1 min-w-[140px] max-w-[180px]">
               <label className="block text-xs font-semibold text-slate-600 mb-1">STOCK STATUS</label>
@@ -285,10 +327,23 @@ export default function StockReport() {
               <input type="number" value={minStockValue} onChange={(e) => setMinStockValue(e.target.value)} placeholder="0"
                 className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-purple-500 focus:border-purple-500" />
             </div>
-            <div className="flex-1 min-w-[120px] max-w-[150px]">
-              <label className="block text-xs font-semibold text-slate-600 mb-1">MAX VALUE</label>
-              <input type="number" value={maxStockValue} onChange={(e) => setMaxStockValue(e.target.value)} placeholder="∞"
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-purple-500 focus:border-purple-500" />
+            <div className="flex-1 min-w-[200px] max-w-[300px]">
+              <label className="block text-xs font-semibold text-slate-600 mb-1 caps">SEARCH ITEM</label>
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="Search by item name..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Search className="w-4 h-4 text-slate-400" />
+                    </InputAdornment>
+                  ),
+                  sx: { borderRadius: '8px', bgcolor: 'white' }
+                }}
+              />
             </div>
             <button onClick={fetchReport} disabled={loading}
               className="flex items-center px-5 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-lg text-sm font-semibold transition-colors">
@@ -400,10 +455,10 @@ export default function StockReport() {
                           const isOutOfStock = totalStock === 0;
                           const isLowStock = totalStock > 0 && totalStock < 10;
                           const isNegative = totalStock < 0;
-                          
+
                           // Create store breakdown text
                           const storeBreakdown = getStoreBreakdownText(product);
-                          
+
                           return (
                             <tr key={product.pro_id} className={`${sno % 2 === 0 ? 'bg-slate-50' : 'bg-white'} ${isNegative ? 'bg-red-100' : isOutOfStock ? 'bg-red-50' : isLowStock ? 'bg-amber-50' : ''} hover:bg-purple-50 print:bg-white transition-colors`}>
                               <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200 print:border-black">{sno++}</td>

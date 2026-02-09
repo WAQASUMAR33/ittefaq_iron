@@ -97,8 +97,33 @@ function SalesPageContent() {
   const [currentView, setCurrentView] = useState('list');
 
   // Screen Stack State
-  const [screenStack, setScreenStack] = useState([]);
-  const [currentScreenIndex, setCurrentScreenIndex] = useState(-1);
+  const [screenStack, setScreenStack] = useState([{
+    formSelectedCustomer: null,
+    formSelectedStore: null,
+    productTableData: [],
+    paymentData: {
+      cash: '',
+      bank: '',
+      bankAccountId: '',
+      totalCashReceived: 0,
+      advancePayment: 0,
+      discount: '',
+      labour: '',
+      deliveryCharges: '',
+      notes: '',
+      isLoadedOrder: false,
+      sourceOrderId: null
+    },
+    billType: 'BILL',
+    formSelectedProduct: null,
+    productFormData: { quantity: '', rate: 0, amount: 0, stock: 0 },
+    newTransport: { amount: 0, accountId: '' },
+    transportAccounts: [],
+    transportOptions: [],
+    timestamp: new Date().toLocaleTimeString(),
+    customerName: 'New Sale'
+  }]);
+  const [currentScreenIndex, setCurrentScreenIndex] = useState(0);
   const [showScreenIndicator, setShowScreenIndicator] = useState(false);
 
   // Handle URL query parameter for view
@@ -255,7 +280,10 @@ function SalesPageContent() {
     discount: '',
     labour: '',
     deliveryCharges: '',
-    notes: ''
+    notes: '',
+    isLoadedOrder: false,
+    sourceOrderId: null,
+    manualSaleInv: ''
   });
 
   // Bill type state
@@ -302,12 +330,6 @@ function SalesPageContent() {
     city_id: ''
   });
 
-  // Draft Sales state
-  const [drafts, setDrafts] = useState([]);
-  const [draftModalOpen, setDraftModalOpen] = useState(false);
-  const [currentDraftId, setCurrentDraftId] = useState(null);
-  const [draftSearchTerm, setDraftSearchTerm] = useState('');
-  const [isSavingDraft, setIsSavingDraft] = useState(false);
 
   // Additional filter states
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -382,38 +404,71 @@ function SalesPageContent() {
 
   // ========== SCREEN STACK MANAGEMENT FUNCTIONS ==========
   // Capture current form state (deep copy to avoid reference issues)
-  const captureScreenState = () => {
+  const captureScreenState = useCallback(() => {
     const state = {
       // Customer and store selection
       formSelectedCustomer: formSelectedCustomer ? { ...formSelectedCustomer } : null,
       formSelectedStore: formSelectedStore ? { ...formSelectedStore } : null,
-      
+
       // Product table (deep copy array)
       productTableData: JSON.parse(JSON.stringify(productTableData)),
-      
+
       // Payment data (deep copy)
       paymentData: JSON.parse(JSON.stringify(paymentData)),
-      
+
       // Bill type
       billType: billType,
-      
+
       // Product form
       formSelectedProduct: formSelectedProduct ? { ...formSelectedProduct } : null,
       productFormData: JSON.parse(JSON.stringify(productFormData)),
-      
+
       // Transport
       newTransport: JSON.parse(JSON.stringify(newTransport)),
       transportAccounts: transportAccounts.map(t => ({ ...t })),
       transportOptions: transportOptions.map(t => ({ ...t })),
-      
+
       // Metadata
-      timestamp: new Date().toLocaleTimeString(),
+      timestamp: new Date().getTime().toString(),
       customerName: formSelectedCustomer?.cus_name || 'New Sale'
     };
-    
+
     console.log('📸 Screen state captured:', state);
     return state;
-  };
+  }, [formSelectedCustomer, formSelectedStore, productTableData, paymentData, billType, formSelectedProduct, productFormData, newTransport, transportAccounts, transportOptions]);
+
+  // Get fresh blank state
+  const getFreshSaleState = useCallback(() => {
+    return {
+      formSelectedCustomer: null,
+      formSelectedStore: null,
+      productTableData: [],
+      paymentData: {
+        cash: '',
+        bank: '',
+        bankAccountId: '',
+        totalCashReceived: 0,
+        advancePayment: 0,
+        discount: '',
+        labour: '',
+        deliveryCharges: '',
+        date: new Date().toISOString().split('T')[0],
+        notes: '',
+        isLoadedOrder: false,
+        sourceOrderId: null
+      },
+      billType: 'BILL',
+      formSelectedProduct: null,
+      productFormData: { quantity: '', rate: 0, amount: 0, stock: 0 },
+      newTransport: { amount: 0, accountId: '' },
+      transportAccounts: [],
+      transportOptions: [],
+      timestamp: new Date().getTime().toString(),
+      customerName: 'New Sale'
+    };
+  }, []);
+
+  const [isNavigating, setIsNavigating] = useState(false);
 
   // Auto-save current form state to the current screen in stack
   // (Inline auto-save in useEffects to avoid circular dependencies)
@@ -424,9 +479,9 @@ function SalesPageContent() {
       console.warn('⚠️ No state to restore');
       return;
     }
-    
+
     console.log('🔄 Restoring screen state:', state);
-    
+
     // Restore all state at once to ensure consistency
     setFormSelectedCustomer(state.formSelectedCustomer);
     setFormSelectedStore(state.formSelectedStore);
@@ -456,7 +511,10 @@ function SalesPageContent() {
       discount: '',
       labour: '',
       deliveryCharges: '',
-      notes: ''
+      date: new Date().toISOString().split('T')[0],
+      notes: '',
+      isLoadedOrder: false,
+      sourceOrderId: null
     });
     setBillType('BILL');
     setProductFormData({
@@ -475,65 +533,72 @@ function SalesPageContent() {
 
   // Open new screen (Ctrl+Right)
   const openNewScreen = useCallback(() => {
+    setIsNavigating(true);
     console.log('➡️ OPENING NEW SCREEN');
-    console.log('📷 Current state before capture:', {
-      customer: formSelectedCustomer?.cus_name,
-      products: productTableData.length,
-      totalAmount: paymentData
-    });
-    
     const currentState = captureScreenState();
     const newStack = screenStack.slice(0, currentScreenIndex + 1);
-    newStack.push(currentState);
-    
-    console.log('📚 New stack created:', newStack.length, 'screens');
-    
-    setScreenStack(newStack);
-    setCurrentScreenIndex(newStack.length - 1);
-    
-    // NOW clear form for the new blank screen
-    clearFormState();
-    showSnackbar(`📋 Screen ${newStack.length} | Starting fresh (previous state saved)`, 'info');
-  }, [formSelectedCustomer, formSelectedStore, productTableData, paymentData, billType, formSelectedProduct, productFormData, newTransport, transportAccounts, transportOptions, currentScreenIndex, screenStack]);
+    newStack[currentScreenIndex] = currentState;
+
+    const freshState = getFreshSaleState();
+
+    const updatedStack = [...newStack, freshState];
+    setScreenStack(updatedStack);
+    setCurrentScreenIndex(updatedStack.length - 1);
+    restoreScreenState(freshState);
+
+    setTimeout(() => {
+      setIsNavigating(false);
+      showSnackbar(`📋 Screen ${updatedStack.length} | Starting fresh`, 'info');
+    }, 150);
+  }, [currentScreenIndex, screenStack]);
 
   // Go back to previous screen (Ctrl+Left) - NO AUTO-CLEAR, only navigate if possible
   const goToPreviousScreen = useCallback(() => {
-    console.log('⬅️ GOING TO PREVIOUS SCREEN');
-    console.log('📊 Current stack:', {
-      currentIndex: currentScreenIndex,
-      stackLength: screenStack.length,
-      stateAtCurrentIndex: screenStack[currentScreenIndex]
-    });
-    
     if (currentScreenIndex > 0) {
+      setIsNavigating(true);
+      console.log('⬅️ GOING TO PREVIOUS SCREEN');
+      const currentState = captureScreenState();
+      const updatedStack = [...screenStack];
+      updatedStack[currentScreenIndex] = currentState;
+      setScreenStack(updatedStack);
+
       const previousIndex = currentScreenIndex - 1;
-      const previousState = screenStack[previousIndex];
-      
-      console.log('🔄 Restoring from index:', previousIndex);
-      console.log('🔄 State to restore:', previousState);
-      
+      const previousState = updatedStack[previousIndex];
       restoreScreenState(previousState);
       setCurrentScreenIndex(previousIndex);
-      showSnackbar(`📋 Screen ${previousIndex + 1} | ${previousState.customerName}`, 'info');
+
+      setTimeout(() => {
+        setIsNavigating(false);
+        showSnackbar(`📋 Screen ${previousIndex + 1} | ${previousState.customerName}`, 'info');
+      }, 150);
     } else if (currentScreenIndex === 0) {
-      // At first screen - can't go back, just notify user
       console.log('ℹ️ Already at first screen, cannot go back');
-      showSnackbar('📋 You are at the first screen. Click "Cancel Current" to discard or "Cancel" to save later.', 'info');
+      showSnackbar('📋 You are at the first screen.', 'info');
     }
   }, [currentScreenIndex, screenStack]);
 
   // Go forward to next screen (Ctrl+Right after going back) - NO AUTO-CLEAR
   const goToNextScreen = useCallback(() => {
-    console.log('➡️ GOING TO NEXT SCREEN');
     if (currentScreenIndex < screenStack.length - 1) {
+      setIsNavigating(true);
+      console.log('➡️ GOING TO NEXT SCREEN');
+      const currentState = captureScreenState();
+      const updatedStack = [...screenStack];
+      updatedStack[currentScreenIndex] = currentState;
+      setScreenStack(updatedStack);
+
       const nextIndex = currentScreenIndex + 1;
-      const nextState = screenStack[nextIndex];
+      const nextState = updatedStack[nextIndex];
       restoreScreenState(nextState);
       setCurrentScreenIndex(nextIndex);
-      showSnackbar(`📋 Screen ${nextIndex + 1} | ${nextState.customerName}`, 'info');
+
+      setTimeout(() => {
+        setIsNavigating(false);
+        showSnackbar(`📋 Screen ${nextIndex + 1} | ${nextState.customerName}`, 'info');
+      }, 150);
     } else {
       console.log('ℹ️ Already at last screen');
-      showSnackbar('📋 You are at the last screen. Press Ctrl+Right to create a new screen.', 'info');
+      showSnackbar('📋 You are at the last screen.', 'info');
     }
   }, [currentScreenIndex, screenStack]);
 
@@ -545,7 +610,7 @@ function SalesPageContent() {
       stackLength: screenStack.length,
       isAtEnd: currentScreenIndex === screenStack.length - 1
     });
-    
+
     if (currentScreenIndex < screenStack.length - 1) {
       // Not at end - go to next existing screen
       console.log('↪️ Going to next existing screen');
@@ -564,28 +629,36 @@ function SalesPageContent() {
       currentIndex: currentScreenIndex,
       stackLength: screenStack.length
     });
-    
-    if (screenStack.length === 0) {
-      // No screens to cancel, just clear form
-      clearFormState();
-      setCurrentScreenIndex(-1);
-      showSnackbar('📋 Form cleared - ready for new sale', 'info');
-    } else if (currentScreenIndex > 0) {
-      // Remove current screen and go back to previous
-      const newStack = screenStack.filter((_, index) => index !== currentScreenIndex);
-      setScreenStack(newStack);
-      const previousIndex = currentScreenIndex - 1;
-      const previousState = newStack[previousIndex];
-      restoreScreenState(previousState);
-      setCurrentScreenIndex(previousIndex);
-      showSnackbar(`📋 Screen canceled. Returned to Screen ${previousIndex + 1}`, 'info');
-    } else if (currentScreenIndex === 0) {
-      // Remove only screen, go to blank form
-      setScreenStack([]);
-      setCurrentScreenIndex(-1);
-      clearFormState();
-      showSnackbar('📋 All screens canceled - ready for new sale', 'info');
+
+    if (screenStack.length <= 1) {
+      // Only one screen exists (Screen 1), just reset it
+      const freshState = getFreshSaleState();
+      setScreenStack([freshState]);
+      setCurrentScreenIndex(0);
+      restoreScreenState(freshState);
+
+      showSnackbar('📋 Screen 1 reset', 'info');
+      return;
     }
+
+    // Capture whether there's a screen ahead
+    const hasNextScreen = currentScreenIndex < screenStack.length - 1;
+
+    // Remove current screen
+    const newStack = screenStack.filter((_, index) => index !== currentScreenIndex);
+
+    // Determine the target index
+    // If there was a next screen, its index in the new stack is the same as current
+    // If there was no next screen, go to the previous screen
+    const targetIndex = hasNextScreen ? currentScreenIndex : currentScreenIndex - 1;
+    const targetState = newStack[targetIndex];
+
+    // Update state and restore form
+    setScreenStack(newStack);
+    setCurrentScreenIndex(targetIndex);
+    restoreScreenState(targetState);
+
+    showSnackbar(`📋 Screen removed. Now at Screen ${targetIndex + 1}`, 'info');
   }, [currentScreenIndex, screenStack]);
 
   // Screen navigation keyboard shortcuts - FIX: Use memoized callbacks
@@ -823,7 +896,7 @@ function SalesPageContent() {
     const labour = parseFloat(paymentData.labour) || 0;
     const deliveryCharges = parseFloat(paymentData.deliveryCharges) || 0;
     const transportTotal = calculateTransportTotal();
-    const totalDelivery = deliveryCharges + transportTotal; // Transport added to delivery
+    const totalDelivery = deliveryCharges; // Transport is now a split of delivery charges
     const discount = parseFloat(paymentData.discount) || 0;
     return productTotal + labour + totalDelivery - discount;
   };
@@ -896,20 +969,39 @@ function SalesPageContent() {
         selectedStore = stores[0];
       }
 
-      // Don't load products - start fresh with empty table
-      setProductTableData([]);
+      // Map products
+      if (fullOrder.sale_details && Array.isArray(fullOrder.sale_details)) {
+        const products = fullOrder.sale_details.map(detail => {
+          const detailStoreId = detail.store_id || fullOrder.store_id;
+          const store = stores.find(s => s.storeid === detailStoreId);
+
+          return {
+            id: Date.now() + Math.random(),
+            pro_id: detail.pro_id,
+            pro_title: detail.product?.pro_title || detail.product?.pro_name || 'Unknown Product',
+            storeid: detailStoreId,
+            store_name: store?.store_name || (selectedStore?.store_name || 'Store'),
+            quantity: parseFloat(detail.qnty) || 0,
+            rate: parseFloat(detail.unit_rate) || 0,
+            amount: parseFloat(detail.total_amount) || 0,
+            stock: detail.product?.pro_stock_qnty || 0
+          };
+        });
+        setProductTableData(products);
+      } else {
+        setProductTableData([]);
+      }
 
       // Set payment data - only load advance payment (already paid amount)
       const alreadyPaid = parseFloat(fullOrder.payment || 0);
-      const orderLabourCharges = parseFloat(fullOrder.labour_charges || 0);
 
       setPaymentData(prev => ({
         ...prev,
         advancePayment: alreadyPaid, // Set the already paid amount as advance payment
-        discount: 0,
-        labour: parseFloat(fullOrder.labour_charges || fullOrder.labour || 0), // Load labour charges from order
-        deliveryCharges: 0,
-        notes: `Order #${fullOrder.sale_id} - Advance: ${alreadyPaid.toFixed(2)}. ${fullOrder.reference || ''}`,
+        discount: parseFloat(fullOrder.discount) || '',
+        labour: parseFloat(fullOrder.labour_charges || fullOrder.labour || 0) || '', // Load labour charges from order
+        deliveryCharges: parseFloat(fullOrder.shipping_amount) || '',
+        notes: `Order #${fullOrder.sale_id}. ${fullOrder.reference || ''}`,
         isLoadedOrder: true // Flag to indicate this is a loaded order
       }));
 
@@ -991,8 +1083,8 @@ function SalesPageContent() {
     try {
       // If bill type is SALE_RETURN, process it as a return
       if (billType === 'SALE_RETURN') {
-        if (!selectedSaleForReturnMain) {
-          showSnackbar('Please select a sale to return (Invoice)', 'error');
+        if (!selectedSaleForReturnMain && !paymentData.manualSaleInv) {
+          showSnackbar('Please select a sale to return (Invoice) or enter a manual reference', 'error');
           return;
         }
         if (productTableData.length === 0) {
@@ -1010,8 +1102,9 @@ function SalesPageContent() {
         const totalReturn = cashReturn + bankReturn; // Total refund amount
 
         const returnBody = {
-          sale_id: selectedSaleForReturnMain.sale_id,
-          cus_id: formSelectedCustomer ? formSelectedCustomer.cus_id : selectedSaleForReturnMain.cus_id,
+          sale_id: selectedSaleForReturnMain?.sale_id || null,
+          manual_sale_inv: paymentData.manualSaleInv || null,
+          cus_id: formSelectedCustomer ? formSelectedCustomer.cus_id : selectedSaleForReturnMain?.cus_id,
           total_amount: totalAmount.toString(),
           discount: discount.toString(),
           labour_charges: labourCharges.toString(),
@@ -1031,7 +1124,8 @@ function SalesPageContent() {
             qnty: item.quantity, // Quantity to return
             unit_rate: item.rate.toString(),
             total_amount: item.amount.toString(),
-            discount: '0'
+            discount: '0',
+            store_id: item.storeid
           })),
           updated_by: 1
         };
@@ -1054,9 +1148,12 @@ function SalesPageContent() {
           const returnReceipt = {
             ...selectedSaleForReturnMain,
             return_id: saleReturnData.return_id,
+            sale_id: selectedSaleForReturnMain?.sale_id || null,
+            manual_sale_inv: paymentData.manualSaleInv || null,
+            customer: formSelectedCustomer || selectedSaleForReturnMain?.customer,
             sale_details: productTableData.map((item, idx) => ({
               sale_detail_id: idx,
-              product: { pro_title: item.product_name },
+              product: { pro_title: item.pro_title || item.product_name },
               qnty: item.quantity,
               unit_rate: item.rate,
               total_amount: item.amount
@@ -1092,7 +1189,8 @@ function SalesPageContent() {
               totalCashReceived: 0,
               advancePayment: 0,
               discount: 0,
-              notes: ''
+              notes: '',
+              manualSaleInv: ''
             });
             setSelectedSaleForReturnMain(null);
             setBillType('BILL'); // Reset to default
@@ -1272,40 +1370,51 @@ function SalesPageContent() {
           console.log('✅ Sale created! Restoring previous screen...');
           const previousIndex = currentScreenIndex - 1;
           const previousState = screenStack[previousIndex];
-          
+
           // Trim stack to remove current and any forward screens
           const trimmedStack = screenStack.slice(0, currentScreenIndex);
-          
+
           console.log('📚 Trimmed screen stack from', screenStack.length, 'to', trimmedStack.length);
-          
+
           // Set new stack and restore previous state
           setScreenStack(trimmedStack);
           setCurrentScreenIndex(previousIndex);
           restoreScreenState(previousState);
-          
+
           showSnackbar(`✅ Sale created! Restored previous screen (${previousState.customerName})`, 'success');
         } else {
           // No previous screen - clear form to start fresh
           console.log('✅ Sale created! No previous screen, clearing form...');
-          setFormSelectedCustomer(null);
-          setFormSelectedProduct(null);
-          setFormSelectedStore(null);
-          setProductTableData([]);
-          setPaymentData({
-            cash: 0,
-            bank: 0,
-            bankAccountId: '',
-            totalCashReceived: 0,
-            advancePayment: 0,
-            discount: 0,
-            labour: 0,
-            deliveryCharges: 0,
-            notes: ''
-          });
+          clearFormState();
 
-          // Reset screen stack for next sale only if we're at index 0
-          setScreenStack([]);
-          setCurrentScreenIndex(-1);
+          // Ensure Screen 1 is active and initialized in the stack
+          setScreenStack([{
+            formSelectedCustomer: null,
+            formSelectedStore: null,
+            productTableData: [],
+            paymentData: {
+              cash: '',
+              bank: '',
+              bankAccountId: '',
+              totalCashReceived: 0,
+              advancePayment: 0,
+              discount: '',
+              labour: '',
+              deliveryCharges: '',
+              notes: '',
+              isLoadedOrder: false,
+              sourceOrderId: null
+            },
+            billType: 'BILL',
+            formSelectedProduct: null,
+            productFormData: { quantity: '', rate: 0, amount: 0, stock: 0 },
+            newTransport: { amount: 0, accountId: '' },
+            transportAccounts: [],
+            transportOptions: [],
+            timestamp: new Date().toLocaleTimeString(),
+            customerName: 'New Sale'
+          }]);
+          setCurrentScreenIndex(0);
           showSnackbar('✅ Sale created! Form cleared for next entry', 'success');
         }
 
@@ -1330,7 +1439,6 @@ function SalesPageContent() {
   useEffect(() => {
     console.log('🔍 Component mounted, calling fetchData...');
     fetchData();
-    fetchDrafts();
   }, []);
 
   // Open create view preconfigured for Sale Return when flagged (from /dashboard/sale-returns)
@@ -1359,60 +1467,39 @@ function SalesPageContent() {
     }));
   }, [paymentData.cash, paymentData.bank]);
 
-  // Auto-save when customer changes
+  // Effect to split delivery charges among transport accounts
   useEffect(() => {
-    if (currentScreenIndex >= 0 && screenStack[currentScreenIndex]) {
-      const updatedState = captureScreenState();
-      const newStack = [...screenStack];
-      newStack[currentScreenIndex] = updatedState;
-      setScreenStack(newStack);
-      console.log(`💾 Auto-saved on customer change - Screen ${currentScreenIndex + 1}`);
-    }
-  }, [formSelectedCustomer]);
+    const totalDelivery = parseFloat(paymentData.deliveryCharges || 0);
+    const transportCount = transportOptions.length;
 
-  // Auto-save when store changes
-  useEffect(() => {
-    if (currentScreenIndex >= 0 && screenStack[currentScreenIndex]) {
-      const updatedState = captureScreenState();
-      const newStack = [...screenStack];
-      newStack[currentScreenIndex] = updatedState;
-      setScreenStack(newStack);
-      console.log(`💾 Auto-saved on store change - Screen ${currentScreenIndex + 1}`);
-    }
-  }, [formSelectedStore]);
+    if (transportCount > 0) {
+      const splitAmount = totalDelivery / transportCount;
+      // Use a small epsilon for floating point comparison to avoid unnecessary updates
+      const needsUpdate = transportOptions.some(t => Math.abs(t.amount - splitAmount) > 0.001);
 
-  // Auto-save when product table changes
-  useEffect(() => {
-    if (currentScreenIndex >= 0 && screenStack[currentScreenIndex]) {
-      const updatedState = captureScreenState();
-      const newStack = [...screenStack];
-      newStack[currentScreenIndex] = updatedState;
-      setScreenStack(newStack);
-      console.log(`💾 Auto-saved on product table change - Screen ${currentScreenIndex + 1}`);
+      if (needsUpdate) {
+        setTransportOptions(prev => prev.map(t => ({
+          ...t,
+          amount: splitAmount
+        })));
+      }
     }
-  }, [productTableData]);
+  }, [paymentData.deliveryCharges, transportOptions.length]);
 
-  // Auto-save when payment data changes
+  // Auto-save with debounce to prevent input focus loss
   useEffect(() => {
-    if (currentScreenIndex >= 0 && screenStack[currentScreenIndex]) {
-      const updatedState = captureScreenState();
-      const newStack = [...screenStack];
-      newStack[currentScreenIndex] = updatedState;
-      setScreenStack(newStack);
-      console.log(`💾 Auto-saved on payment change - Screen ${currentScreenIndex + 1}`);
-    }
-  }, [paymentData]);
+    if (!isNavigating && currentScreenIndex >= 0 && screenStack[currentScreenIndex]) {
+      const debounceTimer = setTimeout(() => {
+        const updatedState = captureScreenState();
+        const newStack = [...screenStack];
+        newStack[currentScreenIndex] = updatedState;
+        setScreenStack(newStack);
+        console.log(`💾 Auto-saved Sales Screen ${currentScreenIndex + 1}`);
+      }, 3000); // Wait 3 seconds after user stops typing
 
-  // Auto-save when bill type changes
-  useEffect(() => {
-    if (currentScreenIndex >= 0 && screenStack[currentScreenIndex]) {
-      const updatedState = captureScreenState();
-      const newStack = [...screenStack];
-      newStack[currentScreenIndex] = updatedState;
-      setScreenStack(newStack);
-      console.log(`💾 Auto-saved on bill type change - Screen ${currentScreenIndex + 1}`);
+      return () => clearTimeout(debounceTimer);
     }
-  }, [billType]);
+  }, [formSelectedCustomer, formSelectedStore, productTableData, paymentData, billType, isNavigating, currentScreenIndex]);
 
   // Transport functions
   const fetchTransportAccounts = async (providedCustomers = null) => {
@@ -1493,12 +1580,14 @@ function SalesPageContent() {
   };
 
   const handleAddTransport = () => {
-    if (newTransport.amount <= 0) {
-      showSnackbar('Please enter a valid amount', 'error');
-      return;
-    }
     if (!newTransport.accountId) {
       showSnackbar('Please select a transport account', 'error');
+      return;
+    }
+
+    // Check if account already added
+    if (transportOptions.find(t => t.accountId === newTransport.accountId)) {
+      showSnackbar('Account already added', 'warning');
       return;
     }
 
@@ -1508,7 +1597,7 @@ function SalesPageContent() {
     const transport = {
       id: Date.now(),
       name: selectedAccount ? selectedAccount.cus_name : 'Unknown Account',
-      amount: parseFloat(newTransport.amount),
+      amount: 0, // Will be auto-populated by useEffect
       accountId: newTransport.accountId,
       accountName: selectedAccount ? selectedAccount.cus_name : 'Unknown Account'
     };
@@ -1763,173 +1852,38 @@ function SalesPageContent() {
     }
   };
 
-  // ======================== DRAFT SALES FUNCTIONS ========================
-  // Fetch all drafts
-  const fetchDrafts = async () => {
-    try {
-      const response = await fetch('/api/draft-sales');
-      if (response.ok) {
-        const draftsList = await response.json();
-        setDrafts(Array.isArray(draftsList) ? draftsList : []);
-        console.log('📝 Drafts loaded:', draftsList.length);
-      } else {
-        console.error('❌ Failed to fetch drafts');
-        setDrafts([]);
-      }
-    } catch (error) {
-      console.error('❌ Error fetching drafts:', error);
-      setDrafts([]);
-    }
-  };
-
-  // Save current form as draft
-  const handleSaveDraft = async () => {
-    try {
-      if (!formSelectedStore) {
-        showSnackbar('Please select a store before saving draft', 'error');
-        return;
-      }
-
-      // Collect form data
-      const formState = {
-        customer: formSelectedCustomer,
-        store: formSelectedStore,
-        products: productTableData,
-        paymentData: paymentData,
-        billType: billType,
-        transportOptions: transportOptions
-      };
-
-      setIsSavingDraft(true);
-
-      const method = currentDraftId ? 'PUT' : 'POST';
-      const endpoint = currentDraftId 
-        ? `/api/draft-sales?id=${currentDraftId}` 
-        : '/api/draft-sales';
-
-      const payload = currentDraftId
-        ? {
-            id: currentDraftId,
-            store_id: formSelectedStore.storeid,
-            cus_id: formSelectedCustomer?.cus_id || null,
-            form_state: formState,
-            updated_by: 1
-          }
-        : {
-            store_id: formSelectedStore.storeid,
-            cus_id: formSelectedCustomer?.cus_id || null,
-            form_state: formState,
-            updated_by: 1
-          };
-
-      const response = await fetch(endpoint, {
-        method: method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      if (response.ok) {
-        const savedDraft = await response.json();
-        setCurrentDraftId(savedDraft.draft_id);
-        showSnackbar(`✅ Draft saved as ${savedDraft.draft_code}`, 'success');
-        
-        // Refresh drafts list
-        await fetchDrafts();
-      } else {
-        const error = await response.json();
-        showSnackbar(`Failed to save draft: ${error.error}`, 'error');
-      }
-    } catch (error) {
-      console.error('❌ Error saving draft:', error);
-      showSnackbar(`Error saving draft: ${error.message}`, 'error');
-    } finally {
-      setIsSavingDraft(false);
-    }
-  };
-
-  // Load draft into form
-  const handleLoadDraft = async (draft) => {
-    try {
-      setLoading(true);
-
-      // Get full draft details
-      const response = await fetch(`/api/draft-sales?id=${draft.draft_id}`);
-      if (!response.ok) throw new Error('Failed to load draft');
-
-      const fullDraft = await response.json();
-      const formState = JSON.parse(fullDraft.form_state_json);
-
-      console.log('📖 Loading draft:', formState);
-
-      // Restore form state
-      if (formState.customer) {
-        setFormSelectedCustomer(formState.customer);
-      }
-      if (formState.store) {
-        setFormSelectedStore(formState.store);
-      }
-      if (formState.products) {
-        setProductTableData(formState.products);
-      }
-      if (formState.paymentData) {
-        setPaymentData(formState.paymentData);
-      }
-      if (formState.billType) {
-        setBillType(formState.billType);
-      }
-      if (formState.transportOptions) {
-        setTransportOptions(formState.transportOptions);
-      }
-
-      setCurrentDraftId(draft.draft_id);
-      setDraftModalOpen(false);
-
-      showSnackbar(`✅ Draft ${draft.draft_code} loaded successfully`, 'success');
-    } catch (error) {
-      console.error('❌ Error loading draft:', error);
-      showSnackbar(`Failed to load draft: ${error.message}`, 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Delete draft
-  const handleDeleteDraft = async (draftId, draftCode) => {
-    try {
-      const response = await fetch(`/api/draft-sales?id=${draftId}`, {
-        method: 'DELETE'
-      });
-
-      if (response.ok) {
-        showSnackbar(`✅ Draft ${draftCode} deleted`, 'success');
-        
-        // Clear current draft if it's the one being deleted
-        if (currentDraftId === draftId) {
-          setCurrentDraftId(null);
-        }
-
-        // Refresh drafts list
-        await fetchDrafts();
-      } else {
-        showSnackbar('Failed to delete draft', 'error');
-      }
-    } catch (error) {
-      console.error('❌ Error deleting draft:', error);
-      showSnackbar(`Error deleting draft: ${error.message}`, 'error');
-    }
-  };
-
-  // Open draft modal
-  const handleOpenDraftModal = async () => {
-    await fetchDrafts();
-    setDraftModalOpen(true);
-  };
-
-  // ======================== END DRAFT SALES FUNCTIONS ========================
 
   // Handle viewing a bill
   const handleViewBill = async (sale) => {
     console.log('📋 Viewing bill:', sale);
+
+    try {
+      // Fetch fresh sale data with all payment details
+      const response = await fetch(`/api/sales?id=${sale.sale_id}`);
+      if (!response.ok) throw new Error('Failed to fetch sale details');
+      const saleData = await response.json();
+
+      console.log('💰 Sale data with payments:', {
+        cash_payment: saleData.cash_payment,
+        bank_payment: saleData.bank_payment,
+        bank_title: saleData.bank_title,
+        payment: saleData.payment,
+        split_payments: saleData.split_payments
+      });
+
+      setSelectedBill(saleData);
+      setViewBillDialog(true);
+    } catch (error) {
+      console.error('Error fetching sale details:', error);
+      // Fallback to using the data from the list if API call fails
+      setSelectedBill(sale);
+      setViewBillDialog(true);
+    }
+  };
+
+  // Handle viewing receipt (same as viewing bill)
+  const handleViewReceipt = async (sale) => {
+    console.log('📋 Viewing receipt:', sale);
 
     try {
       // Fetch fresh sale data with all payment details
@@ -2130,17 +2084,22 @@ function SalesPageContent() {
 
       // 3. Set Products
       if (orderData.sale_details && Array.isArray(orderData.sale_details)) {
-        const products = orderData.sale_details.map(detail => ({
-          id: Date.now() + Math.random(),
-          pro_id: detail.pro_id,
-          pro_title: detail.product?.pro_title || detail.product?.pro_name || 'Unknown Product',
-          storeid: orderData.store_id,
-          store_name: stores.find(s => s.storeid === orderData.store_id)?.store_name || 'Store',
-          quantity: parseFloat(detail.qnty) || 0,
-          rate: parseFloat(detail.unit_rate) || 0,
-          amount: parseFloat(detail.total_amount) || 0,
-          stock: detail.product?.pro_stock_qnty || 0 // Note: This might need a fresh fetch for latest stock
-        }));
+        const products = orderData.sale_details.map(detail => {
+          const detailStoreId = detail.store_id || orderData.store_id;
+          const store = stores.find(s => s.storeid === detailStoreId);
+
+          return {
+            id: Date.now() + Math.random(),
+            pro_id: detail.pro_id,
+            pro_title: detail.product?.pro_title || detail.product?.pro_name || 'Unknown Product',
+            storeid: detailStoreId,
+            store_name: store?.store_name || 'Store',
+            quantity: parseFloat(detail.qnty) || 0,
+            rate: parseFloat(detail.unit_rate) || 0,
+            amount: parseFloat(detail.total_amount) || 0,
+            stock: detail.product?.pro_stock_qnty || 0
+          };
+        });
         setProductTableData(products);
       }
 
@@ -2149,10 +2108,10 @@ function SalesPageContent() {
       setPaymentData(prev => ({
         ...prev,
         advancePayment: orderPayment,
-        discount: parseFloat(orderData.discount) || 0,
-        notes: `Converted from Order #${orderData.sale_id}. ${orderData.reference || ''}`,
-        deliveryCharges: parseFloat(orderData.shipping_amount) || 0,
-        labour: parseFloat(orderData.labour_charges || orderData.labour || 0), // Load labour charges from order
+        discount: parseFloat(orderData.discount) || '',
+        notes: `Order #${orderData.sale_id}. ${orderData.reference || ''}`,
+        deliveryCharges: parseFloat(orderData.shipping_amount) || '',
+        labour: parseFloat(orderData.labour_charges || orderData.labour || 0) || '', // Load labour charges from order
         isLoadedOrder: true, // Mark as loaded order
         sourceOrderId: orderData.sale_id // Store original order ID
       }));
@@ -2288,7 +2247,8 @@ function SalesPageContent() {
           labour: labourValue,
           deliveryCharges: deliveryValue,
           notes: `Return from Sale #${fullSale.sale_id}. Original Amount: ${fullSale.total_amount}`,
-          isLoadedOrder: false
+          isLoadedOrder: false,
+          manualSaleInv: fullSale.sale_id.toString()
         };
         console.log('🔔 Updated paymentData object:', newPaymentData);
         return newPaymentData;
@@ -2469,8 +2429,11 @@ function SalesPageContent() {
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
 
   // Handle print bill with mode (A4 or Thermal)
-  const handlePrintBill = (mode = 'A4', fromDialog = false) => {
+  const handlePrintBill = (modeOrEvent = 'A4', fromDialog = false) => {
     try {
+      // Handle if called directly from onClick (event object)
+      const mode = (typeof modeOrEvent === 'string') ? modeOrEvent : 'A4';
+
       const className = mode === 'THERMAL' ? 'print-thermal' : 'print-a4';
       const isThermal = mode === 'THERMAL';
 
@@ -2586,6 +2549,12 @@ function SalesPageContent() {
 
     console.log('🔍 Filtering', sales.length, 'sales...');
     const filtered = sales.filter(sale => {
+      // Filter to only show BILL type (exclude QUOTATION and other types)
+      const isBillType = sale.bill_type === 'BILL' || !sale.bill_type;
+      if (!isBillType) {
+        return false;
+      }
+
       // All filters are empty by default, so all sales should match
       const matchesSearch = searchTerm === '' ||
         sale.sale_id?.toString().includes(searchTerm) ||
@@ -2792,10 +2761,6 @@ function SalesPageContent() {
     }
   };
 
-  const handleViewReceipt = (sale) => {
-    showSnackbar('Receipt functionality will be implemented soon', 'info');
-  };
-
   const clearFilters = () => {
     setSearchTerm('');
     setSelectedCustomer(null);
@@ -2901,44 +2866,37 @@ function SalesPageContent() {
             >
               Create Customer
             </Button>
-            <Button
-              variant="outlined"
-              startIcon={<SaveIcon />}
-              onClick={handleSaveDraft}
-              loading={isSavingDraft}
-              disabled={!formSelectedStore}
-              sx={{
-                mr: 2,
-                borderColor: '#388e3c',
-                color: '#388e3c',
-                '&:hover': {
-                  borderColor: '#2e7d32',
-                  backgroundColor: '#e8f5e9'
-                }
-              }}
-            >
-              Save Draft
-            </Button>
-            <Button
-              variant="outlined"
-              startIcon={<InfoIcon />}
-              onClick={handleOpenDraftModal}
-              sx={{
-                borderColor: '#f57c00',
-                color: '#f57c00',
-                '&:hover': {
-                  borderColor: '#e65100',
-                  backgroundColor: '#fff3e0'
-                }
-              }}
-            >
-              Load Draft
-            </Button>
           </Box>
 
+          {/* Screen Stack Indicator */}
+          {(currentScreenIndex >= 0 || screenStack.length > 0) && (
+            <Box sx={{ display: 'flex', justifyContent: 'flex-start', mt: -1, mb: 1 }}>
+              <Box
+                sx={{
+                  background: 'rgba(51, 65, 85, 0.1)',
+                  color: '#475569',
+                  padding: '2px 10px',
+                  borderRadius: '4px',
+                  fontSize: '11px',
+                  fontWeight: 'bold',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                  border: '1px solid rgba(51, 65, 85, 0.2)'
+                }}
+              >
+                SCREEN {currentScreenIndex + 1}
+                {screenStack.length > 1 && (
+                  <span style={{ opacity: 0.7, fontSize: '10px', marginLeft: '4px' }}>
+                    ({currentScreenIndex + 1}/{screenStack.length})
+                  </span>
+                )}
+              </Box>
+            </Box>
+          )}
 
           {/* Main Form */}
-          <Card>
+          <Card key={`${currentScreenIndex}-${screenStack[currentScreenIndex]?.timestamp || ''}`}>
             <CardContent sx={{ p: 2 }}>
               {/* Transaction Type Banner */}
               <Box sx={{ mb: 3 }}>
@@ -3198,6 +3156,25 @@ function SalesPageContent() {
                           />
                         )}
                         noOptionsText="No sales found"
+                      />
+                    </Box>
+                  </Grid>
+                )}
+
+                {billType === 'SALE_RETURN' && (
+                  <Grid item xs={12} md={3}>
+                    <Box>
+                      <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
+                        SALE INVOICE #
+                      </Typography>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        placeholder="Manual Inv #"
+                        value={paymentData.manualSaleInv || ''}
+                        onChange={(e) => setPaymentData(prev => ({ ...prev, manualSaleInv: e.target.value }))}
+                        onFocus={(e) => e.target.select()}
+                        sx={{ bgcolor: 'white' }}
                       />
                     </Box>
                   </Grid>
@@ -3466,8 +3443,7 @@ function SalesPageContent() {
                                 }
                               }}
                               inputProps={{
-                                min: 0.01,
-                                step: 0.01
+                                min: 0.01
                               }}
                             />
                           </TableCell>
@@ -3499,8 +3475,7 @@ function SalesPageContent() {
                                 }
                               }}
                               inputProps={{
-                                min: 0,
-                                step: 0.01
+                                min: 0
                               }}
                             />
                           </TableCell>
@@ -3562,18 +3537,6 @@ function SalesPageContent() {
                           sx={{ minWidth: 300, bgcolor: 'white' }}
                         />
                       )}
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="Amount"
-                      type="number"
-                      value={newTransport.amount === 0 ? '' : newTransport.amount}
-                      onChange={(e) => setNewTransport(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
-                      onFocus={(e) => e.target.select()}
-                      placeholder="0.00"
-                      size="small"
                     />
                   </Grid>
                   <Grid item xs={12} md={2}>
@@ -3836,28 +3799,12 @@ function SalesPageContent() {
                     <TextField
                       size="small"
                       type="number"
-                      value={(() => {
-                        const totalDelivery = (parseFloat(paymentData.deliveryCharges || 0) + calculateTransportTotal());
-                        if (totalDelivery === 0) return '';
-                        // Only show decimals if the number has decimal places
-                        return totalDelivery % 1 === 0 ? totalDelivery.toString() : totalDelivery.toFixed(2);
-                      })()}
-                      onChange={(e) => {
-                        // Calculate delivery charges by subtracting transport from total
-                        const totalValue = parseFloat(e.target.value) || 0;
-                        const transportTotal = calculateTransportTotal();
-                        const deliveryOnly = totalValue - transportTotal;
-                        handlePaymentDataChange('deliveryCharges', deliveryOnly >= 0 ? deliveryOnly : 0);
-                      }}
+                      value={paymentData.deliveryCharges === 0 ? '' : paymentData.deliveryCharges}
+                      onChange={(e) => handlePaymentDataChange('deliveryCharges', e.target.value)}
                       onFocus={(e) => e.target.select()}
                       sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px', fontWeight: 'bold' }, flex: 1 }}
                       placeholder="0"
                     />
-                    {calculateTransportTotal() > 0 && (
-                      <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
-                        (includes Transport: {calculateTransportTotal().toFixed(2)})
-                      </Typography>
-                    )}
                   </Box>
 
                   {/* DISCOUNT */}
@@ -4138,7 +4085,7 @@ function SalesPageContent() {
                     color: '#ff9800',
                     borderColor: '#ff9800',
                     borderRadius: 2,
-                    '&:hover': { 
+                    '&:hover': {
                       bgcolor: 'rgba(255, 152, 0, 0.04)',
                       borderColor: '#f57c00'
                     }
@@ -4236,7 +4183,7 @@ function SalesPageContent() {
                 </Box>
                 <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right', flex: '0 0 50%' }}>
                   <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    Invoice No: <strong>#{currentBillData.sale_id}</strong>
+                    Invoice No: <strong>#{currentBillData.sale_id || currentBillData.manual_sale_inv || currentBillData.return_id}</strong>
                   </Typography>
                   <Typography variant="body2" sx={{ mb: 0.5 }}>
                     Time: <strong>{new Date(currentBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
@@ -4403,10 +4350,12 @@ function SalesPageContent() {
                 <Typography sx={{ fontSize: '12px', fontWeight: 'bold' }}>اتفاق آئرن اینڈ سیمنٹ سٹور</Typography>
                 <Typography sx={{ fontSize: '10px' }}>گجرات سرگودھا روڈ، پاہڑیانوالی</Typography>
                 <Typography sx={{ fontSize: '10px' }}>Ph: 0346-7560306, 0300-7560306</Typography>
-                <Typography sx={{ mt: 0.5, fontSize: '11px', fontWeight: 'bold' }}>SALE RECEIPT</Typography>
+                <Typography sx={{ mt: 0.5, fontSize: '11px', fontWeight: 'bold' }}>
+                  {currentBillData?.is_return ? (currentBillData.sale_id ? 'SALE RETURN' : 'MANUAL RETURN') : 'SALE RECEIPT'}
+                </Typography>
               </Box>
               <Box sx={{ py: 1 }}>
-                <Typography sx={{ fontSize: '10px' }}>Inv#: #{currentBillData.sale_id}</Typography>
+                <Typography sx={{ fontSize: '10px' }}>Inv#: #{currentBillData.sale_id || currentBillData.manual_sale_inv || currentBillData.return_id}</Typography>
                 <Typography sx={{ fontSize: '10px' }}>Type: {currentBillData.bill_type || 'BILL'}</Typography>
                 <Typography sx={{ fontSize: '10px' }}>Date: {new Date(currentBillData.created_at).toLocaleDateString('en-GB')}</Typography>
                 <Typography sx={{ fontSize: '10px' }}>Time: {new Date(currentBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</Typography>
@@ -4417,10 +4366,12 @@ function SalesPageContent() {
                   currentBillData.sale_details.map((d, i) => (
                     <Box key={d.sale_detail_id || i} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                       <Box sx={{ pr: 1, flex: 1 }}>
-                        <Typography sx={{ fontSize: '10px' }}>{d.product?.pro_title || 'Item'}</Typography>
-                        <Typography sx={{ fontSize: '9px', color: 'text.secondary' }}>Qty: {d.qnty} x {parseFloat(d.unit_rate || 0).toFixed(2)}</Typography>
+                        <Typography sx={{ fontSize: '11px', fontWeight: 'bold' }}>{d.product?.pro_title || 'Item'}</Typography>
+                        <Typography sx={{ fontSize: '10px', color: 'black' }}>{d.qnty} x {parseFloat(d.unit_rate || 0).toFixed(2)}</Typography>
                       </Box>
-                      <Typography sx={{ fontSize: '10px', minWidth: '35mm', textAlign: 'right' }}>{parseFloat(d.total_amount || 0).toFixed(2)}</Typography>
+                      <Typography sx={{ fontSize: '11px', fontWeight: 'bold', minWidth: '25mm', textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+                        {parseFloat(d.total_amount || 0).toFixed(2)}
+                      </Typography>
                     </Box>
                   ))
                 ) : (
@@ -4493,7 +4444,7 @@ function SalesPageContent() {
         >
           <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-              {currentBillData?.is_return ? 'Sale Return Invoice' : 'Receipt'} - Bill #{currentBillData?.sale_id || currentBillData?.return_id}
+              {currentBillData?.is_return ? (currentBillData.sale_id ? 'Sale Return Invoice' : 'Manual Sale Return') : 'Receipt'} - Bill #{currentBillData?.sale_id || currentBillData?.manual_sale_inv || currentBillData?.return_id}
             </Typography>
             <IconButton
               onClick={() => setReceiptDialogOpen(false)}
@@ -4535,7 +4486,7 @@ function SalesPageContent() {
                     mt: 1,
                     color: currentBillData?.is_return ? '#d32f2f' : '#000'
                   }}>
-                    {currentBillData?.is_return ? 'SALE RETURN INVOICE' : 'SALE INVOICE'}
+                    {currentBillData?.is_return ? (currentBillData.sale_id ? 'SALE RETURN INVOICE' : 'MANUAL SALE RETURN') : 'SALE INVOICE'}
                   </Typography>
                 </Box>
 
@@ -4556,7 +4507,7 @@ function SalesPageContent() {
                   </Box>
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right', flex: '0 0 50%' }}>
                     <Typography variant="body2" sx={{ mb: 0.5 }}>
-                      Invoice No: <strong>#{currentBillData.sale_id}</strong>
+                      Invoice No: <strong>#{currentBillData.sale_id || currentBillData.manual_sale_inv || currentBillData.return_id}</strong>
                     </Typography>
                     <Typography variant="body2" sx={{ mb: 0.5 }}>
                       Time: <strong>{new Date(currentBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
@@ -4922,142 +4873,6 @@ function SalesPageContent() {
           </DialogActions>
         </Dialog>
 
-        {/* Draft Sales Modal */}
-        <Dialog
-          open={draftModalOpen}
-          onClose={() => setDraftModalOpen(false)}
-          maxWidth="md"
-          fullWidth
-          PaperProps={{
-            sx: { borderRadius: 3 }
-          }}
-        >
-          <DialogTitle sx={{
-            background: 'linear-gradient(45deg, #f57c00 30%, #ff9800 90%)',
-            color: 'white',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between'
-          }}>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <SaveIcon sx={{ mr: 2, fontSize: 28 }} />
-              <Box>
-                <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
-                  Draft Sales
-                </Typography>
-                <Typography variant="caption" sx={{ opacity: 0.9 }}>
-                  Load a saved draft or create a new one
-                </Typography>
-              </Box>
-            </Box>
-            <IconButton onClick={() => setDraftModalOpen(false)} sx={{ color: 'white' }}>
-              <CloseIcon />
-            </IconButton>
-          </DialogTitle>
-          <DialogContent sx={{ p: 2 }}>
-            <Box sx={{ mb: 2 }}>
-              <TextField
-                fullWidth
-                size="small"
-                placeholder="Search drafts..."
-                value={draftSearchTerm}
-                onChange={(e) => setDraftSearchTerm(e.target.value)}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon />
-                    </InputAdornment>
-                  ),
-                }}
-              />
-            </Box>
-            
-            {drafts.length === 0 ? (
-              <Box sx={{ 
-                textAlign: 'center', 
-                py: 4,
-                color: 'text.secondary'
-              }}>
-                <SaveIcon sx={{ fontSize: 48, mb: 2, opacity: 0.3 }} />
-                <Typography>
-                  No drafts available. Save your current form as a draft to get started!
-                </Typography>
-              </Box>
-            ) : (
-              <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 400 }}>
-                <Table stickyHeader size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Draft Code</TableCell>
-                      <TableCell>Customer</TableCell>
-                      <TableCell>Updated</TableCell>
-                      <TableCell align="center">Actions</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {drafts
-                      .filter(draft => {
-                        if (!draftSearchTerm) return true;
-                        const searchLower = draftSearchTerm.toLowerCase();
-                        return (
-                          draft.draft_code?.toLowerCase().includes(searchLower) ||
-                          draft.customer?.cus_name?.toLowerCase().includes(searchLower)
-                        );
-                      })
-                      .map((draft) => (
-                        <TableRow key={draft.draft_id} hover>
-                          <TableCell sx={{ fontWeight: 'bold', color: '#f57c00' }}>
-                            {draft.draft_code}
-                          </TableCell>
-                          <TableCell>
-                            {draft.customer?.cus_name || 'No customer'}
-                          </TableCell>
-                          <TableCell>
-                            {new Date(draft.updated_at).toLocaleDateString()} {new Date(draft.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </TableCell>
-                          <TableCell align="center">
-                            <Tooltip title="Load this draft">
-                              <IconButton
-                                size="small"
-                                onClick={() => handleLoadDraft(draft)}
-                                sx={{ color: '#2196f3' }}
-                              >
-                                <VisibilityIcon />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Delete this draft">
-                              <IconButton
-                                size="small"
-                                onClick={() => handleDeleteDraft(draft.draft_id, draft.draft_code)}
-                                sx={{ color: '#f44336' }}
-                              >
-                                <DeleteIcon />
-                              </IconButton>
-                            </Tooltip>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
-          </DialogContent>
-          <DialogActions sx={{ p: 2, bgcolor: 'grey.50' }}>
-            <Button onClick={() => setDraftModalOpen(false)}>Close</Button>
-            {drafts.length > 0 && (
-              <Button 
-                variant="text" 
-                sx={{ color: '#f57c00' }}
-                onClick={() => {
-                  setDrafts([]);
-                  fetchDrafts();
-                }}
-              >
-                Refresh
-              </Button>
-            )}
-          </DialogActions>
-        </Dialog>
 
         {/* Print Styles for Create View */}
         <style jsx global>{`
@@ -5136,50 +4951,30 @@ function SalesPageContent() {
     <DashboardLayout>
       <Container maxWidth={false} sx={{ py: 4 }}>
         <Stack spacing={4}>
-          {/* Header */}
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Box>
-              <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
-                Sales Management
-              </Typography>
-              <Typography variant="body1" sx={{ color: 'text.secondary', mt: 1 }}>
-                Manage your sales orders, customers, and revenue
-              </Typography>
-            </Box>
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <Button
-                variant="contained"
-                startIcon={<PackageIcon />}
-                onClick={() => showSnackbar('Hold Bill functionality will be implemented soon', 'info')}
-                sx={{
-                  background: 'linear-gradient(45deg, #FF6B35 30%, #F7931E 90%)',
-                  boxShadow: '0 3px 5px 2px rgba(255, 107, 53, .3)',
-                  '&:hover': {
-                    background: 'linear-gradient(45deg, #E55A2B 30%, #E8851B 90%)',
-                    transform: 'scale(1.05)',
-                  },
-                  transition: 'all 0.2s ease-in-out'
-                }}
-              >
-                Hold Bill
-              </Button>
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={() => setCurrentView('create')}
-                sx={{
-                  background: 'linear-gradient(45deg, #4CAF50 30%, #2E7D32 90%)',
-                  boxShadow: '0 3px 5px 2px rgba(76, 175, 80, .3)',
-                  '&:hover': {
-                    background: 'linear-gradient(45deg, #388E3C 30%, #1B5E20 90%)',
-                    transform: 'scale(1.05)',
-                  },
-                  transition: 'all 0.2s ease-in-out'
-                }}
-              >
-                Add New Sale
-              </Button>
-            </Box>
+          {/* Header - Just the Add Button */}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 2 }}>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => setCurrentView('create')}
+              size="large"
+              sx={{
+                background: 'linear-gradient(45deg, #1976d2 30%, #2196f3 90%)',
+                boxShadow: '0 4px 20px rgba(25, 118, 210, 0.3)',
+                px: 4,
+                py: 1.5,
+                fontSize: '1rem',
+                fontWeight: 'bold',
+                '&:hover': {
+                  background: 'linear-gradient(45deg, #1565c0 30%, #1976d2 90%)',
+                  transform: 'scale(1.05)',
+                  boxShadow: '0 6px 25px rgba(25, 118, 210, 0.4)',
+                },
+                transition: 'all 0.3s ease-in-out'
+              }}
+            >
+              Add New Sale
+            </Button>
           </Box>
 
           {/* Stats Cards - Full Width Layout */}
@@ -5655,48 +5450,6 @@ function SalesPageContent() {
 
   return (
     <>
-      {/* Screen Stack Indicator */}
-      {currentView === 'create' && (currentScreenIndex >= 0 || screenStack.length > 0) && (
-        <Box
-          sx={{
-            position: 'fixed',
-            top: 20,
-            right: 20,
-            zIndex: 1000,
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            color: 'white',
-            padding: '12px 20px',
-            borderRadius: '8px',
-            boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
-            animation: showScreenIndicator ? 'pulse 0.5s ease-in-out' : 'none',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 1,
-            '@keyframes pulse': {
-              '0%': { transform: 'scale(1)' },
-              '50%': { transform: 'scale(1.05)' },
-              '100%': { transform: 'scale(1)' }
-            }
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-              📋 Screen {currentScreenIndex + 1}
-            </Typography>
-            {screenStack.length > 0 && (
-              <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                ({currentScreenIndex + 1} of {screenStack.length})
-              </Typography>
-            )}
-          </Box>
-          <Typography variant="caption" sx={{ fontSize: '11px', opacity: 0.85, lineHeight: 1.3 }}>
-            Ctrl+← Previous | Ctrl+→ Save &amp; New
-          </Typography>
-          <Typography variant="caption" sx={{ fontSize: '10px', opacity: 0.7 }}>
-            ✕ Cancel Current removes screen | ← saves to list | No auto-clear
-          </Typography>
-        </Box>
-      )}
 
       {currentView === 'list' ? renderSalesListView() : renderSalesCreateView()}
 
@@ -6244,7 +5997,7 @@ function SalesPageContent() {
                   label="Initial Balance"
                   name="cus_balance"
                   type="number"
-                  inputProps={{ step: "0.01" }}
+                  inputProps={{}}
                   value={newCustomer.cus_balance}
                   onChange={(e) => setNewCustomer(prev => ({ ...prev, cus_balance: e.target.value }))}
                   onFocus={(e) => e.target.select()}
@@ -6315,9 +6068,11 @@ function SalesPageContent() {
             boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
             width: '210mm', // A4 width
             maxWidth: '210mm',
+            minHeight: '297mm', // A4 height
             '@media print': {
               width: '210mm',
               maxWidth: '210mm',
+              minHeight: '297mm',
               margin: '0 auto'
             }
           }
@@ -6348,7 +6103,7 @@ function SalesPageContent() {
         </DialogTitle>
         <DialogContent sx={{ p: 0, bgcolor: 'white' }}>
           {selectedBill && (
-            <Box id="printable-invoice" sx={{ width: '100%', bgcolor: 'white' }}>
+            <Box id="printable-invoice-a4" sx={{ width: '100%', bgcolor: 'white' }}>
               {/* Company Header */}
               <Box sx={{ textAlign: 'center', py: 3, borderBottom: '2px solid #000' }}>
                 <Typography variant="h4" sx={{
@@ -6433,7 +6188,7 @@ function SalesPageContent() {
                         selectedBill.sale_details.map((detail, index) => (
                           <TableRow key={detail.sale_detail_id || index}>
                             <TableCell sx={{ px: 1 }}>{index + 1}</TableCell>
-                            <TableCell sx={{ px: 1 }}>{detail.product?.pro_title || detail.product?.pro_name || detail.product?.prod_name || 'N/A'}</TableCell>
+                            <TableCell sx={{ px: 1, fontWeight: 'bold' }}>{detail.product?.pro_title || detail.product?.pro_name || detail.product?.prod_name || 'N/A'}</TableCell>
                             <TableCell sx={{ px: 1 }} align="right">{detail.qnty || 0}</TableCell>
                             <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.unit_rate || 0).toFixed(2)}</TableCell>
                             <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.total_amount || 0).toFixed(2)}</TableCell>
@@ -6454,30 +6209,35 @@ function SalesPageContent() {
                 <Box sx={{ mt: 2, width: '100%', display: 'flex', justifyContent: 'space-between', gap: 2 }}>
                   {/* Left Side - Balance Section */}
                   <Box sx={{ flex: '0 0 48%' }}>
-                    <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, border: '1px solid #000', width: '100%' }}>
-                      <Table size="small">
-                        <TableBody>
-                          <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                              {parseFloat(selectedBill.customer?.cus_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </TableCell>
-                          </TableRow>
-                          <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                              {(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </TableCell>
-                          </TableRow>
-                          <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                              {(parseFloat(selectedBill.customer?.cus_balance || 0) + parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </TableCell>
-                          </TableRow>
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
+                    {(() => {
+                      const prevBalance = parseFloat(selectedBill.customer?.cus_balance || 0);
+                      const currentBillAmount = parseFloat(selectedBill.total_amount || 0);
+                      const payment = parseFloat(selectedBill.payment || 0);
+                      const totalBalance = prevBalance + currentBillAmount - payment;
+
+                      return (
+                        <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, border: '1px solid #000', width: '100%' }}>
+                          <Table size="small">
+                            <TableBody>
+                              {prevBalance > 0 && (
+                                <TableRow>
+                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
+                                  <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                    {prevBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                              <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                  {totalBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </TableCell>
+                              </TableRow>
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      );
+                    })()}
 
                     {/* Notes Section */}
                     <Box sx={{ mt: 1 }}>
@@ -6501,7 +6261,7 @@ function SalesPageContent() {
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>مزدوری</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {parseFloat(selectedBill.labour || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {parseFloat(selectedBill.labour_charges || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                           <TableRow>
@@ -6634,9 +6394,23 @@ function SalesPageContent() {
               bgcolor: 'primary.main',
               '&:hover': { bgcolor: 'primary.dark' }
             }}
-            onClick={handlePrintBill}
+            onClick={() => handlePrintBill('A4')}
           >
-            Print Bill
+            Print A4 Bill
+          </Button>
+          <Button
+            variant="contained"
+            color="secondary"
+            startIcon={<PrintIcon />}
+            sx={{
+              minWidth: 150,
+              bgcolor: 'secondary.main',
+              '&:hover': { bgcolor: 'secondary.dark' },
+              ml: 2
+            }}
+            onClick={() => handlePrintBill('THERMAL')}
+          >
+            Print Thermal Receipt
           </Button>
         </DialogActions>
       </Dialog>
@@ -6646,7 +6420,7 @@ function SalesPageContent() {
         @media print {
           @page {
             size: A4;
-            margin: 0.5cm 1cm;
+            margin: 0.5cm;
           }
           
           body {
@@ -6662,19 +6436,32 @@ function SalesPageContent() {
           }
           
           /* Show only the printable invoice */
-          #printable-invoice,
-          #printable-invoice * {
+          #printable-invoice-a4,
+          #printable-invoice-a4 *,
+          #printable-invoice-thermal,
+          #printable-invoice-thermal * {
             visibility: visible !important;
           }
           
-          /* Position invoice at top */
-          #printable-invoice {
+          /* Position invoice at top based on type */
+          body.print-a4 #printable-invoice-a4 {
             position: absolute;
             left: 0;
             top: 0;
-            width: 21cm;
-            min-height: 29.7cm;
-            max-width: 21cm;
+            width: 210mm;
+            min-height: 297mm;
+            max-width: 210mm;
+            background: white;
+            padding: 0;
+            margin: 0;
+          }
+
+          body.print-thermal #printable-invoice-thermal {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 80mm;
+            max-width: 80mm;
             background: white;
             padding: 0;
             margin: 0;
@@ -6691,7 +6478,7 @@ function SalesPageContent() {
             display: none !important;
           }
           
-          /* Show dialog content */
+          /* Show dialog content - adjusting based on print type */
           .MuiDialogContent-root {
             visibility: visible !important;
             display: block !important;
@@ -6699,8 +6486,16 @@ function SalesPageContent() {
             overflow: visible !important;
             height: auto !important;
             max-height: none !important;
-            width: 21cm !important;
-            max-width: 21cm !important;
+          }
+          
+          body.print-a4 .MuiDialogContent-root {
+            width: 210mm !important;
+            max-width: 210mm !important;
+          }
+          
+          body.print-thermal .MuiDialogContent-root {
+            width: 80mm !important;
+            max-width: 80mm !important;
           }
           
           /* Table styles for print */
@@ -6734,7 +6529,7 @@ function SalesPageContent() {
             box-shadow: none !important;
           }
           
-          /* Typography adjustments for A4 */
+          /* Typography adjustments for A5 */
           .MuiTypography-root {
             font-size: 12px !important;
           }

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { ArrowLeft, Download, Printer, Search, RefreshCw, Scale, TrendingUp, TrendingDown, Package, Wallet } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
+import { Autocomplete, TextField, InputAdornment } from '@mui/material';
 
 export default function BalanceSheet() {
   const router = useRouter();
@@ -61,7 +62,7 @@ export default function BalanceSheet() {
     csv += 'Receivables (Debit Balances)\n';
     csv += 'S.No,Account Name,Category,Balance\n';
     data.receivables.forEach((r, i) => {
-      csv += `${i+1},${r.cus_name},${r.customer_category?.cus_cat_title || '-'},${formatCurrency(r.cus_balance)}\n`;
+      csv += `${i + 1},${r.cus_name},${r.customer_category?.cus_cat_title || '-'},${formatCurrency(r.cus_balance)}\n`;
     });
     csv += `\nTotal Receivables,${formatCurrency(data.summary.totalReceivables)}\n`;
     csv += `Stock Value,${formatCurrency(data.summary.stockValue)}\n`;
@@ -70,7 +71,7 @@ export default function BalanceSheet() {
     csv += 'Payables (Credit Balances)\n';
     csv += 'S.No,Account Name,Category,Balance\n';
     data.payables.forEach((p, i) => {
-      csv += `${i+1},${p.cus_name},${p.customer_category?.cus_cat_title || '-'},${formatCurrency(Math.abs(p.cus_balance))}\n`;
+      csv += `${i + 1},${p.cus_name},${p.customer_category?.cus_cat_title || '-'},${formatCurrency(Math.abs(p.cus_balance))}\n`;
     });
     csv += `\nTOTAL LIABILITIES,${formatCurrency(data.summary.totalLiabilities)}\n`;
     csv += `\nNET WORTH,${formatCurrency(data.summary.netWorth)}\n`;
@@ -84,22 +85,22 @@ export default function BalanceSheet() {
 
   const getFilteredData = () => {
     if (!reportData) return null;
-    
+
     let filteredReceivables = reportData.receivables;
     let filteredPayables = reportData.payables;
-    
+
     // Filter by customer category
     if (selectedCategory) {
       filteredReceivables = filteredReceivables.filter(r => r.customer_category?.cus_cat_id === parseInt(selectedCategory));
       filteredPayables = filteredPayables.filter(p => p.customer_category?.cus_cat_id === parseInt(selectedCategory));
     }
-    
+
     // Filter by customer type
     if (selectedCustomerType) {
       filteredReceivables = filteredReceivables.filter(r => r.customer_type?.cus_type_id === parseInt(selectedCustomerType));
       filteredPayables = filteredPayables.filter(p => p.customer_type?.cus_type_id === parseInt(selectedCustomerType));
     }
-    
+
     // Filter by balance range
     if (minBalance || maxBalance) {
       const min = parseFloat(minBalance) || 0;
@@ -113,7 +114,7 @@ export default function BalanceSheet() {
         return balance >= min && balance <= max;
       });
     }
-    
+
     // Filter by balance type
     if (balanceType === 'HIGH_VALUE') {
       filteredReceivables = filteredReceivables.filter(r => Math.abs(parseFloat(r.cus_balance || 0)) >= 100000);
@@ -122,10 +123,10 @@ export default function BalanceSheet() {
       filteredReceivables = filteredReceivables.filter(r => parseFloat(r.cus_balance || 0) === 0);
       filteredPayables = filteredPayables.filter(p => parseFloat(p.cus_balance || 0) === 0);
     }
-    
+
     const totalReceivables = filteredReceivables.reduce((sum, r) => sum + parseFloat(r.cus_balance || 0), 0);
     const totalPayables = Math.abs(filteredPayables.reduce((sum, p) => sum + parseFloat(p.cus_balance || 0), 0));
-    
+
     return {
       ...reportData,
       receivables: filteredReceivables,
@@ -181,21 +182,53 @@ export default function BalanceSheet() {
         {/* Filters Bar */}
         <div className="flex-shrink-0 bg-slate-50 border-b border-slate-200 px-6 py-3 print:hidden">
           <div className="flex flex-wrap items-end gap-3 mb-3">
-            <div className="flex-1 min-w-[140px] max-w-[180px]">
-              <label className="block text-xs font-semibold text-slate-600 mb-1">CATEGORY</label>
-              <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-                <option value="">All Categories</option>
-                {categories.map((cat) => (<option key={cat.cus_cat_id} value={cat.cus_cat_id}>{cat.cus_cat_title}</option>))}
-              </select>
+            <div className="flex-1 min-w-[200px] max-w-[250px]">
+              <label className="block text-xs font-semibold text-slate-600 mb-1 caps">CATEGORY</label>
+              <Autocomplete
+                size="small"
+                options={categories}
+                getOptionLabel={(option) => option.cus_cat_title || ''}
+                value={categories.find(c => c.cus_cat_id === parseInt(selectedCategory)) || null}
+                onChange={(e, val) => setSelectedCategory(val ? val.cus_cat_id.toString() : '')}
+                autoSelect={true}
+                autoHighlight={true}
+                openOnFocus={true}
+                selectOnFocus={true}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    placeholder="All Categories"
+                    onFocus={(e) => e.target.select()}
+                    sx={{
+                      '& .MuiOutlinedInput-root': { py: '2px', borderRadius: '8px', bgcolor: 'white' }
+                    }}
+                  />
+                )}
+              />
             </div>
-            <div className="flex-1 min-w-[140px] max-w-[180px]">
-              <label className="block text-xs font-semibold text-slate-600 mb-1">CUSTOMER TYPE</label>
-              <select value={selectedCustomerType} onChange={(e) => setSelectedCustomerType(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-                <option value="">All Types</option>
-                {customerTypes.map((type) => (<option key={type.cus_type_id} value={type.cus_type_id}>{type.cus_type_title}</option>))}
-              </select>
+            <div className="flex-1 min-w-[200px] max-w-[250px]">
+              <label className="block text-xs font-semibold text-slate-600 mb-1 caps">CUSTOMER TYPE</label>
+              <Autocomplete
+                size="small"
+                options={customerTypes}
+                getOptionLabel={(option) => option.cus_type_title || ''}
+                value={customerTypes.find(t => t.cus_type_id === parseInt(selectedCustomerType)) || null}
+                onChange={(e, val) => setSelectedCustomerType(val ? val.cus_type_id.toString() : '')}
+                autoSelect={true}
+                autoHighlight={true}
+                openOnFocus={true}
+                selectOnFocus={true}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    placeholder="All Types"
+                    onFocus={(e) => e.target.select()}
+                    sx={{
+                      '& .MuiOutlinedInput-root': { py: '2px', borderRadius: '8px', bgcolor: 'white' }
+                    }}
+                  />
+                )}
+              />
             </div>
             <div className="flex-1 min-w-[140px] max-w-[180px]">
               <label className="block text-xs font-semibold text-slate-600 mb-1">BALANCE TYPE</label>
@@ -286,7 +319,7 @@ export default function BalanceSheet() {
                   <div className="bg-slate-800 text-white px-4 py-2 print:bg-gray-200 print:text-black">
                     <h3 className="text-sm font-bold uppercase tracking-wide">Assets</h3>
                   </div>
-                  
+
                   {/* Receivables Table */}
                   <div className="p-3">
                     <div className="bg-slate-100 px-3 py-1 rounded mb-2 print:bg-white">
@@ -343,7 +376,7 @@ export default function BalanceSheet() {
                   <div className="bg-slate-800 text-white px-4 py-2 print:bg-gray-200 print:text-black">
                     <h3 className="text-sm font-bold uppercase tracking-wide">Liabilities</h3>
                   </div>
-                  
+
                   {/* Payables Table */}
                   <div className="p-3">
                     <div className="bg-slate-100 px-3 py-1 rounded mb-2 print:bg-white">

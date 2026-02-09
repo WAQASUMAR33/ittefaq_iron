@@ -146,7 +146,7 @@ export default function Sidebar({
     } else if (itemId === 'purchases') {
       router.push('/dashboard/purchases');
     } else if (itemId === 'purchase-returns') {
-      router.push('/dashboard/purchase-returns');
+      router.push('/dashboard/purchases?type=return');
     } else if (itemId === 'vehicles') {
       router.push('/dashboard/vehicles');
     } else if (itemId === 'ledger') {
@@ -156,7 +156,7 @@ export default function Sidebar({
     } else if (itemId === 'hold-bills') {
       router.push('/dashboard/hold-bills');
     } else if (itemId === 'sale-returns') {
-      router.push('/dashboard/sale-returns');
+      router.push('/dashboard/sales?type=return');
     } else if (itemId === 'loaders') {
       router.push('/dashboard/loaders');
     } else if (itemId === 'expense-titles') {

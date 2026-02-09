@@ -627,6 +627,10 @@ export default function CustomersPage() {
                 <Box>
                   <Autocomplete
                     fullWidth
+                    autoSelect={true}
+                    autoHighlight={true}
+                    openOnFocus={true}
+                    selectOnFocus={true}
                     options={[
                       { value: 'all', label: 'All Types' },
                       { value: 'CASH_ACCOUNT', label: 'Cash Account' },
@@ -654,6 +658,7 @@ export default function CustomersPage() {
                         {...params}
                         label="Account Type"
                         placeholder="Select type"
+                        onFocus={(e) => e.target.select()}
                         InputProps={{
                           ...params.InputProps,
                           startAdornment: (
@@ -680,6 +685,10 @@ export default function CustomersPage() {
                 <Box>
                   <Autocomplete
                     fullWidth
+                    autoSelect={true}
+                    autoHighlight={true}
+                    openOnFocus={true}
+                    selectOnFocus={true}
                     options={[
                       { value: 'all', label: 'All Categories' },
                       ...customerCategories.map(category => ({
@@ -697,6 +706,7 @@ export default function CustomersPage() {
                         {...params}
                         label="Category"
                         placeholder="Select category"
+                        onFocus={(e) => e.target.select()}
                         InputProps={{
                           ...params.InputProps,
                           startAdornment: (
@@ -723,6 +733,10 @@ export default function CustomersPage() {
                 <Box>
                   <Autocomplete
                     fullWidth
+                    autoSelect={true}
+                    autoHighlight={true}
+                    openOnFocus={true}
+                    selectOnFocus={true}
                     options={[
                       { value: 'all', label: 'All Balances' },
                       { value: 'positive', label: 'Positive Balance' },
@@ -745,6 +759,7 @@ export default function CustomersPage() {
                         {...params}
                         label="Balance Status"
                         placeholder="Select balance"
+                        onFocus={(e) => e.target.select()}
                         InputProps={{
                           ...params.InputProps,
                           startAdornment: (
@@ -1193,6 +1208,10 @@ export default function CustomersPage() {
                 <Grid item xs={12} md={4}>
                   <Autocomplete
                     fullWidth
+                    autoSelect={true}
+                    autoHighlight={true}
+                    openOnFocus={true}
+                    selectOnFocus={true}
                     options={customerTypes.map(type => ({
                       id: type.cus_type_id,
                       title: type.cus_type_title
@@ -1214,6 +1233,7 @@ export default function CustomersPage() {
                         {...params}
                         label="Account Type"
                         required
+                        onFocus={(e) => e.target.select()}
                         sx={{ minWidth: 250 }}
                         InputProps={{
                           ...params.InputProps,
@@ -1231,6 +1251,10 @@ export default function CustomersPage() {
                 <Grid item xs={12} md={4}>
                   <Autocomplete
                     fullWidth
+                    autoSelect={true}
+                    autoHighlight={true}
+                    openOnFocus={true}
+                    selectOnFocus={true}
                     options={customerCategories.map(category => ({
                       id: category.cus_cat_id,
                       title: category.cus_cat_title
@@ -1252,6 +1276,7 @@ export default function CustomersPage() {
                         {...params}
                         label="Account Category"
                         required
+                        onFocus={(e) => e.target.select()}
                         sx={{ minWidth: 250 }}
                         InputProps={{
                           ...params.InputProps,
@@ -1294,6 +1319,10 @@ export default function CustomersPage() {
                 <Grid item xs={12} md={4}>
                   <Autocomplete
                     fullWidth
+                    autoSelect={true}
+                    autoHighlight={true}
+                    openOnFocus={true}
+                    selectOnFocus={true}
                     options={cities.map(city => ({
                       id: city.city_id,
                       title: city.city_name
@@ -1314,6 +1343,7 @@ export default function CustomersPage() {
                       <TextField
                         {...params}
                         label="City"
+                        onFocus={(e) => e.target.select()}
                         sx={{ minWidth: 250 }}
                         InputProps={{
                           ...params.InputProps,

@@ -655,6 +655,7 @@ export default function PurchaseReturnsPage() {
                     value={selectedSupplier}
                     onChange={(e, val) => setSelectedSupplier(val)}
                     autoSelect={true}
+                    autoHighlight={true}
                     openOnFocus={true}
                     selectOnFocus={true}
                     renderInput={(params) => (
@@ -873,6 +874,7 @@ export default function PurchaseReturnsPage() {
                         value={selectedCustomerAccount}
                         onChange={(e, val) => handleCustomerAccountSelect(val)}
                         autoSelect={true}
+                        autoHighlight={true}
                         openOnFocus={true}
                         selectOnFocus={true}
                         renderInput={(params) => (
@@ -912,6 +914,7 @@ export default function PurchaseReturnsPage() {
                         onChange={(e, val) => handlePurchaseSelect(val)}
                         disabled={!selectedCustomerAccount}
                         autoSelect={true}
+                        autoHighlight={true}
                         openOnFocus={true}
                         selectOnFocus={true}
                         renderInput={(params) => (

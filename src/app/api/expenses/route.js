@@ -15,6 +15,12 @@ export async function GET(request) {
         where: { exp_id: id },
         include: {
           expense_title: true,
+          paid_from_account: {
+            select: {
+              cus_id: true,
+              cus_name: true
+            }
+          },
           updated_by_user: {
             select: {
               full_name: true,
@@ -34,6 +40,12 @@ export async function GET(request) {
       const expenses = await prisma.expense.findMany({
         include: {
           expense_title: true,
+          paid_from_account: {
+            select: {
+              cus_id: true,
+              cus_name: true
+            }
+          },
           updated_by_user: {
             select: {
               full_name: true,

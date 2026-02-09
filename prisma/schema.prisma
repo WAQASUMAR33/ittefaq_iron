@@ -134,6 +134,7 @@ model Customer {
   split_payments_debit  SplitPayment[]     @relation("SplitPaymentDebitAccount")
   subscriptions         Subscription[]
   draft_sales           DraftSale[]
+  expenses_paid         Expense[]          @relation("ExpensePaidFrom")
 
   @@index([city_id], map: "customers_city_id_fkey")
   @@index([cus_category], map: "customers_cus_category_fkey")
@@ -240,19 +241,25 @@ model ExpenseTitle {
 }
 
 model Expense {
-  exp_id          Int          @id @default(autoincrement())
-  exp_title       String
-  exp_type        Int
-  exp_detail      String?
-  exp_amount      Decimal
-  created_at      DateTime     @default(now())
-  updated_at      DateTime     @updatedAt
-  updated_by      Int?
-  expense_title   ExpenseTitle @relation(fields: [exp_type], references: [id])
-  updated_by_user Users?       @relation(fields: [updated_by], references: [user_id])
+  exp_id                Int          @id @default(autoincrement())
+  exp_title             String
+  exp_type              Int
+  exp_detail            String?
+  exp_amount            Decimal
+  is_paid               Boolean      @default(false)
+  paid_from_account_id  Int?
+  payment_date          DateTime?
+  payment_reference     String?
+  created_at            DateTime     @default(now())
+  updated_at            DateTime     @updatedAt
+  updated_by            Int?
+  expense_title         ExpenseTitle @relation(fields: [exp_type], references: [id])
+  paid_from_account     Customer?    @relation("ExpensePaidFrom", fields: [paid_from_account_id], references: [cus_id])
+  updated_by_user       Users?       @relation(fields: [updated_by], references: [user_id])
 
   @@index([exp_type], map: "expenses_exp_type_fkey")
   @@index([updated_by], map: "expenses_updated_by_fkey")
+  @@index([paid_from_account_id], map: "expenses_paid_from_account_id_fkey")
   @@map("expenses")
 }
 
@@ -503,7 +510,7 @@ model Cargo {
 
 model SaleReturn {
   return_id         Int                @id @default(autoincrement())
-  sale_id           Int
+  sale_id           Int?
   cus_id            Int
   total_amount      Decimal
   discount          Decimal            @default(0.000000000000000000000000000000)
@@ -516,6 +523,7 @@ model SaleReturn {
   shipping_amount   Decimal            @default(0.000000000000000000000000000000)
   reason            String?
   reference         String?
+  manual_sale_inv   String?
   updated_by        Int?
   created_at        DateTime           @default(now())
   updated_at        DateTime           @updatedAt
@@ -524,7 +532,7 @@ model SaleReturn {
   customer          Customer           @relation(fields: [cus_id], references: [cus_id])
   debit_account     Customer?          @relation("SaleReturnDebitAccount", fields: [debit_account_id], references: [cus_id])
   loader            Loader?            @relation(fields: [loader_id], references: [loader_id])
-  sale              Sale               @relation(fields: [sale_id], references: [sale_id])
+  sale              Sale?              @relation(fields: [sale_id], references: [sale_id])
   updated_by_user   Users?             @relation(fields: [updated_by], references: [user_id])
 
   @@index([credit_account_id], map: "sale_returns_credit_account_id_fkey")
@@ -547,12 +555,14 @@ model SaleReturnDetail {
   discount         Decimal    @default(0.000000000000000000000000000000)
   net_total        Decimal
   cus_id           Int
+  store_id         Int?
   created_at       DateTime   @default(now())
   updated_at       DateTime   @updatedAt
   updated_by       Int?
   customer         Customer   @relation(fields: [cus_id], references: [cus_id])
   product          Product    @relation(fields: [pro_id], references: [pro_id])
   sale_return      SaleReturn @relation(fields: [return_id], references: [return_id], onDelete: Cascade)
+  store            Store?     @relation(fields: [store_id], references: [storeid])
   updated_by_user  Users?     @relation(fields: [updated_by], references: [user_id])
 
   @@index([cus_id], map: "sale_return_details_cus_id_fkey")
@@ -712,6 +722,7 @@ model Store {
   stock_transfers_from StockTransfer[] @relation("StockTransferFrom")
   stock_transfers_to   StockTransfer[] @relation("StockTransferTo")
   store_stocks         StoreStock[]
+  sale_return_details  SaleReturnDetail[]
 
   @@map("stores")
 }

@@ -176,11 +176,12 @@ export async function POST(request) {
       reason,
       reference,
       return_details,
+      manual_sale_inv,
       updated_by
     } = body;
 
     // Validate required fields
-    if (!sale_id || !cus_id || !total_amount || !payment || !return_details || return_details.length === 0) {
+    if (!cus_id || !total_amount || !payment || !return_details || return_details.length === 0) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
@@ -191,7 +192,7 @@ export async function POST(request) {
     const discountAmount = parseFloat(discount || 0);
     const labourChargesAmount = parseFloat(labour_charges || 0);
     const shippingAmount = parseFloat(shipping_amount || 0);
-    
+
     // Grand Total = Product Total - Discount + Labour + Shipping
     const grandTotal = computedTotal - discountAmount + labourChargesAmount + shippingAmount;
     const refundAmount = parseFloat(payment || 0); // Amount being refunded to customer
@@ -215,32 +216,37 @@ export async function POST(request) {
     // Use transaction to ensure data consistency
     const result = await prisma.$transaction(async (tx) => {
       // Get the original sale to get store_id and verify bill_type
-      const sale = await tx.sale.findUnique({
-        where: { sale_id },
-        include: { sale_details: true }
-      });
+      let sale = null;
+      if (sale_id) {
+        sale = await tx.sale.findUnique({
+          where: { sale_id },
+          include: { sale_details: true }
+        });
 
-      if (!sale) {
-        throw new Error('Sale not found');
+        if (!sale) {
+          throw new Error('Sale not found');
+        }
       }
 
       // Use bill_type from sale if not provided in body
-      const finalBillType = bill_type || sale.bill_type || 'BILL';
+      const finalBillType = bill_type || sale?.bill_type || 'BILL';
       const isQuotationReturn = finalBillType === 'QUOTATION';
 
-      // Validate each return detail does not exceed sold quantity
-      const qtyByProduct = new Map();
-      for (const d of sale.sale_details) {
-        qtyByProduct.set(d.pro_id, (qtyByProduct.get(d.pro_id) || 0) + Number(d.qnty || 0));
-      }
-      for (const rd of return_details) {
-        const soldQty = qtyByProduct.get(rd.pro_id) || 0;
-        const returnQty = parseInt(rd.qnty) || 0;
-        if (returnQty <= 0) {
-          throw new Error(`Invalid return quantity for product ${rd.pro_id}`);
+      // Validate each return detail if sale exists
+      if (sale) {
+        const qtyByProduct = new Map();
+        for (const d of sale.sale_details) {
+          qtyByProduct.set(d.pro_id, (qtyByProduct.get(d.pro_id) || 0) + Number(d.qnty || 0));
         }
-        if (returnQty > soldQty) {
-          throw new Error(`Return qty (${returnQty}) exceeds sold qty (${soldQty}) for product ${rd.pro_id}`);
+        for (const rd of return_details) {
+          const soldQty = qtyByProduct.get(rd.pro_id) || 0;
+          const returnQty = parseInt(rd.qnty) || 0;
+          if (returnQty <= 0) {
+            throw new Error(`Invalid return quantity for product ${rd.pro_id}`);
+          }
+          if (returnQty > soldQty) {
+            throw new Error(`Return qty (${returnQty}) exceeds sold qty (${soldQty}) for product ${rd.pro_id}`);
+          }
         }
       }
 
@@ -256,7 +262,7 @@ export async function POST(request) {
       // Create sale return
       const saleReturn = await tx.saleReturn.create({
         data: {
-          sale_id,
+          sale_id: sale_id || null,
           cus_id,
           total_amount: computedTotal,
           discount: parseFloat(discount || 0),
@@ -269,16 +275,22 @@ export async function POST(request) {
           shipping_amount: parseFloat(shipping_amount || 0),
           reason: reason || null,
           reference: reference || null,
+          manual_sale_inv: manual_sale_inv || null,
           updated_by
         }
       });
 
       // Create return details
       const returnDetailPromises = return_details.map(async detail => {
-        // Get unit from original sale details
-        const originalDetail = sale.sale_details.find(sd => sd.pro_id === detail.pro_id);
-        const unit = originalDetail?.unit || 'PCS'; // Default to PCS if not found
-        
+        // Get unit from original sale details or default
+        let unit = 'PCS';
+        if (sale) {
+          const originalDetail = sale.sale_details.find(sd => sd.pro_id === detail.pro_id);
+          if (originalDetail) unit = originalDetail.unit;
+        } else if (detail.unit) {
+          unit = detail.unit;
+        }
+
         return tx.saleReturnDetail.create({
           data: {
             return_id: saleReturn.return_id,
@@ -290,6 +302,7 @@ export async function POST(request) {
             discount: parseFloat(detail.discount || 0),
             net_total: parseFloat(detail.total_amount) - parseFloat(detail.discount || 0),
             cus_id,
+            store_id: detail.store_id || sale?.store_id || null,
             updated_by
           }
         });
@@ -302,7 +315,7 @@ export async function POST(request) {
         // Restore store stock quantities (skip for quotations)
         // Use detail.store_id if available (for manual items), otherwise sale.store_id
         const storeStockRestorePromises = return_details.map(async detail => {
-          const targetStoreId = detail.store_id || sale.store_id;
+          const targetStoreId = detail.store_id || sale?.store_id;
           if (targetStoreId) {
             await updateStoreStock(targetStoreId, detail.pro_id, parseInt(detail.qnty), 'increment', updated_by);
           }
@@ -330,19 +343,19 @@ export async function POST(request) {
         // Entry 2: Refund entries - Handle CASH and BANK separately if both exist
         const specialAccounts = await getSpecialAccounts(tx);
 
-        console.log('🔄 Refund Processing:', { 
-          cashRefund, 
-          bankRefund, 
-          totalRefund: refundAmount, 
+        console.log('🔄 Refund Processing:', {
+          cashRefund,
+          bankRefund,
+          totalRefund: refundAmount,
           bank_account_id,
-          specialAccounts: { 
-            cash: specialAccounts.cash?.cus_name, 
-            bank: specialAccounts.bank?.cus_name 
-          } 
+          specialAccounts: {
+            cash: specialAccounts.cash?.cus_name,
+            bank: specialAccounts.bank?.cus_name
+          }
         });
 
         // SEQUENCE: CASH Account → CASH Customer → BANK Account → BANK Customer
-        
+
         // Entry 2a: CASH Account Deduction if cash_return > 0
         if (cashRefund > 0) {
           const cashAccount = specialAccounts.cash;
@@ -398,7 +411,7 @@ export async function POST(request) {
           // If bank_account_id provided from frontend, use it directly (priority)
           // Otherwise try to find bank account from special accounts
           let bankAccount = null;
-          
+
           if (bank_account_id) {
             console.log('🔍 Looking up bank account by ID:', bank_account_id);
             bankAccount = await tx.customer.findUnique({
@@ -408,13 +421,13 @@ export async function POST(request) {
               console.log('✅ Found bank account by ID:', { id: bank_account_id, name: bankAccount.cus_name });
             }
           }
-          
+
           // Fallback to special accounts if not found by ID
           if (!bankAccount) {
             console.log('📍 Falling back to special accounts for bank account');
             bankAccount = specialAccounts.bank;
           }
-          
+
           if (bankAccount) {
             // Ledger entry: Bank account credits (money going out)
             await tx.ledger.create({
@@ -520,7 +533,8 @@ export async function DELETE(request) {
       const existingReturn = await tx.saleReturn.findUnique({
         where: { return_id: id },
         include: {
-          return_details: true
+          return_details: true,
+          sale: true
         }
       });
 
@@ -530,7 +544,10 @@ export async function DELETE(request) {
 
       // Reverse store stock quantities
       const storeStockReversePromises = existingReturn.return_details.map(async detail => {
-        await updateStoreStock(existingReturn.sale.store_id, detail.pro_id, detail.qnty, 'decrement', updated_by);
+        const targetStoreId = detail.store_id || existingReturn.sale?.store_id;
+        if (targetStoreId) {
+          await updateStoreStock(targetStoreId, detail.pro_id, detail.qnty, 'decrement', 1);
+        }
       });
 
       await Promise.all(storeStockReversePromises);

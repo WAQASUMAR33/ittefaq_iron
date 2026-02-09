@@ -167,7 +167,8 @@ export default function SaleReturnsPage() {
     payment_type: 'CASH',
     loader_id: '',
     shipping_amount: 0,
-    notes: ''
+    notes: '',
+    manual_sale_inv: ''
   });
 
   // Manual Product Addition State
@@ -181,6 +182,26 @@ export default function SaleReturnsPage() {
     open: false,
     message: '',
     severity: 'success'
+  });
+
+  // Account creation states
+  const [showAccountForm, setShowAccountForm] = useState(false);
+  const [isSubmittingAccount, setIsSubmittingAccount] = useState(false);
+  const [customerCategories, setCustomerCategories] = useState([]);
+  const [customerTypes, setCustomerTypes] = useState([]);
+  const [cities, setCities] = useState([]);
+  const [accountFormData, setAccountFormData] = useState({
+    cus_name: '',
+    cus_phone_no: '',
+    cus_address: '',
+    cus_type: '',
+    cus_category: '',
+    city_id: '',
+    cus_email: '',
+    cus_reference: '',
+    cus_account_info: '',
+    cus_opening_balance: '0',
+    cus_balance: '0'
   });
 
   // Fetch data
@@ -204,11 +225,85 @@ export default function SaleReturnsPage() {
       setProducts(data[3] || []);
       setStores(data[4] || []);
       setLoaders(data[5] || []);
+
+      // Fetch account related data
+      fetchAccountRelatedData();
     } catch (error) {
       console.error('Error fetching data:', error);
-      showSnackbar('Error fetching data', 'error');
+      setSnackbar({ open: true, message: 'Error fetching data', severity: 'error' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAccountRelatedData = async () => {
+    try {
+      const [categoriesRes, typesRes, citiesRes] = await Promise.all([
+        fetch('/api/customer-category'),
+        fetch('/api/customer-types'),
+        fetch('/api/cities')
+      ]);
+      if (categoriesRes.ok) setCustomerCategories(await categoriesRes.json());
+      if (typesRes.ok) setCustomerTypes(await typesRes.json());
+      if (citiesRes.ok) setCities(await citiesRes.json());
+    } catch (error) {
+      console.error('Error fetching account related data:', error);
+    }
+  };
+
+  const handleAccountFormChange = (e) => {
+    const { name, value } = e.target;
+    setAccountFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSaveAccount = async (e) => {
+    e.preventDefault();
+    if (isSubmittingAccount) return;
+    setIsSubmittingAccount(true);
+    try {
+      const response = await fetch('/api/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(accountFormData)
+      });
+      if (response.ok) {
+        const newCustomer = await response.json();
+        setCustomers(prev => [...prev, newCustomer]);
+        setSnackbar({
+          open: true,
+          message: 'Account created successfully',
+          severity: 'success'
+        });
+        setShowAccountForm(false);
+        setAccountFormData({
+          cus_name: '',
+          cus_phone_no: '',
+          cus_address: '',
+          cus_type: '',
+          cus_category: '',
+          city_id: '',
+          cus_email: '',
+          cus_reference: '',
+          cus_account_info: '',
+          cus_opening_balance: '0',
+          cus_balance: '0'
+        });
+      } else {
+        setSnackbar({
+          open: true,
+          message: 'Failed to create account',
+          severity: 'error'
+        });
+      }
+    } catch (error) {
+      console.error('Error saving account:', error);
+      setSnackbar({
+        open: true,
+        message: 'Error saving account',
+        severity: 'error'
+      });
+    } finally {
+      setIsSubmittingAccount(false);
     }
   };
 
@@ -244,6 +339,7 @@ export default function SaleReturnsPage() {
       loader_id: sale.loader_id || '',
       shipping_amount: 0, // Should be specified manually if deduction needed
       payment: 0,
+      manual_sale_inv: sale.sale_id.toString(),
       return_details: sale.sale_details?.map(detail => ({
         pro_id: detail.pro_id,
         store_id: detail.store_id || sale.store_id,
@@ -445,10 +541,12 @@ export default function SaleReturnsPage() {
 
       const body = {
         ...formData,
+        sale_id: formData.sale_id || null,
         total_amount: formData.total_return_amount,
         reason: formData.return_reason,
         reference: formData.notes,
         return_details: returningItems,
+        manual_sale_inv: formData.manual_sale_inv,
         updated_by: 1 // Default user
       };
 
@@ -476,7 +574,8 @@ export default function SaleReturnsPage() {
           payment_type: 'CASH',
           loader_id: '',
           shipping_amount: 0,
-          notes: ''
+          notes: '',
+          manual_sale_inv: ''
         });
 
         showSnackbar(
@@ -520,7 +619,8 @@ export default function SaleReturnsPage() {
       payment_type: saleReturn.payment_type || 'CASH',
       loader_id: saleReturn.loader_id || '',
       shipping_amount: parseFloat(saleReturn.shipping_amount) || 0,
-      notes: saleReturn.reference || ''
+      notes: saleReturn.reference || '',
+      manual_sale_inv: saleReturn.manual_sale_inv || ''
     });
     setCurrentView('create');
   };
@@ -552,6 +652,7 @@ export default function SaleReturnsPage() {
 
       const matchesSearch = (returnItem.reason?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         returnItem.reference?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        returnItem.manual_sale_inv?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         customer?.cus_name?.toLowerCase().includes(searchTerm.toLowerCase()));
       const matchesCustomer = !selectedCustomer || returnItem.cus_id === selectedCustomer.cus_id;
       const matchesDateFrom = !dateFrom || new Date(returnItem.return_date) >= new Date(dateFrom);
@@ -606,14 +707,35 @@ export default function SaleReturnsPage() {
                 </Stack>
               </Grid>
               <Grid item xs={12} md={4} sx={{ textAlign: { md: 'right' } }}>
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={() => setCurrentView('create')}
-                  sx={STYLES.primaryGradientBtn}
-                >
-                  Process New Return
-                </Button>
+                <Stack direction="row" spacing={2} justifyContent={{ xs: 'center', md: 'flex-end' }}>
+                  <Button
+                    variant="outlined"
+                    startIcon={<AddIcon />}
+                    onClick={() => setShowAccountForm(true)}
+                    sx={{
+                      borderColor: 'white',
+                      color: 'white',
+                      borderRadius: '14px',
+                      textTransform: 'none',
+                      fontWeight: '600',
+                      '&:hover': {
+                        borderColor: 'white',
+                        background: 'rgba(255, 255, 255, 0.1)',
+                        transform: 'translateY(-2px)'
+                      }
+                    }}
+                  >
+                    New Account
+                  </Button>
+                  <Button
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={() => setCurrentView('create')}
+                    sx={STYLES.primaryGradientBtn}
+                  >
+                    Process New Return
+                  </Button>
+                </Stack>
               </Grid>
             </Grid>
           </Container>
@@ -781,10 +903,14 @@ export default function SaleReturnsPage() {
                               </TableCell>
                               <TableCell>
                                 <Chip
-                                  label={`#${returnItem.sale_id}`}
+                                  label={returnItem.sale_id ? `#${returnItem.sale_id}` : (returnItem.manual_sale_inv || 'No Invoice')}
                                   size="small"
                                   variant="outlined"
-                                  sx={{ borderRadius: '6px', fontWeight: 'bold' }}
+                                  sx={{
+                                    borderRadius: '6px',
+                                    fontWeight: 'bold',
+                                    bgcolor: returnItem.sale_id ? 'primary.50' : '#f8fafc'
+                                  }}
                                 />
                               </TableCell>
                               <TableCell>
@@ -968,7 +1094,7 @@ export default function SaleReturnsPage() {
                     </Box>
                     <CardContent sx={{ p: 4 }}>
                       <Grid container spacing={3}>
-                        <Grid item xs={12} md={3}>
+                        <Grid item xs={12} md={2}>
                           <TextField
                             fullWidth
                             label="Return Date"
@@ -980,7 +1106,17 @@ export default function SaleReturnsPage() {
                             required
                           />
                         </Grid>
-                        <Grid item xs={12} md={5}>
+                        <Grid item xs={12} md={2}>
+                          <TextField
+                            fullWidth
+                            label="Sale Invoice #"
+                            placeholder="Manual Inv #"
+                            value={formData.manual_sale_inv}
+                            onChange={(e) => setFormData(prev => ({ ...prev, manual_sale_inv: e.target.value }))}
+                            sx={STYLES.input}
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={4}>
                           <TextField
                             fullWidth
                             label="Return Reason / Remarks"
@@ -1009,7 +1145,7 @@ export default function SaleReturnsPage() {
                               </Box>
                               <IconButton size="small" color="error" onClick={() => {
                                 setSelectedSale(null);
-                                setFormData(prev => ({ ...prev, sale_id: '', return_details: [] }));
+                                setFormData(prev => ({ ...prev, sale_id: '', manual_sale_inv: '', return_details: [] }));
                               }}>
                                 <CloseIcon fontSize="small" />
                               </IconButton>
@@ -1413,6 +1549,199 @@ export default function SaleReturnsPage() {
           {snackbar.message}
         </Alert>
       </Snackbar>
+      {/* Account Creation Dialog */}
+      <Dialog
+        open={showAccountForm}
+        onClose={() => setShowAccountForm(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 6,
+            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)'
+          }
+        }}
+      >
+        <DialogTitle sx={{
+          background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
+          color: 'white',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          p: 3
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white' }}>
+              <AddIcon />
+            </Avatar>
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: '800' }}>
+                Create New Account
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                Essential for recording returns against new customers
+              </Typography>
+            </Box>
+          </Box>
+          <IconButton onClick={() => setShowAccountForm(false)} sx={{ color: 'white' }}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <form onSubmit={handleSaveAccount}>
+          <DialogContent sx={{ p: 4 }}>
+            <Grid container spacing={4}>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  label="Account Name"
+                  name="cus_name"
+                  value={accountFormData.cus_name}
+                  onChange={handleAccountFormChange}
+                  required
+                  sx={STYLES.input}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start"><PersonIcon color="primary" /></InputAdornment>,
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  label="Phone Number"
+                  name="cus_phone_no"
+                  value={accountFormData.cus_phone_no}
+                  onChange={handleAccountFormChange}
+                  sx={STYLES.input}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start"><PersonIcon color="primary" /></InputAdornment>,
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  label="Email Address"
+                  name="cus_email"
+                  type="email"
+                  value={accountFormData.cus_email}
+                  onChange={handleAccountFormChange}
+                  sx={STYLES.input}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start"><PersonIcon color="primary" /></InputAdornment>,
+                  }}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={4}>
+                <Autocomplete
+                  fullWidth
+                  options={customerTypes}
+                  getOptionLabel={(option) => option.cus_type_title || ''}
+                  value={customerTypes.find(t => t.cus_type_id === accountFormData.cus_type) || null}
+                  onChange={(e, val) => handleAccountFormChange({ target: { name: 'cus_type', value: val?.cus_type_id || '' } })}
+                  autoSelect={true}
+                  autoHighlight={true}
+                  openOnFocus={true}
+                  selectOnFocus={true}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Account Type"
+                      onFocus={(e) => e.target.select()}
+                      sx={STYLES.input}
+                      InputProps={{
+                        ...params.InputProps,
+                        startAdornment: <InputAdornment position="start"><PersonIcon color="primary" /></InputAdornment>,
+                      }}
+                    />
+                  )}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={4}>
+                <Autocomplete
+                  fullWidth
+                  options={customerCategories}
+                  getOptionLabel={(option) => option.cus_cat_title || ''}
+                  value={customerCategories.find(c => c.cus_cat_id === accountFormData.cus_category) || null}
+                  onChange={(e, val) => handleAccountFormChange({ target: { name: 'cus_category', value: val?.cus_cat_id || '' } })}
+                  autoSelect={true}
+                  autoHighlight={true}
+                  openOnFocus={true}
+                  selectOnFocus={true}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Account Category"
+                      onFocus={(e) => e.target.select()}
+                      sx={STYLES.input}
+                      InputProps={{
+                        ...params.InputProps,
+                        startAdornment: <InputAdornment position="start"><BusinessIcon color="primary" /></InputAdornment>,
+                      }}
+                    />
+                  )}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={4}>
+                <Autocomplete
+                  fullWidth
+                  options={cities}
+                  getOptionLabel={(option) => option.city_name || ''}
+                  value={cities.find(c => c.city_id === accountFormData.city_id) || null}
+                  onChange={(e, val) => handleAccountFormChange({ target: { name: 'city_id', value: val?.city_id || '' } })}
+                  autoSelect={true}
+                  autoHighlight={true}
+                  openOnFocus={true}
+                  selectOnFocus={true}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="City"
+                      onFocus={(e) => e.target.select()}
+                      sx={STYLES.input}
+                      InputProps={{
+                        ...params.InputProps,
+                        startAdornment: <InputAdornment position="start"><MapPinIcon color="primary" /></InputAdornment>,
+                      }}
+                    />
+                  )}
+                />
+              </Grid>
+
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Primary Address"
+                  name="cus_address"
+                  multiline
+                  rows={2}
+                  value={accountFormData.cus_address}
+                  onChange={handleAccountFormChange}
+                  sx={STYLES.input}
+                />
+              </Grid>
+            </Grid>
+          </DialogContent>
+          <DialogActions sx={{ p: 4, bgcolor: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
+            <Button onClick={() => setShowAccountForm(false)} sx={{ fontWeight: '600', color: '#64748b' }}>
+              Discard
+            </Button>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={isSubmittingAccount}
+              sx={{
+                ...STYLES.primaryGradientBtn,
+                px: 6
+              }}
+            >
+              {isSubmittingAccount ? <CircularProgress size={24} color="inherit" /> : 'Create Account'}
+            </Button>
+          </DialogActions>
+        </form>
+      </Dialog>
     </>
   );
 }
