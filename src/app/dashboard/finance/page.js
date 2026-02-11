@@ -179,7 +179,9 @@ export default function FinancePage() {
       entry.bill_no?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       entry.customer?.cus_phone_no?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       entry.customer?.cus_phone_no2?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      entry.customer?.cus_reference?.toLowerCase().includes(searchTerm.toLowerCase());
+      entry.customer?.cus_reference?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      entry.cus_id?.toString().includes(searchTerm) ||
+      entry.customer?.cus_id?.toString().includes(searchTerm);
 
     // Cascading filter logic for ledger entries
     const matchesCustomer = !selectedCustomer || entry.cus_id == selectedCustomer;
@@ -863,7 +865,7 @@ export default function FinancePage() {
                   <TextField
                     fullWidth
                     label="Search"
-                    placeholder="Search ledger entries..."
+                    placeholder="Search by name, phone, reference, account #, bill #, details..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     InputProps={{
