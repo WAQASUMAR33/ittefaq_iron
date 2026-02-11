@@ -68,9 +68,8 @@ export default function DashboardContent({ activeTab }) {
         const purchasesRes = await fetch('/api/purchases?limit=5');
         const purchasesData = purchasesRes.ok ? await purchasesRes.json() : [];
 
-        // Fetch recent orders
-        const ordersRes = await fetch('/api/orders?limit=5');
-        const ordersData = ordersRes.ok ? await ordersRes.json() : [];
+        // Fetch recent orders (from sales with ORDER bill type)
+        const ordersData = salesList.filter(s => s.bill_type === 'ORDER').slice(0, 5);
 
         // Build recent activities from combined data
         const activities = [];

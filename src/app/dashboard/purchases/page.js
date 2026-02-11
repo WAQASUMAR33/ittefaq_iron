@@ -851,7 +851,7 @@ function PurchasesPageContent() {
     setProductFormData({
       qnty: '1',
       unit_rate: product.pro_cost_price.toString(),
-      crate: product.pro_cost_price.toString()
+      crate: product.pro_crate ? product.pro_crate.toString() : product.pro_cost_price.toString()
     });
   };
 
@@ -2375,7 +2375,7 @@ function PurchasesPageContent() {
                           setCustomerDropdownOpen(true);
                         }}
                         onClose={() => setCustomerDropdownOpen(false)}
-                        options={suppliers.length > 0 ? suppliers : customers}
+                        options={suppliers}
                         getOptionLabel={(option) => option.cus_name}
                         value={formSelectedCustomer}
                         onChange={(event, newValue) => {

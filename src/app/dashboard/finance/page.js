@@ -1053,15 +1053,15 @@ export default function FinancePage() {
                 <TableContainer sx={{ flex: 1 }}>
                   <Table stickyHeader>
                     <TableHead>
-                      <TableRow sx={{ bgcolor: 'white', borderBottom: 2, borderColor: '#e5e7eb' }}>
+                      <TableRow sx={{ bgcolor: '#1f2937', borderBottom: 2, borderColor: '#e5e7eb' }}>
                         <TableCell
                           sx={{
                             fontWeight: 800,
                             fontSize: '0.85rem',
                             borderRight: 1,
                             borderColor: '#e5e7eb',
-                            bgcolor: 'white',
-                            color: 'black',
+                            bgcolor: '#1f2937',
+                            color: 'white',
                             textAlign: 'center',
                             letterSpacing: 0.5
                           }}
@@ -1074,9 +1074,9 @@ export default function FinancePage() {
                             fontSize: '0.85rem',
                             borderRight: 1,
                             borderColor: '#e5e7eb',
-                            bgcolor: 'white',
-                            color: 'black',
-                            minWidth: 120,
+                            bgcolor: '#1f2937',
+                            color: 'white',
+                            minWidth: 110,
                             letterSpacing: 0.5
                           }}
                         >
@@ -1088,9 +1088,9 @@ export default function FinancePage() {
                             fontSize: '0.85rem',
                             borderRight: 1,
                             borderColor: '#e5e7eb',
-                            bgcolor: 'white',
-                            color: 'black',
-                            minWidth: 200,
+                            bgcolor: '#1f2937',
+                            color: 'white',
+                            minWidth: 160,
                             letterSpacing: 0.5
                           }}
                         >
@@ -1102,13 +1102,13 @@ export default function FinancePage() {
                             fontSize: '0.85rem',
                             borderRight: 1,
                             borderColor: '#e5e7eb',
-                            bgcolor: 'white',
-                            color: 'black',
-                            minWidth: 250,
+                            bgcolor: '#1f2937',
+                            color: 'white',
+                            minWidth: 200,
                             letterSpacing: 0.5
                           }}
                         >
-                          DESCRIPTION & DETAILS
+                          DESCRIPTION
                         </TableCell>
                         <TableCell
                           sx={{
@@ -1116,14 +1116,14 @@ export default function FinancePage() {
                             fontSize: '0.85rem',
                             borderRight: 1,
                             borderColor: '#e5e7eb',
-                            bgcolor: 'white',
-                            color: 'black',
+                            bgcolor: '#1f2937',
+                            color: 'white',
                             textAlign: 'right',
-                            minWidth: 120,
+                            minWidth: 110,
                             letterSpacing: 0.5
                           }}
                         >
-                          DEBIT (PKR)
+                          BANK (PKR)
                         </TableCell>
                         <TableCell
                           sx={{
@@ -1131,21 +1131,21 @@ export default function FinancePage() {
                             fontSize: '0.85rem',
                             borderRight: 1,
                             borderColor: '#e5e7eb',
-                            bgcolor: 'white',
-                            color: 'black',
+                            bgcolor: '#1f2937',
+                            color: 'white',
                             textAlign: 'right',
-                            minWidth: 120,
+                            minWidth: 110,
                             letterSpacing: 0.5
                           }}
                         >
-                          CREDIT (PKR)
+                          CASH (PKR)
                         </TableCell>
                         <TableCell
                           sx={{
                             fontWeight: 800,
                             fontSize: '0.85rem',
-                            bgcolor: 'white',
-                            color: 'black',
+                            bgcolor: '#1f2937',
+                            color: 'white',
                             textAlign: 'right',
                             minWidth: 120,
                             letterSpacing: 0.5
@@ -1156,236 +1156,297 @@ export default function FinancePage() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {finalLedgerEntries.map((entry, index) => (
-                        <TableRow
-                          key={entry.l_id}
-                          sx={{
-                            '&:hover': {
-                              bgcolor: '#f5f5f5',
-                              cursor: 'pointer',
-                              '& .edit-icon': {
-                                opacity: 1
-                              }
-                            },
-                            '&:nth-of-type(even)': { bgcolor: '#fafafa' },
-                            position: 'relative'
-                          }}
-                          onDoubleClick={() => handleEdit(entry)}
-                        >
-                          {/* Serial Number */}
-                          <TableCell
+                      {finalLedgerEntries.map((entry, index) => {
+                        // Determine if this is a debit (green) or credit (red) entry
+                        const isDebit = parseFloat(entry.debit_amount) > 0;
+                        const isCredit = parseFloat(entry.credit_amount) > 0;
+                        const entryAmount = isDebit ? entry.debit_amount : entry.credit_amount;
+                        
+                        // Parse split payment info if present in details
+                        let splitCashAmount = 0;
+                        let splitBankAmount = 0;
+                        let isSplitPayment = false;
+                        
+                        if (entry.details) {
+                          // Extract split amounts from details field
+                          // Format: "...| {cash_amount: X, bank_amount: Y}"
+                          const splitMatch = entry.details.match(/\{\s*cash_amount:\s*([\d.]+),\s*bank_amount:\s*([\d.]+)\s*\}/);
+                          if (splitMatch) {
+                            splitCashAmount = parseFloat(splitMatch[1]);
+                            splitBankAmount = parseFloat(splitMatch[2]);
+                            isSplitPayment = true;
+                          }
+                        }
+                        
+                        // Determine Bank vs Cash based on transaction type or split info
+                        let bankAmount = 0;
+                        let cashAmount = 0;
+                        
+                        if (isSplitPayment) {
+                          // Use parsed split amounts
+                          bankAmount = splitBankAmount;
+                          cashAmount = splitCashAmount;
+                        } else if (entry.trnx_type === 'BANK_TRANSFER' || entry.trnx_type === 'CHEQUE') {
+                          bankAmount = entryAmount;
+                          cashAmount = 0;
+                        } else if (entry.trnx_type === 'CASH') {
+                          bankAmount = 0;
+                          cashAmount = entryAmount;
+                        }
+
+                        // Color coding: Green for Debit, Red for Credit
+                        const rowBgColor = isDebit ? '#dcfce7' : '#fee2e2';
+                        const entryTypeColor = isDebit ? '#16a34a' : '#dc2626';
+
+                        return (
+                          <TableRow
+                            key={entry.l_id}
                             sx={{
-                              borderRight: 1,
-                              borderColor: 'divider',
-                              textAlign: 'center',
-                              fontWeight: 500
-                            }}
-                          >
-                            {index + 1}
-                            <IconButton
-                              size="small"
-                              className="edit-icon"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEdit(entry);
-                              }}
-                              sx={{
-                                position: 'absolute',
-                                right: 8,
-                                top: '50%',
-                                transform: 'translateY(-50%)',
-                                opacity: 0,
-                                transition: 'opacity 0.2s',
-                                bgcolor: 'primary.main',
-                                color: 'white',
-                                '&:hover': {
-                                  bgcolor: 'primary.dark'
+                              bgcolor: rowBgColor,
+                              '&:hover': {
+                                bgcolor: isDebit ? '#bbf7d0' : '#fecaca',
+                                cursor: 'pointer',
+                                '& .edit-icon': {
+                                  opacity: 1
                                 }
-                              }}
-                            >
-                              <Edit size={12} />
-                            </IconButton>
-                          </TableCell>
-
-                          {/* Date */}
-                          <TableCell
-                            sx={{
-                              borderRight: 1,
-                              borderColor: 'divider',
-                              fontFamily: 'monospace'
+                              },
+                              borderLeft: `4px solid ${entryTypeColor}`,
+                              transition: 'all 0.2s'
                             }}
+                            onDoubleClick={() => handleEdit(entry)}
                           >
-                            <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                              {new Date(entry.created_at).toLocaleDateString('en-GB', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                year: 'numeric'
-                              })}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {new Date(entry.created_at).toLocaleTimeString('en-GB', {
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </Typography>
-                          </TableCell>
-
-                          {/* Account Title */}
-                          <TableCell
-                            sx={{
-                              borderRight: 1,
-                              borderColor: 'divider'
-                            }}
-                          >
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                              {entry.customer?.cus_name || 'Cash Account'}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {entry.customer?.cus_phone_no || 'General'}
-                            </Typography>
-                          </TableCell>
-
-                          {/* Description */}
-                          <TableCell
-                            sx={{
-                              borderRight: 1,
-                              borderColor: 'divider',
-                              maxWidth: 250,
-                              bgcolor: index % 2 === 0 ? '#fafafa' : 'white'
-                            }}
-                          >
-                            <Typography variant="body2" sx={{ lineHeight: 1.4, fontWeight: 500 }}>
-                              {entry.details || 'General transaction'}
-                            </Typography>
-                            {entry.trnx_type === 'BANK_TRANSFER' && (
-                              <Typography variant="caption" sx={{ color: '#1976d2', fontWeight: 600, display: 'block', mt: 0.5 }}>
-                                A/c: {entry.customer?.cus_name || 'Cash Account'} - {entry.bank_title || 'Standard'} Bank
-                              </Typography>
-                            )}
-                            {entry.bill_no && (
-                              <Typography variant="caption" color="primary.main" sx={{ fontWeight: 500, display: 'block', mt: 0.5 }}>
-                                Bill No: {entry.bill_no}
-                              </Typography>
-                            )}
-                            <Box sx={{ mt: 1 }}>
-                              <Chip
-                                label={
-                                  entry.trnx_type === 'CASH' ? 'CASH' :
-                                    entry.trnx_type === 'BANK_TRANSFER' ? 'BANK TRANSFER' :
-                                      entry.trnx_type === 'CHEQUE' ? 'CHEQUE' : entry.trnx_type
-                                }
-                                size="small"
-                                variant="outlined"
-                                sx={{
-                                  fontSize: '0.7rem',
-                                  fontWeight: 600,
-                                  borderColor: entry.trnx_type === 'CASH' ? '#4caf50' :
-                                    entry.trnx_type === 'BANK_TRANSFER' ? '#2196f3' :
-                                      entry.trnx_type === 'CHEQUE' ? '#ff9800' : '#9e9e9e',
-                                  color: entry.trnx_type === 'CASH' ? '#4caf50' :
-                                    entry.trnx_type === 'BANK_TRANSFER' ? '#2196f3' :
-                                      entry.trnx_type === 'CHEQUE' ? '#ff9800' : '#9e9e9e',
-                                  bgcolor: 'white'
-                                }}
-                              />
-                            </Box>
-                          </TableCell>
-
-                          {/* Debit Amount */}
-                          <TableCell
-                            sx={{
-                              borderRight: 1,
-                              borderColor: 'divider',
-                              textAlign: 'right'
-                            }}
-                          >
-                            {parseFloat(entry.debit_amount) > 0 ? (
-                              <Typography variant="body2" sx={{ fontWeight: 600, color: '#2e7d32', fontFamily: 'monospace' }}>
-                                {parseFloat(entry.debit_amount).toLocaleString('en-PK', {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2
-                                })}
-                              </Typography>
-                            ) : (
-                              <Typography variant="body2" color="text.disabled">
-                                -
-                              </Typography>
-                            )}
-                          </TableCell>
-
-                          {/* Credit Amount */}
-                          <TableCell
-                            sx={{
-                              borderRight: 1,
-                              borderColor: 'divider',
-                              textAlign: 'right'
-                            }}
-                          >
-                            {parseFloat(entry.credit_amount) > 0 ? (
-                              <Typography variant="body2" sx={{ fontWeight: 600, color: '#d32f2f', fontFamily: 'monospace' }}>
-                                {parseFloat(entry.credit_amount).toLocaleString('en-PK', {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2
-                                })}
-                              </Typography>
-                            ) : (
-                              <Typography variant="body2" color="text.disabled">
-                                -
-                              </Typography>
-                            )}
-                          </TableCell>
-
-                          {/* Running Balance */}
-                          <TableCell sx={{ textAlign: 'right' }}>
-                            <Typography
-                              variant="body2"
+                            {/* Serial Number */}
+                            <TableCell
                               sx={{
+                                borderRight: 1,
+                                borderColor: 'divider',
+                                textAlign: 'center',
                                 fontWeight: 700,
-                                fontFamily: 'monospace',
-                                color: parseFloat(entry.closing_balance) >= 0 ? '#2e7d32' : '#d32f2f',
-                                bgcolor: parseFloat(entry.closing_balance) >= 0 ? '#e8f5e8' : '#ffebee',
-                                px: 1,
-                                py: 0.5,
-                                borderRadius: 1
+                                bgcolor: rowBgColor
                               }}
                             >
-                              {parseFloat(entry.closing_balance).toLocaleString('en-PK', {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2
-                              })}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {parseFloat(entry.closing_balance) >= 0 ? 'DR' : 'CR'}
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                              {index + 1}
+                              <IconButton
+                                size="small"
+                                className="edit-icon"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEdit(entry);
+                                }}
+                                sx={{
+                                  position: 'absolute',
+                                  right: 8,
+                                  top: '50%',
+                                  transform: 'translateY(-50%)',
+                                  opacity: 0,
+                                  transition: 'opacity 0.2s',
+                                  bgcolor: entryTypeColor,
+                                  color: 'white',
+                                  '&:hover': {
+                                    bgcolor: entryTypeColor
+                                  }
+                                }}
+                              >
+                                <Edit size={12} />
+                              </IconButton>
+                            </TableCell>
 
-                      {/* Summary Row */}
+                            {/* Date */}
+                            <TableCell
+                              sx={{
+                                borderRight: 1,
+                                borderColor: 'divider',
+                                fontFamily: 'monospace',
+                                fontWeight: 600,
+                                bgcolor: rowBgColor
+                              }}
+                            >
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                {new Date(entry.created_at).toLocaleDateString('en-GB', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric'
+                                })}
+                              </Typography>
+                            </TableCell>
+
+                            {/* Account Title */}
+                            <TableCell
+                              sx={{
+                                borderRight: 1,
+                                borderColor: 'divider',
+                                bgcolor: rowBgColor,
+                                fontWeight: 600
+                              }}
+                            >
+                              <Typography variant="body2" sx={{ fontWeight: 700, color: '#1f2937' }}>
+                                {entry.customer?.cus_name || 'Cash Account'}
+                              </Typography>
+                            </TableCell>
+
+                            {/* Description */}
+                            <TableCell
+                              sx={{
+                                borderRight: 1,
+                                borderColor: 'divider',
+                                maxWidth: 250,
+                                bgcolor: rowBgColor
+                              }}
+                            >
+                              <Typography variant="body2" sx={{ lineHeight: 1.4, fontWeight: 500, color: '#374151' }}>
+                                {entry.details || 'General transaction'}
+                              </Typography>
+                              {entry.bill_no && (
+                                <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mt: 0.5, color: entryTypeColor }}>
+                                  Bill: {entry.bill_no}
+                                </Typography>
+                              )}
+                            </TableCell>
+
+                            {/* Bank Amount */}
+                            <TableCell
+                              sx={{
+                                borderRight: 1,
+                                borderColor: 'divider',
+                                textAlign: 'right',
+                                bgcolor: rowBgColor,
+                                fontWeight: 700
+                              }}
+                            >
+                              {parseFloat(bankAmount) > 0 ? (
+                                <Typography 
+                                  variant="body2" 
+                                  sx={{ 
+                                    fontWeight: 700, 
+                                    color: entryTypeColor,
+                                    fontFamily: 'monospace',
+                                    fontSize: '0.95rem'
+                                  }}
+                                >
+                                  {parseFloat(bankAmount).toLocaleString('en-PK', {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2
+                                  })}
+                                </Typography>
+                              ) : (
+                                <Typography variant="body2" sx={{ color: '#d1d5db', fontWeight: 500 }}>
+                                  -
+                                </Typography>
+                              )}
+                            </TableCell>
+
+                            {/* Cash Amount */}
+                            <TableCell
+                              sx={{
+                                borderRight: 1,
+                                borderColor: 'divider',
+                                textAlign: 'right',
+                                bgcolor: rowBgColor,
+                                fontWeight: 700
+                              }}
+                            >
+                              {parseFloat(cashAmount) > 0 ? (
+                                <Typography 
+                                  variant="body2" 
+                                  sx={{ 
+                                    fontWeight: 700, 
+                                    color: entryTypeColor,
+                                    fontFamily: 'monospace',
+                                    fontSize: '0.95rem'
+                                  }}
+                                >
+                                  {parseFloat(cashAmount).toLocaleString('en-PK', {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2
+                                  })}
+                                </Typography>
+                              ) : (
+                                <Typography variant="body2" sx={{ color: '#d1d5db', fontWeight: 500 }}>
+                                  -
+                                </Typography>
+                              )}
+                            </TableCell>
+
+                            {/* Running Balance */}
+                            <TableCell sx={{ textAlign: 'right', bgcolor: rowBgColor }}>
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  fontWeight: 700,
+                                  fontFamily: 'monospace',
+                                  color: parseFloat(entry.closing_balance) >= 0 ? '#16a34a' : '#dc2626',
+                                  bgcolor: parseFloat(entry.closing_balance) >= 0 ? '#e0ffe0' : '#ffcccc',
+                                  px: 1,
+                                  py: 0.5,
+                                  borderRadius: 1,
+                                  fontSize: '0.95rem'
+                                }}
+                              >
+                                {parseFloat(entry.closing_balance).toLocaleString('en-PK', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2
+                                })}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                       <TableRow sx={{ bgcolor: '#f9fafb', borderTop: 2, borderColor: '#374151' }}>
-                        <TableCell colSpan={4} sx={{ borderRight: 1, borderColor: '#e5e7eb' }}>
-                          <Typography variant="h6" sx={{ fontWeight: 700, textAlign: 'center', color: '#111827' }}>
+                        <TableCell colSpan={4} sx={{ borderRight: 1, borderColor: '#e5e7eb', bgcolor: '#1f2937' }}>
+                          <Typography variant="h6" sx={{ fontWeight: 700, textAlign: 'center', color: 'white' }}>
                             TOTAL SUMMARY
                           </Typography>
                         </TableCell>
-                        <TableCell sx={{ borderRight: 1, borderColor: '#e5e7eb', textAlign: 'right' }}>
-                          <Typography variant="h6" sx={{ fontWeight: 800, color: '#16a34a', fontFamily: 'monospace' }}>
-                            {totalDebit.toLocaleString('en-PK', {
+                        <TableCell sx={{ borderRight: 1, borderColor: '#e5e7eb', textAlign: 'right', bgcolor: '#f0f9ff' }}>
+                          <Typography variant="body2" sx={{ fontWeight: 800, color: '#16a34a', fontFamily: 'monospace', fontSize: '1rem' }}>
+                            {finalLedgerEntries.reduce((sum, entry) => {
+                              let amount = 0;
+                              // Check for split payment in details first
+                              if (entry.details) {
+                                const splitMatch = entry.details.match(/\{\s*cash_amount:\s*([\d.]+),\s*bank_amount:\s*([\d.]+)\s*\}/);
+                                if (splitMatch) {
+                                  // This is a split payment, use bank amount
+                                  amount = parseFloat(splitMatch[2]) || 0;
+                                  return sum + amount;
+                                }
+                              }
+                              // Otherwise use trnx_type logic
+                              if (entry.trnx_type === 'BANK_TRANSFER' || entry.trnx_type === 'CHEQUE') {
+                                amount = parseFloat(entry.debit_amount || 0) + parseFloat(entry.credit_amount || 0);
+                              }
+                              return sum + amount;
+                            }, 0).toLocaleString('en-PK', {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 2
                             })}
                           </Typography>
                         </TableCell>
-                        <TableCell sx={{ borderRight: 1, borderColor: '#e5e7eb', textAlign: 'right' }}>
-                          <Typography variant="h6" sx={{ fontWeight: 800, color: '#dc2626', fontFamily: 'monospace' }}>
-                            {totalCredit.toLocaleString('en-PK', {
+                        <TableCell sx={{ borderRight: 1, borderColor: '#e5e7eb', textAlign: 'right', bgcolor: '#fef2f2' }}>
+                          <Typography variant="body2" sx={{ fontWeight: 800, color: '#dc2626', fontFamily: 'monospace', fontSize: '1rem' }}>
+                            {finalLedgerEntries.reduce((sum, entry) => {
+                              let amount = 0;
+                              // Check for split payment in details first
+                              if (entry.details) {
+                                const splitMatch = entry.details.match(/\{\s*cash_amount:\s*([\d.]+),\s*bank_amount:\s*([\d.]+)\s*\}/);
+                                if (splitMatch) {
+                                  // This is a split payment, use cash amount
+                                  amount = parseFloat(splitMatch[1]) || 0;
+                                  return sum + amount;
+                                }
+                              }
+                              // Otherwise use trnx_type logic
+                              if (entry.trnx_type === 'CASH') {
+                                amount = parseFloat(entry.debit_amount || 0) + parseFloat(entry.credit_amount || 0);
+                              }
+                              return sum + amount;
+                            }, 0).toLocaleString('en-PK', {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 2
                             })}
                           </Typography>
                         </TableCell>
-                        <TableCell sx={{ textAlign: 'right' }}>
-                          <Typography variant="h6" sx={{ fontWeight: 800, fontFamily: 'monospace', color: '#111827' }}>
+                        <TableCell sx={{ textAlign: 'right', bgcolor: '#e0ffe0' }}>
+                          <Typography variant="body2" sx={{ fontWeight: 800, fontFamily: 'monospace', color: '#111827', fontSize: '1rem' }}>
                             {currentBalance.toLocaleString('en-PK', {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 2

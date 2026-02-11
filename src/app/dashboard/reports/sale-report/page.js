@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { ArrowLeft, Download, Printer, Search, ShoppingCart, TrendingUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
-import { Autocomplete, TextField, InputAdornment } from '@mui/material';
 
 export default function SaleReport() {
   const router = useRouter();
@@ -56,8 +55,8 @@ export default function SaleReport() {
         console.error('Stores API did not return valid data:', result);
         setStores([]);
       }
-    } catch (error) {
-      console.error('Error fetching stores:', error);
+    } catch (error) { 
+      console.error('Error fetching stores:', error); 
       setStores([]);
     }
   };
@@ -87,7 +86,7 @@ export default function SaleReport() {
           } else if (selectedPaymentType === 'CHEQUE') {
             filteredData.sales = filteredData.sales.filter(s => s.payment_type === 'CHEQUE');
           } else if (selectedPaymentType === 'SPLIT') {
-            filteredData.sales = filteredData.sales.filter(s =>
+            filteredData.sales = filteredData.sales.filter(s => 
               (s.cash_payment > 0 && s.bank_payment > 0) || s.split_payments?.length > 0
             );
           }
@@ -137,7 +136,7 @@ export default function SaleReport() {
     reportData.sales.forEach((s, i) => {
       const netTotal = parseFloat(s.total_amount || 0) - parseFloat(s.discount || 0) + parseFloat(s.shipping_amount || 0);
       const balance = netTotal - parseFloat(s.payment || 0);
-      csv += `${i + 1},${formatDate(s.created_at)},INV-${s.sale_id},${s.customer?.cus_name || '-'},${s.bill_type},${formatCurrency(s.total_amount)},${formatCurrency(s.discount)},${formatCurrency(s.shipping_amount)},${formatCurrency(netTotal)},${formatCurrency(s.payment)},${formatCurrency(balance)}\n`;
+      csv += `${i+1},${formatDate(s.created_at)},INV-${s.sale_id},${s.customer?.cus_name || '-'},${s.bill_type},${formatCurrency(s.total_amount)},${formatCurrency(s.discount)},${formatCurrency(s.shipping_amount)},${formatCurrency(netTotal)},${formatCurrency(s.payment)},${formatCurrency(balance)}\n`;
     });
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -193,54 +192,21 @@ export default function SaleReport() {
               <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
                 className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
             </div>
-            <div className="flex-1 min-w-[200px] max-w-[250px]">
-              <label className="block text-xs font-semibold text-slate-600 mb-1 caps">CATEGORY</label>
-              <Autocomplete
-                size="small"
-                options={categories}
-                getOptionLabel={(option) => option.cus_cat_title || ''}
-                value={categories.find(c => c.cus_cat_id === parseInt(selectedCategory)) || null}
-                onChange={(e, val) => setSelectedCategory(val ? val.cus_cat_id.toString() : '')}
-                autoSelect={true}
-                autoHighlight={true}
-                openOnFocus={true}
-                selectOnFocus={true}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    placeholder="All Categories"
-                    onFocus={(e) => e.target.select()}
-                    sx={{
-                      '& .MuiOutlinedInput-root': { py: '2px', borderRadius: '8px', bgcolor: 'white' }
-                    }}
-                  />
-                )}
-              />
+            <div className="flex-1 min-w-[130px] max-w-[160px]">
+              <label className="block text-xs font-semibold text-slate-600 mb-1">CATEGORY</label>
+              <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                <option value="">All Categories</option>
+                {categories.map((cat) => (<option key={cat.cus_cat_id} value={cat.cus_cat_id}>{cat.cus_cat_title}</option>))}
+              </select>
             </div>
-            <div className="flex-1 min-w-[200px] max-w-[250px]">
-              <label className="block text-xs font-semibold text-slate-600 mb-1 caps">CUSTOMER</label>
-              <Autocomplete
-                size="small"
-                disabled={!selectedCategory}
-                options={accounts}
-                getOptionLabel={(option) => option.cus_name || ''}
-                value={accounts.find(a => a.cus_id === parseInt(selectedAccount)) || null}
-                onChange={(e, val) => setSelectedAccount(val ? val.cus_id.toString() : '')}
-                autoSelect={true}
-                autoHighlight={true}
-                openOnFocus={true}
-                selectOnFocus={true}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    placeholder="All Customers"
-                    onFocus={(e) => e.target.select()}
-                    sx={{
-                      '& .MuiOutlinedInput-root': { py: '2px', borderRadius: '8px', bgcolor: selectedCategory ? 'white' : '#f1f5f9' }
-                    }}
-                  />
-                )}
-              />
+            <div className="flex-1 min-w-[130px] max-w-[160px]">
+              <label className="block text-xs font-semibold text-slate-600 mb-1">CUSTOMER</label>
+              <select value={selectedAccount} onChange={(e) => setSelectedAccount(e.target.value)} disabled={!selectedCategory}
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-100 disabled:cursor-not-allowed">
+                <option value="">All Customers</option>
+                {accounts.map((acc) => (<option key={acc.cus_id} value={acc.cus_id}>{acc.cus_name}</option>))}
+              </select>
             </div>
             <div className="flex-1 min-w-[130px] max-w-[160px]">
               <label className="block text-xs font-semibold text-slate-600 mb-1">STORE</label>

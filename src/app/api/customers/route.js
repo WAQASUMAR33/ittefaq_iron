@@ -155,6 +155,16 @@ export async function POST(request) {
     if (!categoryExists)
       return errorResponse('Customer category not found', 404);
 
+    // Check for duplicate phone number (primary phone)
+    const existingCustomer = await prisma.customer.findFirst({
+      where: {
+        cus_phone_no: cus_phone_no.trim(),
+      },
+    });
+
+    if (existingCustomer)
+      return errorResponse('Customer with this phone number already exists', 409);
+
     // Create new customer
     const newCustomer = await prisma.customer.create({
       data: {
@@ -286,6 +296,17 @@ export async function PUT(request) {
 
     if (!categoryExists)
       return errorResponse('Customer category not found', 404);
+
+    // Check for duplicate phone number (excluding current customer)
+    const duplicatePhone = await prisma.customer.findFirst({
+      where: {
+        cus_phone_no: cus_phone_no.trim(),
+        NOT: { cus_id: id },
+      },
+    });
+
+    if (duplicatePhone)
+      return errorResponse('Customer with this phone number already exists', 409);
 
     // Update customer
     const updated = await prisma.customer.update({

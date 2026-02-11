@@ -219,6 +219,8 @@ model Ledger {
   trnx_type       TransactionType
   details         String?
   payments        Float           @default(0)
+  cash_payment    Float           @default(0)
+  bank_payment    Float           @default(0)
   updated_by      Int?
   created_at      DateTime        @default(now())
   updated_at      DateTime        @updatedAt
@@ -278,8 +280,8 @@ model Sale {
   debit_account_id  Int?
   credit_account_id Int?
   loader_id         Int?
-  shipping_amount   Decimal        @default(0.000000000000000000000000000000)
-  labour_charges    Decimal        @default(0.00) @db.Decimal(10, 2)
+  shipping_amount   Float          @default(0)
+  labour_charges    Float          @default(0)
   bill_type         BillType
   reference         String?
   updated_by        Int?

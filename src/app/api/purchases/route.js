@@ -230,32 +230,39 @@ export async function POST(request) {
 
     // Ensure special accounts exist before transaction
     if (actualPaymentType === 'CASH' && cashPaymentAmount > 0) {
-      // Find or create Cash Account
-      let cashAccount = await prisma.customer.findFirst({
-        where: { cus_name: 'Cash Account' }
+      // Find Cash Account by category, not by exact name
+      const cashCategory = await prisma.customerCategory.findFirst({
+        where: { cus_cat_title: 'Cash Account' }
       });
+
+      let cashAccount = null;
+      if (cashCategory) {
+        cashAccount = await prisma.customer.findFirst({
+          where: { cus_category: cashCategory.cus_cat_id }
+        });
+      }
 
       console.log('🔍 Cash Account search result (pre-transaction):', {
         found: !!cashAccount,
-        cashAccount: cashAccount ? { id: cashAccount.cus_id, name: cashAccount.cus_name } : null,
+        cashAccount: cashAccount ? { id: cashAccount.cus_id, name: cashAccount.cus_name, category: cashCategory?.cus_cat_title } : null,
         credit_account_id_from_frontend: credit_account_id
       });
 
-      if (!cashAccount) {
-        // Get the Cash Account customer type
-        const cashAccountType = await prisma.customerType.findFirst({
-          where: { cus_type_title: 'Cash Account' }
+      if (!cashAccount && cashCategory) {
+        // Get the cash type from database
+        const cashType = await prisma.customerType.findFirst({
+          where: { cus_type_title: 'cash' }
         });
 
-        if (cashAccountType) {
+        if (cashType) {
           cashAccount = await prisma.customer.create({
             data: {
               cus_name: 'Cash Account',
               cus_phone_no: '0000000000',
               cus_address: 'Main Office',
               cus_balance: 0,
-              cus_type: cashAccountType.cus_type_id,
-              cus_category: 1, // Default category
+              cus_type: cashType.cus_type_id,
+              cus_category: cashCategory.cus_cat_id,
               city_id: 1, // Default city
               updated_by: updated_by ? parseInt(updated_by) : null
             }
@@ -372,46 +379,269 @@ export async function POST(request) {
         }
       }
 
-      // Create comprehensive ledger entries for purchase
-      // For NEW PURCHASE: Debit increases supplier balance, Debit decreases cash/bank
-      // For PURCHASE RETURN: Credit decreases supplier balance, Credit increases cash/bank
+      // Create comprehensive ledger entries for purchase (similar to sales)
+      // For NEW PURCHASE: Debit supplier (amount owed increases), Credit cash/bank (payment decreases assets)
+      // For PURCHASE RETURN: Reverse the entries
+      // NOTE: Only product amount (minus discount) goes to supplier ledger
+      // Labour, delivery, transport, unloading are separate expenses
 
-      let currentSupplierBalance = 0;
-      const amountMultiplier = isReturn ? -1 : 1; // Returns negate the amounts
+      const ledgerEntries = [];
+      let runningSupplierBalance = 0;
 
-      // Calculate supplier amount (ONLY product subtotal minus discount)
+      // Calculate supplier amount - ONLY products minus discount (NOT including labour/delivery/transport/unloading)
       const supplierAmount = safeParseFloat(total_amount) - safeParseFloat(discount);
 
+      // 1. Supplier Account Entry - for product cost only (excluding labour/delivery/transport/unloading)
       if (cus_id) {
         const supplierData = await tx.customer.findUnique({
           where: { cus_id: cus_id },
           select: { cus_balance: true, cus_name: true }
         });
-        currentSupplierBalance = parseFloat(supplierData?.cus_balance || 0);
+        runningSupplierBalance = parseFloat(supplierData?.cus_balance || 0);
 
-        // Supplier Account Entry - ONLY for product subtotal (excluding labour and delivery)
-        // NEW PURCHASE: Debit (amount owed increases)
-        // PURCHASE RETURN: Credit (amount owed decreases)
+        console.log(`\n📊 PURCHASE LEDGER ENTRY DEBUG`);
+        console.log(`   Supplier: ${supplierData?.cus_name} (ID: ${cus_id})`);
+        console.log(`   Opening Balance: ${runningSupplierBalance}`);
+        console.log(`   Bill Amount: ${supplierAmount}${safeParseFloat(discount) > 0 ? ` (After Discount: ${safeParseFloat(discount)})` : ''}`);
+
+        // Supplier Account Entry
+        // NEW PURCHASE: Debit (amount owed to supplier increases)
+        // PURCHASE RETURN: Credit (amount owed to supplier decreases)
         const supplierEntry = createLedgerEntry({
           cus_id: cus_id,
-          opening_balance: currentSupplierBalance,
+          opening_balance: runningSupplierBalance,
           debit_amount: isReturn ? 0 : supplierAmount,
           credit_amount: isReturn ? supplierAmount : 0,
           bill_no: newPurchase.pur_id.toString(),
           trnx_type: 'CASH',
-          details: `${isReturn ? 'Purchase Return' : 'Purchase Invoice'}${invoice_number ? ` #${invoice_number}` : ''} ${isReturn ? 'to' : 'from'} ${supplierData?.cus_name || 'Supplier'}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
+          details: `${isReturn ? 'Purchase Return' : 'Purchase Invoice'}${invoice_number ? ` #${invoice_number}` : ''} ${isReturn ? 'to' : 'from'} ${supplierData?.cus_name || 'Supplier'}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}${safeParseFloat(discount) > 0 ? ` [After Discount: ${safeParseFloat(discount)}]` : ''}`,
           payments: 0,
           updated_by: updated_by ? parseInt(updated_by) : null
         });
 
-        await tx.ledger.create({ data: supplierEntry });
+        ledgerEntries.push(supplierEntry);
+        runningSupplierBalance = supplierEntry.closing_balance;
 
-        // Update running balance
-        currentSupplierBalance = supplierEntry.closing_balance;
+        console.log(`📝 Supplier Entry Created: Opening=${supplierEntry.opening_balance}, Debit=${supplierEntry.debit_amount}, Closing=${supplierEntry.closing_balance}`);
+        console.log(`   Note: This includes ONLY product charges (NOT labour/delivery/transport/unloading)`);
       }
 
-      // Create expense entries for Labour and Delivery charges
-      // First, ensure expense titles exist
+      // 2. Consolidated Payment Entry - Cash + Bank Payment to Supplier (similar to sales page)
+      const cashPaymentForSupplier = isReturn ? 0 : cashPaymentAmount;
+      const bankPaymentForSupplier = isReturn ? 0 : bankPaymentAmount;
+      const totalPaymentToSupplier = cashPaymentForSupplier + bankPaymentForSupplier;
+
+      if (totalPaymentToSupplier > 0 && cus_id) {
+        const supplierData = await tx.customer.findUnique({
+          where: { cus_id: cus_id },
+          select: { cus_name: true }
+        });
+
+        console.log(`💳 CREATING CONSOLIDATED PAYMENT ENTRY: Total=${totalPaymentToSupplier}`);
+        console.log(`   Breakdown: Cash=${cashPaymentForSupplier}, Bank=${bankPaymentForSupplier}`);
+        console.log(`   Opening Balance: ${runningSupplierBalance}`);
+
+        // Build payment details with breakdown
+        let paymentDetails = `Payment for Products to ${supplierData?.cus_name || 'Supplier'}`;
+        const breakdown = [];
+        if (cashPaymentForSupplier > 0) breakdown.push(`Cash: ${cashPaymentForSupplier.toFixed(2)}`);
+        if (bankPaymentForSupplier > 0) breakdown.push(`Bank: ${bankPaymentForSupplier.toFixed(2)}`);
+        if (breakdown.length > 0) {
+          paymentDetails += ` | Split: [${breakdown.join(', ')}]`;
+        }
+        if (cashPaymentForSupplier > 0 && bankPaymentForSupplier > 0) {
+          paymentDetails += ` | {cash_amount: ${cashPaymentForSupplier}, bank_amount: ${bankPaymentForSupplier}}`;
+        }
+
+        const supplierPaymentEntry = createLedgerEntry({
+          cus_id: cus_id,
+          opening_balance: runningSupplierBalance,
+          debit_amount: 0,
+          credit_amount: totalPaymentToSupplier,  // Credit reduces supplier balance owed
+          bill_no: newPurchase.pur_id.toString(),
+          trnx_type: totalPaymentToSupplier > 0 && bankPaymentForSupplier > 0 && cashPaymentForSupplier === 0 ? 'BANK_TRANSFER' : 'CASH',
+          details: paymentDetails,
+          payments: totalPaymentToSupplier,
+          cash_payment: cashPaymentForSupplier,  // Add cash breakdown
+          bank_payment: bankPaymentForSupplier,  // Add bank breakdown
+          updated_by: updated_by ? parseInt(updated_by) : null
+        });
+
+        ledgerEntries.push(supplierPaymentEntry);
+        runningSupplierBalance = supplierPaymentEntry.closing_balance;
+
+        console.log(`💳 Supplier Payment Entry Created: Opening=${supplierPaymentEntry.opening_balance}, Credit=${supplierPaymentEntry.credit_amount}, Closing=${supplierPaymentEntry.closing_balance}`);
+        console.log(`   Note: Payment is for products only (labour/delivery/transport/unloading handled separately as expenses)`);
+      }
+
+      // 3. Bank Account - CREDIT (when bank payment is made)
+      // When bank payment is made, bank account balance DECREASES (credit decreases asset)
+      let usedBankAccountId = null;  // Track which bank account is being used
+      
+      if (parseFloat(bank_payment || 0) > 0) {
+        let bankAccountToUse = null;
+
+        console.log(`🏦 DEBUG: Looking for bank account with ID: ${body.bank_account_id}`);
+
+        // If a specific bank account ID is provided, use it
+        if (body.bank_account_id) {
+          const specificBank = await tx.customer.findUnique({
+            where: { cus_id: body.bank_account_id }
+          });
+
+          if (specificBank) {
+            bankAccountToUse = specificBank;
+            console.log(`🏦 Using specific bank: ${specificBank.cus_name} (ID: ${specificBank.cus_id})`);
+          } else {
+            console.log(`⚠️ Bank account ID ${body.bank_account_id} not found`);
+          }
+        } else {
+          console.log(`⚠️ No bank_account_id provided in request body`);
+        }
+
+        if (bankAccountToUse) {
+          usedBankAccountId = bankAccountToUse.cus_id;
+          console.log(`🏦 BANK PAYMENT DETECTED: ${bank_payment}`);
+          console.log(`🏦 Bank Account Before: ID=${bankAccountToUse.cus_id}, Name=${bankAccountToUse.cus_name}, Balance=${bankAccountToUse.cus_balance}`);
+
+          const bankEntry = createLedgerEntry({
+            cus_id: bankAccountToUse.cus_id,
+            opening_balance: bankAccountToUse.cus_balance,
+            debit_amount: 0,
+            credit_amount: parseFloat(bank_payment),
+            bill_no: newPurchase.pur_id.toString(),
+            trnx_type: 'BANK_TRANSFER',
+            details: `Payment made - Purchase - BANK Account: ${bankAccountToUse.cus_name} (Credit)`,
+            payments: parseFloat(bank_payment),
+            cash_payment: 0,
+            bank_payment: parseFloat(bank_payment),
+            updated_by: updated_by ? parseInt(updated_by) : null
+          });
+          console.log(`🏦 Bank Ledger Entry: Opening=${bankEntry.opening_balance}, Credit=${bankEntry.credit_amount}, Closing=${bankEntry.closing_balance}`);
+          ledgerEntries.push(bankEntry);
+        } else {
+          console.log(`⚠️ ERROR: Bank payment of ${bank_payment} requested but no valid bank account found`);
+        }
+      }
+
+      // 4. Cash Account Entry (if cash payment exists)
+      if (cashPaymentAmount > 0 && credit_account_id) {
+        const cashAccountData = await tx.customer.findUnique({
+          where: { cus_id: credit_account_id },
+          select: { cus_balance: true, cus_name: true }
+        });
+        const cashCurrentBalance = parseFloat(cashAccountData?.cus_balance || 0);
+
+        console.log(`💵 CASH PAYMENT DETECTED: ${cashPaymentAmount}`);
+        console.log(`💵 Cash Account Before: ID=${credit_account_id}, Name=${cashAccountData?.cus_name}, Balance=${cashCurrentBalance}`);
+
+        // NEW PURCHASE: Credit Cash Account (reduces asset - money paid out)
+        // PURCHASE RETURN: Debit Cash Account (increases asset - money received back)
+        const cashEntry = createLedgerEntry({
+          cus_id: credit_account_id,
+          opening_balance: cashCurrentBalance,
+          debit_amount: isReturn ? cashPaymentAmount : 0,    // Debit on return
+          credit_amount: isReturn ? 0 : cashPaymentAmount,   // Credit on purchase
+          bill_no: newPurchase.pur_id.toString(),
+          trnx_type: 'CASH',
+          details: `${isReturn ? 'Cash Refund for Purchase Return' : 'Cash Payment for Purchase'} - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
+          payments: cashPaymentAmount,
+          cash_payment: cashPaymentAmount,  // Mark as cash payment
+          bank_payment: 0,
+          updated_by: updated_by ? parseInt(updated_by) : null
+        });
+
+        ledgerEntries.push(cashEntry);
+
+        console.log(`💵 Cash Account Entry Created: Opening=${cashEntry.opening_balance}, Debit=${cashEntry.debit_amount}, Credit=${cashEntry.credit_amount}, Closing=${cashEntry.closing_balance}`);
+      }
+
+      // 5. Create all ledger entries in database
+      console.log(`\n📊 CREATING ${ledgerEntries.length} LEDGER ENTRIES IN DATABASE`);
+
+      for (let i = 0; i < ledgerEntries.length; i++) {
+        const entry = ledgerEntries[i];
+        console.log(`   Entry ${i + 1}: Customer=${entry.cus_id}, Debit=${entry.debit_amount}, Credit=${entry.credit_amount}`);
+
+        await tx.ledger.create({
+          data: {
+            cus_id: entry.cus_id,
+            opening_balance: entry.opening_balance,
+            debit_amount: entry.debit_amount,
+            credit_amount: entry.credit_amount,
+            closing_balance: entry.closing_balance,
+            bill_no: entry.bill_no,
+            trnx_type: entry.trnx_type,
+            details: entry.details,
+            payments: entry.payments,
+            cash_payment: entry.cash_payment,
+            bank_payment: entry.bank_payment,
+            updated_by: entry.updated_by
+          }
+        });
+
+        console.log(`   ✅ Entry ${i + 1} created in database`);
+      }
+
+      console.log(`📊 All ${ledgerEntries.length} ledger entries created successfully\n`);
+
+      // 6. Update Customer Balances from Ledger Entries
+      // Update supplier balance
+      if (cus_id) {
+        const supplierLedgerEntries = ledgerEntries.filter(e => e.cus_id === cus_id);
+        if (supplierLedgerEntries.length > 0) {
+          const lastSupplierEntry = supplierLedgerEntries[supplierLedgerEntries.length - 1];
+          const supplierClosingBalance = parseFloat(lastSupplierEntry.closing_balance);
+
+          await tx.customer.update({
+            where: { cus_id: cus_id },
+            data: { cus_balance: supplierClosingBalance }
+          });
+
+          console.log(`💰 SUPPLIER BALANCE UPDATED: ${cus_id} balance set to ${supplierClosingBalance}`);
+        }
+      }
+
+      // Update cash account balance
+      if (cashPaymentAmount > 0 && credit_account_id) {
+        const cashLedgerEntry = ledgerEntries.find(e => e.cus_id === credit_account_id);
+        if (cashLedgerEntry) {
+          await tx.customer.update({
+            where: { cus_id: credit_account_id },
+            data: { cus_balance: cashLedgerEntry.closing_balance }
+          });
+
+          console.log(`💵 CASH ACCOUNT BALANCE UPDATED: ${credit_account_id} balance set to ${cashLedgerEntry.closing_balance}`);
+        }
+      }
+
+      // Update bank account balance (only the specific bank that was used)
+      if (parseFloat(bank_payment || 0) > 0 && usedBankAccountId) {
+        console.log(`🏦 DEBUG: Updating bank balance for ID ${usedBankAccountId}`);
+        console.log(`🏦 DEBUG: Looking for ledger entry with cus_id=${usedBankAccountId}, trnx_type=BANK_TRANSFER`);
+        
+        const bankLedgerEntry = ledgerEntries.find(e => 
+          e.cus_id === usedBankAccountId && e.trnx_type === 'BANK_TRANSFER'
+        );
+        
+        console.log(`🏦 DEBUG: Found ledger entry:`, bankLedgerEntry ? `Yes (closing_balance=${bankLedgerEntry.closing_balance})` : `No`);
+        
+        if (bankLedgerEntry) {
+          console.log(`🏦 DEBUG: Updating customer ${usedBankAccountId} balance to ${bankLedgerEntry.closing_balance}`);
+          await tx.customer.update({
+            where: { cus_id: usedBankAccountId },
+            data: { cus_balance: bankLedgerEntry.closing_balance }
+          });
+
+          console.log(`🏦 BANK ACCOUNT BALANCE UPDATED: ${usedBankAccountId} balance set to ${bankLedgerEntry.closing_balance}`);
+        } else {
+          console.log(`❌ ERROR: Could not find bank ledger entry for balance update`);
+        }
+      } else {
+        console.log(`🏦 DEBUG: No bank balance update needed. bank_payment=${bank_payment}, usedBankAccountId=${usedBankAccountId}`);
+      }
+
+      // 7. Create expense entries for Labour and Delivery charges
       const labourAmount = safeParseFloat(labour_amount);
       const deliveryAmount = safeParseFloat(transport_amount);
 
@@ -463,176 +693,6 @@ export async function POST(request) {
             }
           });
         }
-      }
-
-      // 2. Payment Entries based on payment type
-      // Use the already calculated values from validation
-
-      console.log('🔍 Payment Debug Info:', {
-        purchase_type: purchase_type,
-        isReturn: isReturn,
-        payment_type: actualPaymentType,
-        credit_account_id,
-        total_payment: totalPaymentAmount,
-        cash_payment: cashPaymentAmount,
-        bank_payment: bankPaymentAmount,
-        cus_id
-      });
-
-      // Handle Cash Payment
-      if (cashPaymentAmount > 0) {
-        // NEW PURCHASE: Credit Cash Account (reduces asset/cash goes out)
-        // PURCHASE RETURN: Debit Cash Account (increases asset/cash comes in)
-        const cashAccountData = await tx.customer.findUnique({
-          where: { cus_id: credit_account_id },
-          select: { cus_balance: true, cus_name: true }
-        });
-        const cashCurrentBalance = parseFloat(cashAccountData?.cus_balance || 0);
-        const cashNewBalance = isReturn
-          ? cashCurrentBalance + cashPaymentAmount  // Add cash on return
-          : cashCurrentBalance - cashPaymentAmount; // Reduce cash on purchase
-
-        // Cash Account Entry
-        await tx.ledger.create({
-          data: {
-            cus_id: credit_account_id,
-            opening_balance: cashCurrentBalance,
-            debit_amount: isReturn ? cashPaymentAmount : 0,   // Debit on return (cash increases)
-            credit_amount: isReturn ? 0 : cashPaymentAmount,  // Credit on purchase (cash decreases)
-            closing_balance: cashNewBalance,
-            bill_no: newPurchase.pur_id.toString(),
-            trnx_type: 'CASH',
-            details: `${isReturn ? 'Cash Refund for Purchase Return' : 'Cash Payment for Purchase'} - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
-            payments: cashPaymentAmount,
-            updated_by: updated_by ? parseInt(updated_by) : null
-          }
-        });
-
-        // Update Cash Account Balance
-        await tx.customer.update({
-          where: { cus_id: credit_account_id },
-          data: { cus_balance: cashNewBalance }
-        });
-
-        // Supplier Account Cash Payment Entry
-        if (cus_id) {
-          const supplierData = await tx.customer.findUnique({
-            where: { cus_id: cus_id },
-            select: { cus_name: true }
-          });
-          // Use running balance
-          const supplierNewBalance = isReturn
-            ? currentSupplierBalance + cashPaymentAmount  // Increase supplier balance on return
-            : currentSupplierBalance - cashPaymentAmount; // Decrease supplier balance on purchase
-
-          await tx.ledger.create({
-            data: {
-              cus_id: cus_id,
-              opening_balance: currentSupplierBalance,
-              debit_amount: isReturn ? 0 : cashPaymentAmount,      // Debit on purchase (supplier owes)
-              credit_amount: isReturn ? cashPaymentAmount : 0,     // Credit on return (supplier receives refund)
-              closing_balance: supplierNewBalance,
-              bill_no: newPurchase.pur_id.toString(),
-              trnx_type: 'CASH',
-              details: `${isReturn ? 'Cash Refund to' : 'Cash Payment to'} ${supplierData?.cus_name || 'Supplier'} - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
-              payments: cashPaymentAmount,
-              updated_by: updated_by ? parseInt(updated_by) : null
-            }
-          });
-
-          // Update running balance
-          currentSupplierBalance = supplierNewBalance;
-        }
-      }
-
-      // Handle Bank Payment
-      if (bankPaymentAmount > 0) {
-        // For bank payments, use the selected customer from the bank dropdown
-        let bankAccountId = null;
-
-        if (body.bank_account_id) {
-          bankAccountId = body.bank_account_id;
-          console.log('🏦 Using selected bank account customer ID:', bankAccountId);
-        } else {
-          console.error('❌ No bank account customer selected for bank payment');
-          return errorResponse('Bank account customer is required for bank payment');
-        }
-
-        // NEW PURCHASE: Credit Bank Customer (cash decreases)
-        // PURCHASE RETURN: Debit Bank Customer (cash increases)
-        const bankAccountData = await tx.customer.findUnique({
-          where: { cus_id: bankAccountId },
-          select: { cus_balance: true, cus_name: true }
-        });
-        const bankCurrentBalance = parseFloat(bankAccountData?.cus_balance || 0);
-        const bankNewBalance = isReturn
-          ? bankCurrentBalance + bankPaymentAmount  // Add bank amount on return
-          : bankCurrentBalance - bankPaymentAmount; // Reduce bank amount on purchase
-
-        // Bank Account Entry
-        await tx.ledger.create({
-          data: {
-            cus_id: bankAccountId,
-            opening_balance: bankCurrentBalance,
-            debit_amount: isReturn ? bankPaymentAmount : 0,   // Debit on return (bank increases)
-            credit_amount: isReturn ? 0 : bankPaymentAmount,  // Credit on purchase (bank decreases)
-            closing_balance: bankNewBalance,
-            bill_no: newPurchase.pur_id.toString(),
-            trnx_type: 'BANK_TRANSFER',
-            details: `${isReturn ? 'Bank Refund for Purchase Return' : 'Bank Payment for Purchase'} - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
-            payments: bankPaymentAmount,
-            updated_by: updated_by ? parseInt(updated_by) : null
-          }
-        });
-
-        // Update Bank Account Balance
-        await tx.customer.update({
-          where: { cus_id: bankAccountId },
-          data: { cus_balance: bankNewBalance }
-        });
-
-        // Supplier Account Bank Payment Entry
-        if (cus_id) {
-          const supplierData = await tx.customer.findUnique({
-            where: { cus_id: cus_id },
-            select: { cus_name: true }
-          });
-          // Use running balance
-          const supplierNewBalance = isReturn
-            ? currentSupplierBalance + bankPaymentAmount  // Increase supplier balance on return
-            : currentSupplierBalance - bankPaymentAmount; // Decrease supplier balance on purchase
-
-          await tx.ledger.create({
-            data: {
-              cus_id: cus_id,
-              opening_balance: currentSupplierBalance,
-              debit_amount: isReturn ? 0 : bankPaymentAmount,      // Debit on purchase (supplier owes)
-              credit_amount: isReturn ? bankPaymentAmount : 0,     // Credit on return (supplier receives refund)
-              closing_balance: supplierNewBalance,
-              bill_no: newPurchase.pur_id.toString(),
-              trnx_type: 'BANK_TRANSFER',
-              details: `${isReturn ? 'Bank Refund to' : 'Bank Payment to'} ${supplierData?.cus_name || 'Supplier'} - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
-              payments: bankPaymentAmount,
-              updated_by: updated_by ? parseInt(updated_by) : null
-            }
-          });
-
-          // Update running balance
-          currentSupplierBalance = supplierNewBalance;
-        }
-      }
-
-      // 3. Final supplier balance update
-      if (cus_id) {
-        await tx.customer.update({
-          where: { cus_id: cus_id },
-          data: { cus_balance: currentSupplierBalance }
-        });
-
-        console.log('💰 Final supplier balance update:', {
-          supplier_id: cus_id,
-          final_balance: currentSupplierBalance
-        });
       }
 
       return {
@@ -777,6 +837,11 @@ export async function PUT(request) {
         where: { pur_id: id }
       });
 
+      // Delete existing ledger entries for this purchase
+      await tx.ledger.deleteMany({
+        where: { bill_no: id ? String(id) : null }
+      });
+
       // Create new purchase details if provided
       if (purchase_details && purchase_details.length > 0) {
         const detailsData = purchase_details.map(detail => ({
@@ -805,130 +870,160 @@ export async function PUT(request) {
         }
       }
 
-      // Supplier debit entry for purchase amount (ONLY product subtotal minus discount)
+      // Create comprehensive ledger entries (similar to POST method)
+      const ledgerEntries = [];
+      let runningSupplierBalance = 0;
+
+      // Calculate supplier amount (ONLY product subtotal minus discount)
+      const supplierAmount = safeParseFloat(total_amount) - safeParseFloat(discount);
+
+      // 1. Supplier Account Entry
       if (cus_id) {
         const supplierData = await tx.customer.findUnique({
           where: { cus_id: cus_id },
           select: { cus_balance: true, cus_name: true }
         });
-        const supplierCurrentBalance = parseFloat(supplierData?.cus_balance || 0);
-        const supplierAmount = safeParseFloat(total_amount) - safeParseFloat(discount);
-        const supplierNewBalance = supplierCurrentBalance + supplierAmount;
+        runningSupplierBalance = parseFloat(supplierData?.cus_balance || 0);
 
-        await tx.ledger.create({
-          data: {
-            cus_id: cus_id,
-            opening_balance: supplierCurrentBalance,
-            debit_amount: supplierAmount,
-            credit_amount: 0,
-            closing_balance: supplierNewBalance,
-            bill_no: id.toString(),
-            trnx_type: 'CASH',
-            details: `Purchase Update from ${supplierData?.cus_name || 'Supplier'} - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
-            payments: 0,
-            updated_by: updated_by || existingPurchase.updated_by
-          }
+        const supplierEntry = createLedgerEntry({
+          cus_id: cus_id,
+          opening_balance: runningSupplierBalance,
+          debit_amount: supplierAmount,
+          credit_amount: 0,
+          bill_no: id.toString(),
+          trnx_type: 'CASH',
+          details: `Purchase Update from ${supplierData?.cus_name || 'Supplier'}${invoice_number ? ` #${invoice_number}` : ''}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
+          payments: 0,
+          updated_by: updated_by ? parseInt(updated_by) : null
         });
 
-        // Update supplier balance
-        await tx.customer.update({
-          where: { cus_id: cus_id },
-          data: { cus_balance: supplierNewBalance }
-        });
+        ledgerEntries.push(supplierEntry);
+        runningSupplierBalance = supplierEntry.closing_balance;
       }
 
-      // Payments
-      if (payment_type === 'CASH' && credit_account_id && parseFloat(payment || 0) > 0) {
+      // 2. Payment Entry - only if payment > 0
+      const paymentAmount = safeParseFloat(payment);
+      if (paymentAmount > 0 && cus_id) {
+        const supplierData = await tx.customer.findUnique({
+          where: { cus_id: cus_id },
+          select: { cus_name: true }
+        });
+
+        const paymentEntry = createLedgerEntry({
+          cus_id: cus_id,
+          opening_balance: runningSupplierBalance,
+          debit_amount: 0,
+          credit_amount: paymentAmount,
+          bill_no: id.toString(),
+          trnx_type: payment_type || 'CASH',
+          details: `Payment to ${supplierData?.cus_name || 'Supplier'} - Purchase Update${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
+          payments: paymentAmount,
+          cash_payment: payment_type === 'CASH' ? paymentAmount : 0,  // Track cash breakdown
+          bank_payment: payment_type === 'BANK_TRANSFER' ? paymentAmount : 0,  // Track bank breakdown
+          updated_by: updated_by ? parseInt(updated_by) : null
+        });
+
+        ledgerEntries.push(paymentEntry);
+        runningSupplierBalance = paymentEntry.closing_balance;
+      }
+
+      // 3. Cash Account Entry (if payment_type is CASH)
+      if (payment_type === 'CASH' && paymentAmount > 0 && credit_account_id) {
         const cashAccountData = await tx.customer.findUnique({
           where: { cus_id: credit_account_id },
           select: { cus_balance: true, cus_name: true }
         });
         const cashCurrentBalance = parseFloat(cashAccountData?.cus_balance || 0);
-        const cashNewBalance = cashCurrentBalance - parseFloat(payment || 0);
 
-        await tx.ledger.create({
-          data: {
-            cus_id: credit_account_id,
-            opening_balance: cashCurrentBalance,
-            debit_amount: 0,
-            credit_amount: parseFloat(payment || 0),
-            closing_balance: cashNewBalance,
-            bill_no: id.toString(),
-            trnx_type: 'CASH',
-            details: `Cash Payment for Purchase Update - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
-            payments: parseFloat(payment || 0),
-            updated_by: updated_by || existingPurchase.updated_by
-          }
+        const cashEntry = createLedgerEntry({
+          cus_id: credit_account_id,
+          opening_balance: cashCurrentBalance,
+          debit_amount: 0,
+          credit_amount: paymentAmount,
+          bill_no: id.toString(),
+          trnx_type: 'CASH',
+          details: `Cash Payment for Purchase Update${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
+          payments: paymentAmount,
+          cash_payment: paymentAmount,  // Track as cash
+          bank_payment: 0,
+          updated_by: updated_by ? parseInt(updated_by) : null
         });
 
-        if (cus_id) {
-          const supplierData = await tx.customer.findUnique({
-            where: { cus_id: cus_id },
-            select: { cus_balance: true, cus_name: true }
-          });
-          const supplierCurrentBalance = parseFloat(supplierData?.cus_balance || 0);
-          const supplierNewBalance = supplierCurrentBalance - parseFloat(payment || 0);
+        ledgerEntries.push(cashEntry);
+      }
 
-          await tx.ledger.create({
-            data: {
-              cus_id: cus_id,
-              opening_balance: supplierCurrentBalance,
-              debit_amount: 0,
-              credit_amount: parseFloat(payment || 0),
-              closing_balance: supplierNewBalance,
-              bill_no: id.toString(),
-              trnx_type: 'CASH',
-              details: `Cash Payment to ${supplierData?.cus_name || 'Supplier'} - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
-              payments: parseFloat(payment || 0),
-              updated_by: updated_by || existingPurchase.updated_by
-            }
-          });
-
-          await tx.customer.update({ where: { cus_id: credit_account_id }, data: { cus_balance: cashNewBalance } });
-          await tx.customer.update({ where: { cus_id: cus_id }, data: { cus_balance: supplierNewBalance } });
-        }
-      } else if (payment_type === 'BANK_TRANSFER' && credit_account_id && parseFloat(payment || 0) > 0) {
-        const bankAccountData = await tx.customer.findUnique({ where: { cus_id: credit_account_id }, select: { cus_balance: true, cus_name: true } });
+      // 4. Bank Account Entry (if payment_type is BANK_TRANSFER)
+      if (payment_type === 'BANK_TRANSFER' && paymentAmount > 0 && credit_account_id) {
+        const bankAccountData = await tx.customer.findUnique({
+          where: { cus_id: credit_account_id },
+          select: { cus_balance: true, cus_name: true }
+        });
         const bankCurrentBalance = parseFloat(bankAccountData?.cus_balance || 0);
-        const bankNewBalance = bankCurrentBalance - parseFloat(payment || 0);
+
+        const bankEntry = createLedgerEntry({
+          cus_id: credit_account_id,
+          opening_balance: bankCurrentBalance,
+          debit_amount: 0,
+          credit_amount: paymentAmount,
+          bill_no: id.toString(),
+          trnx_type: 'BANK_TRANSFER',
+          details: `Bank Payment for Purchase Update${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
+          payments: paymentAmount,
+          cash_payment: 0,
+          bank_payment: paymentAmount,  // Track as bank payment
+          updated_by: updated_by ? parseInt(updated_by) : null
+        });
+
+        ledgerEntries.push(bankEntry);
+      }
+
+      // 5. Create all ledger entries
+      console.log(`📊 CREATING ${ledgerEntries.length} LEDGER ENTRIES IN DATABASE (PUT)`);
+
+      for (let i = 0; i < ledgerEntries.length; i++) {
+        const entry = ledgerEntries[i];
+        console.log(`   Entry ${i + 1}: Customer=${entry.cus_id}, Debit=${entry.debit_amount}, Credit=${entry.credit_amount}`);
 
         await tx.ledger.create({
           data: {
-            cus_id: credit_account_id,
-            opening_balance: bankCurrentBalance,
-            debit_amount: 0,
-            credit_amount: parseFloat(payment || 0),
-            closing_balance: bankNewBalance,
-            bill_no: id.toString(),
-            trnx_type: 'BANK_TRANSFER',
-            details: `Bank Payment for Purchase Update - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
-            payments: parseFloat(payment || 0),
-            updated_by: updated_by || existingPurchase.updated_by
+            cus_id: entry.cus_id,
+            opening_balance: entry.opening_balance,
+            debit_amount: entry.debit_amount,
+            credit_amount: entry.credit_amount,
+            closing_balance: entry.closing_balance,
+            bill_no: entry.bill_no,
+            trnx_type: entry.trnx_type,
+            details: entry.details,
+            payments: entry.payments,
+            cash_payment: entry.cash_payment,
+            bank_payment: entry.bank_payment,
+            updated_by: entry.updated_by
           }
         });
+      }
 
-        if (cus_id) {
-          const supplierData = await tx.customer.findUnique({ where: { cus_id: cus_id }, select: { cus_balance: true, cus_name: true } });
-          const supplierCurrentBalance = parseFloat(supplierData?.cus_balance || 0);
-          const supplierNewBalance = supplierCurrentBalance - parseFloat(payment || 0);
+      // 6. Update Customer Balances
+      if (cus_id) {
+        const supplierLedgerEntries = ledgerEntries.filter(e => e.cus_id === cus_id);
+        if (supplierLedgerEntries.length > 0) {
+          const lastSupplierEntry = supplierLedgerEntries[supplierLedgerEntries.length - 1];
+          const supplierClosingBalance = parseFloat(lastSupplierEntry.closing_balance);
 
-          await tx.ledger.create({
-            data: {
-              cus_id: cus_id,
-              opening_balance: supplierCurrentBalance,
-              debit_amount: 0,
-              credit_amount: parseFloat(payment || 0),
-              closing_balance: supplierNewBalance,
-              bill_no: id.toString(),
-              trnx_type: 'BANK_TRANSFER',
-              details: `Bank Payment to ${supplierData?.cus_name || 'Supplier'} - ${vehicle_no ? `Vehicle: ${vehicle_no}` : 'Purchase Order'}`,
-              payments: parseFloat(payment || 0),
-              updated_by: updated_by || existingPurchase.updated_by
-            }
+          await tx.customer.update({
+            where: { cus_id: cus_id },
+            data: { cus_balance: supplierClosingBalance }
           });
+        }
+      }
 
-          await tx.customer.update({ where: { cus_id: credit_account_id }, data: { cus_balance: bankNewBalance } });
-          await tx.customer.update({ where: { cus_id: cus_id }, data: { cus_balance: supplierNewBalance } });
+      // Update cash/bank account balances
+      if (credit_account_id && paymentAmount > 0) {
+        const accountLedgerEntry = ledgerEntries.find(e => e.cus_id === credit_account_id);
+        if (accountLedgerEntry) {
+          await tx.customer.update({
+            where: { cus_id: credit_account_id },
+            data: { cus_balance: accountLedgerEntry.closing_balance }
+          });
         }
       }
 

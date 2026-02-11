@@ -97,33 +97,8 @@ function SalesPageContent() {
   const [currentView, setCurrentView] = useState('list');
 
   // Screen Stack State
-  const [screenStack, setScreenStack] = useState([{
-    formSelectedCustomer: null,
-    formSelectedStore: null,
-    productTableData: [],
-    paymentData: {
-      cash: '',
-      bank: '',
-      bankAccountId: '',
-      totalCashReceived: 0,
-      advancePayment: 0,
-      discount: '',
-      labour: '',
-      deliveryCharges: '',
-      notes: '',
-      isLoadedOrder: false,
-      sourceOrderId: null
-    },
-    billType: 'BILL',
-    formSelectedProduct: null,
-    productFormData: { quantity: '', rate: 0, amount: 0, stock: 0 },
-    newTransport: { amount: 0, accountId: '' },
-    transportAccounts: [],
-    transportOptions: [],
-    timestamp: new Date().toLocaleTimeString(),
-    customerName: 'New Sale'
-  }]);
-  const [currentScreenIndex, setCurrentScreenIndex] = useState(0);
+  const [screenStack, setScreenStack] = useState([]);
+  const [currentScreenIndex, setCurrentScreenIndex] = useState(-1);
   const [showScreenIndicator, setShowScreenIndicator] = useState(false);
 
   // Handle URL query parameter for view
@@ -253,11 +228,9 @@ function SalesPageContent() {
     quantity: '',
     rate: 0,
     amount: 0,
-    stock: 0
+    stock: 0,
+    crate: ''
   });
-
-  // Stock error state
-  const [stockError, setStockError] = useState('');
 
   // Product table state
   const [productTableData, setProductTableData] = useState([]);
@@ -283,10 +256,7 @@ function SalesPageContent() {
     discount: '',
     labour: '',
     deliveryCharges: '',
-    notes: '',
-    isLoadedOrder: false,
-    sourceOrderId: null,
-    manualSaleInv: ''
+    notes: ''
   });
 
   // Bill type state
@@ -333,6 +303,12 @@ function SalesPageContent() {
     city_id: ''
   });
 
+  // Draft Sales state
+  const [drafts, setDrafts] = useState([]);
+  const [draftModalOpen, setDraftModalOpen] = useState(false);
+  const [currentDraftId, setCurrentDraftId] = useState(null);
+  const [draftSearchTerm, setDraftSearchTerm] = useState('');
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
 
   // Additional filter states
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -405,9 +381,52 @@ function SalesPageContent() {
     setSnackbar(prev => ({ ...prev, open: false }));
   };
 
+  // Initialize first screen on component mount
+  useEffect(() => {
+    // Create initial state for screen 1
+    const initialState = {
+      formSelectedCustomer: null,
+      formSelectedStore: null,
+      productTableData: [],
+      paymentData: {
+        cash: '',
+        bank: '',
+        bankAccountId: '',
+        totalCashReceived: 0,
+        advancePayment: 0,
+        discount: '',
+        labour: '',
+        deliveryCharges: '',
+        notes: ''
+      },
+      billType: 'BILL',
+      formSelectedProduct: null,
+      productFormData: {
+        quantity: '',
+        rate: 0,
+        amount: 0,
+        stock: 0,
+        crate: ''
+      },
+      newTransport: {
+        amount: 0,
+        accountId: ''
+      },
+      transportAccounts: [],
+      transportOptions: [],
+      timestamp: new Date().toLocaleTimeString(),
+      customerName: 'New Sale'
+    };
+
+    // Set the initial screen stack with screen 1
+    setScreenStack([initialState]);
+    setCurrentScreenIndex(0);
+    console.log('✅ Screen 1 initialized by default');
+  }, []); // Run only once on component mount
+
   // ========== SCREEN STACK MANAGEMENT FUNCTIONS ==========
   // Capture current form state (deep copy to avoid reference issues)
-  const captureScreenState = useCallback(() => {
+  const captureScreenState = () => {
     const state = {
       // Customer and store selection
       formSelectedCustomer: formSelectedCustomer ? { ...formSelectedCustomer } : null,
@@ -432,46 +451,13 @@ function SalesPageContent() {
       transportOptions: transportOptions.map(t => ({ ...t })),
 
       // Metadata
-      timestamp: new Date().getTime().toString(),
+      timestamp: new Date().toLocaleTimeString(),
       customerName: formSelectedCustomer?.cus_name || 'New Sale'
     };
 
     console.log('📸 Screen state captured:', state);
     return state;
-  }, [formSelectedCustomer, formSelectedStore, productTableData, paymentData, billType, formSelectedProduct, productFormData, newTransport, transportAccounts, transportOptions]);
-
-  // Get fresh blank state
-  const getFreshSaleState = useCallback(() => {
-    return {
-      formSelectedCustomer: null,
-      formSelectedStore: null,
-      productTableData: [],
-      paymentData: {
-        cash: '',
-        bank: '',
-        bankAccountId: '',
-        totalCashReceived: 0,
-        advancePayment: 0,
-        discount: '',
-        labour: '',
-        deliveryCharges: '',
-        date: new Date().toISOString().split('T')[0],
-        notes: '',
-        isLoadedOrder: false,
-        sourceOrderId: null
-      },
-      billType: 'BILL',
-      formSelectedProduct: null,
-      productFormData: { quantity: '', rate: 0, amount: 0, stock: 0 },
-      newTransport: { amount: 0, accountId: '' },
-      transportAccounts: [],
-      transportOptions: [],
-      timestamp: new Date().getTime().toString(),
-      customerName: 'New Sale'
-    };
-  }, []);
-
-  const [isNavigating, setIsNavigating] = useState(false);
+  };
 
   // Auto-save current form state to the current screen in stack
   // (Inline auto-save in useEffects to avoid circular dependencies)
@@ -514,17 +500,15 @@ function SalesPageContent() {
       discount: '',
       labour: '',
       deliveryCharges: '',
-      date: new Date().toISOString().split('T')[0],
-      notes: '',
-      isLoadedOrder: false,
-      sourceOrderId: null
+      notes: ''
     });
     setBillType('BILL');
     setProductFormData({
       quantity: '',
       rate: 0,
       amount: 0,
-      stock: 0
+      stock: 0,
+      crate: ''
     });
     setNewTransport({ amount: 0, accountId: '' });
     setTransportAccounts([]);
@@ -536,72 +520,65 @@ function SalesPageContent() {
 
   // Open new screen (Ctrl+Right)
   const openNewScreen = useCallback(() => {
-    setIsNavigating(true);
     console.log('➡️ OPENING NEW SCREEN');
+    console.log('📷 Current state before capture:', {
+      customer: formSelectedCustomer?.cus_name,
+      products: productTableData.length,
+      totalAmount: paymentData
+    });
+
     const currentState = captureScreenState();
     const newStack = screenStack.slice(0, currentScreenIndex + 1);
-    newStack[currentScreenIndex] = currentState;
+    newStack.push(currentState);
 
-    const freshState = getFreshSaleState();
+    console.log('📚 New stack created:', newStack.length, 'screens');
 
-    const updatedStack = [...newStack, freshState];
-    setScreenStack(updatedStack);
-    setCurrentScreenIndex(updatedStack.length - 1);
-    restoreScreenState(freshState);
+    setScreenStack(newStack);
+    setCurrentScreenIndex(newStack.length - 1);
 
-    setTimeout(() => {
-      setIsNavigating(false);
-      showSnackbar(`📋 Screen ${updatedStack.length} | Starting fresh`, 'info');
-    }, 150);
-  }, [currentScreenIndex, screenStack]);
+    // NOW clear form for the new blank screen
+    clearFormState();
+    showSnackbar(`📋 Screen ${newStack.length} | Starting fresh (previous state saved)`, 'info');
+  }, [formSelectedCustomer, formSelectedStore, productTableData, paymentData, billType, formSelectedProduct, productFormData, newTransport, transportAccounts, transportOptions, currentScreenIndex, screenStack]);
 
   // Go back to previous screen (Ctrl+Left) - NO AUTO-CLEAR, only navigate if possible
   const goToPreviousScreen = useCallback(() => {
-    if (currentScreenIndex > 0) {
-      setIsNavigating(true);
-      console.log('⬅️ GOING TO PREVIOUS SCREEN');
-      const currentState = captureScreenState();
-      const updatedStack = [...screenStack];
-      updatedStack[currentScreenIndex] = currentState;
-      setScreenStack(updatedStack);
+    console.log('⬅️ GOING TO PREVIOUS SCREEN');
+    console.log('📊 Current stack:', {
+      currentIndex: currentScreenIndex,
+      stackLength: screenStack.length,
+      stateAtCurrentIndex: screenStack[currentScreenIndex]
+    });
 
+    if (currentScreenIndex > 0) {
       const previousIndex = currentScreenIndex - 1;
-      const previousState = updatedStack[previousIndex];
+      const previousState = screenStack[previousIndex];
+
+      console.log('🔄 Restoring from index:', previousIndex);
+      console.log('🔄 State to restore:', previousState);
+
       restoreScreenState(previousState);
       setCurrentScreenIndex(previousIndex);
-
-      setTimeout(() => {
-        setIsNavigating(false);
-        showSnackbar(`📋 Screen ${previousIndex + 1} | ${previousState.customerName}`, 'info');
-      }, 150);
+      showSnackbar(`📋 Screen ${previousIndex + 1} | ${previousState.customerName}`, 'info');
     } else if (currentScreenIndex === 0) {
+      // At first screen - can't go back, just notify user
       console.log('ℹ️ Already at first screen, cannot go back');
-      showSnackbar('📋 You are at the first screen.', 'info');
+      showSnackbar('📋 You are at the first screen. Click "Cancel Current" to discard or "Cancel" to save later.', 'info');
     }
   }, [currentScreenIndex, screenStack]);
 
   // Go forward to next screen (Ctrl+Right after going back) - NO AUTO-CLEAR
   const goToNextScreen = useCallback(() => {
+    console.log('➡️ GOING TO NEXT SCREEN');
     if (currentScreenIndex < screenStack.length - 1) {
-      setIsNavigating(true);
-      console.log('➡️ GOING TO NEXT SCREEN');
-      const currentState = captureScreenState();
-      const updatedStack = [...screenStack];
-      updatedStack[currentScreenIndex] = currentState;
-      setScreenStack(updatedStack);
-
       const nextIndex = currentScreenIndex + 1;
-      const nextState = updatedStack[nextIndex];
+      const nextState = screenStack[nextIndex];
       restoreScreenState(nextState);
       setCurrentScreenIndex(nextIndex);
-
-      setTimeout(() => {
-        setIsNavigating(false);
-        showSnackbar(`📋 Screen ${nextIndex + 1} | ${nextState.customerName}`, 'info');
-      }, 150);
+      showSnackbar(`📋 Screen ${nextIndex + 1} | ${nextState.customerName}`, 'info');
     } else {
       console.log('ℹ️ Already at last screen');
-      showSnackbar('📋 You are at the last screen.', 'info');
+      showSnackbar('📋 You are at the last screen. Press Ctrl+Right to create a new screen.', 'info');
     }
   }, [currentScreenIndex, screenStack]);
 
@@ -633,35 +610,28 @@ function SalesPageContent() {
       stackLength: screenStack.length
     });
 
-    if (screenStack.length <= 1) {
-      // Only one screen exists (Screen 1), just reset it
-      const freshState = getFreshSaleState();
-      setScreenStack([freshState]);
+    if (screenStack.length === 1) {
+      // Only default screen - just clear the form but keep the screen
+      clearFormState();
+      showSnackbar('Screen 1 reset - ready for new entry', 'info');
+    } else if (screenStack.length > 1 && currentScreenIndex > 0) {
+      // Remove current screen and go back to previous
+      const newStack = screenStack.filter((_, index) => index !== currentScreenIndex);
+      setScreenStack(newStack);
+      const previousIndex = currentScreenIndex - 1;
+      const previousState = newStack[previousIndex];
+      restoreScreenState(previousState);
+      setCurrentScreenIndex(previousIndex);
+      showSnackbar(`Screen ${previousIndex + 1} - previous restored`, 'info');
+    } else if (screenStack.length > 1 && currentScreenIndex === 0) {
+      // First of multiple screens - remove it and go to new first screen
+      const newStack = screenStack.slice(1);
+      setScreenStack(newStack);
+      const newFirstState = newStack[0];
+      restoreScreenState(newFirstState);
       setCurrentScreenIndex(0);
-      restoreScreenState(freshState);
-
-      showSnackbar('📋 Screen 1 reset', 'info');
-      return;
+      showSnackbar('Screen canceled - next screen shown', 'info');
     }
-
-    // Capture whether there's a screen ahead
-    const hasNextScreen = currentScreenIndex < screenStack.length - 1;
-
-    // Remove current screen
-    const newStack = screenStack.filter((_, index) => index !== currentScreenIndex);
-
-    // Determine the target index
-    // If there was a next screen, its index in the new stack is the same as current
-    // If there was no next screen, go to the previous screen
-    const targetIndex = hasNextScreen ? currentScreenIndex : currentScreenIndex - 1;
-    const targetState = newStack[targetIndex];
-
-    // Update state and restore form
-    setScreenStack(newStack);
-    setCurrentScreenIndex(targetIndex);
-    restoreScreenState(targetState);
-
-    showSnackbar(`📋 Screen removed. Now at Screen ${targetIndex + 1}`, 'info');
   }, [currentScreenIndex, screenStack]);
 
   // Screen navigation keyboard shortcuts - FIX: Use memoized callbacks
@@ -699,7 +669,8 @@ function SalesPageContent() {
         quantity: '', // Set quantity to empty
         rate: parseFloat(selectedProduct.pro_baser_price) || 0, // Use base price as rate
         stock: 0, // always derive from store-wise stock when available
-        amount: parseFloat(selectedProduct.pro_baser_price) || 0 // Calculate amount (rate * quantity)
+        amount: parseFloat(selectedProduct.pro_baser_price) || 0, // Calculate amount (rate * quantity)
+        crate: selectedProduct.pro_crate || ''
       }));
 
       // If a store is selected, fetch store-wise stock
@@ -712,7 +683,8 @@ function SalesPageContent() {
         quantity: '',
         rate: 0,
         amount: 0,
-        stock: 0
+        stock: 0,
+        crate: ''
       });
     }
   };
@@ -759,7 +731,6 @@ function SalesPageContent() {
 
   // When store or product changes, refresh store-wise stock
   useEffect(() => {
-    setStockError(''); // Clear stock error when product/store changes
     if (formSelectedStore?.storeid && formSelectedProduct?.pro_id) {
       fetchStoreStock(formSelectedStore.storeid, formSelectedProduct.pro_id);
     }
@@ -770,15 +741,6 @@ function SalesPageContent() {
     const quantity = parseFloat(newQuantity) || 0;
     const rate = productFormData.rate;
     const amount = quantity * rate;
-    
-    // Check if quantity exceeds available stock
-    if (quantity > productFormData.stock && productFormData.stock >= 0) {
-      setStockError(`Stock not available - Available: ${productFormData.stock}, Requested: ${quantity}`);
-    } else if (quantity <= 0) {
-      setStockError('');
-    } else {
-      setStockError('');
-    }
 
     setProductFormData(prev => ({
       ...prev,
@@ -819,12 +781,6 @@ function SalesPageContent() {
       showSnackbar('Please enter a valid rate', 'error');
       return;
     }
-    
-    // Check stock availability
-    if (productFormData.quantity > productFormData.stock && productFormData.stock >= 0) {
-      showSnackbar(`Insufficient stock! Available: ${productFormData.stock}, Requested: ${productFormData.quantity}`, 'error');
-      return;
-    }
 
     // Check if product already exists in table
     const existingProductIndex = productTableData.findIndex(
@@ -832,13 +788,6 @@ function SalesPageContent() {
     );
 
     if (existingProductIndex >= 0) {
-      // Check total quantity including existing quantity
-      const totalQty = productTableData[existingProductIndex].quantity + productFormData.quantity;
-      if (totalQty > productFormData.stock && productFormData.stock >= 0) {
-        showSnackbar(`Total quantity would exceed stock! Available: ${productFormData.stock}, Total would be: ${totalQty}`, 'error');
-        return;
-      }
-      
       // Update existing product quantity and amount
       const updatedData = [...productTableData];
       updatedData[existingProductIndex].quantity += productFormData.quantity;
@@ -865,13 +814,13 @@ function SalesPageContent() {
 
     // Reset form
     setFormSelectedProduct(null);
-    setStockError('');
     // Don't reset store - it should remain selected
     setProductFormData({
       quantity: '',
       rate: 0,
       amount: 0,
-      stock: 0
+      stock: 0,
+      crate: ''
     });
   };
 
@@ -923,7 +872,7 @@ function SalesPageContent() {
     const labour = parseFloat(paymentData.labour) || 0;
     const deliveryCharges = parseFloat(paymentData.deliveryCharges) || 0;
     const transportTotal = calculateTransportTotal();
-    const totalDelivery = deliveryCharges; // Transport is now a split of delivery charges
+    const totalDelivery = deliveryCharges + transportTotal; // Transport added to delivery
     const discount = parseFloat(paymentData.discount) || 0;
     return productTotal + labour + totalDelivery - discount;
   };
@@ -938,10 +887,13 @@ function SalesPageContent() {
 
   // Handle payment data changes
   const handlePaymentDataChange = (field, value) => {
-    setPaymentData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    setPaymentData(prev => {
+      const updated = {
+        ...prev,
+        [field]: value
+      };
+      return updated;
+    });
   };
 
   // Handle loading an order into the form
@@ -998,37 +950,61 @@ function SalesPageContent() {
 
       // Map products
       if (fullOrder.sale_details && Array.isArray(fullOrder.sale_details)) {
-        const products = fullOrder.sale_details.map(detail => {
-          const detailStoreId = detail.store_id || fullOrder.store_id;
-          const store = stores.find(s => s.storeid === detailStoreId);
-
-          return {
-            id: Date.now() + Math.random(),
-            pro_id: detail.pro_id,
-            pro_title: detail.product?.pro_title || detail.product?.pro_name || 'Unknown Product',
-            storeid: detailStoreId,
-            store_name: store?.store_name || (selectedStore?.store_name || 'Store'),
-            quantity: parseFloat(detail.qnty) || 0,
-            rate: parseFloat(detail.unit_rate) || 0,
-            amount: parseFloat(detail.total_amount) || 0,
-            stock: detail.product?.pro_stock_qnty || 0
-          };
-        });
-        setProductTableData(products);
+        const mappedProducts = fullOrder.sale_details.map((item, index) => ({
+          id: Date.now() + index,
+          pro_id: item.pro_id,
+          pro_title: item.product ? item.product.pro_title : 'Unknown Product',
+          quantity: parseFloat(item.qnty || 0),
+          rate: parseFloat(item.unit_rate || 0),
+          amount: parseFloat(item.total_amount || 0),
+          crate: item.product ? (item.product.pro_crate || '') : '',
+          stock: 0, // Stock will need to be fetched or updated
+          storeid: fullOrder.store_id, // Map the store ID from the order
+          store_name: selectedStore ? selectedStore.store_name : 'Unknown'
+        }));
+        setProductTableData(mappedProducts);
       } else {
         setProductTableData([]);
       }
 
-      // Set payment data - only load advance payment (already paid amount)
+      // Map Transport Options
+      if (fullOrder.transport_details && Array.isArray(fullOrder.transport_details)) {
+        const mappedTransport = fullOrder.transport_details.map((item, index) => {
+          // Find account name if possible, or use description/placeholder
+          // We might need to fetch transport accounts if not loaded, but for now map what we have
+          const account = transportAccounts.find(t => t.cus_id === item.account_id);
+          return {
+            id: Date.now() + index + 100, // Offset ID to avoid collision
+            name: account ? account.cus_name : (item.account?.cus_name || 'Unknown Account'),
+            amount: 0, // Amount is calculated from delivery charges
+            accountId: item.account_id,
+            accountName: account ? account.cus_name : (item.account?.cus_name || 'Unknown Account')
+          };
+        });
+        setTransportOptions(mappedTransport);
+      } else {
+        setTransportOptions([]);
+      }
+
+      // Set payment data
       const alreadyPaid = parseFloat(fullOrder.payment || 0);
+      const labourCharges = parseFloat(fullOrder.labour_charges || fullOrder.labour || 0);
+
+      console.log('💼 Loading Payment Data:');
+      console.log('  Advance Payment:', alreadyPaid);
+      console.log('  Discount:', fullOrder.discount);
+      console.log('  Labour Charges (from labour_charges):', fullOrder.labour_charges);
+      console.log('  Labour Charges (from labour):', fullOrder.labour);
+      console.log('  Labour Charges (final):', labourCharges);
+      console.log('  Delivery Charges:', fullOrder.shipping_amount);
 
       setPaymentData(prev => ({
         ...prev,
         advancePayment: alreadyPaid, // Set the already paid amount as advance payment
-        discount: parseFloat(fullOrder.discount) || '',
-        labour: parseFloat(fullOrder.labour_charges || fullOrder.labour || 0) || '', // Load labour charges from order
-        deliveryCharges: parseFloat(fullOrder.shipping_amount) || '',
-        notes: `Order #${fullOrder.sale_id}. ${fullOrder.reference || ''}`,
+        discount: parseFloat(fullOrder.discount || 0) || '', // Empty string if 0, so user knows they can edit
+        labour: labourCharges > 0 ? labourCharges : '', // Only set if > 0, otherwise empty string
+        deliveryCharges: parseFloat(fullOrder.shipping_amount || 0) || '', // Empty string if 0
+        notes: fullOrder.reference || `Order #${fullOrder.sale_id}`,
         isLoadedOrder: true // Flag to indicate this is a loaded order
       }));
 
@@ -1110,8 +1086,8 @@ function SalesPageContent() {
     try {
       // If bill type is SALE_RETURN, process it as a return
       if (billType === 'SALE_RETURN') {
-        if (!selectedSaleForReturnMain && !paymentData.manualSaleInv) {
-          showSnackbar('Please select a sale to return (Invoice) or enter a manual reference', 'error');
+        if (!selectedSaleForReturnMain) {
+          showSnackbar('Please select a sale to return (Invoice)', 'error');
           return;
         }
         if (productTableData.length === 0) {
@@ -1129,9 +1105,8 @@ function SalesPageContent() {
         const totalReturn = cashReturn + bankReturn; // Total refund amount
 
         const returnBody = {
-          sale_id: selectedSaleForReturnMain?.sale_id || null,
-          manual_sale_inv: paymentData.manualSaleInv || null,
-          cus_id: formSelectedCustomer ? formSelectedCustomer.cus_id : selectedSaleForReturnMain?.cus_id,
+          sale_id: selectedSaleForReturnMain.sale_id,
+          cus_id: formSelectedCustomer ? formSelectedCustomer.cus_id : selectedSaleForReturnMain.cus_id,
           total_amount: totalAmount.toString(),
           discount: discount.toString(),
           labour_charges: labourCharges.toString(),
@@ -1151,8 +1126,7 @@ function SalesPageContent() {
             qnty: item.quantity, // Quantity to return
             unit_rate: item.rate.toString(),
             total_amount: item.amount.toString(),
-            discount: '0',
-            store_id: item.storeid
+            discount: '0'
           })),
           updated_by: 1
         };
@@ -1175,12 +1149,9 @@ function SalesPageContent() {
           const returnReceipt = {
             ...selectedSaleForReturnMain,
             return_id: saleReturnData.return_id,
-            sale_id: selectedSaleForReturnMain?.sale_id || null,
-            manual_sale_inv: paymentData.manualSaleInv || null,
-            customer: formSelectedCustomer || selectedSaleForReturnMain?.customer,
             sale_details: productTableData.map((item, idx) => ({
               sale_detail_id: idx,
-              product: { pro_title: item.pro_title || item.product_name },
+              product: { pro_title: item.product_name },
               qnty: item.quantity,
               unit_rate: item.rate,
               total_amount: item.amount
@@ -1216,8 +1187,7 @@ function SalesPageContent() {
               totalCashReceived: 0,
               advancePayment: 0,
               discount: 0,
-              notes: '',
-              manualSaleInv: ''
+              notes: ''
             });
             setSelectedSaleForReturnMain(null);
             setBillType('BILL'); // Reset to default
@@ -1259,7 +1229,17 @@ function SalesPageContent() {
         return;
       }
 
-      console.log('🔍 Frontend - Calculated values:', { totalAmount, grandTotal, totalCashReceived, advancePayment, finalPaymentTotal });
+      console.log('🔍 Frontend - Calculated values:', { totalAmount, grandTotal, totalCashReceived, advancePayment, finalPaymentTotal, billType });
+      console.log('📋 Frontend - Payment Data before sending:', paymentData);
+      console.log('📊 Frontend - Grand Total Breakdown:', {
+        productTotal: calculateTotalAmount(),
+        labour: parseFloat(paymentData.labour) || 0,
+        deliveryCharges: parseFloat(paymentData.deliveryCharges) || 0,
+        discount: parseFloat(paymentData.discount) || 0,
+        grandTotal: grandTotal,
+        billType: billType,
+        message: 'NOTE: Discount is already subtracted in grandTotal, sending discount: 0 to API'
+      });
 
       // Prepare sale data
       const transportTotal = calculateTransportTotal();
@@ -1298,11 +1278,13 @@ function SalesPageContent() {
         ? bankAccounts.find(acc => acc.cus_id === paymentData.bankAccountId)
         : null;
 
+      const labourChargesValue = parseFloat(paymentData.labour) || 0;
+
       const saleData = {
         cus_id: formSelectedCustomer.cus_id,
         store_id: formSelectedStore.storeid, // Added store_id for multi-store functionality
-        total_amount: grandTotal, // Use grand total instead of just product total
-        discount: parseFloat(paymentData.discount) || 0,
+        total_amount: grandTotal, // Use grand total (already includes discount subtraction)
+        discount: 0, // Discount is already applied in grandTotal, don't apply it again in API
         payment: finalPaymentTotal, // Include both cash received and advance payment
         payment_type: splitPayments.length > 0 ? splitPayments[0].payment_type : 'CASH', // Use first payment type or default to CASH
         cash_payment: cashAmount, // Store cash payment in sale record
@@ -1312,7 +1294,7 @@ function SalesPageContent() {
         debit_account_id: paymentData.bankAccountId || null,
         credit_account_id: null,
         loader_id: null,
-        labour_charges: parseFloat(paymentData.labour) || 0, // Include labour charges
+        labour_charges: labourChargesValue, // Include labour charges
         shipping_amount: totalShippingAmount, // Include both transport and delivery charges
         bill_type: billType || 'BILL',
         reference: paymentData.notes || null,
@@ -1329,8 +1311,8 @@ function SalesPageContent() {
         })),
         transport_details: transportOptions.map(transport => ({
           account_id: transport.accountId,
-          amount: transport.amount,
-          description: transport.description || 'Transport charges'
+          amount: transportOptions.length > 0 ? (parseFloat(paymentData.deliveryCharges) || 0) / transportOptions.length : 0,
+          description: transport.description || 'Transport charges - Split from Delivery'
         })),
         split_payments: splitPayments, // Keep split_payments for backward compatibility
         updated_by: 1 // Default user ID, should be from auth context
@@ -1338,9 +1320,6 @@ function SalesPageContent() {
 
       // Show loading
       setLoading(true);
-
-      console.log('🔍 Frontend - Sale data being sent:', saleData);
-      console.log('🔍 Frontend - Sale data JSON:', JSON.stringify(saleData, null, 2));
 
       // Call API
       const response = await fetch('/api/sales', {
@@ -1412,36 +1391,25 @@ function SalesPageContent() {
         } else {
           // No previous screen - clear form to start fresh
           console.log('✅ Sale created! No previous screen, clearing form...');
-          clearFormState();
+          setFormSelectedCustomer(null);
+          setFormSelectedProduct(null);
+          setFormSelectedStore(null);
+          setProductTableData([]);
+          setPaymentData({
+            cash: 0,
+            bank: 0,
+            bankAccountId: '',
+            totalCashReceived: 0,
+            advancePayment: 0,
+            discount: 0,
+            labour: 0,
+            deliveryCharges: 0,
+            notes: ''
+          });
 
-          // Ensure Screen 1 is active and initialized in the stack
-          setScreenStack([{
-            formSelectedCustomer: null,
-            formSelectedStore: null,
-            productTableData: [],
-            paymentData: {
-              cash: '',
-              bank: '',
-              bankAccountId: '',
-              totalCashReceived: 0,
-              advancePayment: 0,
-              discount: '',
-              labour: '',
-              deliveryCharges: '',
-              notes: '',
-              isLoadedOrder: false,
-              sourceOrderId: null
-            },
-            billType: 'BILL',
-            formSelectedProduct: null,
-            productFormData: { quantity: '', rate: 0, amount: 0, stock: 0 },
-            newTransport: { amount: 0, accountId: '' },
-            transportAccounts: [],
-            transportOptions: [],
-            timestamp: new Date().toLocaleTimeString(),
-            customerName: 'New Sale'
-          }]);
-          setCurrentScreenIndex(0);
+          // Reset screen stack for next sale only if we're at index 0
+          setScreenStack([]);
+          setCurrentScreenIndex(-1);
           showSnackbar('✅ Sale created! Form cleared for next entry', 'success');
         }
 
@@ -1466,6 +1434,7 @@ function SalesPageContent() {
   useEffect(() => {
     console.log('🔍 Component mounted, calling fetchData...');
     fetchData();
+    fetchDrafts();
   }, []);
 
   // Open create view preconfigured for Sale Return when flagged (from /dashboard/sale-returns)
@@ -1494,39 +1463,60 @@ function SalesPageContent() {
     }));
   }, [paymentData.cash, paymentData.bank]);
 
-  // Effect to split delivery charges among transport accounts
+  // Auto-save when customer changes
   useEffect(() => {
-    const totalDelivery = parseFloat(paymentData.deliveryCharges || 0);
-    const transportCount = transportOptions.length;
-
-    if (transportCount > 0) {
-      const splitAmount = totalDelivery / transportCount;
-      // Use a small epsilon for floating point comparison to avoid unnecessary updates
-      const needsUpdate = transportOptions.some(t => Math.abs(t.amount - splitAmount) > 0.001);
-
-      if (needsUpdate) {
-        setTransportOptions(prev => prev.map(t => ({
-          ...t,
-          amount: splitAmount
-        })));
-      }
+    if (currentScreenIndex >= 0 && screenStack[currentScreenIndex]) {
+      const updatedState = captureScreenState();
+      const newStack = [...screenStack];
+      newStack[currentScreenIndex] = updatedState;
+      setScreenStack(newStack);
+      console.log(`💾 Auto-saved on customer change - Screen ${currentScreenIndex + 1}`);
     }
-  }, [paymentData.deliveryCharges, transportOptions.length]);
+  }, [formSelectedCustomer]);
 
-  // Auto-save with debounce to prevent input focus loss
+  // Auto-save when store changes
   useEffect(() => {
-    if (!isNavigating && currentScreenIndex >= 0 && screenStack[currentScreenIndex]) {
-      const debounceTimer = setTimeout(() => {
-        const updatedState = captureScreenState();
-        const newStack = [...screenStack];
-        newStack[currentScreenIndex] = updatedState;
-        setScreenStack(newStack);
-        console.log(`💾 Auto-saved Sales Screen ${currentScreenIndex + 1}`);
-      }, 3000); // Wait 3 seconds after user stops typing
-
-      return () => clearTimeout(debounceTimer);
+    if (currentScreenIndex >= 0 && screenStack[currentScreenIndex]) {
+      const updatedState = captureScreenState();
+      const newStack = [...screenStack];
+      newStack[currentScreenIndex] = updatedState;
+      setScreenStack(newStack);
+      console.log(`💾 Auto-saved on store change - Screen ${currentScreenIndex + 1}`);
     }
-  }, [formSelectedCustomer, formSelectedStore, productTableData, paymentData, billType, isNavigating, currentScreenIndex]);
+  }, [formSelectedStore]);
+
+  // Auto-save when product table changes
+  useEffect(() => {
+    if (currentScreenIndex >= 0 && screenStack[currentScreenIndex]) {
+      const updatedState = captureScreenState();
+      const newStack = [...screenStack];
+      newStack[currentScreenIndex] = updatedState;
+      setScreenStack(newStack);
+      console.log(`💾 Auto-saved on product table change - Screen ${currentScreenIndex + 1}`);
+    }
+  }, [productTableData]);
+
+  // Auto-save when payment data changes
+  useEffect(() => {
+    if (currentScreenIndex >= 0 && screenStack[currentScreenIndex]) {
+      const updatedState = captureScreenState();
+      const newStack = [...screenStack];
+      newStack[currentScreenIndex] = updatedState;
+      setScreenStack(newStack);
+      console.log(`💾 Auto-saved on payment change - Screen ${currentScreenIndex + 1}`);
+    }
+  }, [paymentData]);
+
+  // Auto-save when bill type changes
+  useEffect(() => {
+    if (currentScreenIndex >= 0 && screenStack[currentScreenIndex]) {
+      const updatedState = captureScreenState();
+      const newStack = [...screenStack];
+      newStack[currentScreenIndex] = updatedState;
+      setScreenStack(newStack);
+      console.log(`💾 Auto-saved on bill type change - Screen ${currentScreenIndex + 1}`);
+    }
+  }, [billType]);
 
   // Transport functions
   const fetchTransportAccounts = async (providedCustomers = null) => {
@@ -1542,10 +1532,20 @@ function SalesPageContent() {
       }
 
       if (Array.isArray(accountsData)) {
-        // Filter accounts where type is "Transport" or name mentions transport
+        // Filter accounts where category is "Transporter"
         const transportAccountsData = accountsData.filter(account => {
+          // Use customerCategories state to find category
+          const category = customerCategories.find(c => c.cus_cat_id === account.cus_category);
           const typeTitle = (account.customer_type?.cus_type_title || '').toLowerCase();
           const name = (account.cus_name || '').toLowerCase();
+
+          // Check category first (primary filter)
+          if (category) {
+            const catTitle = category.cus_cat_title.toLowerCase();
+            return catTitle.includes('transporter') || catTitle.includes('transport');
+          }
+
+          // Fallback to type or name if category not found (optional, but safer)
           return typeTitle.includes('transport') || name.includes('transport');
         });
         setTransportAccounts(transportAccountsData);
@@ -1558,6 +1558,13 @@ function SalesPageContent() {
     }
   };
 
+  // Update transport accounts when customers or categories change
+  useEffect(() => {
+    if (customers.length > 0 && customerCategories.length > 0) {
+      fetchTransportAccounts(customers);
+    }
+  }, [customers, customerCategories]);
+
   // Filter customers by category and type for bank accounts
   const filterBankAccountsByCategory = (customers, customerCategories, customerTypes) => {
     console.log('🔍 Filtering bank accounts for sales:');
@@ -1566,15 +1573,18 @@ function SalesPageContent() {
     console.log('  - Available types:', customerTypes.length);
 
     // Bank accounts: BOTH category AND type must contain "bank"
+    // Exclude generic "Bank Account" master account (only show specific ones)
     const filteredBankAccounts = customers.filter(customer => {
       const categoryInfo = customerCategories.find(cat => cat.cus_cat_id === customer.cus_category);
       const typeInfo = customerTypes.find(t => t.cus_type_id === customer.cus_type);
       const hasBank = categoryInfo && categoryInfo.cus_cat_title.toLowerCase().includes('bank');
       const hasBank2 = typeInfo && typeInfo.cus_type_title.toLowerCase().includes('bank');
-      return hasBank && hasBank2;
+      // Exclude the generic "Bank Account" entry - only show specific bank names
+      const isNotGeneric = customer.cus_name && !['Bank Account', 'Bank', 'Bank Accounts'].includes(customer.cus_name.trim());
+      return hasBank && hasBank2 && isNotGeneric;
     });
 
-    console.log(`✅ Filtered ${filteredBankAccounts.length} bank accounts (BOTH category AND type contain 'bank')`);
+    console.log(`✅ Filtered ${filteredBankAccounts.length} bank accounts (BOTH category AND type contain 'bank', excluding generic)`);
     return filteredBankAccounts;
   };
 
@@ -1593,8 +1603,20 @@ function SalesPageContent() {
 
       if (Array.isArray(accountsData) && customerCategories.length > 0 && customerTypes.length > 0) {
         // Filter bank accounts using category + type validation
-        const bankAccountsData = filterBankAccountsByCategory(accountsData, customerCategories, customerTypes);
-        console.log('🏦 Bank accounts found:', bankAccountsData.length);
+        let bankAccountsData = filterBankAccountsByCategory(accountsData, customerCategories, customerTypes);
+        
+        // Remove duplicates based on cus_id to ensure no bank appears twice
+        const seenIds = new Set();
+        bankAccountsData = bankAccountsData.filter(account => {
+          if (seenIds.has(account.cus_id)) {
+            console.log(`⚠️ Duplicate bank account detected: ${account.cus_name} (ID: ${account.cus_id})`);
+            return false;
+          }
+          seenIds.add(account.cus_id);
+          return true;
+        });
+        
+        console.log('🏦 Bank accounts found (after deduplication):', bankAccountsData.length);
         setBankAccounts(bankAccountsData);
       } else {
         console.warn('⚠️ Cannot filter bank accounts - missing data');
@@ -1607,14 +1629,9 @@ function SalesPageContent() {
   };
 
   const handleAddTransport = () => {
+    // Amount validation removed as it is calculated from delivery charges
     if (!newTransport.accountId) {
       showSnackbar('Please select a transport account', 'error');
-      return;
-    }
-
-    // Check if account already added
-    if (transportOptions.find(t => t.accountId === newTransport.accountId)) {
-      showSnackbar('Account already added', 'warning');
       return;
     }
 
@@ -1624,7 +1641,7 @@ function SalesPageContent() {
     const transport = {
       id: Date.now(),
       name: selectedAccount ? selectedAccount.cus_name : 'Unknown Account',
-      amount: 0, // Will be auto-populated by useEffect
+      amount: 0, // Amount will be calculated from delivery charges
       accountId: newTransport.accountId,
       accountName: selectedAccount ? selectedAccount.cus_name : 'Unknown Account'
     };
@@ -1694,6 +1711,16 @@ function SalesPageContent() {
     }
     if (!newCustomer.cus_type) {
       showSnackbar('Customer type is required', 'error');
+      return;
+    }
+
+    // Check if customer with same phone number already exists
+    const existingCustomer = customers.find(customer =>
+      customer.cus_phone_no === newCustomer.cus_phone_no.trim()
+    );
+
+    if (existingCustomer) {
+      showSnackbar(`A customer with phone number ${newCustomer.cus_phone_no} already exists. Please use a different phone number.`, 'error');
       return;
     }
 
@@ -1869,6 +1896,169 @@ function SalesPageContent() {
     }
   };
 
+  // ======================== DRAFT SALES FUNCTIONS ========================
+  // Fetch all drafts
+  const fetchDrafts = async () => {
+    try {
+      const response = await fetch('/api/draft-sales');
+      if (response.ok) {
+        const draftsList = await response.json();
+        setDrafts(Array.isArray(draftsList) ? draftsList : []);
+        console.log('📝 Drafts loaded:', draftsList.length);
+      } else {
+        console.error('❌ Failed to fetch drafts');
+        setDrafts([]);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching drafts:', error);
+      setDrafts([]);
+    }
+  };
+
+  // Save current form as draft
+  const handleSaveDraft = async () => {
+    try {
+      if (!formSelectedStore) {
+        showSnackbar('Please select a store before saving draft', 'error');
+        return;
+      }
+
+      // Collect form data
+      const formState = {
+        customer: formSelectedCustomer,
+        store: formSelectedStore,
+        products: productTableData,
+        paymentData: paymentData,
+        billType: billType,
+        transportOptions: transportOptions
+      };
+
+      setIsSavingDraft(true);
+
+      const method = currentDraftId ? 'PUT' : 'POST';
+      const endpoint = currentDraftId
+        ? `/api/draft-sales?id=${currentDraftId}`
+        : '/api/draft-sales';
+
+      const payload = currentDraftId
+        ? {
+          id: currentDraftId,
+          store_id: formSelectedStore.storeid,
+          cus_id: formSelectedCustomer?.cus_id || null,
+          form_state: formState,
+          updated_by: 1
+        }
+        : {
+          store_id: formSelectedStore.storeid,
+          cus_id: formSelectedCustomer?.cus_id || null,
+          form_state: formState,
+          updated_by: 1
+        };
+
+      const response = await fetch(endpoint, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.ok) {
+        const savedDraft = await response.json();
+        setCurrentDraftId(savedDraft.draft_id);
+        showSnackbar(`✅ Draft saved as ${savedDraft.draft_code}`, 'success');
+
+        // Refresh drafts list
+        await fetchDrafts();
+      } else {
+        const error = await response.json();
+        showSnackbar(`Failed to save draft: ${error.error}`, 'error');
+      }
+    } catch (error) {
+      console.error('❌ Error saving draft:', error);
+      showSnackbar(`Error saving draft: ${error.message}`, 'error');
+    } finally {
+      setIsSavingDraft(false);
+    }
+  };
+
+  // Load draft into form
+  const handleLoadDraft = async (draft) => {
+    try {
+      setLoading(true);
+
+      // Get full draft details
+      const response = await fetch(`/api/draft-sales?id=${draft.draft_id}`);
+      if (!response.ok) throw new Error('Failed to load draft');
+
+      const fullDraft = await response.json();
+      const formState = JSON.parse(fullDraft.form_state_json);
+
+      console.log('📖 Loading draft:', formState);
+
+      // Restore form state
+      if (formState.customer) {
+        setFormSelectedCustomer(formState.customer);
+      }
+      if (formState.store) {
+        setFormSelectedStore(formState.store);
+      }
+      if (formState.products) {
+        setProductTableData(formState.products);
+      }
+      if (formState.paymentData) {
+        setPaymentData(formState.paymentData);
+      }
+      if (formState.billType) {
+        setBillType(formState.billType);
+      }
+      if (formState.transportOptions) {
+        setTransportOptions(formState.transportOptions);
+      }
+
+      setCurrentDraftId(draft.draft_id);
+      setDraftModalOpen(false);
+
+      showSnackbar(`✅ Draft ${draft.draft_code} loaded successfully`, 'success');
+    } catch (error) {
+      console.error('❌ Error loading draft:', error);
+      showSnackbar(`Failed to load draft: ${error.message}`, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Delete draft
+  const handleDeleteDraft = async (draftId, draftCode) => {
+    try {
+      const response = await fetch(`/api/draft-sales?id=${draftId}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        showSnackbar(`✅ Draft ${draftCode} deleted`, 'success');
+
+        // Clear current draft if it's the one being deleted
+        if (currentDraftId === draftId) {
+          setCurrentDraftId(null);
+        }
+
+        // Refresh drafts list
+        await fetchDrafts();
+      } else {
+        showSnackbar('Failed to delete draft', 'error');
+      }
+    } catch (error) {
+      console.error('❌ Error deleting draft:', error);
+      showSnackbar(`Error deleting draft: ${error.message}`, 'error');
+    }
+  };
+
+  // Open draft modal
+  const handleOpenDraftModal = async () => {
+    await fetchDrafts();
+    setDraftModalOpen(true);
+  };
+
+  // ======================== END DRAFT SALES FUNCTIONS ========================
 
   // Handle viewing a bill
   const handleViewBill = async (sale) => {
@@ -2101,22 +2291,17 @@ function SalesPageContent() {
 
       // 3. Set Products
       if (orderData.sale_details && Array.isArray(orderData.sale_details)) {
-        const products = orderData.sale_details.map(detail => {
-          const detailStoreId = detail.store_id || orderData.store_id;
-          const store = stores.find(s => s.storeid === detailStoreId);
-
-          return {
-            id: Date.now() + Math.random(),
-            pro_id: detail.pro_id,
-            pro_title: detail.product?.pro_title || detail.product?.pro_name || 'Unknown Product',
-            storeid: detailStoreId,
-            store_name: store?.store_name || 'Store',
-            quantity: parseFloat(detail.qnty) || 0,
-            rate: parseFloat(detail.unit_rate) || 0,
-            amount: parseFloat(detail.total_amount) || 0,
-            stock: detail.product?.pro_stock_qnty || 0
-          };
-        });
+        const products = orderData.sale_details.map(detail => ({
+          id: Date.now() + Math.random(),
+          pro_id: detail.pro_id,
+          pro_title: detail.product?.pro_title || detail.product?.pro_name || 'Unknown Product',
+          storeid: orderData.store_id,
+          store_name: stores.find(s => s.storeid === orderData.store_id)?.store_name || 'Store',
+          quantity: parseFloat(detail.qnty) || 0,
+          rate: parseFloat(detail.unit_rate) || 0,
+          amount: parseFloat(detail.total_amount) || 0,
+          stock: detail.product?.pro_stock_qnty || 0 // Note: This might need a fresh fetch for latest stock
+        }));
         setProductTableData(products);
       }
 
@@ -2125,10 +2310,10 @@ function SalesPageContent() {
       setPaymentData(prev => ({
         ...prev,
         advancePayment: orderPayment,
-        discount: parseFloat(orderData.discount) || '',
-        notes: `Order #${orderData.sale_id}. ${orderData.reference || ''}`,
-        deliveryCharges: parseFloat(orderData.shipping_amount) || '',
-        labour: parseFloat(orderData.labour_charges || orderData.labour || 0) || '', // Load labour charges from order
+        discount: parseFloat(orderData.discount) || 0,
+        notes: `Converted from Order #${orderData.sale_id}. ${orderData.reference || ''}`,
+        deliveryCharges: parseFloat(orderData.shipping_amount) || 0,
+        labour: parseFloat(orderData.labour_charges || orderData.labour || 0), // Load labour charges from order
         isLoadedOrder: true, // Mark as loaded order
         sourceOrderId: orderData.sale_id // Store original order ID
       }));
@@ -2264,8 +2449,7 @@ function SalesPageContent() {
           labour: labourValue,
           deliveryCharges: deliveryValue,
           notes: `Return from Sale #${fullSale.sale_id}. Original Amount: ${fullSale.total_amount}`,
-          isLoadedOrder: false,
-          manualSaleInv: fullSale.sale_id.toString()
+          isLoadedOrder: false
         };
         console.log('🔔 Updated paymentData object:', newPaymentData);
         return newPaymentData;
@@ -2446,11 +2630,8 @@ function SalesPageContent() {
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
 
   // Handle print bill with mode (A4 or Thermal)
-  const handlePrintBill = (modeOrEvent = 'A4', fromDialog = false) => {
+  const handlePrintBill = (mode = 'A4', fromDialog = false) => {
     try {
-      // Handle if called directly from onClick (event object)
-      const mode = (typeof modeOrEvent === 'string') ? modeOrEvent : 'A4';
-
       const className = mode === 'THERMAL' ? 'print-thermal' : 'print-a4';
       const isThermal = mode === 'THERMAL';
 
@@ -2885,35 +3066,9 @@ function SalesPageContent() {
             </Button>
           </Box>
 
-          {/* Screen Stack Indicator */}
-          {(currentScreenIndex >= 0 || screenStack.length > 0) && (
-            <Box sx={{ display: 'flex', justifyContent: 'flex-start', mt: -1, mb: 1 }}>
-              <Box
-                sx={{
-                  background: 'rgba(51, 65, 85, 0.1)',
-                  color: '#475569',
-                  padding: '2px 10px',
-                  borderRadius: '4px',
-                  fontSize: '11px',
-                  fontWeight: 'bold',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 0.5,
-                  border: '1px solid rgba(51, 65, 85, 0.2)'
-                }}
-              >
-                SCREEN {currentScreenIndex + 1}
-                {screenStack.length > 1 && (
-                  <span style={{ opacity: 0.7, fontSize: '10px', marginLeft: '4px' }}>
-                    ({currentScreenIndex + 1}/{screenStack.length})
-                  </span>
-                )}
-              </Box>
-            </Box>
-          )}
 
           {/* Main Form */}
-          <Card key={`${currentScreenIndex}-${screenStack[currentScreenIndex]?.timestamp || ''}`}>
+          <Card>
             <CardContent sx={{ p: 2 }}>
               {/* Transaction Type Banner */}
               <Box sx={{ mb: 3 }}>
@@ -2986,6 +3141,22 @@ function SalesPageContent() {
                     )}
                   />
                 </Box>
+
+                {/* Screen Indicator - Small, left corner, black */}
+                {screenStack.length > 0 && (
+                  <Box sx={{
+                    mt: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    color: 'white',
+                    fontSize: '0.85rem'
+                  }}>
+                    <Typography variant="caption" sx={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
+                      Screen {currentScreenIndex + 1} ({screenStack.length} screens)
+                    </Typography>
+                  </Box>
+                )}
               </Box>
 
               {/* Order Search Row (Only show if NOT Return, to avoid clutter) */}
@@ -3070,10 +3241,10 @@ function SalesPageContent() {
                     <Autocomplete
                       size="small"
                       options={customers.filter(customer => {
-                        const isCustomer = customer.customer_category &&
-                          customer.customer_category.cus_cat_title &&
-                          customer.customer_category.cus_cat_title.toLowerCase().includes('customer');
-                        return isCustomer;
+                        // Filter by Category: Customer
+                        // User requested: "customer catagory customer type any"
+                        const category = customerCategories.find(c => c.cus_cat_id === customer.cus_category);
+                        return category && category.cus_cat_title.toLowerCase().includes('customer');
                       })}
                       getOptionLabel={(option) => option.cus_name || ''}
                       value={formSelectedCustomer}
@@ -3173,25 +3344,6 @@ function SalesPageContent() {
                           />
                         )}
                         noOptionsText="No sales found"
-                      />
-                    </Box>
-                  </Grid>
-                )}
-
-                {billType === 'SALE_RETURN' && (
-                  <Grid item xs={12} md={3}>
-                    <Box>
-                      <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
-                        SALE INVOICE #
-                      </Typography>
-                      <TextField
-                        fullWidth
-                        size="small"
-                        placeholder="Manual Inv #"
-                        value={paymentData.manualSaleInv || ''}
-                        onChange={(e) => setPaymentData(prev => ({ ...prev, manualSaleInv: e.target.value }))}
-                        onFocus={(e) => e.target.select()}
-                        sx={{ bgcolor: 'white' }}
                       />
                     </Box>
                   </Grid>
@@ -3327,14 +3479,8 @@ function SalesPageContent() {
                           }
                         }
                       }}
-                      error={!!stockError}
                       sx={{ bgcolor: 'white', width: 130, minWidth: 130 }}
                     />
-                    {stockError && (
-                      <Typography variant="caption" sx={{ color: '#d32f2f', display: 'block', mt: 0.5, fontWeight: 500 }}>
-                        🔴 {stockError}
-                      </Typography>
-                    )}
                   </Box>
                 </Grid>
                 <Grid item xs={12} md={1.5}>
@@ -3357,6 +3503,20 @@ function SalesPageContent() {
                         }
                       }}
                       sx={{ bgcolor: 'white', width: 150, minWidth: 150 }}
+                    />
+                  </Box>
+                </Grid>
+                <Grid item xs={12} md={1.5}>
+                  <Box>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
+                      C RATE
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      value={productFormData.crate}
+                      disabled
+                      sx={{ bgcolor: '#f8f9fa', width: 150, minWidth: 150 }}
                     />
                   </Box>
                 </Grid>
@@ -3562,7 +3722,7 @@ function SalesPageContent() {
                       )}
                     />
                   </Grid>
-                  <Grid item xs={12} md={2}>
+                  <Grid item xs={12} md={4}>
                     <Box sx={{ mt: 1 }}>
                       <Button
                         variant="contained"
@@ -3802,11 +3962,7 @@ function SalesPageContent() {
                     <TextField
                       size="small"
                       type="number"
-                      value={(() => {
-                        const labourVal = parseFloat(paymentData.labour || 0);
-                        console.log('🎨 LABOUR FIELD RENDER - paymentData.labour:', paymentData.labour, 'parsed as:', labourVal, 'display value:', labourVal === 0 ? '' : labourVal);
-                        return labourVal === 0 ? '' : labourVal;
-                      })()}
+                      value={parseFloat(paymentData.labour || 0) === 0 ? '' : paymentData.labour}
                       onChange={(e) => handlePaymentDataChange('labour', e.target.value)}
                       onFocus={(e) => e.target.select()}
                       sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' }, flex: 1 }}
@@ -3822,12 +3978,28 @@ function SalesPageContent() {
                     <TextField
                       size="small"
                       type="number"
-                      value={paymentData.deliveryCharges === 0 ? '' : paymentData.deliveryCharges}
-                      onChange={(e) => handlePaymentDataChange('deliveryCharges', e.target.value)}
+                      value={(() => {
+                        const totalDelivery = (parseFloat(paymentData.deliveryCharges || 0) + calculateTransportTotal());
+                        if (totalDelivery === 0) return '';
+                        // Only show decimals if the number has decimal places
+                        return totalDelivery % 1 === 0 ? totalDelivery.toString() : totalDelivery.toFixed(2);
+                      })()}
+                      onChange={(e) => {
+                        // Calculate delivery charges by subtracting transport from total
+                        const totalValue = parseFloat(e.target.value) || 0;
+                        const transportTotal = calculateTransportTotal();
+                        const deliveryOnly = totalValue - transportTotal;
+                        handlePaymentDataChange('deliveryCharges', deliveryOnly >= 0 ? deliveryOnly : 0);
+                      }}
                       onFocus={(e) => e.target.select()}
                       sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px', fontWeight: 'bold' }, flex: 1 }}
                       placeholder="0"
                     />
+                    {calculateTransportTotal() > 0 && (
+                      <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
+                        (includes Transport: {calculateTransportTotal().toFixed(2)})
+                      </Typography>
+                    )}
                   </Box>
 
                   {/* DISCOUNT */}
@@ -4080,11 +4252,13 @@ function SalesPageContent() {
                     bgcolor: '#dc3545',
                     color: 'white',
                     borderRadius: 2,
-                    '&:hover': { bgcolor: '#dc3545' }
+                    '&:hover': { bgcolor: '#c82333' },
+                    opacity: screenStack.length === 1 ? 0.6 : 1
                   }}
                   tabIndex={-1}
                   onClick={cancelCurrentScreen}
-                  title="Remove current screen from stack"
+                  disabled={screenStack.length === 1}
+                  title={screenStack.length === 1 ? 'Cannot cancel - this is the only screen (use Clear to reset)' : 'Remove current screen from stack'}
                 >
                   ✕ Cancel Current
                 </Button>
@@ -4151,306 +4325,310 @@ function SalesPageContent() {
         </Stack>
 
         {/* Printable Bill Content - Hidden but accessible for printing */}
-        {currentBillData && (
-          <Box sx={{ position: 'absolute', left: '-9999px', top: '-9999px', width: '21cm', overflow: 'hidden' }}>
-            {/* A4 Printable Container */}
-            <Box id="printable-invoice-a4" sx={{ width: '100%', bgcolor: 'white' }}>
-              {/* Company Header */}
-              <Box sx={{ textAlign: 'center', py: 3, borderBottom: '2px solid #000' }}>
-                <Typography variant="h4" sx={{
-                  fontWeight: 'bold',
-                  mb: 1,
-                  fontFamily: 'Arial, sans-serif',
-                  fontSize: { xs: '1.5rem', md: '2rem' },
-                  direction: 'rtl'
-                }}>
-                  اتفاق آئرن اینڈ سیمنٹ سٹور
-                </Typography>
-                <Typography variant="body2" sx={{
-                  mb: 1,
-                  fontSize: { xs: '0.75rem', md: '0.9rem' },
-                  direction: 'rtl'
-                }}>
-                  گجرات سرگودھا روڈ، پاہڑیانوالی
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 1 }}>
-                  <PhoneIcon sx={{ color: '#25D366', fontSize: '1rem' }} />
-                  <Typography variant="body2">
-                    Ph:- 0346-7560306, 0300-7560306
+        {
+          currentBillData && (
+            <Box sx={{ position: 'absolute', left: '-9999px', top: '-9999px', width: '21cm', overflow: 'hidden' }}>
+              {/* A4 Printable Container */}
+              <Box id="printable-invoice-a4" sx={{ width: '100%', bgcolor: 'white' }}>
+                {/* Company Header */}
+                <Box sx={{ textAlign: 'center', py: 3, borderBottom: '2px solid #000' }}>
+                  <Typography variant="h4" sx={{
+                    fontWeight: 'bold',
+                    mb: 1,
+                    fontFamily: 'Arial, sans-serif',
+                    fontSize: { xs: '1.5rem', md: '2rem' },
+                    direction: 'rtl'
+                  }}>
+                    اتفاق آئرن اینڈ سیمنٹ سٹور
                   </Typography>
-                </Box>
-                <Typography variant="h6" sx={{
-                  fontWeight: 'bold',
-                  textTransform: 'uppercase',
-                  letterSpacing: 1,
-                  mt: 2
-                }}>
-                  SALE INVOICE
-                </Typography>
-              </Box>
-
-              {/* Customer and Invoice Details */}
-              <Box sx={{ px: 3, py: 2, borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between' }}>
-                <Box sx={{ flex: '0 0 50%' }}>
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    Customer Name: <strong>{currentBillData.customer?.cus_name || 'N/A'}</strong>
+                  <Typography variant="body2" sx={{
+                    mb: 1,
+                    fontSize: { xs: '0.75rem', md: '0.9rem' },
+                    direction: 'rtl'
+                  }}>
+                    گجرات سرگودھا روڈ، پاہڑیانوالی
                   </Typography>
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    Phone No: <strong>{currentBillData.customer?.cus_phone_no || 'N/A'}</strong>
-                  </Typography>
-                  {currentBillData.customer?.cus_address && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 1 }}>
+                    <PhoneIcon sx={{ color: '#25D366', fontSize: '1rem' }} />
                     <Typography variant="body2">
-                      Address: <strong>{currentBillData.customer.cus_address}</strong>
+                      Ph:- 0346-7560306, 0300-7560306
                     </Typography>
-                  )}
-                </Box>
-                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right', flex: '0 0 50%' }}>
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    Invoice No: <strong>#{currentBillData.sale_id || currentBillData.manual_sale_inv || currentBillData.return_id}</strong>
-                  </Typography>
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    Time: <strong>{new Date(currentBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
-                  </Typography>
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    Date: <strong>{new Date(currentBillData.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
-                  </Typography>
-                  <Typography variant="body2">
-                    Bill Type: <strong>{currentBillData.bill_type || 'BILL'}</strong>
+                  </Box>
+                  <Typography variant="h6" sx={{
+                    fontWeight: 'bold',
+                    textTransform: 'uppercase',
+                    letterSpacing: 1,
+                    mt: 2
+                  }}>
+                    SALE INVOICE
                   </Typography>
                 </Box>
-              </Box>
 
-              {/* Product Table */}
-              <Box sx={{ px: 3, py: 2 }}>
-                <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow sx={{ bgcolor: '#9e9e9e' }}>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }}>S#</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }}>Product Name</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Qty</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Rate</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Amount</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {currentBillData.sale_details && currentBillData.sale_details.length > 0 ? (
-                        currentBillData.sale_details.map((detail, index) => (
-                          <TableRow key={detail.sale_detail_id || index}>
-                            <TableCell sx={{ px: 1 }}>{index + 1}</TableCell>
-                            <TableCell sx={{ px: 1 }}>{detail.product?.pro_title || 'N/A'}</TableCell>
-                            <TableCell sx={{ px: 1 }} align="right">{detail.qnty || 0}</TableCell>
-                            <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.unit_rate || 0).toFixed(2)}</TableCell>
-                            <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.total_amount || 0).toFixed(2)}</TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
-                            No items found
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-
-                {/* Payment Summary */}
-                <Box sx={{ mt: 2, width: '100%', display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-                  <Box sx={{ flex: '0 0 48%' }}>
-                    <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, border: '1px solid #000', width: '100%' }}>
-                      <Table size="small">
-                        <TableBody>
-                          <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                              {parseFloat(currentBillData.customer?.cus_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </TableCell>
-                          </TableRow>
-                          <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                              {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </TableCell>
-                          </TableRow>
-                          <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                              {(parseFloat(currentBillData.customer?.cus_balance || 0) + parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </TableCell>
-                          </TableRow>
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                    {currentBillData.notes && (
-                      <Box sx={{ mt: 1 }}>
-                        <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
-                          <strong>Notes:</strong> {currentBillData.notes}
-                        </Typography>
-                      </Box>
+                {/* Customer and Invoice Details */}
+                <Box sx={{ px: 3, py: 2, borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between' }}>
+                  <Box sx={{ flex: '0 0 50%' }}>
+                    <Typography variant="body2" sx={{ mb: 0.5 }}>
+                      Customer Name: <strong>{currentBillData.customer?.cus_name || 'N/A'}</strong>
+                    </Typography>
+                    <Typography variant="body2" sx={{ mb: 0.5 }}>
+                      Phone No: <strong>{currentBillData.customer?.cus_phone_no || 'N/A'}</strong>
+                    </Typography>
+                    {currentBillData.customer?.cus_address && (
+                      <Typography variant="body2">
+                        Address: <strong>{currentBillData.customer.cus_address}</strong>
+                      </Typography>
                     )}
                   </Box>
-                  <Box sx={{ flex: '0 0 48%', display: 'flex', justifyContent: 'flex-end' }}>
-                    <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%', maxWidth: '100%' }}>
-                      <Table size="small">
-                        <TableBody>
-                          <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رقم بل</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {parseFloat(currentBillData.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </TableCell>
-                          </TableRow>
-                          <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>مزدوری</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {parseFloat(currentBillData.labour || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </TableCell>
-                          </TableRow>
-                          <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>کرایہ</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {parseFloat(currentBillData.shipping_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </TableCell>
-                          </TableRow>
-                          <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {parseFloat(currentBillData.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </TableCell>
-                          </TableRow>
-                          {/* Always show cash payment */}
-                          <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>نقد كيش</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {parseFloat(currentBillData.cash_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </TableCell>
-                          </TableRow>
-                          {/* Show bank payment with account name if bank payment exists */}
-                          {currentBillData.bank_payment > 0 && (
-                            <TableRow>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {currentBillData.bank_title || 'بینک'}
-                              </TableCell>
-                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {parseFloat(currentBillData.bank_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </TableCell>
-                            </TableRow>
-                          )}
-                          {/* Show advance payment if advance payment exists */}
-                          {currentBillData.advance_payment > 0 && (
-                            <TableRow>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                پیشگی ادائیگی
-                              </TableCell>
-                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {parseFloat(currentBillData.advance_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </TableCell>
-                            </TableRow>
-                          )}
-                          <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم وصول</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {parseFloat(currentBillData.payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </TableCell>
-                          </TableRow>
-                          <TableRow sx={{ bgcolor: '#d0d0d0' }}>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>بقايا رقم</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </TableCell>
-                          </TableRow>
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right', flex: '0 0 50%' }}>
+                    <Typography variant="body2" sx={{ mb: 0.5 }}>
+                      Invoice No: <strong>#{currentBillData.sale_id}</strong>
+                    </Typography>
+                    <Typography variant="body2" sx={{ mb: 0.5 }}>
+                      Time: <strong>{new Date(currentBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
+                    </Typography>
+                    <Typography variant="body2" sx={{ mb: 0.5 }}>
+                      Date: <strong>{new Date(currentBillData.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
+                    </Typography>
+                    <Typography variant="body2">
+                      Bill Type: <strong>{currentBillData.bill_type || 'BILL'}</strong>
+                    </Typography>
                   </Box>
                 </Box>
-              </Box>
-            </Box>
 
-            {/* Thermal Printable Container */}
-            <Box id="printable-invoice-thermal" sx={{ width: '80mm', bgcolor: 'white', mx: 'auto', p: 1 }}>
-              <Box sx={{ textAlign: 'center', pb: 1, borderBottom: '1px solid #000' }}>
-                <Typography sx={{ fontSize: '12px', fontWeight: 'bold' }}>اتفاق آئرن اینڈ سیمنٹ سٹور</Typography>
-                <Typography sx={{ fontSize: '10px' }}>گجرات سرگودھا روڈ، پاہڑیانوالی</Typography>
-                <Typography sx={{ fontSize: '10px' }}>Ph: 0346-7560306, 0300-7560306</Typography>
-                <Typography sx={{ mt: 0.5, fontSize: '11px', fontWeight: 'bold' }}>
-                  {currentBillData?.is_return ? (currentBillData.sale_id ? 'SALE RETURN' : 'MANUAL RETURN') : 'SALE RECEIPT'}
-                </Typography>
-              </Box>
-              <Box sx={{ py: 1 }}>
-                <Typography sx={{ fontSize: '10px' }}>Inv#: #{currentBillData.sale_id || currentBillData.manual_sale_inv || currentBillData.return_id}</Typography>
-                <Typography sx={{ fontSize: '10px' }}>Type: {currentBillData.bill_type || 'BILL'}</Typography>
-                <Typography sx={{ fontSize: '10px' }}>Date: {new Date(currentBillData.created_at).toLocaleDateString('en-GB')}</Typography>
-                <Typography sx={{ fontSize: '10px' }}>Time: {new Date(currentBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</Typography>
-                <Typography sx={{ fontSize: '10px' }}>Cust: {currentBillData.customer?.cus_name || 'N/A'}</Typography>
-              </Box>
-              <Box sx={{ borderTop: '1px dashed #000', borderBottom: '1px dashed #000', py: 1 }}>
-                {currentBillData.sale_details && currentBillData.sale_details.length > 0 ? (
-                  currentBillData.sale_details.map((d, i) => (
-                    <Box key={d.sale_detail_id || i} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                      <Box sx={{ pr: 1, flex: 1 }}>
-                        <Typography sx={{ fontSize: '11px', fontWeight: 'bold' }}>{d.product?.pro_title || 'Item'}</Typography>
-                        <Typography sx={{ fontSize: '10px', color: 'black' }}>{d.qnty} x {parseFloat(d.unit_rate || 0).toFixed(2)}</Typography>
-                      </Box>
-                      <Typography sx={{ fontSize: '11px', fontWeight: 'bold', minWidth: '25mm', textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-                        {parseFloat(d.total_amount || 0).toFixed(2)}
-                      </Typography>
+                {/* Product Table */}
+                <Box sx={{ px: 3, py: 2 }}>
+                  <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow sx={{ bgcolor: '#9e9e9e' }}>
+                          <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }}>S#</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }}>Product Name</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Qty</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Rate</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Amount</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {currentBillData.sale_details && currentBillData.sale_details.length > 0 ? (
+                          currentBillData.sale_details.map((detail, index) => (
+                            <TableRow key={detail.sale_detail_id || index}>
+                              <TableCell sx={{ px: 1 }}>{index + 1}</TableCell>
+                              <TableCell sx={{ px: 1 }}>{detail.product?.pro_title || 'N/A'}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{detail.qnty || 0}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.unit_rate || 0).toFixed(2)}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.total_amount || 0).toFixed(2)}</TableCell>
+                            </TableRow>
+                          ))
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                              No items found
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+
+                  {/* Payment Summary */}
+                  <Box sx={{ mt: 2, width: '100%', display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                    <Box sx={{ flex: '0 0 48%' }}>
+                      <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, border: '1px solid #000', width: '100%' }}>
+                        <Table size="small">
+                          <TableBody>
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
+                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                {parseFloat(currentBillData.customer?.cus_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</TableCell>
+                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                            <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                {(parseFloat(currentBillData.customer?.cus_balance || 0) + parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                      {currentBillData.notes && (
+                        <Box sx={{ mt: 1 }}>
+                          <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
+                            <strong>Notes:</strong> {currentBillData.notes}
+                          </Typography>
+                        </Box>
+                      )}
                     </Box>
-                  ))
-                ) : (
-                  <Typography sx={{ fontSize: '10px', textAlign: 'center' }}>No items</Typography>
-                )}
-              </Box>
-              <Box sx={{ pt: 1 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography sx={{ fontSize: '10px' }}>Subtotal</Typography>
-                  <Typography sx={{ fontSize: '10px' }}>{parseFloat(currentBillData.total_amount || 0).toFixed(2)}</Typography>
-                </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography sx={{ fontSize: '10px' }}>Discount</Typography>
-                  <Typography sx={{ fontSize: '10px' }}>{parseFloat(currentBillData.discount || 0).toFixed(2)}</Typography>
-                </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography sx={{ fontSize: '10px' }}>Shipping</Typography>
-                  <Typography sx={{ fontSize: '10px' }}>{parseFloat(currentBillData.shipping_amount || 0).toFixed(2)}</Typography>
-                </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', borderTop: '1px dashed #000', mt: 0.5, pt: 0.5 }}>
-                  <Typography sx={{ fontSize: '11px' }}>Grand Total</Typography>
-                  <Typography sx={{ fontSize: '11px' }}>
-                    {parseFloat(currentBillData.total_amount || 0).toFixed(2)}
-                  </Typography>
-                </Box>
-                {/* Cash Payment */}
-                {parseFloat(currentBillData.cash_payment || 0) > 0 && (
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <Typography sx={{ fontSize: '10px' }}>Cash Payment</Typography>
-                    <Typography sx={{ fontSize: '10px' }}>{parseFloat(currentBillData.cash_payment || 0).toFixed(2)}</Typography>
+                    <Box sx={{ flex: '0 0 48%', display: 'flex', justifyContent: 'flex-end' }}>
+                      <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%', maxWidth: '100%' }}>
+                        <Table size="small">
+                          <TableBody>
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رقم بل</TableCell>
+                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                {parseFloat(currentBillData.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>مزدوری</TableCell>
+                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                {parseFloat(currentBillData.labour_charges || currentBillData.labour || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>کرایہ</TableCell>
+                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                {parseFloat(currentBillData.shipping_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رعایت</TableCell>
+                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                {parseFloat(currentBillData.discount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                            <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                {parseFloat(currentBillData.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                            {/* Always show cash payment */}
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>نقد كيش</TableCell>
+                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                {parseFloat(currentBillData.cash_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                            {/* Show bank payment with account name if bank payment exists */}
+                            {currentBillData.bank_payment > 0 && (
+                              <TableRow>
+                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                  {currentBillData.bank_title || 'بینک'}
+                                </TableCell>
+                                <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                  {parseFloat(currentBillData.bank_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </TableCell>
+                              </TableRow>
+                            )}
+                            {/* Show advance payment if advance payment exists */}
+                            {currentBillData.advance_payment > 0 && (
+                              <TableRow>
+                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                  پیشگی ادائیگی
+                                </TableCell>
+                                <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                  {parseFloat(currentBillData.advance_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </TableCell>
+                              </TableRow>
+                            )}
+                            <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم وصول</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                {parseFloat(currentBillData.payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                            <TableRow sx={{ bgcolor: '#d0d0d0' }}>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>بقايا رقم</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </Box>
                   </Box>
-                )}
-                {/* Bank Payment */}
-                {parseFloat(currentBillData.bank_payment || 0) > 0 && (
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <Typography sx={{ fontSize: '10px' }}>Bank Payment ({currentBillData.bank_title || 'Bank'})</Typography>
-                    <Typography sx={{ fontSize: '10px' }}>{parseFloat(currentBillData.bank_payment || 0).toFixed(2)}</Typography>
-                  </Box>
-                )}
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
-                  <Typography sx={{ fontSize: '10px' }}>Total Paid</Typography>
-                  <Typography sx={{ fontSize: '10px' }}>{parseFloat(currentBillData.payment || 0).toFixed(2)}</Typography>
-                </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography sx={{ fontSize: '10px' }}>Balance</Typography>
-                  <Typography sx={{ fontSize: '10px' }}>
-                    {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toFixed(2)}
-                  </Typography>
                 </Box>
               </Box>
-              <Box sx={{ textAlign: 'center', borderTop: '1px solid #000', mt: 1, pt: 1 }}>
-                <Typography sx={{ fontSize: '9px' }}>Thank you for your business!</Typography>
+
+              {/* Thermal Printable Container */}
+              <Box id="printable-invoice-thermal" sx={{ width: '80mm', bgcolor: 'white', mx: 'auto', p: 1 }}>
+                <Box sx={{ textAlign: 'center', pb: 1, borderBottom: '1px solid #000' }}>
+                  <Typography sx={{ fontSize: '12px', fontWeight: 'bold' }}>اتفاق آئرن اینڈ سیمنٹ سٹور</Typography>
+                  <Typography sx={{ fontSize: '10px' }}>گجرات سرگودھا روڈ، پاہڑیانوالی</Typography>
+                  <Typography sx={{ fontSize: '10px' }}>Ph: 0346-7560306, 0300-7560306</Typography>
+                  <Typography sx={{ mt: 0.5, fontSize: '11px', fontWeight: 'bold' }}>SALE RECEIPT</Typography>
+                </Box>
+                <Box sx={{ py: 1 }}>
+                  <Typography sx={{ fontSize: '10px' }}>Inv#: #{currentBillData.sale_id}</Typography>
+                  <Typography sx={{ fontSize: '10px' }}>Type: {currentBillData.bill_type || 'BILL'}</Typography>
+                  <Typography sx={{ fontSize: '10px' }}>Date: {new Date(currentBillData.created_at).toLocaleDateString('en-GB')}</Typography>
+                  <Typography sx={{ fontSize: '10px' }}>Time: {new Date(currentBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</Typography>
+                  <Typography sx={{ fontSize: '10px' }}>Cust: {currentBillData.customer?.cus_name || 'N/A'}</Typography>
+                </Box>
+                <Box sx={{ borderTop: '1px dashed #000', borderBottom: '1px dashed #000', py: 1 }}>
+                  {currentBillData.sale_details && currentBillData.sale_details.length > 0 ? (
+                    currentBillData.sale_details.map((d, i) => (
+                      <Box key={d.sale_detail_id || i} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                        <Box sx={{ pr: 1, flex: 1 }}>
+                          <Typography sx={{ fontSize: '10px' }}>{d.product?.pro_title || 'Item'}</Typography>
+                          <Typography sx={{ fontSize: '9px', color: 'text.secondary' }}>Qty: {d.qnty} x {parseFloat(d.unit_rate || 0).toFixed(2)}</Typography>
+                        </Box>
+                        <Typography sx={{ fontSize: '10px', minWidth: '35mm', textAlign: 'right' }}>{parseFloat(d.total_amount || 0).toFixed(2)}</Typography>
+                      </Box>
+                    ))
+                  ) : (
+                    <Typography sx={{ fontSize: '10px', textAlign: 'center' }}>No items</Typography>
+                  )}
+                </Box>
+                <Box sx={{ pt: 1 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography sx={{ fontSize: '10px' }}>Subtotal</Typography>
+                    <Typography sx={{ fontSize: '10px' }}>{parseFloat(currentBillData.total_amount || 0).toFixed(2)}</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography sx={{ fontSize: '10px' }}>Discount</Typography>
+                    <Typography sx={{ fontSize: '10px' }}>{parseFloat(currentBillData.discount || 0).toFixed(2)}</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography sx={{ fontSize: '10px' }}>Shipping</Typography>
+                    <Typography sx={{ fontSize: '10px' }}>{parseFloat(currentBillData.shipping_amount || 0).toFixed(2)}</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', borderTop: '1px dashed #000', mt: 0.5, pt: 0.5 }}>
+                    <Typography sx={{ fontSize: '11px' }}>Grand Total</Typography>
+                    <Typography sx={{ fontSize: '11px' }}>
+                      {parseFloat(currentBillData.total_amount || 0).toFixed(2)}
+                    </Typography>
+                  </Box>
+                  {/* Cash Payment */}
+                  {parseFloat(currentBillData.cash_payment || 0) > 0 && (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography sx={{ fontSize: '10px' }}>Cash Payment</Typography>
+                      <Typography sx={{ fontSize: '10px' }}>{parseFloat(currentBillData.cash_payment || 0).toFixed(2)}</Typography>
+                    </Box>
+                  )}
+                  {/* Bank Payment */}
+                  {parseFloat(currentBillData.bank_payment || 0) > 0 && (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography sx={{ fontSize: '10px' }}>Bank Payment ({currentBillData.bank_title || 'Bank'})</Typography>
+                      <Typography sx={{ fontSize: '10px' }}>{parseFloat(currentBillData.bank_payment || 0).toFixed(2)}</Typography>
+                    </Box>
+                  )}
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
+                    <Typography sx={{ fontSize: '10px' }}>Total Paid</Typography>
+                    <Typography sx={{ fontSize: '10px' }}>{parseFloat(currentBillData.payment || 0).toFixed(2)}</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography sx={{ fontSize: '10px' }}>Balance</Typography>
+                    <Typography sx={{ fontSize: '10px' }}>
+                      {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toFixed(2)}
+                    </Typography>
+                  </Box>
+                </Box>
+                <Box sx={{ textAlign: 'center', borderTop: '1px solid #000', mt: 1, pt: 1 }}>
+                  <Typography sx={{ fontSize: '9px' }}>Thank you for your business!</Typography>
+                </Box>
               </Box>
             </Box>
-          </Box>
-        )}
+          )
+        }
 
         {/* Receipt Dialog */}
         <Dialog
@@ -4467,7 +4645,7 @@ function SalesPageContent() {
         >
           <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-              {currentBillData?.is_return ? (currentBillData.sale_id ? 'Sale Return Invoice' : 'Manual Sale Return') : 'Receipt'} - Bill #{currentBillData?.sale_id || currentBillData?.manual_sale_inv || currentBillData?.return_id}
+              {currentBillData?.is_return ? 'Sale Return Invoice' : 'Receipt'} - Bill #{currentBillData?.sale_id || currentBillData?.return_id}
             </Typography>
             <IconButton
               onClick={() => setReceiptDialogOpen(false)}
@@ -4509,7 +4687,7 @@ function SalesPageContent() {
                     mt: 1,
                     color: currentBillData?.is_return ? '#d32f2f' : '#000'
                   }}>
-                    {currentBillData?.is_return ? (currentBillData.sale_id ? 'SALE RETURN INVOICE' : 'MANUAL SALE RETURN') : 'SALE INVOICE'}
+                    {currentBillData?.is_return ? 'SALE RETURN INVOICE' : 'SALE INVOICE'}
                   </Typography>
                 </Box>
 
@@ -4530,7 +4708,7 @@ function SalesPageContent() {
                   </Box>
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right', flex: '0 0 50%' }}>
                     <Typography variant="body2" sx={{ mb: 0.5 }}>
-                      Invoice No: <strong>#{currentBillData.sale_id || currentBillData.manual_sale_inv || currentBillData.return_id}</strong>
+                      Invoice No: <strong>#{currentBillData.sale_id}</strong>
                     </Typography>
                     <Typography variant="body2" sx={{ mb: 0.5 }}>
                       Time: <strong>{new Date(currentBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
@@ -4896,6 +5074,142 @@ function SalesPageContent() {
           </DialogActions>
         </Dialog>
 
+        {/* Draft Sales Modal */}
+        <Dialog
+          open={draftModalOpen}
+          onClose={() => setDraftModalOpen(false)}
+          maxWidth="md"
+          fullWidth
+          PaperProps={{
+            sx: { borderRadius: 3 }
+          }}
+        >
+          <DialogTitle sx={{
+            background: 'linear-gradient(45deg, #f57c00 30%, #ff9800 90%)',
+            color: 'white',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <SaveIcon sx={{ mr: 2, fontSize: 28 }} />
+              <Box>
+                <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
+                  Draft Sales
+                </Typography>
+                <Typography variant="caption" sx={{ opacity: 0.9 }}>
+                  Load a saved draft or create a new one
+                </Typography>
+              </Box>
+            </Box>
+            <IconButton onClick={() => setDraftModalOpen(false)} sx={{ color: 'white' }}>
+              <CloseIcon />
+            </IconButton>
+          </DialogTitle>
+          <DialogContent sx={{ p: 2 }}>
+            <Box sx={{ mb: 2 }}>
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="Search drafts..."
+                value={draftSearchTerm}
+                onChange={(e) => setDraftSearchTerm(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            </Box>
+
+            {drafts.length === 0 ? (
+              <Box sx={{
+                textAlign: 'center',
+                py: 4,
+                color: 'text.secondary'
+              }}>
+                <SaveIcon sx={{ fontSize: 48, mb: 2, opacity: 0.3 }} />
+                <Typography>
+                  No drafts available. Save your current form as a draft to get started!
+                </Typography>
+              </Box>
+            ) : (
+              <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 400 }}>
+                <Table stickyHeader size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Draft Code</TableCell>
+                      <TableCell>Customer</TableCell>
+                      <TableCell>Updated</TableCell>
+                      <TableCell align="center">Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {drafts
+                      .filter(draft => {
+                        if (!draftSearchTerm) return true;
+                        const searchLower = draftSearchTerm.toLowerCase();
+                        return (
+                          draft.draft_code?.toLowerCase().includes(searchLower) ||
+                          draft.customer?.cus_name?.toLowerCase().includes(searchLower)
+                        );
+                      })
+                      .map((draft) => (
+                        <TableRow key={draft.draft_id} hover>
+                          <TableCell sx={{ fontWeight: 'bold', color: '#f57c00' }}>
+                            {draft.draft_code}
+                          </TableCell>
+                          <TableCell>
+                            {draft.customer?.cus_name || 'No customer'}
+                          </TableCell>
+                          <TableCell>
+                            {new Date(draft.updated_at).toLocaleDateString()} {new Date(draft.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </TableCell>
+                          <TableCell align="center">
+                            <Tooltip title="Load this draft">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleLoadDraft(draft)}
+                                sx={{ color: '#2196f3' }}
+                              >
+                                <VisibilityIcon />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Delete this draft">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleDeleteDraft(draft.draft_id, draft.draft_code)}
+                                sx={{ color: '#f44336' }}
+                              >
+                                <DeleteIcon />
+                              </IconButton>
+                            </Tooltip>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </DialogContent>
+          <DialogActions sx={{ p: 2, bgcolor: 'grey.50' }}>
+            <Button onClick={() => setDraftModalOpen(false)}>Close</Button>
+            {drafts.length > 0 && (
+              <Button
+                variant="text"
+                sx={{ color: '#f57c00' }}
+                onClick={() => {
+                  setDrafts([]);
+                  fetchDrafts();
+                }}
+              >
+                Refresh
+              </Button>
+            )}
+          </DialogActions>
+        </Dialog>
 
         {/* Print Styles for Create View */}
         <style jsx global>{`
@@ -4953,8 +5267,8 @@ function SalesPageContent() {
             }
           }
         `}</style>
-      </Container>
-    </DashboardLayout>
+      </Container >
+    </DashboardLayout >
   );
 
   // Helper function to get sort label
@@ -5452,7 +5766,11 @@ function SalesPageContent() {
                             <IconButton
                               size="small"
                               color="error"
-                              onClick={() => handleOpenReturnDialog(sale)}
+                              onClick={() => {
+                                setCurrentView('create');
+                                setBillType('SALE_RETURN');
+                                handleLoadSaleForReturnMain(sale);
+                              }}
                               title="Return Sale"
                             >
                               <TrendingDownIcon fontSize="small" />
@@ -5473,7 +5791,6 @@ function SalesPageContent() {
 
   return (
     <>
-
       {currentView === 'list' ? renderSalesListView() : renderSalesCreateView()}
 
       {/* Snackbar */}
@@ -6091,11 +6408,9 @@ function SalesPageContent() {
             boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
             width: '210mm', // A4 width
             maxWidth: '210mm',
-            minHeight: '297mm', // A4 height
             '@media print': {
               width: '210mm',
               maxWidth: '210mm',
-              minHeight: '297mm',
               margin: '0 auto'
             }
           }
@@ -6126,7 +6441,7 @@ function SalesPageContent() {
         </DialogTitle>
         <DialogContent sx={{ p: 0, bgcolor: 'white' }}>
           {selectedBill && (
-            <Box id="printable-invoice-a4" sx={{ width: '100%', bgcolor: 'white' }}>
+            <Box id="printable-invoice" sx={{ width: '100%', bgcolor: 'white' }}>
               {/* Company Header */}
               <Box sx={{ textAlign: 'center', py: 3, borderBottom: '2px solid #000' }}>
                 <Typography variant="h4" sx={{
@@ -6211,7 +6526,7 @@ function SalesPageContent() {
                         selectedBill.sale_details.map((detail, index) => (
                           <TableRow key={detail.sale_detail_id || index}>
                             <TableCell sx={{ px: 1 }}>{index + 1}</TableCell>
-                            <TableCell sx={{ px: 1, fontWeight: 'bold' }}>{detail.product?.pro_title || detail.product?.pro_name || detail.product?.prod_name || 'N/A'}</TableCell>
+                            <TableCell sx={{ px: 1 }}>{detail.product?.pro_title || detail.product?.pro_name || detail.product?.prod_name || 'N/A'}</TableCell>
                             <TableCell sx={{ px: 1 }} align="right">{detail.qnty || 0}</TableCell>
                             <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.unit_rate || 0).toFixed(2)}</TableCell>
                             <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.total_amount || 0).toFixed(2)}</TableCell>
@@ -6417,23 +6732,9 @@ function SalesPageContent() {
               bgcolor: 'primary.main',
               '&:hover': { bgcolor: 'primary.dark' }
             }}
-            onClick={() => handlePrintBill('A4')}
+            onClick={handlePrintBill}
           >
-            Print A4 Bill
-          </Button>
-          <Button
-            variant="contained"
-            color="secondary"
-            startIcon={<PrintIcon />}
-            sx={{
-              minWidth: 150,
-              bgcolor: 'secondary.main',
-              '&:hover': { bgcolor: 'secondary.dark' },
-              ml: 2
-            }}
-            onClick={() => handlePrintBill('THERMAL')}
-          >
-            Print Thermal Receipt
+            Print Bill
           </Button>
         </DialogActions>
       </Dialog>
@@ -6443,7 +6744,7 @@ function SalesPageContent() {
         @media print {
           @page {
             size: A4;
-            margin: 0.5cm;
+            margin: 0.5cm 1cm;
           }
           
           body {
@@ -6459,32 +6760,19 @@ function SalesPageContent() {
           }
           
           /* Show only the printable invoice */
-          #printable-invoice-a4,
-          #printable-invoice-a4 *,
-          #printable-invoice-thermal,
-          #printable-invoice-thermal * {
+          #printable-invoice,
+          #printable-invoice * {
             visibility: visible !important;
           }
           
-          /* Position invoice at top based on type */
-          body.print-a4 #printable-invoice-a4 {
+          /* Position invoice at top */
+          #printable-invoice {
             position: absolute;
             left: 0;
             top: 0;
-            width: 210mm;
-            min-height: 297mm;
-            max-width: 210mm;
-            background: white;
-            padding: 0;
-            margin: 0;
-          }
-
-          body.print-thermal #printable-invoice-thermal {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 80mm;
-            max-width: 80mm;
+            width: 21cm;
+            min-height: 29.7cm;
+            max-width: 21cm;
             background: white;
             padding: 0;
             margin: 0;
@@ -6501,7 +6789,7 @@ function SalesPageContent() {
             display: none !important;
           }
           
-          /* Show dialog content - adjusting based on print type */
+          /* Show dialog content */
           .MuiDialogContent-root {
             visibility: visible !important;
             display: block !important;
@@ -6509,16 +6797,8 @@ function SalesPageContent() {
             overflow: visible !important;
             height: auto !important;
             max-height: none !important;
-          }
-          
-          body.print-a4 .MuiDialogContent-root {
-            width: 210mm !important;
-            max-width: 210mm !important;
-          }
-          
-          body.print-thermal .MuiDialogContent-root {
-            width: 80mm !important;
-            max-width: 80mm !important;
+            width: 21cm !important;
+            max-width: 21cm !important;
           }
           
           /* Table styles for print */
@@ -6552,7 +6832,7 @@ function SalesPageContent() {
             box-shadow: none !important;
           }
           
-          /* Typography adjustments for A5 */
+          /* Typography adjustments for A4 */
           .MuiTypography-root {
             font-size: 12px !important;
           }

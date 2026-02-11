@@ -7,20 +7,48 @@ const prisma = new PrismaClient();
 
 // Helper: get special accounts (Cash, Bank, Sundry Debtors/Creditors)
 async function getSpecialAccounts(tx) {
+  // Find special accounts by category, not by exact name
+  // This is more flexible and works regardless of the account's specific name
+  const categories = await tx.customerCategory.findMany({
+    where: {
+      cus_cat_title: {
+        in: ['Cash Account', 'Bank Account', 'Sundry Creditors', 'Sundry Debtors']
+      }
+    }
+  });
+
+  const categoryMap = {};
+  categories.forEach(cat => {
+    categoryMap[cat.cus_cat_title] = cat.cus_cat_id;
+  });
+
+  // Now find accounts using these category IDs
   const specialAccounts = await tx.customer.findMany({
     where: {
-      cus_name: {
-        in: ['Cash Account', 'Bank Account', 'Sundry Creditors', 'Sundry Debtors']
+      cus_category: {
+        in: Object.values(categoryMap)
       }
     }
   });
 
   const accounts = {};
   specialAccounts.forEach(account => {
-    if (account.cus_name === 'Cash Account') accounts.cash = account;
-    if (account.cus_name === 'Bank Account') accounts.bank = account;
-    if (account.cus_name === 'Sundry Creditors') accounts.sundryCreditors = account;
-    if (account.cus_name === 'Sundry Debtors') accounts.sundryDebtors = account;
+    const categoryTitle = account.cus_category === categoryMap['Cash Account'] ? 'Cash Account' :
+                        account.cus_category === categoryMap['Bank Account'] ? 'Bank Account' :
+                        account.cus_category === categoryMap['Sundry Creditors'] ? 'Sundry Creditors' :
+                        account.cus_category === categoryMap['Sundry Debtors'] ? 'Sundry Debtors' : null;
+    
+    if (categoryTitle === 'Cash Account') accounts.cash = account;
+    if (categoryTitle === 'Bank Account') accounts.bank = account;
+    if (categoryTitle === 'Sundry Creditors') accounts.sundryCreditors = account;
+    if (categoryTitle === 'Sundry Debtors') accounts.sundryDebtors = account;
+  });
+
+  console.log('✅ Special accounts found:', {
+    cash: accounts.cash ? `${accounts.cash.cus_name} (ID: ${accounts.cash.cus_id})` : 'Not found',
+    bank: accounts.bank ? `${accounts.bank.cus_name} (ID: ${accounts.bank.cus_id})` : 'Not found',
+    sundryCreditors: accounts.sundryCreditors ? `${accounts.sundryCreditors.cus_name} (ID: ${accounts.sundryCreditors.cus_id})` : 'Not found',
+    sundryDebtors: accounts.sundryDebtors ? `${accounts.sundryDebtors.cus_name} (ID: ${accounts.sundryDebtors.cus_id})` : 'Not found'
   });
 
   return accounts;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
+import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '../components/dashboard-layout';
 
@@ -74,33 +74,6 @@ function OrdersPageContent() {
   const [products, setProducts] = useState([]);
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(false);
-
-  // Screen Stack State
-  const [screenStack, setScreenStack] = useState([{
-    formSelectedCustomer: null,
-    formSelectedStore: null,
-    productTableData: [],
-    paymentData: {
-      cash: '',
-      bank: '',
-      bankAccountId: '',
-      totalCashReceived: 0,
-      discount: '',
-      labour: '',
-      deliveryCharges: '',
-      date: new Date().toISOString().split('T')[0],
-      notes: ''
-    },
-    billType: 'ORDER',
-    formSelectedProduct: null,
-    productFormData: { quantity: '', rate: '', amount: 0, stock: 0 },
-    newTransport: { amount: 0, accountId: '' },
-    transportAccounts: [],
-    transportOptions: [],
-    timestamp: new Date().toLocaleTimeString(),
-    customerName: 'New Order'
-  }]);
-  const [currentScreenIndex, setCurrentScreenIndex] = useState(0);
 
   // Filter state
   const [searchTerm, setSearchTerm] = useState('');
@@ -264,228 +237,6 @@ function OrdersPageContent() {
       fetchBankAccounts(customers);
     }
   }, [customers, customerCategories, customerTypes]);
-
-  // Screen Stack Functions
-  // ========== SCREEN STACK MANAGEMENT FUNCTIONS ==========
-  // Capture current form state
-  const captureScreenState = useCallback(() => {
-    return {
-      formSelectedCustomer: formSelectedCustomer ? { ...formSelectedCustomer } : null,
-      formSelectedStore: formSelectedStore ? { ...formSelectedStore } : null,
-      productTableData: JSON.parse(JSON.stringify(productTableData)),
-      paymentData: JSON.parse(JSON.stringify(paymentData)),
-      billType: billType,
-      formSelectedProduct: formSelectedProduct ? { ...formSelectedProduct } : null,
-      productFormData: JSON.parse(JSON.stringify(productFormData)),
-      newTransport: JSON.parse(JSON.stringify(newTransport)),
-      transportAccounts: transportAccounts.map(t => ({ ...t })),
-      transportOptions: transportOptions.map(t => ({ ...t })),
-      timestamp: new Date().toLocaleTimeString(),
-      customerName: formSelectedCustomer?.cus_name || 'New Order'
-    };
-  }, [formSelectedCustomer, formSelectedStore, productTableData, paymentData, billType, formSelectedProduct, productFormData, newTransport, transportAccounts, transportOptions]);
-
-  // Get fresh blank state
-  const getFreshOrderState = useCallback(() => {
-    return {
-      formSelectedCustomer: null,
-      formSelectedStore: stores[0] || null,
-      productTableData: [],
-      paymentData: {
-        cash: '',
-        bank: '',
-        bankAccountId: '',
-        totalCashReceived: 0,
-        advancePayment: 0,
-        discount: '',
-        labour: '',
-        deliveryCharges: '',
-        notes: '',
-        isLoadedOrder: false,
-        sourceOrderId: null
-      },
-      billType: 'BILL',
-      formSelectedProduct: null,
-      productFormData: { quantity: '', rate: 0, amount: 0, stock: 0 },
-      newTransport: { amount: 0, accountId: '' },
-      transportAccounts: [],
-      transportOptions: [],
-      timestamp: new Date().getTime().toString(),
-      customerName: 'New Order'
-    };
-  }, [stores]);
-
-  // Is navigating flag
-  const [isNavigating, setIsNavigating] = useState(false);
-
-  // Restore screen state
-  const restoreScreenState = (state) => {
-    if (!state) return;
-    setFormSelectedCustomer(state.formSelectedCustomer);
-    setFormSelectedStore(state.formSelectedStore);
-    setProductTableData(JSON.parse(JSON.stringify(state.productTableData)));
-    setPaymentData(JSON.parse(JSON.stringify(state.paymentData)));
-    setBillType(state.billType);
-    setFormSelectedProduct(state.formSelectedProduct);
-    setProductFormData(JSON.parse(JSON.stringify(state.productFormData)));
-    setNewTransport(JSON.parse(JSON.stringify(state.newTransport)));
-    setTransportAccounts(state.transportAccounts);
-    setTransportOptions(state.transportOptions);
-  };
-
-  // Clear form state
-  const clearFormState = () => {
-    setFormSelectedCustomer(null);
-    setFormSelectedProduct(null);
-    setFormSelectedStore(stores[0] || null);
-    setProductTableData([]);
-    setPaymentData({
-      cash: '',
-      bank: '',
-      bankAccountId: '',
-      totalCashReceived: 0,
-      discount: '',
-      labour: '',
-      deliveryCharges: '',
-      notes: ''
-    });
-    setBillType('ORDER');
-    setProductFormData({ quantity: '', rate: '', amount: 0, stock: 0 });
-    setNewTransport({ amount: 0, accountId: '' });
-    setTransportOptions([]);
-    setPaymentData(prev => ({ ...prev, date: new Date().toISOString().split('T')[0] }));
-    showSnackbar('📋 Form cleared - ready for new entry', 'info');
-  };
-
-  // Open new screen (Ctrl+Right)
-  const openNewScreen = useCallback(() => {
-    setIsNavigating(true);
-    const currentState = captureScreenState();
-    const newStack = screenStack.slice(0, currentScreenIndex + 1);
-    newStack[currentScreenIndex] = currentState;
-
-    const freshState = getFreshOrderState();
-
-    const updatedStack = [...newStack, freshState];
-    setScreenStack(updatedStack);
-    setCurrentScreenIndex(updatedStack.length - 1);
-    restoreScreenState(freshState);
-
-    setTimeout(() => {
-      setIsNavigating(false);
-      showSnackbar(`📋 Screen ${updatedStack.length} | Starting fresh`, 'info');
-    }, 150);
-  }, [captureScreenState, currentScreenIndex, screenStack, stores]);
-
-  // Go to previous screen (Ctrl+Left)
-  const goToPreviousScreen = useCallback(() => {
-    if (currentScreenIndex > 0) {
-      setIsNavigating(true);
-      // CAPTURE CURRENT STATE BEFORE MOVING
-      const currentState = captureScreenState();
-      const updatedStack = [...screenStack];
-      updatedStack[currentScreenIndex] = currentState;
-      setScreenStack(updatedStack);
-
-      const previousIndex = currentScreenIndex - 1;
-      const previousState = updatedStack[previousIndex];
-      restoreScreenState(previousState);
-      setCurrentScreenIndex(previousIndex);
-
-      setTimeout(() => {
-        setIsNavigating(false);
-        showSnackbar(`📋 Screen ${previousIndex + 1} | ${previousState.customerName}`, 'info');
-      }, 150);
-    }
-  }, [currentScreenIndex, screenStack, captureScreenState]);
-
-  // Go to next screen
-  const goToNextScreen = useCallback(() => {
-    if (currentScreenIndex < screenStack.length - 1) {
-      setIsNavigating(true);
-      // CAPTURE CURRENT STATE BEFORE MOVING
-      const currentState = captureScreenState();
-      const updatedStack = [...screenStack];
-      updatedStack[currentScreenIndex] = currentState;
-      setScreenStack(updatedStack);
-
-      const nextIndex = currentScreenIndex + 1;
-      const nextState = updatedStack[nextIndex];
-      restoreScreenState(nextState);
-      setCurrentScreenIndex(nextIndex);
-
-      setTimeout(() => {
-        setIsNavigating(false);
-        showSnackbar(`📋 Screen ${nextIndex + 1} | ${nextState.customerName}`, 'info');
-      }, 150);
-    }
-  }, [currentScreenIndex, screenStack, captureScreenState]);
-
-  // Smart forward navigation
-  const handleForwardNavigation = useCallback(() => {
-    if (currentScreenIndex < screenStack.length - 1) {
-      goToNextScreen();
-    } else {
-      openNewScreen();
-    }
-  }, [currentScreenIndex, screenStack.length, goToNextScreen, openNewScreen]);
-
-  // Cancel current screen
-  const cancelCurrentScreen = useCallback(() => {
-    if (screenStack.length <= 1) {
-      const freshState = getFreshOrderState();
-      setScreenStack([freshState]);
-      setCurrentScreenIndex(0);
-      restoreScreenState(freshState);
-      showSnackbar('📋 Screen 1 reset', 'info');
-      return;
-    }
-
-    const hasNextScreen = currentScreenIndex < screenStack.length - 1;
-    const newStack = screenStack.filter((_, index) => index !== currentScreenIndex);
-    const targetIndex = hasNextScreen ? currentScreenIndex : currentScreenIndex - 1;
-    const targetState = newStack[targetIndex];
-
-    setScreenStack(newStack);
-    setCurrentScreenIndex(targetIndex);
-    restoreScreenState(targetState);
-    showSnackbar(`📋 Screen removed. Now at Screen ${targetIndex + 1}`, 'info');
-  }, [currentScreenIndex, screenStack, captureScreenState]);
-
-  // Auto-save with debounce to prevent input focus loss
-  useEffect(() => {
-    if (!isNavigating && currentScreenIndex >= 0 && screenStack[currentScreenIndex]) {
-      const debounceTimer = setTimeout(() => {
-        const updatedState = captureScreenState();
-        const newStack = [...screenStack];
-        newStack[currentScreenIndex] = updatedState;
-        setScreenStack(newStack);
-        console.log(`💾 Auto-saved Order Screen ${currentScreenIndex + 1}`);
-      }, 3000); // Wait 3 seconds after user stops typing
-
-      return () => clearTimeout(debounceTimer);
-    }
-  }, [formSelectedCustomer, formSelectedStore, productTableData, paymentData, billType, formSelectedProduct, productFormData, newTransport, transportAccounts, transportOptions, isNavigating, currentScreenIndex]);
-
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleShortcuts = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowRight') {
-        e.preventDefault();
-        handleForwardNavigation();
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowLeft') {
-        e.preventDefault();
-        goToPreviousScreen();
-      }
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'x' || e.key === 'X')) {
-        e.preventDefault();
-        cancelCurrentScreen();
-      }
-    };
-    window.addEventListener('keydown', handleShortcuts);
-    return () => window.removeEventListener('keydown', handleShortcuts);
-  }, [handleForwardNavigation, goToPreviousScreen, cancelCurrentScreen]);
 
   const handleSnackbarClose = () => {
     setSnackbar(prev => ({ ...prev, open: false }));
@@ -788,6 +539,7 @@ function OrdersPageContent() {
         debit_account_id: paymentData.bankAccountId || null,
         credit_account_id: null,
         loader_id: null,
+        labour_charges: parseFloat(paymentData.labour) || 0, // Include labour charges
         shipping_amount: totalShippingAmount, // Include both transport and delivery charges
         bill_type: billType || 'BILL',
         reference: paymentData.notes || null,
@@ -869,45 +621,21 @@ function OrdersPageContent() {
         // Open receipt dialog
         setReceiptDialogOpen(true);
 
-        if (currentScreenIndex > 0) {
-          const previousIndex = currentScreenIndex - 1;
-          const previousState = screenStack[previousIndex];
-          const trimmedStack = screenStack.slice(0, currentScreenIndex);
-
-          setScreenStack(trimmedStack);
-          setCurrentScreenIndex(previousIndex);
-          restoreScreenState(previousState);
-          showSnackbar(`✅ Bill saved! Restored Screen ${previousIndex + 1}`, 'success');
-        } else {
-          clearFormState();
-          // Reset stack to single item
-          const emptyState = {
-            formSelectedCustomer: null,
-            formSelectedStore: stores[0] || null,
-            productTableData: [],
-            paymentData: {
-              cash: '',
-              bank: '',
-              bankAccountId: '',
-              totalCashReceived: 0,
-              discount: '',
-              labour: '',
-              deliveryCharges: '',
-              notes: ''
-            },
-            billType: 'ORDER',
-            formSelectedProduct: null,
-            productFormData: { quantity: '', rate: '', amount: 0, stock: 0 },
-            newTransport: { amount: 0, accountId: '' },
-            transportAccounts: [],
-            transportOptions: [],
-            timestamp: new Date().toLocaleTimeString(),
-            customerName: 'New Order'
-          };
-          setScreenStack([emptyState]);
-          setCurrentScreenIndex(0);
-          showSnackbar('✅ Bill saved! Form cleared', 'success');
-        }
+        // Reset form
+        setFormSelectedCustomer(null);
+        setFormSelectedProduct(null);
+        setFormSelectedStore(null);
+        setProductTableData([]);
+        setPaymentData({
+          cash: 0,
+          bank: 0,
+          bankAccountId: '',
+          totalCashReceived: 0,
+          discount: 0,
+          labour: 0,
+          deliveryCharges: 0,
+          notes: ''
+        });
 
         // Refresh sales data
         fetchData();
@@ -959,20 +687,37 @@ function OrdersPageContent() {
   }, [paymentData.cash, paymentData.bank]);
 
   // Transport functions
-  const fetchTransportAccounts = async () => {
+  const fetchTransportAccounts = async (providedCustomers = null) => {
     try {
-      const response = await fetch('/api/customers');
-      if (response.ok) {
-        const accountsData = await response.json();
-        // Filter accounts where type is "Transport"
-        const transportAccountsData = accountsData.filter(account =>
-          account.customer_type &&
-          account.customer_type.cus_type_title &&
-          account.customer_type.cus_type_title.toLowerCase().includes('transport')
-        );
+      let accountsData = providedCustomers;
+
+      if (!accountsData) {
+        const response = await fetch('/api/customers');
+        if (response.ok) {
+          const customersResponse = await response.json();
+          accountsData = customersResponse.value || customersResponse;
+        }
+      }
+
+      if (Array.isArray(accountsData)) {
+        // Filter accounts where category is "Transporter"
+        const transportAccountsData = accountsData.filter(account => {
+          // Use customerCategories state to find category
+          const category = customerCategories.find(c => c.cus_cat_id === account.cus_category);
+          const typeTitle = (account.customer_type?.cus_type_title || '').toLowerCase();
+          const name = (account.cus_name || '').toLowerCase();
+
+          // Check category first (primary filter)
+          if (category) {
+            const catTitle = category.cus_cat_title.toLowerCase();
+            return catTitle.includes('transporter') || catTitle.includes('transport');
+          }
+
+          // Fallback to type or name if category not found
+          return typeTitle.includes('transport') || name.includes('transport');
+        });
         setTransportAccounts(transportAccountsData);
       } else {
-        console.error('❌ Customer accounts API error:', response.status);
         setTransportAccounts([]);
       }
     } catch (error) {
@@ -980,6 +725,13 @@ function OrdersPageContent() {
       setTransportAccounts([]);
     }
   };
+
+  // Update transport accounts when customers or categories change
+  useEffect(() => {
+    if (customers.length > 0 && customerCategories.length > 0) {
+      fetchTransportAccounts(customers);
+    }
+  }, [customers, customerCategories]);
 
   // Filter customers by category and type for bank accounts
   const filterBankAccountsByCategory = (customers, customerCategories, customerTypes) => {
@@ -1116,6 +868,16 @@ function OrdersPageContent() {
     }
     if (!newCustomer.cus_type) {
       showSnackbar('Customer type is required', 'error');
+      return;
+    }
+
+    // Check if customer with same phone number already exists
+    const existingCustomer = customers.find(customer =>
+      customer.cus_phone_no === newCustomer.cus_phone_no.trim()
+    );
+
+    if (existingCustomer) {
+      showSnackbar(`A customer with phone number ${newCustomer.cus_phone_no} already exists. Please use a different phone number.`, 'error');
       return;
     }
 
@@ -2094,49 +1856,9 @@ function OrdersPageContent() {
             </Button>
           </Box>
 
-          {/* Screen Stack Indicator */}
-          {(currentScreenIndex >= 0 || screenStack.length > 0) && (
-            <Box sx={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', mt: -1, mb: 1, gap: 1 }}>
-              <Box
-                sx={{
-                  background: 'rgba(51, 65, 85, 0.1)',
-                  color: '#475569',
-                  padding: '2px 10px',
-                  borderRadius: '4px',
-                  fontSize: '11px',
-                  fontWeight: 'bold',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 0.5,
-                  border: '1px solid rgba(51, 65, 85, 0.2)'
-                }}
-              >
-                SCREEN {currentScreenIndex + 1}
-                {screenStack.length > 1 && (
-                  <span style={{ opacity: 0.7, fontSize: '10px', marginLeft: '4px' }}>
-                    ({currentScreenIndex + 1}/{screenStack.length})
-                  </span>
-                )}
-              </Box>
-              {screenStack.length > 1 && (
-                <IconButton
-                  size="small"
-                  onClick={cancelCurrentScreen}
-                  title="Cancel this screen (Ctrl+X)"
-                  sx={{
-                    color: '#dc3545',
-                    padding: 0,
-                    '&:hover': { bgcolor: 'rgba(220, 53, 69, 0.1)' }
-                  }}
-                >
-                  <CloseIcon sx={{ fontSize: 16 }} />
-                </IconButton>
-              )}
-            </Box>
-          )}
 
           {/* Main Form */}
-          <Card key={`${currentScreenIndex}-${screenStack[currentScreenIndex]?.timestamp || ''}`}>
+          <Card>
             <CardContent sx={{ p: 2 }}>
               {/* First Row - Date, Customer, Reference */}
               <Grid container spacing={2} sx={{ mb: 2 }}>
@@ -2162,32 +1884,31 @@ function OrdersPageContent() {
                     </Box>
                     <Autocomplete
                       size="small"
-                      autoSelect={true}
-                      autoHighlight={true}
-                      openOnFocus={true}
                       options={customers.filter(customer => {
                         // Filter for customers with category "Customer"
-                        const isCustomer = customer.customer_category &&
-                          customer.customer_category.cus_cat_title &&
-                          customer.customer_category.cus_cat_title.toLowerCase().includes('customer');
-                        return isCustomer;
+                        const category = customerCategories.find(c => c.cus_cat_id === customer.cus_category);
+                        return category && category.cus_cat_title.toLowerCase().includes('customer');
                       })}
                       getOptionLabel={(option) => {
+                        console.log('🔍 getOptionLabel called with:', option);
                         return option.cus_name || '';
                       }}
                       value={formSelectedCustomer}
                       onChange={(event, newValue) => {
+                        console.log('🔍 Customer selected:', newValue);
                         setFormSelectedCustomer(newValue);
                       }}
                       isOptionEqualToValue={(option, value) => option.cus_id === value?.cus_id}
-                      renderInput={(params) => (
-                        <TextField
-                          {...params}
-                          placeholder="Select customer"
-                          onFocus={(e) => e.target.select()}
-                          sx={{ bgcolor: 'white', minWidth: 250, '& .MuiInputBase-input': { fontWeight: formSelectedCustomer ? 'bold' : 'normal' } }}
-                        />
-                      )}
+                      renderInput={(params) => {
+                        console.log('🔍 renderInput called, customers length:', customers.length);
+                        return (
+                          <TextField
+                            {...params}
+                            placeholder="Select customer"
+                            sx={{ bgcolor: 'white', minWidth: 250, '& .MuiInputBase-input': { fontWeight: formSelectedCustomer ? 'bold' : 'normal' } }}
+                          />
+                        );
+                      }}
                     />
                     {/* Debug info */}
                     <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
@@ -2223,8 +1944,7 @@ function OrdersPageContent() {
                       fullWidth
                       type="date"
                       size="small"
-                      value={paymentData.date || new Date().toISOString().split('T')[0]}
-                      onChange={(e) => handlePaymentDataChange('date', e.target.value)}
+                      defaultValue={new Date().toISOString().split('T')[0]}
                       sx={{ bgcolor: 'white' }}
                     />
                   </Box>
@@ -2253,13 +1973,11 @@ function OrdersPageContent() {
                     </Typography>
                     <Autocomplete
                       size="small"
-                      autoSelect={true}
-                      autoHighlight={true}
-                      openOnFocus={true}
                       options={products || []}
                       getOptionLabel={(option) => option.pro_title || ''}
                       value={formSelectedProduct}
                       onChange={(event, newValue) => {
+                        console.log('🔍 Product selected:', newValue);
                         handleProductSelect(newValue);
                       }}
                       isOptionEqualToValue={(option, value) => option.pro_id === value?.pro_id}
@@ -2267,7 +1985,6 @@ function OrdersPageContent() {
                         <TextField
                           {...params}
                           placeholder={products.length === 0 ? "No products available" : "Select product"}
-                          onFocus={(e) => e.target.select()}
                           sx={{ bgcolor: 'white', width: 350, minWidth: 350, '& .MuiInputBase-input': { fontWeight: formSelectedProduct ? 'bold' : 'normal' } }}
                         />
                       )}
@@ -2842,19 +2559,6 @@ function OrdersPageContent() {
                     borderRadius: 2,
                     '&:hover': { bgcolor: '#c82333' }
                   }}
-                  onClick={cancelCurrentScreen}
-                  title="Remove current screen from stack (Ctrl+X)"
-                >
-                  ✕ Cancel Current
-                </Button>
-                <Button
-                  variant="contained"
-                  sx={{
-                    bgcolor: '#6c757d',
-                    color: 'white',
-                    borderRadius: 2,
-                    '&:hover': { bgcolor: '#5a6268' }
-                  }}
                   onClick={() => setCurrentView('list')}
                 >
                   Cancel
@@ -3046,6 +2750,12 @@ function OrdersPageContent() {
                               {parseFloat(currentBillData.shipping_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رعایت</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                              {parseFloat(currentBillData.discount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
                           <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
@@ -3110,10 +2820,10 @@ function OrdersPageContent() {
                   currentBillData.sale_details.map((d, i) => (
                     <Box key={d.sale_detail_id || i} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                       <Box sx={{ pr: 1, flex: 1 }}>
-                        <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>{d.product?.pro_title || 'Item'}</Typography>
+                        <Typography sx={{ fontSize: '10px' }}>{d.product?.pro_title || 'Item'}</Typography>
                         <Typography sx={{ fontSize: '9px', color: 'text.secondary' }}>Qty: {d.qnty} x {parseFloat(d.unit_rate || 0).toFixed(2)}</Typography>
                       </Box>
-                      <Typography sx={{ fontSize: '10px', fontWeight: 'bold', minWidth: '35mm', textAlign: 'right' }}>{parseFloat(d.total_amount || 0).toFixed(2)}</Typography>
+                      <Typography sx={{ fontSize: '10px', minWidth: '35mm', textAlign: 'right' }}>{parseFloat(d.total_amount || 0).toFixed(2)}</Typography>
                     </Box>
                   ))
                 ) : (
@@ -3345,13 +3055,19 @@ function OrdersPageContent() {
                             <TableRow>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>مزدوری</TableCell>
                               <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {parseFloat(currentBillData.labour || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {parseFloat(currentBillData.labour_charges || currentBillData.labour || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </TableCell>
                             </TableRow>
                             <TableRow>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>کرایہ</TableCell>
                               <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
                                 {parseFloat(currentBillData.shipping_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </TableCell>
+                            </TableRow>
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رعایت</TableCell>
+                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                {parseFloat(currentBillData.discount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </TableCell>
                             </TableRow>
                             <TableRow sx={{ bgcolor: '#f5f5f5' }}>
@@ -3667,10 +3383,6 @@ function OrdersPageContent() {
                 <Grid item xs={12} md={3}>
                   <Autocomplete
                     fullWidth
-                    autoSelect={true}
-                    autoHighlight={true}
-                    openOnFocus={true}
-                    selectOnFocus={true}
                     size="small"
                     options={customers.filter(customer => {
                       // Filter for customers with category "Customer"
@@ -3691,7 +3403,6 @@ function OrdersPageContent() {
                         {...params}
                         label="Customer"
                         placeholder="Select customer"
-                        onFocus={(e) => e.target.select()}
                         sx={{ minWidth: 250 }}
                       />
                     )}
@@ -3720,10 +3431,6 @@ function OrdersPageContent() {
                 <Grid item xs={12} md={3}>
                   <Autocomplete
                     fullWidth
-                    autoSelect={true}
-                    autoHighlight={true}
-                    openOnFocus={true}
-                    selectOnFocus={true}
                     size="small"
                     options={stores}
                     getOptionLabel={(option) => option.store_name || ''}
@@ -3736,7 +3443,6 @@ function OrdersPageContent() {
                         {...params}
                         label="Store"
                         placeholder="Select store"
-                        onFocus={(e) => e.target.select()}
                       />
                     )}
                   />
@@ -4202,10 +3908,6 @@ function OrdersPageContent() {
               <Grid item xs={12} md={4}>
                 <Autocomplete
                   fullWidth
-                  autoSelect={true}
-                  autoHighlight={true}
-                  openOnFocus={true}
-                  selectOnFocus={true}
                   required
                   options={[
                     { id: '', title: 'Select a type' },
@@ -4235,7 +3937,6 @@ function OrdersPageContent() {
                     <TextField
                       {...params}
                       label="Account Type"
-                      onFocus={(e) => e.target.select()}
                       sx={{ minWidth: 250 }}
                       InputProps={{
                         ...params.InputProps,
@@ -4253,10 +3954,6 @@ function OrdersPageContent() {
               <Grid item xs={12} md={4}>
                 <Autocomplete
                   fullWidth
-                  autoSelect={true}
-                  autoHighlight={true}
-                  openOnFocus={true}
-                  selectOnFocus={true}
                   required
                   options={[
                     { id: '', title: 'Select a category' },
@@ -4286,7 +3983,6 @@ function OrdersPageContent() {
                     <TextField
                       {...params}
                       label="Account Category"
-                      onFocus={(e) => e.target.select()}
                       sx={{ minWidth: 250 }}
                       InputProps={{
                         ...params.InputProps,
@@ -4329,10 +4025,6 @@ function OrdersPageContent() {
               <Grid item xs={12} md={4}>
                 <Autocomplete
                   fullWidth
-                  autoSelect={true}
-                  autoHighlight={true}
-                  openOnFocus={true}
-                  selectOnFocus={true}
                   options={[
                     { id: '', title: 'Select a city' },
                     ...cities.map(city => ({
@@ -4361,7 +4053,6 @@ function OrdersPageContent() {
                     <TextField
                       {...params}
                       label="City"
-                      onFocus={(e) => e.target.select()}
                       sx={{ minWidth: 250 }}
                       InputProps={{
                         ...params.InputProps,
@@ -4593,7 +4284,7 @@ function OrdersPageContent() {
                         selectedBill.sale_details.map((detail, index) => (
                           <TableRow key={detail.sale_detail_id || index}>
                             <TableCell sx={{ px: 1 }}>{index + 1}</TableCell>
-                            <TableCell sx={{ px: 1, fontWeight: 'bold' }}>{detail.product?.pro_title || detail.product?.pro_name || detail.product?.prod_name || 'N/A'}</TableCell>
+                            <TableCell sx={{ px: 1 }}>{detail.product?.pro_title || detail.product?.pro_name || detail.product?.prod_name || 'N/A'}</TableCell>
                             <TableCell sx={{ px: 1 }} align="right">{detail.qnty || 0}</TableCell>
                             <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.unit_rate || 0).toFixed(2)}</TableCell>
                             <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.total_amount || 0).toFixed(2)}</TableCell>
