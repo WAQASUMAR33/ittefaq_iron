@@ -46,7 +46,8 @@ import {
   ListItemSecondaryAction,
   ListItemAvatar,
   Fab,
-  Checkbox
+  Checkbox,
+  Menu
 } from '@mui/material';
 
 // Material Icons
@@ -79,7 +80,8 @@ import {
   TrendingDown as TrendingDownIcon,
   FilterList as FilterListIcon,
   Clear as ClearIcon,
-  Money as MoneyIcon
+  Money as MoneyIcon,
+  MoreVert as MoreVertIcon
 } from '@mui/icons-material';
 
 function PurchasesPageContent() {
@@ -172,14 +174,26 @@ function PurchasesPageContent() {
     return { suppliers: filteredSuppliers, bankAccounts: filteredBankAccounts };
   };
 
-  // Sample vehicle data
-  const [vehicles] = useState([
-    { id: 1, vehicle_no: 'ABC-123', driver_name: 'John Doe', vehicle_type: 'Truck' },
-    { id: 2, vehicle_no: 'XYZ-456', driver_name: 'Jane Smith', vehicle_type: 'Van' },
-    { id: 3, vehicle_no: 'DEF-789', driver_name: 'Mike Johnson', vehicle_type: 'Truck' },
-    { id: 4, vehicle_no: 'GHI-012', driver_name: 'Sarah Wilson', vehicle_type: 'Van' },
-    { id: 5, vehicle_no: 'JKL-345', driver_name: 'David Brown', vehicle_type: 'Truck' }
+  // Sample vehicle data - now dynamic
+  const [vehicles, setVehicles] = useState([
+    { id: 1, vehicle_no: 'ABC-123', driver_name: 'John Doe', driver_phone: '0300-1234567', vehicle_type: 'Truck' },
+    { id: 2, vehicle_no: 'XYZ-456', driver_name: 'Jane Smith', driver_phone: '0300-7654321', vehicle_type: 'Van' },
+    { id: 3, vehicle_no: 'DEF-789', driver_name: 'Mike Johnson', driver_phone: '0300-9876543', vehicle_type: 'Truck' },
+    { id: 4, vehicle_no: 'GHI-012', driver_name: 'Sarah Wilson', driver_phone: '0300-1122334', vehicle_type: 'Van' },
+    { id: 5, vehicle_no: 'JKL-345', driver_name: 'David Brown', driver_phone: '0300-5566778', vehicle_type: 'Truck' }
   ]);
+
+  // Vehicle management state
+  const [vehicleDialogOpen, setVehicleDialogOpen] = useState(false);
+  const [editingVehicle, setEditingVehicle] = useState(null);
+  const [vehicleFormData, setVehicleFormData] = useState({
+    vehicle_no: '',
+    driver_name: '',
+    driver_phone: '',
+    vehicle_type: 'Truck'
+  });
+  const [vehicleMenuAnchor, setVehicleMenuAnchor] = useState(null);
+  const [selectedVehicleForMenu, setSelectedVehicleForMenu] = useState(null);
   const [editingPurchase, setEditingPurchase] = useState(null);
   const [viewingPurchase, setViewingPurchase] = useState(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
@@ -963,6 +977,112 @@ function PurchasesPageContent() {
     return totalAmount + unloadingAmount + transportAmount + labourAmount - discount;
   };
 
+  // Vehicle management functions
+  const handleOpenVehicleDialog = () => {
+    setEditingVehicle(null);
+    setVehicleFormData({
+      vehicle_no: '',
+      driver_name: '',
+      driver_phone: '',
+      vehicle_type: 'Truck'
+    });
+    setVehicleDialogOpen(true);
+  };
+
+  const handleEditVehicle = (vehicle) => {
+    setEditingVehicle(vehicle);
+    setVehicleFormData({
+      vehicle_no: vehicle.vehicle_no,
+      driver_name: vehicle.driver_name,
+      driver_phone: vehicle.driver_phone || '',
+      vehicle_type: vehicle.vehicle_type || 'Truck'
+    });
+    setVehicleDialogOpen(true);
+  };
+
+  const handleCloseVehicleDialog = () => {
+    setVehicleDialogOpen(false);
+    setEditingVehicle(null);
+  };
+
+  const handleVehicleFormChange = (field, value) => {
+    setVehicleFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleSaveVehicle = async () => {
+    try {
+      // Validation
+      if (!vehicleFormData.vehicle_no.trim()) {
+        showSnackbar('Vehicle number is required', 'error');
+        return;
+      }
+      if (!vehicleFormData.driver_name.trim()) {
+        showSnackbar('Driver name is required', 'error');
+        return;
+      }
+
+      if (editingVehicle) {
+        // Update existing vehicle
+        const updatedVehicles = vehicles.map(vehicle =>
+          vehicle.id === editingVehicle.id
+            ? { ...vehicle, ...vehicleFormData }
+            : vehicle
+        );
+        setVehicles(updatedVehicles);
+        showSnackbar('Vehicle updated successfully', 'success');
+      } else {
+        // Add new vehicle
+        const newVehicle = {
+          id: Date.now(),
+          ...vehicleFormData
+        };
+        setVehicles(prev => [...prev, newVehicle]);
+        showSnackbar('Vehicle added successfully', 'success');
+      }
+
+      handleCloseVehicleDialog();
+    } catch (error) {
+      console.error('Error saving vehicle:', error);
+      showSnackbar('Failed to save vehicle', 'error');
+    }
+  };
+
+  const handleDeleteVehicle = async (vehicleId) => {
+    try {
+      setVehicles(prev => prev.filter(vehicle => vehicle.id !== vehicleId));
+      showSnackbar('Vehicle deleted successfully', 'success');
+    } catch (error) {
+      console.error('Error deleting vehicle:', error);
+      showSnackbar('Failed to delete vehicle', 'error');
+    }
+  };
+
+  const handleVehicleMenuOpen = (event, vehicle) => {
+    setVehicleMenuAnchor(event.currentTarget);
+    setSelectedVehicleForMenu(vehicle);
+  };
+
+  const handleVehicleMenuClose = () => {
+    setVehicleMenuAnchor(null);
+    setSelectedVehicleForMenu(null);
+  };
+
+  const handleEditSelectedVehicle = () => {
+    if (selectedVehicleForMenu) {
+      handleEditVehicle(selectedVehicleForMenu);
+    }
+    handleVehicleMenuClose();
+  };
+
+  const handleDeleteSelectedVehicle = () => {
+    if (selectedVehicleForMenu) {
+      handleDeleteVehicle(selectedVehicleForMenu.id);
+    }
+    handleVehicleMenuClose();
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -1623,6 +1743,15 @@ function PurchasesPageContent() {
       return;
     }
     setSnackbar(prev => ({ ...prev, open: false }));
+  };
+
+  // Helper function to show snackbar messages
+  const showSnackbar = (message, severity = 'success') => {
+    setSnackbar({
+      open: true,
+      message,
+      severity
+    });
   };
 
   if (loading) {
@@ -2425,7 +2554,7 @@ function PurchasesPageContent() {
                         renderOption={(props, option) => {
                           const { key, ...optionProps } = props;
                           return (
-                            <Box component="li" key={key} {...optionProps}>
+                            <Box component="li" key={option.cus_id} {...optionProps}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
                                 <PersonIcon sx={{ color: 'primary.main', fontSize: 20 }} />
                                 <Box sx={{ flex: 1 }}>
@@ -2516,7 +2645,7 @@ function PurchasesPageContent() {
                           renderOption={(props, option) => {
                             const { key, ...optionProps } = props;
                             return (
-                              <Box component="li" key={key} {...optionProps}>
+                              <Box component="li" key={option.invoice_number} {...optionProps}>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: '100%' }}>
                                   <ReceiptIcon sx={{ color: 'primary.main', fontSize: 20 }} />
                                   <Box sx={{ flex: 1 }}>
@@ -2593,49 +2722,122 @@ function PurchasesPageContent() {
                             *
                           </Typography>
                         </Box>
-                        <Autocomplete
-                          size="medium"
-                          autoSelect={true}
-                          autoHighlight={true}
-                          openOnFocus={true}
-                          selectOnFocus={true}
-                          open={vehicleDropdownOpen}
-                          onOpen={() => setVehicleDropdownOpen(true)}
-                          onClose={() => setVehicleDropdownOpen(false)}
-                          options={vehicles}
-                          getOptionLabel={(option) => `${option.vehicle_no} - ${option.driver_name}`}
-                          value={vehicles.find(v => v.vehicle_no === formData.vehicle_no) || null}
-                          onChange={(event, newValue) => {
-                            setFormData(prev => ({
-                              ...prev,
-                              vehicle_no: newValue ? newValue.vehicle_no : ''
-                            }));
-                            setVehicleDropdownOpen(false);
-                          }}
-                          filterOptions={(options, { inputValue }) => {
-                            return options.filter(option =>
-                              option.vehicle_no.toLowerCase().includes(inputValue.toLowerCase()) ||
-                              option.driver_name.toLowerCase().includes(inputValue.toLowerCase()) ||
-                              option.vehicle_type.toLowerCase().includes(inputValue.toLowerCase())
-                            );
-                          }}
-                          renderInput={(params) => (
-                            <TextField
-                              {...params}
-                              placeholder="Select vehicle..."
-                              onFocus={(e) => e.target.select()}
-                              sx={{ width: '100%', minWidth: 300, minHeight: 56 }}
-                              required
-                            />
-                          )}
-                          sx={{ width: '100%', minWidth: 300 }}
-                          disablePortal={false}
-                          clearOnBlur={false}
-                          handleHomeEndKeys={true}
-                        />
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Autocomplete
+                            size="medium"
+                            autoSelect={true}
+                            autoHighlight={true}
+                            openOnFocus={true}
+                            selectOnFocus={true}
+                            open={vehicleDropdownOpen}
+                            onOpen={() => setVehicleDropdownOpen(true)}
+                            onClose={() => setVehicleDropdownOpen(false)}
+                            options={vehicles}
+                            getOptionLabel={(option) => `${option.vehicle_no} - ${option.driver_name}`}
+                            value={vehicles.find(v => v.vehicle_no === formData.vehicle_no) || null}
+                            onChange={(event, newValue) => {
+                              setFormData(prev => ({
+                                ...prev,
+                                vehicle_no: newValue ? newValue.vehicle_no : ''
+                              }));
+                              setVehicleDropdownOpen(false);
+                            }}
+                            filterOptions={(options, { inputValue }) => {
+                              return options.filter(option =>
+                                option.vehicle_no.toLowerCase().includes(inputValue.toLowerCase()) ||
+                                option.driver_name.toLowerCase().includes(inputValue.toLowerCase()) ||
+                                option.vehicle_type.toLowerCase().includes(inputValue.toLowerCase())
+                              );
+                            }}
+                            renderInput={(params) => (
+                              <TextField
+                                {...params}
+                                placeholder="Select vehicle..."
+                                onFocus={(e) => e.target.select()}
+                                sx={{ width: '100%', minWidth: 250, minHeight: 56 }}
+                                required
+                              />
+                            )}
+                            renderOption={(props, option) => {
+                              const { key, ...optionProps } = props;
+                              return (
+                                <Box component="li" key={option.id} {...optionProps}>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                                    <Box sx={{ flex: 1 }}>
+                                      <Typography
+                                        variant="body2"
+                                        sx={{
+                                          fontWeight: formData.vehicle_no === option.vehicle_no ? 'bold' : 'medium',
+                                          color: formData.vehicle_no === option.vehicle_no ? 'primary.main' : 'text.primary'
+                                        }}
+                                      >
+                                        {option.vehicle_no} - {option.driver_name}
+                                      </Typography>
+                                      <Typography variant="caption" color="text.secondary">
+                                        {option.driver_phone} • {option.vehicle_type}
+                                      </Typography>
+                                    </Box>
+                                    <IconButton
+                                      size="small"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleVehicleMenuOpen(e, option);
+                                      }}
+                                      sx={{ ml: 1 }}
+                                    >
+                                      <MoreVertIcon fontSize="small" />
+                                    </IconButton>
+                                  </Box>
+                                </Box>
+                              );
+                            }}
+                            sx={{ width: '100%', minWidth: 250, flex: 1 }}
+                            disablePortal={false}
+                            clearOnBlur={false}
+                            handleHomeEndKeys={true}
+                          />
+                          <Tooltip title="Add New Vehicle">
+                            <IconButton
+                              onClick={handleOpenVehicleDialog}
+                              sx={{
+                                bgcolor: 'primary.main',
+                                color: 'white',
+                                '&:hover': { bgcolor: 'primary.dark' },
+                                minWidth: 56,
+                                height: 56
+                              }}
+                            >
+                              <AddIcon />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
                       </Box>
                     </Grid>
                   )}
+
+                  {/* Vehicle Menu */}
+                  <Menu
+                    anchorEl={vehicleMenuAnchor}
+                    open={Boolean(vehicleMenuAnchor)}
+                    onClose={handleVehicleMenuClose}
+                    anchorOrigin={{
+                      vertical: 'bottom',
+                      horizontal: 'right',
+                    }}
+                    transformOrigin={{
+                      vertical: 'top',
+                      horizontal: 'right',
+                    }}
+                  >
+                    <MenuItem onClick={handleEditSelectedVehicle}>
+                      <EditIcon sx={{ mr: 1, fontSize: 18 }} />
+                      Edit Vehicle
+                    </MenuItem>
+                    <MenuItem onClick={handleDeleteSelectedVehicle} sx={{ color: 'error.main' }}>
+                      <DeleteIcon sx={{ mr: 1, fontSize: 18 }} />
+                      Delete Vehicle
+                    </MenuItem>
+                  </Menu>
 
 
 
@@ -2689,7 +2891,7 @@ function PurchasesPageContent() {
                         renderOption={(props, option) => {
                           const { key, ...optionProps } = props;
                           return (
-                            <Box component="li" key={key} {...optionProps}>
+                            <Box component="li" key={option.storeid} {...optionProps}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                 <StoreIcon sx={{ color: 'primary.main' }} />
                                 <Box>
@@ -3081,7 +3283,7 @@ function PurchasesPageContent() {
                           renderOption={(props, option) => {
                             const { key, ...optionProps } = props;
                             return (
-                              <Box component="li" key={key} {...optionProps}>
+                              <Box component="li" key={option.cus_id} {...optionProps}>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
                                   <AttachMoneyIcon sx={{ color: 'primary.main', fontSize: 20 }} />
                                   <Box sx={{ flex: 1 }}>
@@ -4628,6 +4830,208 @@ function PurchasesPageContent() {
             sx={{ textTransform: 'none' }}
           >
             Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Vehicle Management Dialog */}
+      <Dialog
+        open={vehicleDialogOpen}
+        onClose={handleCloseVehicleDialog}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            boxShadow: '0 12px 40px rgba(0,0,0,0.15)',
+            overflow: 'visible'
+          }
+        }}
+      >
+        <DialogTitle sx={{
+          background: 'linear-gradient(135deg, #2196F3 0%, #1976D2 100%)',
+          color: 'white',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1.5,
+          py: 2.5,
+          px: 3,
+          fontSize: '1.3rem',
+          fontWeight: 600,
+          position: 'relative'
+        }}>
+          <TruckIcon sx={{ fontSize: '1.8rem' }} />
+          {editingVehicle ? 'Edit Vehicle Details' : 'Add New Vehicle'}
+        </DialogTitle>
+        
+        <DialogContent sx={{ pt: 4, px: 3 }}>
+          <Grid container spacing={2.5}>
+            {/* Vehicle Number */}
+            <Grid item xs={12}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: '#1976D2' }}>
+                Vehicle Information
+              </Typography>
+              <TextField
+                fullWidth
+                label="Vehicle Number"
+                value={vehicleFormData.vehicle_no}
+                onChange={(e) => handleVehicleFormChange('vehicle_no', e.target.value)}
+                required
+                placeholder="e.g., ABC-123 or HST-2567"
+                variant="outlined"
+                error={vehicleFormData.vehicle_no === '' && vehicleDialogOpen}
+                helperText={vehicleFormData.vehicle_no === '' && vehicleDialogOpen ? 'Vehicle number is required' : ''}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <TruckIcon sx={{ color: '#1976D2', mr: 1 }} />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    '&:hover fieldset': {
+                      borderColor: '#2196F3'
+                    }
+                  }
+                }}
+              />
+            </Grid>
+
+            {/* Vehicle Type */}
+            <Grid item xs={12}>
+              <FormControl fullWidth>
+                <InputLabel sx={{ color: '#1976D2' }}>Vehicle Type</InputLabel>
+                <Select
+                  value={vehicleFormData.vehicle_type}
+                  onChange={(e) => handleVehicleFormChange('vehicle_type', e.target.value)}
+                  label="Vehicle Type"
+                  sx={{
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#2196F3'
+                    }
+                  }}
+                >
+                  <MenuItem value="Truck">🚚 Truck</MenuItem>
+                  <MenuItem value="Van">📦 Van</MenuItem>
+                  <MenuItem value="Pickup">🚛 Pickup</MenuItem>
+                  <MenuItem value="Container">📮 Container</MenuItem>
+                  <MenuItem value="Other">❓ Other</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            {/* Driver Information */}
+            <Grid item xs={12} sx={{ mt: 1 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: '#1976D2' }}>
+                Driver Information
+              </Typography>
+            </Grid>
+
+            {/* Driver Name */}
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Driver Name"
+                value={vehicleFormData.driver_name}
+                onChange={(e) => handleVehicleFormChange('driver_name', e.target.value)}
+                required
+                placeholder="Full name of the driver"
+                variant="outlined"
+                error={vehicleFormData.driver_name === '' && vehicleDialogOpen}
+                helperText={vehicleFormData.driver_name === '' && vehicleDialogOpen ? 'Driver name is required' : ''}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <PersonIcon sx={{ color: '#1976D2', mr: 1 }} />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    '&:hover fieldset': {
+                      borderColor: '#2196F3'
+                    }
+                  }
+                }}
+              />
+            </Grid>
+
+            {/* Driver Phone */}
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Driver Phone Number"
+                value={vehicleFormData.driver_phone}
+                onChange={(e) => handleVehicleFormChange('driver_phone', e.target.value)}
+                placeholder="e.g., +92-300-1234567"
+                variant="outlined"
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <PhoneIcon sx={{ color: '#1976D2', mr: 1 }} />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    '&:hover fieldset': {
+                      borderColor: '#2196F3'
+                    }
+                  }
+                }}
+              />
+            </Grid>
+
+            {/* Info Alert */}
+            <Grid item xs={12} sx={{ mt: 1 }}>
+              <Alert 
+                severity="info"
+                sx={{ 
+                  bgcolor: '#E3F2FD',
+                  color: '#1565C0',
+                  '& .MuiAlert-icon': { color: '#1976D2' }
+                }}
+              >
+                ℹ️ Make sure all vehicle and driver information is accurate before saving.
+              </Alert>
+            </Grid>
+          </Grid>
+        </DialogContent>
+
+        <Divider sx={{ my: 1 }} />
+
+        <DialogActions sx={{ px: 3, py: 2.5, display: 'flex', gap: 1 }}>
+          <Button
+            onClick={handleCloseVehicleDialog}
+            variant="outlined"
+            sx={{ 
+              textTransform: 'none',
+              fontSize: '0.95rem',
+              fontWeight: 500,
+              px: 2.5
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSaveVehicle}
+            variant="contained"
+            startIcon={editingVehicle ? <EditIcon /> : <AddIcon />}
+            sx={{
+              textTransform: 'none',
+              fontSize: '0.95rem',
+              fontWeight: 600,
+              background: 'linear-gradient(135deg, #2196F3 0%, #1976D2 100%)',
+              px: 3,
+              '&:hover': { 
+                background: 'linear-gradient(135deg, #1976D2 0%, #1565C0 100%)',
+                boxShadow: '0 8px 16px rgba(25, 118, 210, 0.3)'
+              },
+              transition: 'all 0.3s ease'
+            }}
+          >
+            {editingVehicle ? 'Update Vehicle' : 'Add Vehicle'}
           </Button>
         </DialogActions>
       </Dialog>
