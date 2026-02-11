@@ -889,54 +889,67 @@ export async function POST(request) {
       if (!isQuotation) {
         // Create bill/order entry for both BILL and ORDER types
         // Only skip for quotations (which are just estimates)
+        // IMPORTANT: For loaded orders, SKIP the bill entry because it was already created when the order was made
         console.log(`\n${'='.repeat(60)}`);
-        console.log(`📝 CREATING ${isOrder ? 'ORDER' : 'BILL'} ENTRY`);
+        console.log(`📝 ${actualIsLoadedOrder ? 'SKIPPING BILL ENTRY (Already exists from order)' : 'CREATING BILL ENTRY'}`);
         console.log(`${'='.repeat(60)}`);
         console.log(`Customer Previous Balance: ${runningBalance}`);
         console.log(`Bill Amount (final after discount): ${total_amount}`);
         console.log(`Discount Already Applied: ${discount}`);
         console.log(`Bill Type: ${bill_type} (${isOrder ? 'ORDER' : 'REGULAR BILL'})`);
+        console.log(`Is Loaded Order: ${actualIsLoadedOrder}`);
         console.log(`Today's Payments: Cash=${parseFloat(cash_payment || 0)}, Bank=${parseFloat(bank_payment || 0)}, Advance=${parseFloat(advance_payment || 0)}`);
         console.log(`Expected Final Balance: ${runningBalance + parseFloat(total_amount) - (parseFloat(cash_payment || 0) + parseFloat(bank_payment || 0) + parseFloat(advance_payment || 0))}`);
         console.log(`${'='.repeat(60)}\n`);
         
-        // Bill debit amount is the final amount (discount already applied)
-        const debitAmount = parseFloat(total_amount);
+        // For loaded orders, SKIP creating the bill entry (it already exists from the order)
+        if (!actualIsLoadedOrder) {
+          // Bill debit amount is the final amount (discount already applied)
+          const debitAmount = parseFloat(total_amount);
 
-        if (debitAmount > 0) {
-          // Build details showing discount information
-          let billDetails = `${isOrder ? 'Order' : 'Sale Bill'} - ${bill_type || 'BILL'} - Customer Account (Debit)`;
-          if (parseFloat(discount || 0) > 0) {
-            billDetails += ` [Discount Applied: ${parseFloat(discount || 0)}]`;
+          if (debitAmount > 0) {
+            // Build details showing discount information
+            let billDetails = `${isOrder ? 'Order' : 'Sale Bill'} - ${bill_type || 'BILL'} - Customer Account (Debit)`;
+            if (parseFloat(discount || 0) > 0) {
+              billDetails += ` [Discount Applied: ${parseFloat(discount || 0)}]`;
+            }
+            
+            const billEntry = createLedgerEntry({
+              cus_id,
+              opening_balance: runningBalance,
+              debit_amount: debitAmount,
+              credit_amount: 0,
+              bill_no: sale.sale_id.toString(),
+              trnx_type: 'CASH',
+              details: billDetails,
+              payments: 0,
+              updated_by: validatedUpdatedBy
+            });
+            console.log(`📝 ${isOrder ? 'Order' : 'Bill'} Entry Created: Opening=${billEntry.opening_balance}, Debit=${billEntry.debit_amount}, Closing=${billEntry.closing_balance}`);
+            console.log(`   Details: ${billDetails}`);
+            ledgerEntries.push(billEntry);
+            runningBalance = billEntry.closing_balance;  // Update running balance
           }
-          
-          const billEntry = createLedgerEntry({
-            cus_id,
-            opening_balance: runningBalance,
-            debit_amount: debitAmount,
-            credit_amount: 0,
-            bill_no: sale.sale_id.toString(),
-            trnx_type: 'CASH',
-            details: billDetails,
-            payments: 0,
-            updated_by: validatedUpdatedBy
-          });
-          console.log(`📝 ${isOrder ? 'Order' : 'Bill'} Entry Created: Opening=${billEntry.opening_balance}, Debit=${billEntry.debit_amount}, Closing=${billEntry.closing_balance}`);
-          console.log(`   Details: ${billDetails}`);
-          ledgerEntries.push(billEntry);
-          runningBalance = billEntry.closing_balance;  // Update running balance
+        } else {
+          console.log(`⏭️ SKIPPED: Bill entry creation for loaded order (already exists from original order)`);
         }
 
         // 2. Consolidated Customer Payment Entry - Credit Customer Account (cash + bank + advance payment)
         // For split payments (cash + bank), create ONE entry with split info in details
+        // IMPORTANT: For loaded orders, advance payment was already recorded when order was created
+        // Only record NEW payments made during conversion, not the existing advance payment
         const cashAmount = parseFloat(cash_payment || 0);
         const bankAmount = parseFloat(bank_payment || 0);
         const advancePaymentAmount = parseFloat(advance_payment || 0);
-        const totalPaymentReceived = cashAmount + bankAmount + advancePaymentAmount;
         
-        if (totalPaymentReceived > 0) {
-          console.log(`\n💳 CREATING CONSOLIDATED PAYMENT ENTRY: Total=${totalPaymentReceived}`);
-          console.log(`   Breakdown: Cash=${cashAmount}, Bank=${bankAmount}, Advance=${advancePaymentAmount}`);
+        // For loaded orders, don't include advance payment in the payment entry (it was already recorded)
+        const newPaymentReceived = actualIsLoadedOrder ? 
+          (cashAmount + bankAmount) : // Only new cash/bank payments
+          (cashAmount + bankAmount + advancePaymentAmount); // Include advance for new sales
+        
+        if (newPaymentReceived > 0) {
+          console.log(`\n💳 CREATING ${actualIsLoadedOrder ? 'NEW PAYMENT' : 'CONSOLIDATED PAYMENT'} ENTRY: Total=${newPaymentReceived}`);
+          console.log(`   Breakdown: Cash=${cashAmount}, Bank=${bankAmount}${actualIsLoadedOrder ? ', Advance=ALREADY_RECORDED' : `, Advance=${advancePaymentAmount}`}`);
           console.log(`   Opening Balance: ${runningBalance}`);
           
           // Build details with split information
@@ -947,7 +960,7 @@ export async function POST(request) {
             const breakdown = [];
             if (cashAmount > 0) breakdown.push(`Cash: ${cashAmount.toFixed(2)}`);
             if (bankAmount > 0) breakdown.push(`Bank: ${bankAmount.toFixed(2)}`);
-            if (advancePaymentAmount > 0) breakdown.push(`Advance: ${advancePaymentAmount.toFixed(2)}`);
+            if (!actualIsLoadedOrder && advancePaymentAmount > 0) breakdown.push(`Advance: ${advancePaymentAmount.toFixed(2)}`);
             paymentDetails += ` | Split: [${breakdown.join(', ')}]`;
           }
           
@@ -958,8 +971,8 @@ export async function POST(request) {
           
           // Determine trnx_type: Use CASH for payment entries (default), or BANK_TRANSFER if only bank payment
           let paymentTrnxType = 'CASH';  // Default to CASH
-          if (totalPaymentReceived > 0 && bankAmount > 0 && cashAmount === 0 && advancePaymentAmount === 0) {
-            // Only bank payment, no cash
+          if (newPaymentReceived > 0 && bankAmount > 0 && cashAmount === 0 && (!actualIsLoadedOrder || advancePaymentAmount === 0)) {
+            // Only bank payment, no cash (and no advance for loaded orders)
             paymentTrnxType = 'BANK_TRANSFER';
           }
           
@@ -967,19 +980,21 @@ export async function POST(request) {
             cus_id,
             opening_balance: runningBalance,
             debit_amount: 0,
-            credit_amount: totalPaymentReceived,
+            credit_amount: newPaymentReceived,
             bill_no: sale.sale_id.toString(),
             trnx_type: paymentTrnxType,  // Use valid enum value
             details: paymentDetails,
-            payments: totalPaymentReceived,
+            payments: newPaymentReceived,
             cash_payment: cashAmount,  // Add cash breakdown
             bank_payment: bankAmount,  // Add bank breakdown
             updated_by: validatedUpdatedBy
           });
-          console.log(`💳 Consolidated Payment Entry Created: Opening=${paymentEntry.opening_balance}, Credit=${paymentEntry.credit_amount}, Closing=${paymentEntry.closing_balance}`);
+          console.log(`💳 ${actualIsLoadedOrder ? 'New Payment' : 'Consolidated Payment'} Entry Created: Opening=${paymentEntry.opening_balance}, Credit=${paymentEntry.credit_amount}, Closing=${paymentEntry.closing_balance}`);
           console.log(`   Type: ${paymentEntry.trnx_type}, Details: ${paymentEntry.details}`);
           ledgerEntries.push(paymentEntry);
           runningBalance = paymentEntry.closing_balance;
+        } else if (actualIsLoadedOrder && advancePaymentAmount > 0) {
+          console.log(`\n💳 SKIPPING PAYMENT ENTRY: Loaded order with advance payment ${advancePaymentAmount} (already recorded in original order)`);
         }
 
         // 3. Bank Account - DEBIT (when bank payment is received)
