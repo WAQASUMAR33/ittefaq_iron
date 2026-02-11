@@ -195,7 +195,7 @@ export default function StoreStockPage() {
           to_store_id: transferData.toStore,
           product_id: transferData.product,
           quantity: transferData.quantity,
-          updated_by: 1 // Should be from auth context
+          updated_by: 6 // System Administrator
         }),
       });
 

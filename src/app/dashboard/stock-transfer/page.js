@@ -394,7 +394,7 @@ export default function StockTransferPage() {
           quantity: item.quantity,
           packing: item.packing || 0
         })),
-        updated_by: 1 // TODO: Get from auth context
+        updated_by: 6 // System Administrator
       };
 
       // If we have a transfer_id, it's an update

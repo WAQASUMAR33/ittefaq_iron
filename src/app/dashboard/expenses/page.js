@@ -254,7 +254,7 @@ export default function ExpensesPage() {
           expense_id: paymentDialog.expense.exp_id,
           paid_from_account_id: paymentData.paid_from_account_id,
           payment_reference: paymentData.payment_reference,
-          updated_by: 1 // TODO: Get from session
+          updated_by: 6 // System Administrator
         })
       });
 

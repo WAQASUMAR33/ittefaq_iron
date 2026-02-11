@@ -1152,7 +1152,7 @@ function SalesPageContent() {
             total_amount: item.amount.toString(),
             discount: '0'
           })),
-          updated_by: 1
+          updated_by: 6
         };
 
         // Call the return API
@@ -1339,7 +1339,7 @@ function SalesPageContent() {
           description: transport.description || 'Transport charges - Split from Delivery'
         })),
         split_payments: splitPayments, // Keep split_payments for backward compatibility
-        updated_by: 1 // Default user ID, should be from auth context
+        updated_by: 6 // System Administrator
       };
 
       // Show loading
@@ -1987,13 +1987,13 @@ function SalesPageContent() {
           store_id: formSelectedStore.storeid,
           cus_id: formSelectedCustomer?.cus_id || null,
           form_state: formState,
-          updated_by: 1
+          updated_by: 6
         }
         : {
           store_id: formSelectedStore.storeid,
           cus_id: formSelectedCustomer?.cus_id || null,
           form_state: formState,
-          updated_by: 1
+          updated_by: 6
         };
 
       const response = await fetch(endpoint, {
@@ -2394,7 +2394,7 @@ function SalesPageContent() {
       const body = {
         ...returnFormData,
         total_amount: calculatedTotalAmount.toString(),
-        updated_by: 1 // TODO: Get from auth context
+        updated_by: 6 // System Administrator
       };
 
       const response = await fetch('/api/sale-returns', {
