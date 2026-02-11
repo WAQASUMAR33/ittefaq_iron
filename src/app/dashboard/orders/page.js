@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, Suspense } from 'react';
+import { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '../components/dashboard-layout';
 
@@ -61,11 +61,22 @@ import {
   Phone as PhoneIcon,
   Close as CloseIcon,
   LocationOn as MapPinIcon,
-  Business as BusinessIcon
+  Business as BusinessIcon,
+  ArrowBack as ArrowBackIcon,
+  ArrowForward as ArrowForwardIcon,
+  Cancel as CancelIcon
 } from '@mui/icons-material';
 
 function OrdersPageContent() {
   const searchParams = useSearchParams();
+
+  // ========== SCREEN MANAGEMENT STATE ==========
+  const [screenStack, setScreenStack] = useState([]);
+  const [currentScreenIndex, setCurrentScreenIndex] = useState(-1);
+  const [showScreenIndicator, setShowScreenIndicator] = useState(false);
+
+  // Flag to track when we're restoring screen state
+  const [isRestoringScreen, setIsRestoringScreen] = useState(false);
 
   // State management
   const [sales, setSales] = useState([]);
@@ -223,6 +234,333 @@ function OrdersPageContent() {
     setSnackbar({ open: true, message, severity });
   };
 
+  // ========== SCREEN MANAGEMENT FUNCTIONS ==========
+
+  // Initialize first screen on component mount
+  useEffect(() => {
+    const initialState = {
+      // Customer and store selection
+      formSelectedCustomer: null,
+      formSelectedStore: null,
+
+      // Product table (empty for new order)
+      productTableData: [],
+
+      // Payment data
+      paymentData: {
+        cash: '',
+        bank: '',
+        bankAccountId: '',
+        totalCashReceived: 0,
+        discount: '',
+        labour: '',
+        deliveryCharges: '',
+        notes: ''
+      },
+
+      // Bill type
+      billType: 'ORDER',
+
+      // Product form
+      formSelectedProduct: null,
+      productFormData: {
+        quantity: '',
+        rate: '',
+        amount: 0,
+        stock: 0
+      },
+
+      // Transport
+      newTransport: { amount: 0, accountId: '' },
+      transportAccounts: [],
+      transportOptions: [],
+
+      // Metadata
+      timestamp: new Date().toLocaleTimeString(),
+      customerName: 'New Order'
+    };
+
+    // Set the initial screen stack with screen 1
+    setScreenStack([initialState]);
+    setCurrentScreenIndex(0);
+    console.log('✅ Screen 1 initialized for orders');
+  }, []); // Run only once on component mount
+
+  // Capture current form state (deep copy to avoid reference issues)
+  const captureScreenState = () => {
+    const state = {
+      // Customer and store selection
+      formSelectedCustomer: formSelectedCustomer ? { ...formSelectedCustomer } : null,
+      formSelectedStore: formSelectedStore ? { ...formSelectedStore } : null,
+
+      // Product table (deep copy array)
+      productTableData: JSON.parse(JSON.stringify(productTableData)),
+
+      // Payment data (deep copy)
+      paymentData: JSON.parse(JSON.stringify(paymentData)),
+
+      // Bill type
+      billType: billType,
+
+      // Product form
+      formSelectedProduct: formSelectedProduct ? { ...formSelectedProduct } : null,
+      productFormData: JSON.parse(JSON.stringify(productFormData)),
+
+      // Transport
+      newTransport: JSON.parse(JSON.stringify(newTransport)),
+      transportAccounts: transportAccounts.map(t => ({ ...t })),
+      transportOptions: transportOptions.map(t => ({ ...t })),
+
+      // Metadata
+      timestamp: new Date().toLocaleTimeString(),
+      customerName: formSelectedCustomer?.cus_name || 'New Order'
+    };
+
+    console.log('📸 Order screen state captured:', state);
+    return state;
+  };
+
+  // Restore form state (ensure all updates happen)
+  const restoreScreenState = (state) => {
+    if (!state) {
+      console.warn('⚠️ No state to restore');
+      return;
+    }
+
+    // Set flag to prevent automatic fetching during restoration
+    setIsRestoringScreen(true);
+
+    // Restore all state at once to ensure consistency
+    setFormSelectedCustomer(state.formSelectedCustomer);
+    setFormSelectedStore(state.formSelectedStore);
+    setProductTableData(state.productTableData || []);
+    setPaymentData(state.paymentData || {
+      cash: '',
+      bank: '',
+      bankAccountId: '',
+      totalCashReceived: 0,
+      discount: '',
+      labour: '',
+      deliveryCharges: '',
+      notes: ''
+    });
+    setBillType(state.billType || 'ORDER');
+    setFormSelectedProduct(state.formSelectedProduct);
+    setProductFormData(state.productFormData || {
+      quantity: '',
+      rate: '',
+      amount: 0,
+      stock: 0
+    });
+    setNewTransport(state.newTransport || { amount: 0, accountId: '' });
+    setTransportAccounts(state.transportAccounts || []);
+    setTransportOptions(state.transportOptions || []);
+
+    // Clear the flag after a short delay to allow state updates to complete
+    setTimeout(() => {
+      setIsRestoringScreen(false);
+    }, 100);
+  };
+
+  // Clear form to new order state
+  const clearFormState = () => {
+    console.log('🧹 Clearing order form state');
+    setFormSelectedCustomer(null);
+    setFormSelectedProduct(null);
+    setFormSelectedStore(null);
+    setProductTableData([]);
+    setPaymentData({
+      cash: '',
+      bank: '',
+      bankAccountId: '',
+      totalCashReceived: 0,
+      discount: '',
+      labour: '',
+      deliveryCharges: '',
+      notes: ''
+    });
+    setBillType('ORDER');
+    setProductFormData({
+      quantity: '',
+      rate: '',
+      amount: 0,
+      stock: 0
+    });
+    setNewTransport({ amount: 0, accountId: '' });
+    // Note: transportAccounts are global and should not be cleared
+    setTransportOptions([]);
+    setShowScreenIndicator(true);
+    setTimeout(() => setShowScreenIndicator(false), 1000);
+    showSnackbar('📋 Order form cleared - ready for new entry', 'info');
+  };
+
+  // Open new screen (Ctrl+Right)
+  const openNewScreen = useCallback(() => {
+    console.log('➡️ OPENING NEW ORDER SCREEN');
+    console.log('📷 Current state before capture:', {
+      customer: formSelectedCustomer?.cus_name,
+      products: productTableData.length,
+      totalAmount: paymentData
+    });
+
+    const currentState = captureScreenState();
+    const newStack = screenStack.slice(0, currentScreenIndex + 1);
+
+    // Ensure new screen has current transport accounts
+    const newScreenState = {
+      ...currentState,
+      transportAccounts: transportAccounts.map(t => ({ ...t })),
+      transportOptions: transportOptions.map(t => ({ ...t }))
+    };
+
+    newStack.push(newScreenState);
+
+    console.log('📚 New stack created:', newStack.length, 'screens');
+
+    setScreenStack(newStack);
+    setCurrentScreenIndex(newStack.length - 1);
+
+    // NOW clear form for the new blank screen (but keep transport accounts)
+    clearFormState();
+    showSnackbar(`📋 Order Screen ${newStack.length} | Starting fresh (previous state saved)`, 'info');
+  }, [formSelectedCustomer, formSelectedStore, productTableData, paymentData, billType, formSelectedProduct, productFormData, newTransport, transportAccounts, transportOptions, currentScreenIndex, screenStack]);
+
+  // Go back to previous screen (Ctrl+Left) - NO AUTO-CLEAR, only navigate if possible
+  const goToPreviousScreen = useCallback(() => {
+    console.log('⬅️ GOING TO PREVIOUS ORDER SCREEN');
+    console.log('📊 Current stack:', {
+      currentIndex: currentScreenIndex,
+      stackLength: screenStack.length,
+      stateAtCurrentIndex: screenStack[currentScreenIndex]
+    });
+
+    if (currentScreenIndex > 0) {
+      const previousIndex = currentScreenIndex - 1;
+      const previousState = screenStack[previousIndex];
+
+      console.log('🔄 Restoring from index:', previousIndex);
+      console.log('🔄 State to restore:', previousState);
+
+      restoreScreenState(previousState);
+      setCurrentScreenIndex(previousIndex);
+      showSnackbar(`📋 Order Screen ${previousIndex + 1} | ${previousState.customerName}`, 'info');
+    } else if (currentScreenIndex === 0) {
+      // At first screen - can't go back, just notify user
+      console.log('ℹ️ Already at first screen, cannot go back');
+      showSnackbar('📋 You are at the first screen. Click "Cancel Current" to discard or "Cancel" to save later.', 'info');
+    }
+  }, [currentScreenIndex, screenStack]);
+
+  // Go forward to next screen (Ctrl+Right after going back) - NO AUTO-CLEAR
+  const goToNextScreen = useCallback(() => {
+    console.log('➡️ GOING TO NEXT ORDER SCREEN');
+    if (currentScreenIndex < screenStack.length - 1) {
+      const nextIndex = currentScreenIndex + 1;
+      const nextState = screenStack[nextIndex];
+      restoreScreenState(nextState);
+      setCurrentScreenIndex(nextIndex);
+      showSnackbar(`📋 Order Screen ${nextIndex + 1} | ${nextState.customerName}`, 'info');
+    } else {
+      console.log('ℹ️ Already at last screen');
+      showSnackbar('📋 You are at the last screen. Press Ctrl+Right to create a new screen.', 'info');
+    }
+  }, [currentScreenIndex, screenStack]);
+
+  // Smart forward navigation - Go to next screen OR create new if at the end
+  const handleForwardNavigation = useCallback(() => {
+    console.log('➡️ SMART FORWARD NAVIGATION');
+    console.log('📊 Current status:', {
+      currentIndex: currentScreenIndex,
+      stackLength: screenStack.length,
+      atEnd: currentScreenIndex >= screenStack.length - 1
+    });
+
+    if (currentScreenIndex < screenStack.length - 1) {
+      // Navigate to next existing screen
+      goToNextScreen();
+    } else {
+      // At the end - create new screen
+      openNewScreen();
+    }
+  }, [currentScreenIndex, screenStack, goToNextScreen, openNewScreen]);
+
+  // Cancel current screen (Ctrl+X) - Remove current screen and go to previous
+  const cancelCurrentScreen = useCallback(() => {
+    console.log('❌ CANCELLING CURRENT ORDER SCREEN');
+    console.log('📊 Current stack before cancel:', {
+      currentIndex: currentScreenIndex,
+      stackLength: screenStack.length
+    });
+
+    if (screenStack.length <= 1) {
+      // Only one screen - just clear it
+      console.log('ℹ️ Only one screen - clearing form');
+      clearFormState();
+      showSnackbar('📋 Order form cleared', 'info');
+      return;
+    }
+
+    if (currentScreenIndex === 0) {
+      // At first screen - remove it and shift everything
+      console.log('🗑️ Removing first screen, shifting remaining screens');
+      const newStack = screenStack.slice(1);
+      const newIndex = 0;
+
+      setScreenStack(newStack);
+      setCurrentScreenIndex(newIndex);
+
+      if (newStack.length > 0) {
+        restoreScreenState(newStack[newIndex]);
+        showSnackbar(`📋 Cancelled Screen 1, now on Screen ${newIndex + 1}`, 'info');
+      } else {
+        clearFormState();
+        showSnackbar('📋 All screens cancelled', 'info');
+      }
+    } else {
+      // Remove current screen and go to previous
+      console.log('🗑️ Removing current screen, going to previous');
+      const newStack = [
+        ...screenStack.slice(0, currentScreenIndex),
+        ...screenStack.slice(currentScreenIndex + 1)
+      ];
+      const newIndex = currentScreenIndex - 1;
+
+      setScreenStack(newStack);
+      setCurrentScreenIndex(newIndex);
+      restoreScreenState(newStack[newIndex]);
+      showSnackbar(`📋 Cancelled Screen ${currentScreenIndex + 1}, back to Screen ${newIndex + 1}`, 'info');
+    }
+  }, [currentScreenIndex, screenStack]);
+
+  // Keyboard event handler for screen navigation
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      // Only handle shortcuts when in create view
+      if (currentView !== 'create') return;
+
+      if (event.ctrlKey || event.metaKey) {
+        switch (event.key) {
+          case 'ArrowRight':
+            event.preventDefault();
+            handleForwardNavigation();
+            break;
+          case 'ArrowLeft':
+            event.preventDefault();
+            goToPreviousScreen();
+            break;
+          case 'x':
+          case 'X':
+            event.preventDefault();
+            cancelCurrentScreen();
+            break;
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [currentView, handleForwardNavigation, goToPreviousScreen, cancelCurrentScreen]);
+
   // Auto-select first store when stores load
   useEffect(() => {
     if (!formSelectedStore && Array.isArray(stores) && stores.length > 0) {
@@ -237,6 +575,50 @@ function OrdersPageContent() {
       fetchBankAccounts(customers);
     }
   }, [customers, customerCategories, customerTypes]);
+
+  // Auto-save when customer changes
+  useEffect(() => {
+    if (currentScreenIndex >= 0 && screenStack[currentScreenIndex]) {
+      const updatedState = captureScreenState();
+      const newStack = [...screenStack];
+      newStack[currentScreenIndex] = updatedState;
+      setScreenStack(newStack);
+      console.log(`💾 Auto-saved on customer change - Order Screen ${currentScreenIndex + 1}`);
+    }
+  }, [formSelectedCustomer]);
+
+  // Auto-save when store changes
+  useEffect(() => {
+    if (currentScreenIndex >= 0 && screenStack[currentScreenIndex]) {
+      const updatedState = captureScreenState();
+      const newStack = [...screenStack];
+      newStack[currentScreenIndex] = updatedState;
+      setScreenStack(newStack);
+      console.log(`💾 Auto-saved on store change - Order Screen ${currentScreenIndex + 1}`);
+    }
+  }, [formSelectedStore]);
+
+  // Auto-save when product table changes
+  useEffect(() => {
+    if (currentScreenIndex >= 0 && screenStack[currentScreenIndex]) {
+      const updatedState = captureScreenState();
+      const newStack = [...screenStack];
+      newStack[currentScreenIndex] = updatedState;
+      setScreenStack(newStack);
+      console.log(`💾 Auto-saved on product table change - Order Screen ${currentScreenIndex + 1}`);
+    }
+  }, [productTableData]);
+
+  // Auto-save when payment data changes
+  useEffect(() => {
+    if (currentScreenIndex >= 0 && screenStack[currentScreenIndex]) {
+      const updatedState = captureScreenState();
+      const newStack = [...screenStack];
+      newStack[currentScreenIndex] = updatedState;
+      setScreenStack(newStack);
+      console.log(`💾 Auto-saved on payment data change - Order Screen ${currentScreenIndex + 1}`);
+    }
+  }, [paymentData]);
 
   const handleSnackbarClose = () => {
     setSnackbar(prev => ({ ...prev, open: false }));
@@ -686,53 +1068,6 @@ function OrdersPageContent() {
     }));
   }, [paymentData.cash, paymentData.bank]);
 
-  // Transport functions
-  const fetchTransportAccounts = async (providedCustomers = null) => {
-    try {
-      let accountsData = providedCustomers;
-
-      if (!accountsData) {
-        const response = await fetch('/api/customers');
-        if (response.ok) {
-          const customersResponse = await response.json();
-          accountsData = customersResponse.value || customersResponse;
-        }
-      }
-
-      if (Array.isArray(accountsData)) {
-        // Filter accounts where category is "Transporter"
-        const transportAccountsData = accountsData.filter(account => {
-          // Use customerCategories state to find category
-          const category = customerCategories.find(c => c.cus_cat_id === account.cus_category);
-          const typeTitle = (account.customer_type?.cus_type_title || '').toLowerCase();
-          const name = (account.cus_name || '').toLowerCase();
-
-          // Check category first (primary filter)
-          if (category) {
-            const catTitle = category.cus_cat_title.toLowerCase();
-            return catTitle.includes('transporter') || catTitle.includes('transport');
-          }
-
-          // Fallback to type or name if category not found
-          return typeTitle.includes('transport') || name.includes('transport');
-        });
-        setTransportAccounts(transportAccountsData);
-      } else {
-        setTransportAccounts([]);
-      }
-    } catch (error) {
-      console.error('❌ Error fetching customer accounts:', error);
-      setTransportAccounts([]);
-    }
-  };
-
-  // Update transport accounts when customers or categories change
-  useEffect(() => {
-    if (customers.length > 0 && customerCategories.length > 0) {
-      fetchTransportAccounts(customers);
-    }
-  }, [customers, customerCategories]);
-
   // Filter customers by category and type for bank accounts
   const filterBankAccountsByCategory = (customers, customerCategories, customerTypes) => {
     console.log('🔍 Filtering bank accounts for orders:');
@@ -780,6 +1115,70 @@ function OrdersPageContent() {
       setBankAccounts([]);
     }
   };
+
+  // Transport functions
+  const fetchTransportAccounts = async (providedCustomers = null) => {
+    try {
+      let accountsData = providedCustomers;
+
+      if (!accountsData) {
+        const response = await fetch('/api/customers');
+        if (response.ok) {
+          const customersResponse = await response.json();
+          accountsData = customersResponse.value || customersResponse;
+        }
+      }
+
+      if (Array.isArray(accountsData)) {
+        // Create a category lookup map for faster filtering
+        const categoryMap = new Map();
+        customerCategories.forEach(cat => {
+          categoryMap.set(cat.cus_cat_id, cat.cus_cat_title.toLowerCase());
+        });
+
+        // Filter accounts where category is "Transporter" - optimized
+        const transportAccountsData = accountsData.filter(account => {
+          const catTitle = categoryMap.get(account.cus_category);
+          if (catTitle) {
+            return catTitle.includes('transporter') || catTitle.includes('transport');
+          }
+
+          // Fallback to type or name if category not found
+          const typeTitle = (account.customer_type?.cus_type_title || '').toLowerCase();
+          const name = (account.cus_name || '').toLowerCase();
+          return typeTitle.includes('transport') || name.includes('transport');
+        });
+
+        // Batch state updates to avoid multiple re-renders
+        setTransportAccounts(transportAccountsData);
+
+        // Update the current screen with the new transport accounts (synchronous)
+        if (currentScreenIndex >= 0 && screenStack[currentScreenIndex]) {
+          const updatedState = {
+            ...screenStack[currentScreenIndex],
+            transportAccounts: transportAccountsData.map(t => ({ ...t })),
+            transportOptions: transportOptions.map(t => ({ ...t })),
+            timestamp: new Date().toLocaleTimeString()
+          };
+          const newStack = [...screenStack];
+          newStack[currentScreenIndex] = updatedState;
+          setScreenStack(newStack);
+        }
+      } else {
+        setTransportAccounts([]);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching transport accounts:', error);
+      setTransportAccounts([]);
+    }
+  };
+
+  // Update transport accounts when customers or categories change
+  useEffect(() => {
+    if (customers.length > 0 && customerCategories.length > 0 && !isRestoringScreen) {
+      fetchTransportAccounts(customers);
+    }
+  }, [customers, customerCategories, isRestoringScreen]);
 
   const handleAddTransport = () => {
     if (newTransport.amount <= 0) {
@@ -1856,6 +2255,79 @@ function OrdersPageContent() {
             </Button>
           </Box>
 
+          {/* Screen Navigation */}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 'medium' }}>
+                Screen {currentScreenIndex + 1} of {screenStack.length}
+              </Typography>
+              {showScreenIndicator && (
+                <Chip
+                  label={`Screen ${currentScreenIndex + 1}`}
+                  size="small"
+                  color="primary"
+                  variant="outlined"
+                  sx={{
+                    animation: 'pulse 1s ease-in-out',
+                    '@keyframes pulse': {
+                      '0%': { opacity: 1 },
+                      '50%': { opacity: 0.5 },
+                      '100%': { opacity: 1 }
+                    }
+                  }}
+                />
+              )}
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Tooltip title="Previous Screen (Ctrl+Left)">
+                <IconButton
+                  onClick={goToPreviousScreen}
+                  disabled={currentScreenIndex <= 0}
+                  size="small"
+                  sx={{
+                    color: currentScreenIndex <= 0 ? 'text.disabled' : 'primary.main',
+                    '&:hover': {
+                      bgcolor: 'primary.light',
+                      color: 'white'
+                    }
+                  }}
+                >
+                  <ArrowBackIcon />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Next Screen / New Screen (Ctrl+Right)">
+                <IconButton
+                  onClick={handleForwardNavigation}
+                  size="small"
+                  sx={{
+                    color: 'primary.main',
+                    '&:hover': {
+                      bgcolor: 'primary.light',
+                      color: 'white'
+                    }
+                  }}
+                >
+                  <ArrowForwardIcon />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Cancel Current Screen (Ctrl+X)">
+                <IconButton
+                  onClick={cancelCurrentScreen}
+                  size="small"
+                  sx={{
+                    color: 'error.main',
+                    '&:hover': {
+                      bgcolor: 'error.light',
+                      color: 'white'
+                    }
+                  }}
+                >
+                  <CancelIcon />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          </Box>
+
 
           {/* Main Form */}
           <Card>
@@ -2562,6 +3034,19 @@ function OrdersPageContent() {
                   onClick={() => setCurrentView('list')}
                 >
                   Cancel
+                </Button>
+                <Button
+                  variant="contained"
+                  sx={{
+                    bgcolor: '#6c757d',
+                    color: 'white',
+                    borderRadius: 2,
+                    '&:hover': { bgcolor: '#5a6268' }
+                  }}
+                  onClick={cancelCurrentScreen}
+                  disabled={screenStack.length <= 1}
+                >
+                  Cancel Current Screen
                 </Button>
                 <Button
                   variant="contained"

@@ -262,6 +262,9 @@ function SalesPageContent() {
   // Bill type state
   const [billType, setBillType] = useState('BILL');
 
+  // Flag to track when we're restoring screen state
+  const [isRestoringScreen, setIsRestoringScreen] = useState(false);
+
   // Load Order state
   const [loadOrderDialogOpen, setLoadOrderDialogOpen] = useState(false);
   const [orderSearchTerm, setOrderSearchTerm] = useState('');
@@ -469,7 +472,8 @@ function SalesPageContent() {
       return;
     }
 
-    console.log('🔄 Restoring screen state:', state);
+    // Set flag to prevent automatic fetching during restoration
+    setIsRestoringScreen(true);
 
     // Restore all state at once to ensure consistency
     setFormSelectedCustomer(state.formSelectedCustomer);
@@ -480,8 +484,13 @@ function SalesPageContent() {
     setFormSelectedProduct(state.formSelectedProduct);
     setProductFormData(state.productFormData);
     setNewTransport(state.newTransport);
-    setTransportAccounts(state.transportAccounts);
-    setTransportOptions(state.transportOptions);
+    setTransportAccounts(state.transportAccounts || []);
+    setTransportOptions(state.transportOptions || []);
+
+    // Clear the flag after a short delay to allow state updates to complete
+    setTimeout(() => {
+      setIsRestoringScreen(false);
+    }, 100);
   };
 
   // Clear form to new sale state
@@ -511,7 +520,7 @@ function SalesPageContent() {
       crate: ''
     });
     setNewTransport({ amount: 0, accountId: '' });
-    setTransportAccounts([]);
+    // Note: transportAccounts are global and should not be cleared
     setTransportOptions([]);
     setShowScreenIndicator(true);
     setTimeout(() => setShowScreenIndicator(false), 1000);
@@ -529,14 +538,22 @@ function SalesPageContent() {
 
     const currentState = captureScreenState();
     const newStack = screenStack.slice(0, currentScreenIndex + 1);
-    newStack.push(currentState);
+    
+    // Ensure new screen has current transport accounts
+    const newScreenState = {
+      ...currentState,
+      transportAccounts: transportAccounts.map(t => ({ ...t })),
+      transportOptions: transportOptions.map(t => ({ ...t }))
+    };
+    
+    newStack.push(newScreenState);
 
     console.log('📚 New stack created:', newStack.length, 'screens');
 
     setScreenStack(newStack);
     setCurrentScreenIndex(newStack.length - 1);
 
-    // NOW clear form for the new blank screen
+    // NOW clear form for the new blank screen (but keep transport accounts)
     clearFormState();
     showSnackbar(`📋 Screen ${newStack.length} | Starting fresh (previous state saved)`, 'info');
   }, [formSelectedCustomer, formSelectedStore, productTableData, paymentData, billType, formSelectedProduct, productFormData, newTransport, transportAccounts, transportOptions, currentScreenIndex, screenStack]);
@@ -602,7 +619,7 @@ function SalesPageContent() {
     }
   }, [currentScreenIndex, screenStack, goToNextScreen, openNewScreen]);
 
-  // Cancel current screen - Remove it from the stack and go to previous or clear
+  // Cancel current screen - Remove it from the stack and go to previous or reset
   const cancelCurrentScreen = useCallback(() => {
     console.log('❌ CANCELING CURRENT SCREEN');
     console.log('📊 Stack before cancel:', {
@@ -611,7 +628,7 @@ function SalesPageContent() {
     });
 
     if (screenStack.length === 1) {
-      // Only default screen - just clear the form but keep the screen
+      // Only default screen - reset the form
       clearFormState();
       showSnackbar('Screen 1 reset - ready for new entry', 'info');
     } else if (screenStack.length > 1 && currentScreenIndex > 0) {
@@ -637,6 +654,7 @@ function SalesPageContent() {
   // Screen navigation keyboard shortcuts - FIX: Use memoized callbacks
   // Ctrl+Right: Go to next screen if exists, or create new
   // Ctrl+Left: Go to previous screen
+  // Ctrl+X: Cancel current screen
   useEffect(() => {
     const handleScreenNavigation = (e) => {
       // Ctrl+Right Arrow = Go to next existing screen OR create new
@@ -651,11 +669,17 @@ function SalesPageContent() {
         console.log('⌨️ Ctrl+Left pressed');
         goToPreviousScreen();
       }
+      // Ctrl+X = Cancel current screen
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'x' || e.key === 'X')) {
+        e.preventDefault();
+        console.log('⌨️ Ctrl+X pressed');
+        cancelCurrentScreen();
+      }
     };
 
     window.addEventListener('keydown', handleScreenNavigation);
     return () => window.removeEventListener('keydown', handleScreenNavigation);
-  }, [handleForwardNavigation, goToPreviousScreen]);
+  }, [handleForwardNavigation, goToPreviousScreen, cancelCurrentScreen]);
 
   // Handle product selection
   const handleProductSelect = (selectedProduct) => {
@@ -1532,23 +1556,40 @@ function SalesPageContent() {
       }
 
       if (Array.isArray(accountsData)) {
-        // Filter accounts where category is "Transporter"
-        const transportAccountsData = accountsData.filter(account => {
-          // Use customerCategories state to find category
-          const category = customerCategories.find(c => c.cus_cat_id === account.cus_category);
-          const typeTitle = (account.customer_type?.cus_type_title || '').toLowerCase();
-          const name = (account.cus_name || '').toLowerCase();
+        // Create a category lookup map for faster filtering
+        const categoryMap = new Map();
+        customerCategories.forEach(cat => {
+          categoryMap.set(cat.cus_cat_id, cat.cus_cat_title.toLowerCase());
+        });
 
-          // Check category first (primary filter)
-          if (category) {
-            const catTitle = category.cus_cat_title.toLowerCase();
+        // Filter accounts where category is "Transporter" - optimized
+        const transportAccountsData = accountsData.filter(account => {
+          const catTitle = categoryMap.get(account.cus_category);
+          if (catTitle) {
             return catTitle.includes('transporter') || catTitle.includes('transport');
           }
 
-          // Fallback to type or name if category not found (optional, but safer)
+          // Fallback to type or name if category not found
+          const typeTitle = (account.customer_type?.cus_type_title || '').toLowerCase();
+          const name = (account.cus_name || '').toLowerCase();
           return typeTitle.includes('transport') || name.includes('transport');
         });
+
+        // Batch state updates to avoid multiple re-renders
         setTransportAccounts(transportAccountsData);
+
+        // Update the current screen with the new transport accounts (synchronous)
+        if (currentScreenIndex >= 0 && screenStack[currentScreenIndex]) {
+          const updatedState = {
+            ...screenStack[currentScreenIndex],
+            transportAccounts: transportAccountsData.map(t => ({ ...t })),
+            transportOptions: transportOptions.map(t => ({ ...t })),
+            timestamp: new Date().toLocaleTimeString()
+          };
+          const newStack = [...screenStack];
+          newStack[currentScreenIndex] = updatedState;
+          setScreenStack(newStack);
+        }
       } else {
         setTransportAccounts([]);
       }
@@ -1560,10 +1601,10 @@ function SalesPageContent() {
 
   // Update transport accounts when customers or categories change
   useEffect(() => {
-    if (customers.length > 0 && customerCategories.length > 0) {
+    if (customers.length > 0 && customerCategories.length > 0 && !isRestoringScreen) {
       fetchTransportAccounts(customers);
     }
-  }, [customers, customerCategories]);
+  }, [customers, customerCategories, isRestoringScreen]);
 
   // Filter customers by category and type for bank accounts
   const filterBankAccountsByCategory = (customers, customerCategories, customerTypes) => {
@@ -3067,6 +3108,47 @@ function SalesPageContent() {
           </Box>
 
 
+          {/* Screen Stack Indicator */}
+          {currentScreenIndex >= 0 && screenStack.length > 0 && (
+            <Box sx={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', mt: 2, mb: 2, gap: 1 }}>
+              <Box
+                sx={{
+                  background: 'rgba(51, 65, 85, 0.1)',
+                  color: '#475569',
+                  padding: '2px 10px',
+                  borderRadius: '4px',
+                  fontSize: '11px',
+                  fontWeight: 'bold',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                  border: '1px solid rgba(51, 65, 85, 0.2)'
+                }}
+              >
+                SCREEN {currentScreenIndex + 1}
+                {screenStack.length > 1 && (
+                  <span style={{ opacity: 0.7, fontSize: '10px', marginLeft: '4px' }}>
+                    ({currentScreenIndex + 1}/{screenStack.length})
+                  </span>
+                )}
+              </Box>
+              {screenStack.length > 1 && (
+                <IconButton
+                  size="small"
+                  onClick={cancelCurrentScreen}
+                  title="Cancel this screen (Ctrl+X)"
+                  sx={{
+                    color: '#dc3545',
+                    padding: 0,
+                    '&:hover': { bgcolor: 'rgba(220, 53, 69, 0.1)' }
+                  }}
+                >
+                  <CloseIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+              )}
+            </Box>
+          )}
+
           {/* Main Form */}
           <Card>
             <CardContent sx={{ p: 2 }}>
@@ -3142,21 +3224,6 @@ function SalesPageContent() {
                   />
                 </Box>
 
-                {/* Screen Indicator - Small, left corner, black */}
-                {screenStack.length > 0 && (
-                  <Box sx={{
-                    mt: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
-                    color: 'white',
-                    fontSize: '0.85rem'
-                  }}>
-                    <Typography variant="caption" sx={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
-                      Screen {currentScreenIndex + 1} ({screenStack.length} screens)
-                    </Typography>
-                  </Box>
-                )}
               </Box>
 
               {/* Order Search Row (Only show if NOT Return, to avoid clutter) */}
@@ -4258,7 +4325,7 @@ function SalesPageContent() {
                   tabIndex={-1}
                   onClick={cancelCurrentScreen}
                   disabled={screenStack.length === 1}
-                  title={screenStack.length === 1 ? 'Cannot cancel - this is the only screen (use Clear to reset)' : 'Remove current screen from stack'}
+                  title={screenStack.length === 1 ? 'Reset current screen (cannot cancel - this is the only screen)' : 'Remove current screen from stack'}
                 >
                   ✕ Cancel Current
                 </Button>
