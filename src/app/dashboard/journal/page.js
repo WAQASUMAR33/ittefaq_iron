@@ -332,7 +332,7 @@ export default function JournalPage() {
         : { 
             ...formData, 
             total_amount: totalAmount.toString(),
-            created_by: 1 // TODO: Get actual user ID
+            created_by: 6 // System Administrator
           };
 
       const response = await fetch(url, {
@@ -368,7 +368,7 @@ export default function JournalPage() {
         const response = await fetch('/api/journals/post', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ journal_id: journalId, posted_by: 1 }) // TODO: Get actual user ID
+          body: JSON.stringify({ journal_id: journalId, posted_by: 6 }) // System Administrator
         });
 
         if (response.ok) {

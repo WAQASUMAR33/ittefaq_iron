@@ -332,7 +332,7 @@ export default function FinancePage() {
             credit_amount: l.credit_amount || 0,
             description: l.description || journalData.description
           })),
-          created_by: 1 // TODO: Session
+          created_by: 6 // System Administrator
         })
       });
 
