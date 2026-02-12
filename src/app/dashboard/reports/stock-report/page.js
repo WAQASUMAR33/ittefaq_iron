@@ -18,6 +18,12 @@ export default function StockReport() {
   const [minStockValue, setMinStockValue] = useState('');
   const [maxStockValue, setMaxStockValue] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Price adjustment modal state
+  const [showAdjustmentModal, setShowAdjustmentModal] = useState(false);
+  const [adjustmentType, setAdjustmentType] = useState('increase'); // 'increase' or 'decrease'
+  const [adjustmentPercentage, setAdjustmentPercentage] = useState('');
+  const [adjustmentLoading, setAdjustmentLoading] = useState(false);
 
   useEffect(() => { fetchCategories(); fetchStores(); fetchReport(); }, []);
 
@@ -87,6 +93,50 @@ export default function StockReport() {
     a.href = url;
     a.download = `stock-valuation-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
+  };
+
+  const applyPriceAdjustment = async () => {
+    if (!selectedCategory) {
+      alert('Please select a category');
+      return;
+    }
+    if (!adjustmentPercentage || parseFloat(adjustmentPercentage) <= 0) {
+      alert('Please enter a valid percentage');
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to ${adjustmentType} prices by ${adjustmentPercentage}% for all products in this category?`)) {
+      return;
+    }
+
+    try {
+      setAdjustmentLoading(true);
+      const response = await fetch('/api/products/adjust-price', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          categoryId: parseInt(selectedCategory),
+          percentage: parseFloat(adjustmentPercentage),
+          type: adjustmentType // 'increase' or 'decrease'
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert(`✅ Successfully updated ${data.updatedCount} products!`);
+        setShowAdjustmentModal(false);
+        setAdjustmentPercentage('');
+        await fetchReport(); // Refresh the data
+      } else {
+        alert(`Error: ${data.message || 'Failed to update prices'}`);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Error updating prices');
+    } finally {
+      setAdjustmentLoading(false);
+    }
   };
 
   const getFilteredData = () => {
@@ -255,6 +305,11 @@ export default function StockReport() {
                 <button onClick={handlePrint} className="flex items-center px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors">
                   <Printer className="w-4 h-4 mr-2" /> Print
                 </button>
+                {selectedCategory && (
+                  <button onClick={() => setShowAdjustmentModal(true)} className="flex items-center px-4 py-2 bg-orange-600 hover:bg-orange-700 rounded-lg text-sm font-medium transition-colors">
+                    <AlertTriangle className="w-4 h-4 mr-2" /> Adjust Prices
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -515,6 +570,95 @@ export default function StockReport() {
           </div>
         )}
       </div>
+
+      {/* Price Adjustment Modal */}
+      {showAdjustmentModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setShowAdjustmentModal(false)}></div>
+            
+            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full">
+              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div className="sm:flex sm:items-start">
+                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                    <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+                      Adjust Prices for Category
+                    </h3>
+                    
+                    {/* Adjustment Type Radio Buttons */}
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Adjustment Type</label>
+                      <div className="flex gap-6">
+                        <label className="flex items-center">
+                          <input
+                            type="radio"
+                            value="increase"
+                            checked={adjustmentType === 'increase'}
+                            onChange={(e) => setAdjustmentType(e.target.value)}
+                            className="mr-2 cursor-pointer"
+                          />
+                          <span className="text-sm text-gray-700">Increase Prices</span>
+                        </label>
+                        <label className="flex items-center">
+                          <input
+                            type="radio"
+                            value="decrease"
+                            checked={adjustmentType === 'decrease'}
+                            onChange={(e) => setAdjustmentType(e.target.value)}
+                            className="mr-2 cursor-pointer"
+                          />
+                          <span className="text-sm text-gray-700">Decrease Prices</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Percentage Input */}
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Percentage (%)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        value={adjustmentPercentage}
+                        onChange={(e) => setAdjustmentPercentage(e.target.value)}
+                        placeholder="Enter percentage"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                      />
+                    </div>
+
+                    {/* Info Text */}
+                    <div className="bg-blue-50 border border-blue-200 rounded p-2 text-xs text-blue-700 mb-4">
+                      All rates (Cost, Crate, Sale) will be adjusted by {adjustmentPercentage || '0'}% {adjustmentType === 'increase' ? 'increase' : 'decrease'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-2">
+                <button
+                  onClick={applyPriceAdjustment}
+                  disabled={adjustmentLoading || !adjustmentPercentage}
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-orange-600 text-base font-medium text-white hover:bg-orange-700 disabled:bg-orange-400 sm:w-auto sm:text-sm transition-colors"
+                >
+                  {adjustmentLoading ? 'Updating...' : 'Apply Adjustment'}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowAdjustmentModal(false);
+                    setAdjustmentPercentage('');
+                  }}
+                  disabled={adjustmentLoading}
+                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 disabled:bg-gray-100 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style jsx global>{`
         @media print {
