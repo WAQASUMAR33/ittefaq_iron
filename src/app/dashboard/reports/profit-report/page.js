@@ -17,6 +17,21 @@ export default function ProfitReport() {
   const [accounts, setAccounts] = useState([]);
   const [selectedAccount, setSelectedAccount] = useState('');
 
+  // Set default dates on mount
+  useEffect(() => {
+    const today = new Date().toISOString().split('T')[0];
+    const yearAgo = new Date(2000, 0, 1).toISOString().split('T')[0]; // From year 2000
+    setStartDate(yearAgo);
+    setEndDate(today);
+  }, []);
+
+  // Auto-fetch report when dates are set
+  useEffect(() => {
+    if (startDate && endDate) {
+      fetchReport();
+    }
+  }, [startDate, endDate]);
+
   useEffect(() => { fetchCategories(); }, []);
 
   useEffect(() => {
@@ -55,7 +70,7 @@ export default function ProfitReport() {
   };
 
   const fetchReport = async () => {
-    if (!startDate || !endDate) { alert('Please select date range'); return; }
+    if (!startDate || !endDate) { return; }
     try {
       setLoading(true);
       const response = await fetch(`/api/reports?type=profit-report&startDate=${startDate}&endDate=${endDate}`);

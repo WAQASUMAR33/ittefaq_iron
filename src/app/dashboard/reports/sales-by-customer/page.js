@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Download,
   Printer,
@@ -17,9 +17,23 @@ export default function SalesByCustomerReport() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
+  // Set default dates and auto-fetch on mount
+  useEffect(() => {
+    const today = new Date().toISOString().split('T')[0];
+    const yearAgo = new Date(2000, 0, 1).toISOString().split('T')[0]; // From year 2000
+    setStartDate(yearAgo);
+    setEndDate(today);
+  }, []);
+
+  // Auto-fetch report when dates are set
+  useEffect(() => {
+    if (startDate && endDate) {
+      fetchReport();
+    }
+  }, [startDate, endDate]);
+
   const fetchReport = async () => {
     if (!startDate || !endDate) {
-      alert('Please select both start and end dates');
       return;
     }
 

@@ -25,9 +25,21 @@ export default function SupplierLedgerReport() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
+  // Set default dates on mount
   useEffect(() => {
+    const today = new Date().toISOString().split('T')[0];
+    const yearAgo = new Date(2000, 0, 1).toISOString().split('T')[0]; // From year 2000
+    setStartDate(yearAgo);
+    setEndDate(today);
     fetchSuppliers();
   }, []);
+
+  // Auto-fetch report when supplier and dates are set
+  useEffect(() => {
+    if (selectedSupplier && startDate && endDate) {
+      fetchReport();
+    }
+  }, [selectedSupplier, startDate, endDate]);
 
   const fetchSuppliers = async () => {
     try {
@@ -55,14 +67,8 @@ export default function SupplierLedgerReport() {
     setSupplierSearchTerm(supplier.cus_name);
     setShowSupplierDropdown(false);
   };
-
   const fetchReport = async () => {
-    if (!selectedSupplier) {
-      alert('Please select a supplier');
-      return;
-    }
-    if (!startDate || !endDate) {
-      alert('Please select both start and end dates');
+    if (!selectedSupplier || !startDate || !endDate) {
       return;
     }
 

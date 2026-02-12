@@ -25,9 +25,21 @@ export default function CustomerLedgerReport() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
+  // Set default dates on mount
   useEffect(() => {
+    const today = new Date().toISOString().split('T')[0];
+    const yearAgo = new Date(2000, 0, 1).toISOString().split('T')[0]; // From year 2000
+    setStartDate(yearAgo);
+    setEndDate(today);
     fetchCustomers();
   }, []);
+
+  // Auto-fetch report when customer and dates are set
+  useEffect(() => {
+    if (selectedCustomer && startDate && endDate) {
+      fetchReport();
+    }
+  }, [selectedCustomer, startDate, endDate]);
 
   const fetchCustomers = async () => {
     try {
@@ -56,12 +68,7 @@ export default function CustomerLedgerReport() {
   };
 
   const fetchReport = async () => {
-    if (!selectedCustomer) {
-      alert('Please select a customer');
-      return;
-    }
-    if (!startDate || !endDate) {
-      alert('Please select both start and end dates');
+    if (!selectedCustomer || !startDate || !endDate) {
       return;
     }
 
