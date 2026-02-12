@@ -846,6 +846,19 @@ function SalesPageContent() {
       stock: 0,
       crate: ''
     });
+
+    // Auto-focus on CASH field after adding product
+    setTimeout(() => {
+      const paymentInputs = document.querySelectorAll('input[type="number"]');
+      // Find cash field - it should be one of the payment inputs
+      if (paymentInputs.length > 0) {
+        // Look for payment data inputs in the payment section
+        const paymentSection = document.querySelectorAll('input[placeholder=" "]');
+        if (paymentSection.length > 0) {
+          paymentSection[0]?.focus();
+        }
+      }
+    }, 5000);
   };
 
   // Keyboard shortcut 'a' to add product
@@ -3544,6 +3557,13 @@ function SalesPageContent() {
                               }
                             }, 0);
                           }
+                        } else if (e.key === 'Tab') {
+                          e.preventDefault();
+                          // Move to RATE field
+                          const rateInputs = document.querySelectorAll('input[type="number"]');
+                          if (rateInputs.length > 1) {
+                            rateInputs[1].focus();
+                          }
                         }
                       }}
                       sx={{ bgcolor: 'white', width: 130, minWidth: 130 }}
@@ -3567,6 +3587,13 @@ function SalesPageContent() {
                           e.preventDefault();
                           // Add product to table when Enter is pressed in rate field
                           handleAddProductToTable();
+                        } else if (e.key === 'Tab') {
+                          e.preventDefault();
+                          // Tab should focus the + button
+                          const addBtn = document.getElementById('add-product-btn');
+                          if (addBtn) {
+                            addBtn.focus();
+                          }
                         }
                       }}
                       sx={{ bgcolor: 'white', width: 150, minWidth: 150 }}
@@ -3875,6 +3902,18 @@ function SalesPageContent() {
                           value={paymentData.bank === 0 ? '' : paymentData.bank}
                           onChange={(e) => handlePaymentDataChange('bank', e.target.value)}
                           onFocus={(e) => e.target.select()}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Tab') {
+                              e.preventDefault();
+                              // Move focus to BANK ACCOUNT field
+                              setTimeout(() => {
+                                const bankAccountInput = document.querySelector('input[placeholder="Select Bank"]');
+                                if (bankAccountInput) {
+                                  bankAccountInput.focus();
+                                }
+                              }, 0);
+                            }
+                          }}
                           sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' } }}
                           placeholder="0"
                         />
@@ -3892,6 +3931,22 @@ function SalesPageContent() {
                           value={bankAccounts.find(account => account.cus_id === paymentData.bankAccountId) || null}
                           onChange={(event, newValue) => {
                             handlePaymentDataChange('bankAccountId', newValue ? newValue.cus_id : '');
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Tab') {
+                              e.preventDefault();
+                              // Auto-select first bank account on Tab
+                              if (bankAccounts.length > 0 && !paymentData.bankAccountId) {
+                                handlePaymentDataChange('bankAccountId', bankAccounts[0].cus_id);
+                              }
+                              // Close dropdown, blur field, and allow natural tab to next element
+                              setTimeout(() => {
+                                const inputField = document.querySelector('input[placeholder="Select Bank"]');
+                                if (inputField) {
+                                  inputField.blur();
+                                }
+                              }, 0);
+                            }
                           }}
                           isOptionEqualToValue={(option, value) => option.cus_id === value?.cus_id}
                           autoSelect={true}
@@ -4369,12 +4424,6 @@ function SalesPageContent() {
                     '&:hover': { bgcolor: '#218838' }
                   }}
                   onClick={handleSaveBill}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Tab' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSaveBill();
-                    }
-                  }}
                   disabled={loading}
                 >
                   {loading ? (

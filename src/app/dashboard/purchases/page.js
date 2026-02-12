@@ -924,6 +924,15 @@ function PurchasesPageContent() {
       unit_rate: '',
       crate: ''
     });
+
+    // Auto-focus on CASH field after adding product
+    setTimeout(() => {
+      const cashPaymentInputs = document.querySelectorAll('input[placeholder="Enter amount"]');
+      // Focus on first cash payment input
+      if (cashPaymentInputs.length > 0) {
+        cashPaymentInputs[0]?.focus();
+      }
+    }, 100);
   };
 
   // Keyboard shortcut 'a' to add product
@@ -2586,6 +2595,16 @@ function PurchasesPageContent() {
                           }
                           setCustomerDropdownOpen(false);
                         }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && formSelectedCustomer) {
+                            e.preventDefault();
+                            // Move focus to Store field
+                            const storeInputs = document.querySelectorAll('input[placeholder*="Select store"]');
+                            if (storeInputs.length > 0) {
+                              storeInputs[0]?.focus();
+                            }
+                          }
+                        }}
                         renderInput={(params) => (
                           <TextField
                             {...params}
@@ -2923,6 +2942,16 @@ function PurchasesPageContent() {
                             store_id: newValue ? newValue.storeid.toString() : ''
                           }));
                         }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && formData.store_id) {
+                            e.preventDefault();
+                            // Move focus to Product field
+                            const productInputs = document.querySelectorAll('input[placeholder*="Select product"]');
+                            if (productInputs.length > 0) {
+                              productInputs[0]?.focus();
+                            }
+                          }
+                        }}
                         renderInput={(params) => (
                           <TextField
                             {...params}
@@ -2991,6 +3020,16 @@ function PurchasesPageContent() {
                             handleProductSelect(newValue);
                           }
                         }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && selectedProduct) {
+                            e.preventDefault();
+                            // Move focus to Quantity field
+                            const qtyInputs = document.querySelectorAll('input[type="number"]');
+                            if (qtyInputs.length > 0) {
+                              qtyInputs[0]?.focus();
+                            }
+                          }
+                        }}
                         filterOptions={(options, { inputValue }) => {
                           return options.filter(option =>
                             option.pro_title.toLowerCase().includes(inputValue.toLowerCase()) ||
@@ -3023,6 +3062,31 @@ function PurchasesPageContent() {
                         value={productFormData.qnty}
                         onChange={(e) => setProductFormData(prev => ({ ...prev, qnty: e.target.value }))}
                         onFocus={(e) => e.target.select()}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            // If rate is already filled, add product directly
+                            if (productFormData.unit_rate > 0) {
+                              addProductToPurchase();
+                            } else {
+                              // Focus on rate field if rate is not filled
+                              setTimeout(() => {
+                                const rateInputs = document.querySelectorAll('input[type="number"]');
+                                // Find the rate input (it's the next number input after quantity)
+                                if (rateInputs.length > 1) {
+                                  rateInputs[1].focus();
+                                }
+                              }, 0);
+                            }
+                          } else if (e.key === 'Tab') {
+                            e.preventDefault();
+                            // Tab should move to RATE field
+                            const rateInputs = document.querySelectorAll('input[type="number"]');
+                            if (rateInputs.length > 1) {
+                              rateInputs[1].focus();
+                            }
+                          }
+                        }}
                         inputProps={{ min: 1 }}
                         sx={{ width: '100%' }}
                       />
@@ -3040,6 +3104,30 @@ function PurchasesPageContent() {
                         value={productFormData.unit_rate}
                         onChange={(e) => setProductFormData(prev => ({ ...prev, unit_rate: e.target.value }))}
                         onFocus={(e) => e.target.select()}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            // Add product to table when Enter is pressed in rate field
+                            addProductToPurchase();
+                          } else if (e.key === 'Tab') {
+                            e.preventDefault();
+                            // Tab should focus the CRATE field or + button
+                            const crateInputs = document.querySelectorAll('input[type="number"]');
+                            // Find CRATE field (it's after RATE)
+                            for (let i = 0; i < crateInputs.length; i++) {
+                              const input = crateInputs[i];
+                              if (input.parentElement?.parentElement?.querySelector('p, span')?.textContent?.includes('CRATE')) {
+                                input.focus();
+                                return;
+                              }
+                            }
+                            // If no CRATE field, focus the + button
+                            const addBtn = document.getElementById('add-product-btn');
+                            if (addBtn) {
+                              addBtn.focus();
+                            }
+                          }
+                        }}
                         inputProps={{ min: 0 }}
                         sx={{ width: '100%' }}
                       />
@@ -3057,6 +3145,20 @@ function PurchasesPageContent() {
                         value={productFormData.crate || productFormData.unit_rate}
                         onChange={(e) => setProductFormData(prev => ({ ...prev, crate: e.target.value }))}
                         onFocus={(e) => e.target.select()}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            // Press Enter to add product
+                            addProductToPurchase();
+                          } else if (e.key === 'Tab') {
+                            e.preventDefault();
+                            // Tab should focus the + button
+                            const addBtn = document.getElementById('add-product-btn');
+                            if (addBtn) {
+                              addBtn.focus();
+                            }
+                          }
+                        }}
                         inputProps={{ min: 0 }}
                         sx={{ width: 100, minWidth: 100 }}
                       />
@@ -3082,15 +3184,6 @@ function PurchasesPageContent() {
                       variant="contained"
                       id="add-product-btn"
                       onClick={addProductToPurchase}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Tab' && !e.shiftKey) {
-                          e.preventDefault();
-                          addProductToPurchase();
-                          // Move focus back to product search
-                          const productInput = document.querySelector('input[placeholder*="Select product"]');
-                          if (productInput) productInput.focus();
-                        }
-                      }}
                       disabled={!productFormData.qnty || !productFormData.unit_rate}
                       sx={{
                         bgcolor: 'secondary.main',
@@ -3274,6 +3367,18 @@ function PurchasesPageContent() {
                           onChange={(e) => {
                             setFormData(prev => ({ ...prev, bank_payment: e.target.value }));
                           }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Tab') {
+                              e.preventDefault();
+                              // Move focus to BANK ACCOUNT field
+                              setTimeout(() => {
+                                const bankAccountInput = document.querySelector('input[placeholder="Select Bank Account"]');
+                                if (bankAccountInput) {
+                                  bankAccountInput.focus();
+                                }
+                              }, 0);
+                            }
+                          }}
                           inputProps={{ min: 0 }}
                           sx={{ width: '100%' }}
                           placeholder="Enter amount"
@@ -3309,6 +3414,30 @@ function PurchasesPageContent() {
                               credit_account_id: newValue ? newValue.cus_id.toString() : ''
                             }));
                             setBankAccountDropdownOpen(false);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Tab') {
+                              e.preventDefault();
+                              // Auto-select first bank account option on Tab
+                              const accountsToUse = bankAccounts.length > 0 ? bankAccounts : customers;
+                              if (accountsToUse.length > 0 && !selectedBankAccount) {
+                                const firstAccount = accountsToUse[0];
+                                setSelectedBankAccount(firstAccount);
+                                setFormData(prev => ({
+                                  ...prev,
+                                  credit_account_id: firstAccount.cus_id.toString()
+                                }));
+                              }
+                              // Close dropdown, blur field, and allow natural tab to next element
+                              setBankAccountDropdownOpen(false);
+                              setTimeout(() => {
+                                // Find this autocomplete field and blur it to force focus movement
+                                const inputField = document.querySelector('input[placeholder="Select Bank Account"]');
+                                if (inputField) {
+                                  inputField.blur();
+                                }
+                              }, 0);
+                            }
                           }}
                           filterOptions={(options, { inputValue }) => {
                             return options.filter(option =>
@@ -3580,14 +3709,6 @@ function PurchasesPageContent() {
                   type="submit"
                   disabled={isSubmitting}
                   variant="contained"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Tab' && !e.shiftKey) {
-                      e.preventDefault();
-                      // Trigger form submission
-                      const form = e.target.closest('form');
-                      if (form) form.requestSubmit();
-                    }
-                  }}
                   startIcon={isSubmitting ? <CircularProgress size={20} /> : null}
                   sx={{
                     px: 4,

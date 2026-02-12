@@ -787,6 +787,19 @@ function OrdersPageContent() {
       amount: 0,
       stock: 0
     });
+
+    // Auto-focus on CASH field after adding product
+    setTimeout(() => {
+      const cashInputs = document.querySelectorAll('input[type="number"]');
+      // Find CASH field (first number input after product form)
+      if (cashInputs.length > 0) {
+        // The CASH field should be one of the payment inputs
+        const paymentSection = document.querySelector('input[placeholder=" "]');
+        if (paymentSection) {
+          paymentSection.focus();
+        }
+      }
+    }, 5000);
   };
 
   // Handle removing product from table
@@ -2385,12 +2398,27 @@ function OrdersPageContent() {
                         setFormSelectedCustomer(newValue);
                       }}
                       isOptionEqualToValue={(option, value) => option.cus_id === value?.cus_id}
+                      autoSelect={true}
+                      autoHighlight={true}
+                      openOnFocus={true}
+                      selectOnFocus={true}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && formSelectedCustomer) {
+                          e.preventDefault();
+                          // Move focus to Product field
+                          const productInputs = document.querySelectorAll('input[placeholder*="Select product"]');
+                          if (productInputs.length > 0) {
+                            productInputs[0]?.focus();
+                          }
+                        }
+                      }}
                       renderInput={(params) => {
                         console.log('🔍 renderInput called, customers length:', customers.length);
                         return (
                           <TextField
                             {...params}
                             placeholder="Select customer"
+                            onFocus={(e) => e.target.select()}
                             sx={{ bgcolor: 'white', minWidth: 250, '& .MuiInputBase-input': { fontWeight: formSelectedCustomer ? 'bold' : 'normal' } }}
                           />
                         );
@@ -2467,10 +2495,25 @@ function OrdersPageContent() {
                         handleProductSelect(newValue);
                       }}
                       isOptionEqualToValue={(option, value) => option.pro_id === value?.pro_id}
+                      autoSelect={true}
+                      autoHighlight={true}
+                      openOnFocus={true}
+                      selectOnFocus={true}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && formSelectedProduct) {
+                          e.preventDefault();
+                          // Move focus to Store field
+                          const storeInputs = document.querySelectorAll('input[placeholder*="Select Store"]');
+                          if (storeInputs.length > 0) {
+                            storeInputs[0].focus();
+                          }
+                        }
+                      }}
                       renderInput={(params) => (
                         <TextField
                           {...params}
                           placeholder={products.length === 0 ? "No products available" : "Select product"}
+                          onFocus={(e) => e.target.select()}
                           sx={{ bgcolor: 'white', width: 350, minWidth: 350, '& .MuiInputBase-input': { fontWeight: formSelectedProduct ? 'bold' : 'normal' } }}
                         />
                       )}
@@ -2487,27 +2530,38 @@ function OrdersPageContent() {
                     <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
                       SELECT STORE
                     </Typography>
-                    <FormControl fullWidth size="small">
-                      <Select
-                        value={formSelectedStore?.storeid || ''}
-                        onChange={(event) => {
-                          const selectedStoreId = event.target.value;
-                          const selectedStore = stores.find(store => store.storeid == selectedStoreId);
-                          setFormSelectedStore(selectedStore || null);
-                        }}
-                        sx={{ bgcolor: 'white', '& .MuiSelect-select': { fontWeight: formSelectedStore ? 'bold' : 'normal' } }}
-                        displayEmpty
-                      >
-                        <MenuItem value="">Select Store</MenuItem>
-                        {Array.isArray(stores) && stores.length > 0 ? stores.map((store) => (
-                          <MenuItem key={store.storeid} value={store.storeid}>
-                            {store.store_name}
-                          </MenuItem>
-                        )) : (
-                          <MenuItem disabled>No stores available</MenuItem>
-                        )}
-                      </Select>
-                    </FormControl>
+                    <Autocomplete
+                      size="small"
+                      options={stores || []}
+                      getOptionLabel={(option) => option.store_name || ''}
+                      value={formSelectedStore}
+                      onChange={(event, newValue) => {
+                        setFormSelectedStore(newValue || null);
+                      }}
+                      isOptionEqualToValue={(option, value) => option.storeid === value?.storeid}
+                      autoSelect={true}
+                      autoHighlight={true}
+                      openOnFocus={true}
+                      selectOnFocus={true}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && formSelectedStore) {
+                          e.preventDefault();
+                          // Move focus to Quantity field
+                          const qtyInputs = document.querySelectorAll('input[placeholder*="QTY"], input[type="number"]');
+                          if (qtyInputs.length > 0) {
+                            qtyInputs[0]?.focus();
+                          }
+                        }
+                      }}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          placeholder="Select Store"
+                          onFocus={(e) => e.target.select()}
+                          sx={{ bgcolor: 'white', '& .MuiInputBase-input': { fontWeight: formSelectedStore ? 'bold' : 'normal' } }}
+                        />
+                      )}
+                    />
                   </Box>
                 </Grid>
                 <Grid item xs={12} md={1.5}>
@@ -2521,6 +2575,7 @@ function OrdersPageContent() {
                       type="number"
                       value={productFormData.quantity === 0 ? '' : productFormData.quantity}
                       onChange={(e) => handleQuantityChange(e.target.value)}
+                      onFocus={(e) => e.target.select()}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
@@ -2536,6 +2591,13 @@ function OrdersPageContent() {
                                 rateInputs[1].focus();
                               }
                             }, 0);
+                          }
+                        } else if (e.key === 'Tab') {
+                          e.preventDefault();
+                          // Tab should move to RATE field
+                          const rateInputs = document.querySelectorAll('input[type="number"]');
+                          if (rateInputs.length > 1) {
+                            rateInputs[1].focus();
                           }
                         }
                       }}
@@ -2554,11 +2616,21 @@ function OrdersPageContent() {
                       type="number"
                       value={productFormData.rate === 0 ? '' : productFormData.rate}
                       onChange={(e) => handleRateChange(e.target.value)}
+                      onFocus={(e) => e.target.select()}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
                           // Add product to table when Enter is pressed in rate field
                           handleAddProductToTable();
+                        } else if (e.key === 'Tab') {
+                          e.preventDefault();
+                          // Check if STOCK/AMOUNT fields exist and focus + button
+                          setTimeout(() => {
+                            const addBtn = document.querySelector('button[onClick]');
+                            if (addBtn && addBtn.parentElement?.parentElement?.textContent?.includes('+')) {
+                              addBtn.focus();
+                            }
+                          }, 0);
                         }
                       }}
                       sx={{ bgcolor: 'white', width: 150, minWidth: 150 }}
@@ -2776,6 +2848,28 @@ function OrdersPageContent() {
                           type="number"
                           value={paymentData.bank === 0 ? '' : paymentData.bank}
                           onChange={(e) => handlePaymentDataChange('bank', e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Tab') {
+                              e.preventDefault();
+                              // Move focus to BANK ACCOUNT field
+                              setTimeout(() => {
+                                const bankAccInputs = document.querySelectorAll('input[placeholder="Select Bank Account"]');
+                                if (bankAccInputs.length > 0) {
+                                  bankAccInputs[0].focus();
+                                } else {
+                                  // Fallback: look for input by searching all inputs in payment section
+                                  const allInputs = document.querySelectorAll('input[type="text"]');
+                                  for (let i = 0; i < allInputs.length; i++) {
+                                    const input = allInputs[i];
+                                    if (input.placeholder && input.placeholder.includes('Bank')) {
+                                      input.focus();
+                                      return;
+                                    }
+                                  }
+                                }
+                              }, 0);
+                            }
+                          }}
                           sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' } }}
                           placeholder=" "
                         />
@@ -2786,20 +2880,44 @@ function OrdersPageContent() {
                         <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
                           BANK ACCOUNT
                         </Typography>
-                        <FormControl fullWidth size="small">
-                          <Select
-                            value={paymentData.bankAccountId}
-                            onChange={(e) => handlePaymentDataChange('bankAccountId', e.target.value)}
-                            sx={{ bgcolor: 'white', '& .MuiSelect-select': { padding: '8px' } }}
-                          >
-                            <MenuItem value="">Select Bank</MenuItem>
-                            {bankAccounts.map((account) => (
-                              <MenuItem key={account.cus_id} value={account.cus_id}>
-                                {account.cus_name}
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
+                        <Autocomplete
+                          size="small"
+                          options={bankAccounts}
+                          getOptionLabel={(option) => option.cus_name || ''}
+                          value={bankAccounts.find(acc => acc.cus_id === paymentData.bankAccountId) || null}
+                          onChange={(event, newValue) => {
+                            handlePaymentDataChange('bankAccountId', newValue ? newValue.cus_id : '');
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Tab') {
+                              e.preventDefault();
+                              // Auto-select first option and move to next field
+                              if (bankAccounts.length > 0) {
+                                handlePaymentDataChange('bankAccountId', bankAccounts[0].cus_id);
+                              }
+                              // Close dropdown, blur field, and allow natural tab to next element
+                              setTimeout(() => {
+                                const inputField = document.querySelector('input[placeholder="Select Bank Account"]');
+                                if (inputField) {
+                                  inputField.blur();
+                                }
+                              }, 0);
+                            }
+                          }}
+                          isOptionEqualToValue={(option, value) => option.cus_id === value?.cus_id}
+                          autoSelect={true}
+                          autoHighlight={true}
+                          openOnFocus={true}
+                          selectOnFocus={true}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              placeholder="Select Bank Account"
+                              onFocus={(e) => e.target.select()}
+                              sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' } }}
+                            />
+                          )}
+                        />
                       </Box>
                     </Grid>
                     <Grid item xs={3}>
