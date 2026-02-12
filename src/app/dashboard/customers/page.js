@@ -530,34 +530,40 @@ export default function CustomersPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6 w-full p-4 md:p-6 lg:p-8">
-        {/* Header */}
+        {/* Header with prominent animated New Account button at far left */}
         <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">Account Management</h2>
-            <p className="text-gray-600 mt-1">Manage your accounts and their information</p>
+          <div className="flex items-center gap-4">
+            <Button
+              variant="contained"
+              onClick={() => setShowCustomerForm(true)}
+              startIcon={<AddIcon />}
+              className="blink-button-strong"
+              sx={{
+                bgcolor: '#e02424',
+                color: '#fff',
+                '&:hover': { bgcolor: '#e02424', transform: 'scale(1.03)', boxShadow: '0 20px 40px rgba(224,36,36,0.20)' },
+                px: 6,
+                py: 2.25,
+                minWidth: 220,
+                borderRadius: '14px',
+                fontWeight: 900,
+                fontSize: '1.125rem',
+                letterSpacing: '0.02em',
+                boxShadow: '0 14px 36px rgba(0,0,0,0.26)',
+                transition: 'transform 160ms cubic-bezier(.2,.9,.2,1), box-shadow 160ms ease',
+                position: 'relative',
+                overflow: 'visible'
+              }}
+              aria-label="Create new account"
+            >
+              New Account
+            </Button>
+
+            {/* removed redundant 'Accounts' title per request */}
           </div>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => setShowCustomerForm(true)}
-            sx={{
-              background: 'linear-gradient(45deg, #2196f3, #9c27b0)',
-              '&:hover': {
-                background: 'linear-gradient(45deg, #1976d2, #7b1fa2)',
-                boxShadow: 6,
-                transform: 'translateY(-2px)',
-              },
-              px: 4,
-              py: 1.5,
-              borderRadius: 1.5,
-              textTransform: 'none',
-              fontWeight: 600,
-              boxShadow: 3,
-              transition: 'all 0.2s ease-in-out'
-            }}
-          >
-            Add New Account
-          </Button>
+
+          {/* right side kept minimal for balance/stats */}
+          <div />
         </div>
 
 
@@ -876,7 +882,7 @@ export default function CustomersPage() {
               Accounts List
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Showing {filteredCustomers.length} of {customers.length} accounts
+              Showing {filteredCustomers.length} of {customers.length}
             </Typography>
           </Box>
           <Box sx={{ flex: 1, overflow: 'auto' }}>
@@ -1712,6 +1718,47 @@ export default function CustomersPage() {
           </DialogActions>
         </Dialog>
       </div>
+
+      <style jsx global>{`
+        .blink-button-strong {
+          animation: pulseStrong 1400ms infinite cubic-bezier(.2,.9,.2,1);
+          will-change: transform, box-shadow, filter;
+        }
+
+        @keyframes pulseStrong {
+          0% { transform: translateY(0) scale(1); box-shadow: 0 8px 20px rgba(139,0,0,0.18); filter: drop-shadow(0 6px 18px rgba(139,0,0,0.12)); }
+          45% { transform: translateY(-4px) scale(1.03); box-shadow: 0 18px 40px rgba(139,0,0,0.28); filter: drop-shadow(0 12px 30px rgba(139,0,0,0.18)); }
+          100% { transform: translateY(0) scale(1); box-shadow: 0 8px 20px rgba(139,0,0,0.18); filter: drop-shadow(0 6px 18px rgba(139,0,0,0.12)); }
+        }
+
+        /* Slight border pulse for attention */
+        .blink-button-strong::after {
+          content: '';
+          position: absolute;
+          left: 12px;
+          right: 12px;
+          top: 6px;
+          bottom: 6px;
+          border-radius: 12px;
+          pointer-events: none;
+          box-shadow: 0 0 0 0 rgba(139,0,0,0.12);
+          animation: ring 2000ms infinite ease-out;
+        }
+
+        /* glossy shine removed — flat single red color per design */
+        .shiny-button::before { display: none; }
+
+        @keyframes ring {
+          0% { box-shadow: 0 0 0 0 rgba(139,0,0,0.18); }
+          70% { box-shadow: 0 10px 40px 12px rgba(139,0,0,0.06); }
+          100% { box-shadow: 0 0 0 0 rgba(139,0,0,0); }
+        }
+
+        /* Respect reduced-motion preference */
+        @media (prefers-reduced-motion: reduce) {
+          .blink-button-strong, .blink-button-strong::after { animation: none !important; box-shadow: none !important; }
+        }
+      `}</style>
     </DashboardLayout>
   );
 }

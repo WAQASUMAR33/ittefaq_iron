@@ -62,9 +62,9 @@ export default function Sidebar({
     { id: 'dashboard', name: 'Dashboard', icon: DashboardIcon, category: 'main' },
     { id: 'ledger', name: 'Ledger', icon: DescriptionIcon, category: 'main' },
     
-    // Account Management
-    { id: 'customercategory', name: 'Account Categories', icon: LabelIcon, category: 'customer-management', parent: 'Account Management' },
-    { id: 'customers', name: 'Account List', icon: PeopleIcon, category: 'customer-management', parent: 'Account Management' },
+    // Accounts
+    { id: 'customercategory', name: 'Account Categories', icon: LabelIcon, category: 'customer-management', parent: 'Accounts' },
+    { id: 'customers', name: 'Accounts', icon: PeopleIcon, category: 'customer-management', parent: 'Accounts' },
     
     // Product Management
     { id: 'categories', name: 'Category Management', icon: FolderIcon, category: 'product-management', parent: 'Product Management' },
