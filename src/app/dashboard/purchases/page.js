@@ -879,16 +879,11 @@ function PurchasesPageContent() {
       return;
     }
 
-    const existingDetail = formData.purchase_details.find(detail => detail.pro_id === selectedProduct.pro_id);
-
-    if (existingDetail) {
-      alert('Product already exists in the purchase list');
-      return;
-    }
-
+    // Always add as a new line item (don't check for duplicates)
     const totalAmount = parseFloat(productFormData.qnty) * parseFloat(productFormData.crate || productFormData.unit_rate);
 
     const newDetail = {
+      id: Date.now(), // Unique ID for each addition
       pro_id: selectedProduct.pro_id,
       product_id: selectedProduct.pro_id, // Add product_id for console logging
       store_id: formData.store_id, // Add store_id to each product detail

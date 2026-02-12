@@ -806,35 +806,21 @@ function SalesPageContent() {
       return;
     }
 
-    // Check if product already exists in table
-    const existingProductIndex = productTableData.findIndex(
-      item => item.pro_id === formSelectedProduct.pro_id && item.storeid === formSelectedStore.storeid
-    );
+    // Always add as a new line item (don't merge with existing products)
+    const newProduct = {
+      id: Date.now(), // Temporary ID for table row (unique for each addition)
+      pro_id: formSelectedProduct.pro_id,
+      pro_title: formSelectedProduct.pro_title,
+      storeid: formSelectedStore.storeid,
+      store_name: formSelectedStore.store_name,
+      quantity: productFormData.quantity,
+      rate: productFormData.rate,
+      amount: productFormData.amount,
+      stock: productFormData.stock
+    };
 
-    if (existingProductIndex >= 0) {
-      // Update existing product quantity and amount
-      const updatedData = [...productTableData];
-      updatedData[existingProductIndex].quantity += productFormData.quantity;
-      updatedData[existingProductIndex].amount = updatedData[existingProductIndex].quantity * updatedData[existingProductIndex].rate;
-      setProductTableData(updatedData);
-      showSnackbar('Product quantity updated', 'success');
-    } else {
-      // Add new product to table
-      const newProduct = {
-        id: Date.now(), // Temporary ID for table row
-        pro_id: formSelectedProduct.pro_id,
-        pro_title: formSelectedProduct.pro_title,
-        storeid: formSelectedStore.storeid,
-        store_name: formSelectedStore.store_name,
-        quantity: productFormData.quantity,
-        rate: productFormData.rate,
-        amount: productFormData.amount,
-        stock: productFormData.stock
-      };
-
-      setProductTableData(prev => [...prev, newProduct]);
-      showSnackbar('Product added to table', 'success');
-    }
+    setProductTableData(prev => [...prev, newProduct]);
+    showSnackbar('Product added to cart', 'success');
 
     // Reset form
     setFormSelectedProduct(null);
