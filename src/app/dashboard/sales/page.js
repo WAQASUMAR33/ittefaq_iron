@@ -691,9 +691,9 @@ function SalesPageContent() {
       setProductFormData(prev => ({
         ...prev,
         quantity: '', // Set quantity to empty
-        rate: parseFloat(selectedProduct.pro_baser_price) || 0, // Use base price as rate
+        rate: parseFloat(selectedProduct.pro_sale_price) || 0, // Use product sale rate
         stock: 0, // always derive from store-wise stock when available
-        amount: parseFloat(selectedProduct.pro_baser_price) || 0, // Calculate amount (rate * quantity)
+        amount: parseFloat(selectedProduct.pro_sale_price) || 0, // Calculate amount (rate * quantity)
         crate: selectedProduct.pro_crate || ''
       }));
 

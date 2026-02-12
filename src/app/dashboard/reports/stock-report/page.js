@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { ArrowLeft, Download, Printer, Search, Package, AlertTriangle, XCircle, RefreshCw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
-import { Autocomplete, TextField, InputAdornment } from '@mui/material';
+import { Autocomplete, TextField, InputAdornment, Dialog, DialogTitle, DialogContent, DialogActions, Button, RadioGroup, FormControlLabel, Radio, Box, Alert } from '@mui/material';
 
 export default function StockReport() {
   const router = useRouter();
@@ -571,94 +571,126 @@ export default function StockReport() {
         )}
       </div>
 
-      {/* Price Adjustment Modal */}
-      {showAdjustmentModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setShowAdjustmentModal(false)}></div>
-            
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <div className="sm:flex sm:items-start">
-                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-                      Adjust Prices for Category
-                    </h3>
-                    
-                    {/* Adjustment Type Radio Buttons */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Adjustment Type</label>
-                      <div className="flex gap-6">
-                        <label className="flex items-center">
-                          <input
-                            type="radio"
-                            value="increase"
-                            checked={adjustmentType === 'increase'}
-                            onChange={(e) => setAdjustmentType(e.target.value)}
-                            className="mr-2 cursor-pointer"
-                          />
-                          <span className="text-sm text-gray-700">Increase Prices</span>
-                        </label>
-                        <label className="flex items-center">
-                          <input
-                            type="radio"
-                            value="decrease"
-                            checked={adjustmentType === 'decrease'}
-                            onChange={(e) => setAdjustmentType(e.target.value)}
-                            className="mr-2 cursor-pointer"
-                          />
-                          <span className="text-sm text-gray-700">Decrease Prices</span>
-                        </label>
-                      </div>
-                    </div>
+      {/* Price Adjustment Modal - Material-UI Dialog */}
+      <Dialog 
+        open={showAdjustmentModal} 
+        onClose={() => !adjustmentLoading && setShowAdjustmentModal(false)} 
+        maxWidth="sm" 
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: '12px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+            bgcolor: '#ffffff'
+          }
+        }}
+      >
+        <DialogTitle sx={{ fontWeight: 'bold', fontSize: '1.25rem', pb: 1, bgcolor: '#f5f3ff', borderBottom: '2px solid #e9d5ff' }}>
+          🔧 Adjust Prices for Category
+        </DialogTitle>
 
-                    {/* Percentage Input */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Percentage (%)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.1"
-                        value={adjustmentPercentage}
-                        onChange={(e) => setAdjustmentPercentage(e.target.value)}
-                        placeholder="Enter percentage"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500"
-                      />
-                    </div>
+        <DialogContent sx={{ pt: 3 }}>
+          {adjustmentLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 3 }}>
+              <Alert severity="info" sx={{ width: '100%' }}>Processing adjustment...</Alert>
+            </Box>
+          ) : (
+            <>
+              {/* Category Display */}
+              <Box sx={{ mb: 3, p: 2, bgcolor: '#f0f9ff', border: '1px solid #bfdbfe', borderRadius: '8px' }}>
+                <label style={{ display: 'block', fontWeight: 600, fontSize: '0.75rem', marginBottom: '0.5rem', color: '#0369a1', textTransform: 'uppercase' }}>
+                  Selected Category
+                </label>
+                <p style={{ margin: 0, fontWeight: 600, fontSize: '1rem', color: '#0c4a6e' }}>
+                  {categories.find(c => c.cat_id === parseInt(selectedCategory))?.cat_name || 'No category selected'}
+                </p>
+              </Box>
 
-                    {/* Info Text */}
-                    <div className="bg-blue-50 border border-blue-200 rounded p-2 text-xs text-blue-700 mb-4">
-                      All rates (Cost, Crate, Sale) will be adjusted by {adjustmentPercentage || '0'}% {adjustmentType === 'increase' ? 'increase' : 'decrease'}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-2">
-                <button
-                  onClick={applyPriceAdjustment}
-                  disabled={adjustmentLoading || !adjustmentPercentage}
-                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-orange-600 text-base font-medium text-white hover:bg-orange-700 disabled:bg-orange-400 sm:w-auto sm:text-sm transition-colors"
+              {/* Adjustment Type Radio Buttons */}
+              <Box sx={{ mb: 3 }}>
+                <label style={{ display: 'block', fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.75rem', color: '#374151' }}>
+                  ➕➖ Adjustment Type
+                </label>
+                <RadioGroup
+                  row
+                  value={adjustmentType}
+                  onChange={(e) => setAdjustmentType(e.target.value)}
+                  sx={{ gap: 3 }}
                 >
-                  {adjustmentLoading ? 'Updating...' : 'Apply Adjustment'}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowAdjustmentModal(false);
-                    setAdjustmentPercentage('');
+                  <FormControlLabel
+                    value="increase"
+                    control={<Radio />}
+                    label="📈 Increase Prices"
+                  />
+                  <FormControlLabel
+                    value="decrease"
+                    control={<Radio />}
+                    label="📉 Decrease Prices"
+                  />
+                </RadioGroup>
+              </Box>
+
+              {/* Percentage Input */}
+              <Box sx={{ mb: 3 }}>
+                <TextField
+                  fullWidth
+                  label="Percentage (%)"
+                  type="number"
+                  inputProps={{ min: 0, max: 100, step: 0.1 }}
+                  value={adjustmentPercentage}
+                  onChange={(e) => setAdjustmentPercentage(e.target.value)}
+                  placeholder="Enter percentage (e.g., 10)"
+                  variant="outlined"
+                  size="small"
+                  autoFocus
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      fontSize: '1rem',
+                      '&:hover': { bgcolor: '#f3f4f6' }
+                    }
                   }}
-                  disabled={adjustmentLoading}
-                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 disabled:bg-gray-100 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+                />
+              </Box>
+
+              {/* Info Alert with Formula */}
+              <Alert severity="info" sx={{ mb: 2, bgcolor: '#dbeafe', borderColor: '#93c5fd' }}>
+                <strong>📋 Adjustment Formula:</strong><br/>
+                Base Price × {adjustmentPercentage || '0'}% = Adjustment Amount<br/>
+                Then {adjustmentType === 'increase' ? '➕ Add' : '➖ Subtract'} this amount to all rates (Cost, Crate, Sale)
+              </Alert>
+            </>
+          )}
+        </DialogContent>
+
+        <DialogActions sx={{ p: 2, gap: 1, borderTop: '1px solid #e5e7eb', bgcolor: '#f9fafb' }}>
+          <Button
+            onClick={() => {
+              setShowAdjustmentModal(false);
+              setAdjustmentPercentage('');
+            }}
+            disabled={adjustmentLoading}
+            variant="outlined"
+            sx={{ textTransform: 'none', fontSize: '0.95rem' }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={applyPriceAdjustment}
+            disabled={adjustmentLoading || !adjustmentPercentage}
+            variant="contained"
+            sx={{ 
+              bgcolor: '#f97316', 
+              '&:hover': { bgcolor: '#ea580c' },
+              textTransform: 'none',
+              fontSize: '0.95rem',
+              fontWeight: 600,
+              px: 3
+            }}
+          >
+            {adjustmentLoading ? '⏳ Updating...' : '✅ Apply Adjustment'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <style jsx global>{`
         @media print {

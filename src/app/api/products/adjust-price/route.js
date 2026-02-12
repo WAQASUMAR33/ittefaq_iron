@@ -34,31 +34,51 @@ export async function POST(request) {
       }, { status: 200 });
     }
 
-    // Calculate multiplier based on type
-    const multiplier = type === 'increase' 
-      ? (1 + (percentValue / 100))
-      : (1 - (percentValue / 100));
-
-    // Update each product
+    // Calculate adjustment amount based on percentage of base price
+    // This amount will be added or subtracted from all rates
     let updatedCount = 0;
     
     for (const product of products) {
       try {
+        // Calculate the adjustment amount based on base price (convert to number first!)
+        const basePrice = parseFloat(product.pro_baser_price) || 0;
+        const adjustmentAmount = parseFloat((basePrice * (percentValue / 100)).toFixed(2));
+
+        console.log(`📊 Product: ${product.pro_title}, Base: ${basePrice}, Adjustment: ${adjustmentAmount}`);
+
         const updatedData = {};
 
-        // Update cost price
-        if (product.pro_cost_price) {
-          updatedData.pro_cost_price = parseFloat((product.pro_cost_price * multiplier).toFixed(2));
+        // Apply adjustment to cost price (ensure numeric conversion BEFORE math)
+        if (product.pro_cost_price !== null && product.pro_cost_price !== undefined) {
+          const costPrice = parseFloat(product.pro_cost_price) || 0;
+          const newPrice = type === 'increase'
+            ? (costPrice + adjustmentAmount)
+            : (costPrice - adjustmentAmount);
+          const finalPrice = parseFloat(Math.max(0, newPrice).toFixed(2));
+          updatedData.pro_cost_price = finalPrice;
+          console.log(`  Cost: ${costPrice} (type: ${typeof costPrice}) ${type === 'increase' ? '+' : '-'} ${adjustmentAmount} = ${newPrice} → final: ${finalPrice}`);
         }
 
-        // Update crate rate
-        if (product.pro_crate) {
-          updatedData.pro_crate = parseFloat((product.pro_crate * multiplier).toFixed(2));
+        // Apply adjustment to crate rate (ensure numeric conversion BEFORE math)
+        if (product.pro_crate !== null && product.pro_crate !== undefined) {
+          const crateRate = parseFloat(product.pro_crate) || 0;
+          const newCrate = type === 'increase'
+            ? (crateRate + adjustmentAmount)
+            : (crateRate - adjustmentAmount);
+          const finalCrate = parseFloat(Math.max(0, newCrate).toFixed(2));
+          updatedData.pro_crate = finalCrate;
+          console.log(`  Crate: ${crateRate} (type: ${typeof crateRate}) ${type === 'increase' ? '+' : '-'} ${adjustmentAmount} = ${newCrate} → final: ${finalCrate}`);
         }
 
-        // Update sale price
-        if (product.pro_sale_price) {
-          updatedData.pro_sale_price = parseFloat((product.pro_sale_price * multiplier).toFixed(2));
+        // Apply adjustment to sale price (ensure numeric conversion BEFORE math)
+        if (product.pro_sale_price !== null && product.pro_sale_price !== undefined) {
+          const salePrice = parseFloat(product.pro_sale_price) || 0;
+          const newSalePrice = type === 'increase'
+            ? (salePrice + adjustmentAmount)
+            : (salePrice - adjustmentAmount);
+          const finalSalePrice = parseFloat(Math.max(0, newSalePrice).toFixed(2));
+          updatedData.pro_sale_price = finalSalePrice;
+          console.log(`  Sale: ${salePrice} (type: ${typeof salePrice}) ${type === 'increase' ? '+' : '-'} ${adjustmentAmount} = ${newSalePrice} → final: ${finalSalePrice}`);
         }
 
         // Only update if there's data to update
