@@ -1272,7 +1272,7 @@ export default function FinancePage() {
                   <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1, letterSpacing: 1, color: 'black' }}>
                     GENERAL LEDGER
                   </Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, color: '#4b5563' }}>
+                  <Typography variant="h4" sx={{ fontWeight: 700, mb: 1, color: '#4b5563' }}>
                     {selectedCustomer
                       ? customers.find(c => c.cus_id === selectedCustomer)?.cus_name || 'ITEFAQ BUILDERS'
                       : 'ITEFAQ BUILDERS'
