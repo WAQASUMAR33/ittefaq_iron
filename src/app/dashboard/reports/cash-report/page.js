@@ -358,10 +358,10 @@ export default function CashReport() {
                         <td className="px-3 py-2.5 text-slate-900 font-medium border-r border-slate-200 print:border-black">{entry.customer?.cus_name || '-'}</td>
                         <td className="px-3 py-2.5 text-slate-600 border-r border-slate-200 print:border-black">{entry.details || '-'}</td>
                         <td className="px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums">
-                          {parseFloat(entry.debit_amount) > 0 ? <span className="text-red-600 print:text-black">{formatCurrency(entry.debit_amount)}</span> : '-'}
+                          {parseFloat(entry.debit_amount) > 0 ? <span className="text-green-600 print:text-black">{formatCurrency(entry.debit_amount)}</span> : '-'}
                         </td>
                         <td className="px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums">
-                          {parseFloat(entry.credit_amount) > 0 ? <span className="text-green-600 print:text-black">{formatCurrency(entry.credit_amount)}</span> : '-'}
+                          {parseFloat(entry.credit_amount) > 0 ? <span className="text-red-600 print:text-black">{formatCurrency(entry.credit_amount)}</span> : '-'}
                         </td>
                         <td className="px-3 py-2.5 text-right font-semibold text-slate-900 tabular-nums">{formatCurrency(entry.closing_balance)}</td>
                       </tr>
