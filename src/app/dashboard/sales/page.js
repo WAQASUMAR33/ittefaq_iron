@@ -4240,6 +4240,23 @@ function SalesPageContent() {
                 <Button
                   variant="outlined"
                   sx={{
+                    color: '#ff9800',
+                    borderColor: '#ff9800',
+                    borderRadius: 2,
+                    '&:hover': {
+                      bgcolor: 'rgba(255, 152, 0, 0.04)',
+                      borderColor: '#f57c00'
+                    }
+                  }}
+                  onClick={clearFormState}
+                  disabled={loading}
+                  title="Clear current form only (screen stays in stack)"
+                >
+                  🧹 Clear Form
+                </Button>
+                <Button
+                  variant="outlined"
+                  sx={{
                     borderColor: '#6c757d',
                     color: '#6c757d',
                     borderRadius: 2,
@@ -4342,23 +4359,6 @@ function SalesPageContent() {
                   title="Return to sales list (current screen saved)"
                 >
                   ← Back to List
-                </Button>
-                <Button
-                  variant="outlined"
-                  sx={{
-                    color: '#ff9800',
-                    borderColor: '#ff9800',
-                    borderRadius: 2,
-                    '&:hover': {
-                      bgcolor: 'rgba(255, 152, 0, 0.04)',
-                      borderColor: '#f57c00'
-                    }
-                  }}
-                  onClick={clearFormState}
-                  disabled={loading}
-                  title="Clear current form only (screen stays in stack)"
-                >
-                  🧹 Clear Form
                 </Button>
                 <Button
                   variant="contained"
@@ -5356,25 +5356,238 @@ function SalesPageContent() {
       <Container maxWidth={false} sx={{ py: 4 }}>
         <Stack spacing={4}>
           {/* Header - Just the Add Button */}
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', py: 2 }}>
             <Button
               variant="contained"
               startIcon={<AddIcon />}
               onClick={() => setCurrentView('create')}
               size="large"
               sx={{
-                background: 'linear-gradient(45deg, #1976d2 30%, #2196f3 90%)',
-                boxShadow: '0 4px 20px rgba(25, 118, 210, 0.3)',
-                px: 4,
-                py: 1.5,
-                fontSize: '1rem',
+                background: 'linear-gradient(45deg, #2e7d32 30%, #4caf50 90%)',
+                boxShadow: '0 8px 30px rgba(46, 125, 50, 0.4)',
+                px: 6,
+                py: 2.5,
+                fontSize: '1.3rem',
                 fontWeight: 'bold',
-                '&:hover': {
-                  background: 'linear-gradient(45deg, #1565c0 30%, #1976d2 90%)',
-                  transform: 'scale(1.05)',
-                  boxShadow: '0 6px 25px rgba(25, 118, 210, 0.4)',
+                borderRadius: '16px',
+                minWidth: '320px',
+                minHeight: '70px',
+                position: 'relative',
+                overflow: 'hidden',
+                border: '2px solid transparent',
+                backgroundClip: 'padding-box',
+                animation: 'float 3s ease-in-out infinite, glow 2s ease-in-out infinite alternate, heartbeat 1.5s ease-in-out infinite',
+                '&::before': {
+                  content: '""',
+                  position: 'absolute',
+                  top: 0,
+                  left: '-100%',
+                  width: '100%',
+                  height: '100%',
+                  background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)',
+                  transition: 'left 0.8s ease-in-out',
+                  animation: 'shimmer 3s infinite',
                 },
-                transition: 'all 0.3s ease-in-out'
+                '&::after': {
+                  content: '""',
+                  position: 'absolute',
+                  top: '-2px',
+                  left: '-2px',
+                  right: '-2px',
+                  bottom: '-2px',
+                  background: 'linear-gradient(45deg, #1b5e20, #2e7d32, #4caf50, #66bb6a)',
+                  borderRadius: '18px',
+                  zIndex: -1,
+                  opacity: 0,
+                  transition: 'opacity 0.3s ease-in-out',
+                  animation: 'borderPulse 2s ease-in-out infinite',
+                },
+                '& .particle': {
+                  position: 'absolute',
+                  width: '4px',
+                  height: '4px',
+                  background: '#4caf50',
+                  borderRadius: '50%',
+                  pointerEvents: 'none',
+                  animation: 'particleFloat 3s ease-in-out infinite',
+                },
+                '& .particle:nth-child(1)': {
+                  top: '10%',
+                  left: '10%',
+                  animationDelay: '0s',
+                },
+                '& .particle:nth-child(2)': {
+                  top: '20%',
+                  right: '15%',
+                  animationDelay: '0.5s',
+                },
+                '& .particle:nth-child(3)': {
+                  bottom: '15%',
+                  left: '20%',
+                  animationDelay: '1s',
+                },
+                '& .particle:nth-child(4)': {
+                  bottom: '10%',
+                  right: '10%',
+                  animationDelay: '1.5s',
+                },
+                '&:hover::before': {
+                  left: '100%',
+                },
+                '&:hover': {
+                  background: 'linear-gradient(45deg, #1b5e20 30%, #2e7d32 90%)',
+                  transform: 'scale(1.15) translateY(-4px) rotate(1deg)',
+                  boxShadow: '0 20px 60px rgba(46, 125, 50, 0.8), 0 0 30px rgba(46, 125, 50, 0.6), 0 0 0 4px rgba(76, 175, 80, 0.3), inset 0 0 20px rgba(255, 255, 255, 0.1)',
+                  animation: 'bounce 0.6s ease-in-out, rainbowGlow 1.5s ease-in-out infinite, blink 1s ease-in-out infinite, magnetic 0.3s ease-out',
+                  border: '2px solid rgba(255,255,255,0.3)',
+                  '&::after': {
+                    opacity: 1,
+                    animation: 'borderPulse 0.8s ease-in-out infinite',
+                  },
+                  '& .MuiButton-startIcon': {
+                    animation: 'iconBounce 0.5s ease-in-out infinite, spin 2s linear infinite',
+                  }
+                },
+                '&:active': {
+                  transform: 'scale(1.1) translateY(-2px) rotate(0deg)',
+                  boxShadow: '0 10px 30px rgba(46, 125, 50, 0.6)',
+                  animation: 'press 0.2s ease-in-out',
+                },
+                '@keyframes float': {
+                  '0%, 100%': {
+                    transform: 'translateY(0px)',
+                  },
+                  '50%': {
+                    transform: 'translateY(-5px)',
+                  },
+                },
+                '@keyframes glow': {
+                  '0%': {
+                    boxShadow: '0 8px 30px rgba(46, 125, 50, 0.4)',
+                  },
+                  '100%': {
+                    boxShadow: '0 8px 30px rgba(46, 125, 50, 0.6), 0 0 20px rgba(46, 125, 50, 0.3)',
+                  },
+                },
+                '@keyframes shimmer': {
+                  '0%': {
+                    transform: 'translateX(-100%)',
+                  },
+                  '100%': {
+                    transform: 'translateX(100%)',
+                  },
+                },
+                '@keyframes bounce': {
+                  '0%': {
+                    transform: 'scale(1.15) translateY(-4px) rotate(1deg)',
+                  },
+                  '50%': {
+                    transform: 'scale(1.2) translateY(-8px) rotate(-1deg)',
+                  },
+                  '100%': {
+                    transform: 'scale(1.15) translateY(-4px) rotate(1deg)',
+                  },
+                },
+                '@keyframes rainbowGlow': {
+                  '0%': {
+                    boxShadow: '0 20px 60px rgba(46, 125, 50, 0.8), 0 0 30px rgba(46, 125, 50, 0.6)',
+                  },
+                  '25%': {
+                    boxShadow: '0 20px 60px rgba(76, 175, 80, 0.8), 0 0 30px rgba(76, 175, 80, 0.6)',
+                  },
+                  '50%': {
+                    boxShadow: '0 20px 60px rgba(129, 199, 132, 0.8), 0 0 30px rgba(129, 199, 132, 0.6)',
+                  },
+                  '75%': {
+                    boxShadow: '0 20px 60px rgba(165, 214, 167, 0.8), 0 0 30px rgba(165, 214, 167, 0.6)',
+                  },
+                  '100%': {
+                    boxShadow: '0 20px 60px rgba(46, 125, 50, 0.8), 0 0 30px rgba(46, 125, 50, 0.6)',
+                  },
+                },
+                '@keyframes press': {
+                  '0%': {
+                    transform: 'scale(1.1) translateY(-2px)',
+                  },
+                  '100%': {
+                    transform: 'scale(1.05) translateY(0px)',
+                  },
+                },
+                transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                '& .MuiButton-startIcon': {
+                  fontSize: '1.8rem',
+                  marginRight: '12px',
+                  animation: 'iconBounce 2s ease-in-out infinite',
+                },
+                '@keyframes iconBounce': {
+                  '0%, 100%': {
+                    transform: 'scale(1)',
+                  },
+                  '50%': {
+                    transform: 'scale(1.2)',
+                  },
+                },
+                '@keyframes heartbeat': {
+                  '0%, 100%': {
+                    transform: 'scale(1)',
+                  },
+                  '25%': {
+                    transform: 'scale(1.02)',
+                  },
+                  '50%': {
+                    transform: 'scale(1.05)',
+                  },
+                  '75%': {
+                    transform: 'scale(1.02)',
+                  },
+                },
+                '@keyframes borderPulse': {
+                  '0%, 100%': {
+                    opacity: 0.3,
+                    transform: 'scale(1)',
+                  },
+                  '50%': {
+                    opacity: 0.8,
+                    transform: 'scale(1.02)',
+                  },
+                },
+                '@keyframes blink': {
+                  '0%, 50%, 100%': {
+                    opacity: 1,
+                  },
+                  '25%, 75%': {
+                    opacity: 0.7,
+                  },
+                },
+                '@keyframes spin': {
+                  '0%': {
+                    transform: 'rotate(0deg)',
+                  },
+                  '100%': {
+                    transform: 'rotate(360deg)',
+                  },
+                },
+                '@keyframes particleFloat': {
+                  '0%, 100%': {
+                    transform: 'translateY(0px) scale(1)',
+                    opacity: 0.7,
+                  },
+                  '50%': {
+                    transform: 'translateY(-10px) scale(1.2)',
+                    opacity: 1,
+                  },
+                },
+                '@keyframes magnetic': {
+                  '0%': {
+                    transform: 'scale(1.15) translateY(-4px) rotate(1deg)',
+                  },
+                  '50%': {
+                    transform: 'scale(1.18) translateY(-6px) rotate(0deg)',
+                  },
+                  '100%': {
+                    transform: 'scale(1.15) translateY(-4px) rotate(1deg)',
+                  },
+                }
               }}
             >
               Add New Sale

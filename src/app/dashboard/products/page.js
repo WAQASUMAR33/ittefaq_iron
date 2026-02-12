@@ -1048,9 +1048,17 @@ export default function ProductsPage() {
               </IconButton>
             </DialogTitle>
 
-            <DialogContent sx={{ p: 3 }}>
+            <DialogContent sx={{ p: 0, bgcolor: '#f8fafc' }}>
               {/* Quick Action Buttons */}
-              <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              <Box sx={{ 
+                p: 3, 
+                pb: 2,
+                display: 'flex', 
+                gap: 2, 
+                flexWrap: 'wrap',
+                borderBottom: '1px solid #e2e8f0',
+                bgcolor: 'white'
+              }}>
                 <Button
                   variant="outlined"
                   size="small"
@@ -1085,216 +1093,461 @@ export default function ProductsPage() {
                 </Button>
               </Box>
 
-              <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2 }}>
-                <Grid container spacing={3}>
-                  {/* Product Title */}
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      required
-                      label="Product Title"
-                      name="pro_title"
-                      value={formData.pro_title}
-                      onChange={handleFormChange}
-                      placeholder="Enter product title"
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 1.5,
-                        }
-                      }}
-                    />
-                  </Grid>
-
-                  {/* Description */}
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      label="Description"
-                      name="pro_description"
-                      value={formData.pro_description}
-                      onChange={handleFormChange}
-                      placeholder="Enter product description"
-                      multiline
-                      rows={3}
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 1.5,
-                        }
-                      }}
-                    />
-                  </Grid>
-
-                  {/* Category */}
-                  <Grid item xs={12} md={6}>
-                    <FormControl fullWidth required sx={{
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: 1.5,
-                      }
-                    }}>
-                      <InputLabel>Category</InputLabel>
-                      <Select
-                        value={formData.cat_id}
-                        label="Category"
-                        name="cat_id"
+              <Box component="form" onSubmit={handleSubmit} sx={{ p: 3, maxHeight: '70vh', overflowY: 'auto' }}>
+                {/* SECTION 1: Basic Information */}
+                <Box sx={{ mb: 4 }}>
+                  <Typography variant="subtitle1" sx={{ 
+                    fontWeight: 700, 
+                    color: '#1e293b',
+                    mb: 2,
+                    pb: 1.5,
+                    borderBottom: '2px solid #2196F3',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1
+                  }}>
+                    <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: '#2196F3' }}></Box>
+                    Basic Information
+                  </Typography>
+                  <Grid container spacing={2.5}>
+                    {/* Product Title */}
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        required
+                        label="Product Title"
+                        name="pro_title"
+                        value={formData.pro_title}
                         onChange={handleFormChange}
-                      >
-                        {categories.map(category => (
-                          <MenuItem key={category.cat_id} value={category.cat_id}>
-                            {category.cat_name}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
+                        placeholder="Enter product title"
+                        variant="outlined"
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 2,
+                            fontSize: '0.95rem',
+                            height: '48px',
+                            backgroundColor: 'white',
+                            '&:hover': {
+                              backgroundColor: '#f9fafb'
+                            }
+                          },
+                          '& .MuiInputLabel-root': {
+                            fontSize: '0.95rem',
+                            fontWeight: 500
+                          }
+                        }}
+                      />
+                    </Grid>
 
-                  {/* Subcategory */}
-                  <Grid item xs={12} md={6}>
-                    <FormControl fullWidth sx={{
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: 1.5,
-                      }
-                    }}>
-                      <InputLabel>Subcategory</InputLabel>
-                      <Select
-                        value={formData.sub_cat_id}
-                        label="Subcategory"
-                        name="sub_cat_id"
+                    {/* Description */}
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        label="Description"
+                        name="pro_description"
+                        value={formData.pro_description}
                         onChange={handleFormChange}
-                        disabled={!formData.cat_id}
-                      >
-                        {getFormSubcategories().map(subcategory => (
-                          <MenuItem key={subcategory.sub_cat_id} value={subcategory.sub_cat_id}>
-                            {subcategory.sub_cat_name}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
+                        placeholder="Enter product description"
+                        multiline
+                        rows={3}
+                        variant="outlined"
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 2,
+                            fontSize: '0.95rem',
+                            backgroundColor: 'white',
+                            '&:hover': {
+                              backgroundColor: '#f9fafb'
+                            }
+                          },
+                          '& .MuiInputLabel-root': {
+                            fontSize: '0.95rem',
+                            fontWeight: 500
+                          }
+                        }}
+                      />
+                    </Grid>
                   </Grid>
+                </Box>
 
-                  {/* Cost Price */}
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="Cost Price"
-                      name="pro_cost_price"
-                      type="number"
-                      inputProps={{ step: "0.01" }}
-                      value={formData.pro_cost_price}
-                      onChange={handleFormChange}
-                      placeholder="0.00"
-                      InputProps={{
-                        startAdornment: <InputAdornment position="start"></InputAdornment>,
-                      }}
-                      sx={{ minWidth: 250 }}
-                    />
-                  </Grid>
-
-                  {/* Sale Price */}
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="Sale Price"
-                      name="pro_sale_price"
-                      type="number"
-                      inputProps={{ step: "0.01" }}
-                      value={formData.pro_sale_price}
-                      onChange={handleFormChange}
-                      placeholder="0.00"
-                      InputProps={{
-                        startAdornment: <InputAdornment position="start"></InputAdornment>,
-                      }}
-                      sx={{ minWidth: 250 }}
-                    />
-                  </Grid>
-
-                  {/* Base Price */}
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="Base Price"
-                      name="pro_baser_price"
-                      type="number"
-                      inputProps={{ step: "0.01" }}
-                      value={formData.pro_baser_price}
-                      onChange={handleFormChange}
-                      placeholder="0.00"
-                      InputProps={{
-                        startAdornment: <InputAdornment position="start"></InputAdornment>,
-                      }}
-                      sx={{ minWidth: 250 }}
-                    />
-                  </Grid>
-
-                  {/* CRate */}
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="CRate"
-                      name="pro_crate"
-                      type="number"
-                      inputProps={{ step: "0.01" }}
-                      value={formData.pro_crate}
-                      onChange={handleFormChange}
-                      placeholder="0.00"
-                      InputProps={{
-                        startAdornment: <InputAdornment position="start"></InputAdornment>,
-                      }}
-                      sx={{ minWidth: 250 }}
-                    />
-                  </Grid>
-
-                  {/* Stock Quantity */}
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Stock Quantity"
-                      name="pro_stock_qnty"
-                      type="number"
-                      value={formData.pro_stock_qnty}
-                      onChange={handleFormChange}
-                      placeholder="0"
-                      sx={{
+                {/* SECTION 2: Category & Classification */}
+                <Box sx={{ mb: 4 }}>
+                  <Typography variant="subtitle1" sx={{ 
+                    fontWeight: 700, 
+                    color: '#1e293b',
+                    mb: 2,
+                    pb: 1.5,
+                    borderBottom: '2px solid #9C27B0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1
+                  }}>
+                    <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: '#9C27B0' }}></Box>
+                    Category & Classification
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 4, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                    {/* Category */}
+                    <Box sx={{ flex: '1 1 45%', minWidth: '300px' }}>
+                      <FormControl fullWidth required sx={{
                         '& .MuiOutlinedInput-root': {
-                          borderRadius: 1.5,
+                          borderRadius: 2,
+                          fontSize: '1.1rem',
+                          height: '60px',
+                          backgroundColor: 'white',
+                          px: 2,
+                          '&:hover': {
+                            backgroundColor: '#f9fafb'
+                          }
+                        },
+                        '& .MuiInputLabel-root': {
+                          fontSize: '1.1rem',
+                          fontWeight: 500
                         }
-                      }}
-                    />
-                  </Grid>
+                      }}>
+                        <InputLabel>Category</InputLabel>
+                        <Select
+                          value={formData.cat_id}
+                          label="Category"
+                          name="cat_id"
+                          onChange={handleFormChange}
+                          MenuProps={{
+                            PaperProps: {
+                              sx: {
+                                maxHeight: 300,
+                                borderRadius: 2,
+                                boxShadow: '0 8px 32px rgba(0,0,0,0.12)'
+                              }
+                            }
+                          }}
+                        >
+                          {categories.map(category => (
+                            <MenuItem key={category.cat_id} value={category.cat_id} sx={{ fontSize: '0.95rem', py: 1.25 }}>
+                              {category.cat_name}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Box>
 
-                  {/* Unit */}
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Unit"
-                      name="pro_unit"
-                      value={formData.pro_unit}
-                      onChange={handleFormChange}
-                      placeholder="e.g., pieces, kg, liters"
-                      sx={{ minWidth: 250 }}
-                    />
-                  </Grid>
+                    {/* Subcategory */}
+                    <Box sx={{ flex: '1 1 45%', minWidth: '300px' }}>
+                      <FormControl fullWidth sx={{
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: 2,
+                          fontSize: '1.1rem',
+                          height: '60px',
+                          backgroundColor: 'white',
+                          px: 2,
+                          '&:hover': {
+                            backgroundColor: '#f9fafb'
+                          }
+                        },
+                        '& .MuiInputLabel-root': {
+                          fontSize: '1.1rem',
+                          fontWeight: 500
+                        }
+                      }}>
+                        <InputLabel>Subcategory</InputLabel>
+                        <Select
+                          value={formData.sub_cat_id}
+                          label="Subcategory"
+                          name="sub_cat_id"
+                          onChange={handleFormChange}
+                          disabled={!formData.cat_id}
+                          MenuProps={{
+                            PaperProps: {
+                              sx: {
+                                maxHeight: 300,
+                                borderRadius: 2,
+                                boxShadow: '0 8px 32px rgba(0,0,0,0.12)'
+                              }
+                            }
+                          }}
+                        >
+                          {getFormSubcategories().map(subcategory => (
+                            <MenuItem key={subcategory.sub_cat_id} value={subcategory.sub_cat_id} sx={{ fontSize: '0.95rem', py: 1.25 }}>
+                              {subcategory.sub_cat_name}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Box>
+                  </Box>
+                </Box>
 
-                  {/* Packing */}
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      label="Packing"
-                      name="pro_packing"
-                      value={formData.pro_packing}
-                      onChange={handleFormChange}
-                      placeholder="Enter packing information"
-                      sx={{ minWidth: 250 }}
-                    />
+                {/* SECTION 3: Pricing Information */}
+                <Box sx={{ mb: 4 }}>
+                  <Typography variant="subtitle1" sx={{ 
+                    fontWeight: 700, 
+                    color: '#1e293b',
+                    mb: 2,
+                    pb: 1.5,
+                    borderBottom: '2px solid #16a34a',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1
+                  }}>
+                    <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: '#16a34a' }}></Box>
+                    Pricing Information
+                  </Typography>
+                  <Grid container spacing={2.5}>
+                    {/* Cost Price */}
+                    <Grid item xs={12} sm={6} md={4}>
+                      <TextField
+                        fullWidth
+                        label="Cost Price"
+                        name="pro_cost_price"
+                        type="number"
+                        inputProps={{ step: "0.01" }}
+                        value={formData.pro_cost_price}
+                        onChange={handleFormChange}
+                        placeholder="0.00"
+                        InputProps={{
+                          startAdornment: <InputAdornment position="start" sx={{ fontSize: '0.95rem', fontWeight: 600 }}>Rs</InputAdornment>,
+                        }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 2,
+                            fontSize: '0.95rem',
+                            height: '48px',
+                            backgroundColor: 'white',
+                            '&:hover': {
+                              backgroundColor: '#f9fafb'
+                            }
+                          },
+                          '& .MuiInputLabel-root': {
+                            fontSize: '0.95rem',
+                            fontWeight: 500
+                          }
+                        }}
+                      />
+                    </Grid>
+
+                    {/* Sale Price */}
+                    <Grid item xs={12} sm={6} md={4}>
+                      <TextField
+                        fullWidth
+                        label="Sale Price"
+                        name="pro_sale_price"
+                        type="number"
+                        inputProps={{ step: "0.01" }}
+                        value={formData.pro_sale_price}
+                        onChange={handleFormChange}
+                        placeholder="0.00"
+                        InputProps={{
+                          startAdornment: <InputAdornment position="start" sx={{ fontSize: '0.95rem', fontWeight: 600 }}>Rs</InputAdornment>,
+                        }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 2,
+                            fontSize: '0.95rem',
+                            height: '48px',
+                            backgroundColor: 'white',
+                            '&:hover': {
+                              backgroundColor: '#f9fafb'
+                            }
+                          },
+                          '& .MuiInputLabel-root': {
+                            fontSize: '0.95rem',
+                            fontWeight: 500
+                          }
+                        }}
+                      />
+                    </Grid>
+
+                    {/* Base Price */}
+                    <Grid item xs={12} sm={6} md={4}>
+                      <TextField
+                        fullWidth
+                        label="Base Price"
+                        name="pro_baser_price"
+                        type="number"
+                        inputProps={{ step: "0.01" }}
+                        value={formData.pro_baser_price}
+                        onChange={handleFormChange}
+                        placeholder="0.00"
+                        InputProps={{
+                          startAdornment: <InputAdornment position="start" sx={{ fontSize: '0.95rem', fontWeight: 600 }}>Rs</InputAdornment>,
+                        }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 2,
+                            fontSize: '0.95rem',
+                            height: '48px',
+                            backgroundColor: 'white',
+                            '&:hover': {
+                              backgroundColor: '#f9fafb'
+                            }
+                          },
+                          '& .MuiInputLabel-root': {
+                            fontSize: '0.95rem',
+                            fontWeight: 500
+                          }
+                        }}
+                      />
+                    </Grid>
+
+                    {/* CRate */}
+                    <Grid item xs={12} sm={6} md={4}>
+                      <TextField
+                        fullWidth
+                        label="CRate"
+                        name="pro_crate"
+                        type="number"
+                        inputProps={{ step: "0.01" }}
+                        value={formData.pro_crate}
+                        onChange={handleFormChange}
+                        placeholder="0.00"
+                        InputProps={{
+                          startAdornment: <InputAdornment position="start" sx={{ fontSize: '0.95rem', fontWeight: 600 }}>Rs</InputAdornment>,
+                        }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 2,
+                            fontSize: '0.95rem',
+                            height: '48px',
+                            backgroundColor: 'white',
+                            '&:hover': {
+                              backgroundColor: '#f9fafb'
+                            }
+                          },
+                          '& .MuiInputLabel-root': {
+                            fontSize: '0.95rem',
+                            fontWeight: 500
+                          }
+                        }}
+                      />
+                    </Grid>
                   </Grid>
-                </Grid>
+                </Box>
+
+                {/* SECTION 4: Inventory Details */}
+                <Box>
+                  <Typography variant="subtitle1" sx={{ 
+                    fontWeight: 700, 
+                    color: '#1e293b',
+                    mb: 2,
+                    pb: 1.5,
+                    borderBottom: '2px solid #d97706',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1
+                  }}>
+                    <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: '#d97706' }}></Box>
+                    Inventory Details
+                  </Typography>
+                  <Grid container spacing={2.5}>
+                    {/* Stock Quantity */}
+                    <Grid item xs={12} sm={6} md={4}>
+                      <TextField
+                        fullWidth
+                        label="Stock Quantity"
+                        name="pro_stock_qnty"
+                        type="number"
+                        value={formData.pro_stock_qnty}
+                        onChange={handleFormChange}
+                        placeholder="0"
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 2,
+                            fontSize: '0.95rem',
+                            height: '48px',
+                            backgroundColor: 'white',
+                            '&:hover': {
+                              backgroundColor: '#f9fafb'
+                            }
+                          },
+                          '& .MuiInputLabel-root': {
+                            fontSize: '0.95rem',
+                            fontWeight: 500
+                          }
+                        }}
+                      />
+                    </Grid>
+
+                    {/* Unit */}
+                    <Grid item xs={12} sm={6} md={4}>
+                      <TextField
+                        fullWidth
+                        label="Unit"
+                        name="pro_unit"
+                        value={formData.pro_unit}
+                        onChange={handleFormChange}
+                        placeholder="e.g., pieces, kg, liters"
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 2,
+                            fontSize: '0.95rem',
+                            height: '48px',
+                            backgroundColor: 'white',
+                            '&:hover': {
+                              backgroundColor: '#f9fafb'
+                            }
+                          },
+                          '& .MuiInputLabel-root': {
+                            fontSize: '0.95rem',
+                            fontWeight: 500
+                          }
+                        }}
+                      />
+                    </Grid>
+
+                    {/* Packing */}
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        label="Packing"
+                        name="pro_packing"
+                        value={formData.pro_packing}
+                        onChange={handleFormChange}
+                        placeholder="Enter packing information"
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 2,
+                            fontSize: '0.95rem',
+                            minHeight: '48px',
+                            backgroundColor: 'white',
+                            '&:hover': {
+                              backgroundColor: '#f9fafb'
+                            }
+                          },
+                          '& .MuiInputLabel-root': {
+                            fontSize: '0.95rem',
+                            fontWeight: 500
+                          }
+                        }}
+                      />
+                    </Grid>
+                  </Grid>
+                </Box>
               </Box>
             </DialogContent>
 
-            <DialogActions sx={{ p: 3, pt: 0 }}>
+            <DialogActions sx={{ 
+              p: 3, 
+              gap: 2,
+              borderTop: '1px solid #e2e8f0',
+              bgcolor: 'white',
+              display: 'flex',
+              justifyContent: 'flex-end'
+            }}>
               <Button
                 onClick={handleCloseDialog}
                 variant="outlined"
-                sx={{ mr: 2 }}
+                sx={{ 
+                  mr: 1,
+                  borderColor: '#cbd5e1',
+                  color: '#64748b',
+                  padding: '8px 24px',
+                  borderRadius: 1.5,
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  fontSize: '0.95rem',
+                  '&:hover': {
+                    borderColor: '#94a3b8',
+                    backgroundColor: '#f1f5f9'
+                  }
+                }}
               >
                 Cancel
               </Button>
@@ -1310,11 +1563,16 @@ export default function ProductsPage() {
                     boxShadow: 6,
                     transform: 'translateY(-2px)',
                   },
+                  '&:disabled': {
+                    background: 'linear-gradient(45deg, #90caf9, #ce93d8)',
+                    color: 'rgba(255,255,255,0.7)'
+                  },
                   px: 4,
-                  py: 1.5,
+                  py: 1,
                   borderRadius: 1.5,
                   textTransform: 'none',
                   fontWeight: 600,
+                  fontSize: '0.95rem',
                   boxShadow: 3,
                   transition: 'all 0.2s ease-in-out'
                 }}

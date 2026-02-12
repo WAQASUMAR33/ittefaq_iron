@@ -1777,8 +1777,8 @@ function PurchasesPageContent() {
     <DashboardLayout>
       <Container maxWidth="xl" sx={{ py: 4 }}>
         <Stack spacing={4}>
-          {/* Header - Just the Add Button */}
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 2 }}>
+          {/* Header - Add New Purchase Button on the left */}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', py: 2 }}>
             <Button
               variant="contained"
               startIcon={<AddIcon />}
@@ -1787,18 +1787,68 @@ function PurchasesPageContent() {
               sx={{
                 background: 'linear-gradient(45deg, #1976d2 30%, #2196f3 90%)',
                 boxShadow: '0 4px 20px rgba(25, 118, 210, 0.3)',
-                px: 4,
-                py: 1.5,
-                fontSize: '1rem',
+                px: 6,
+                py: 2,
+                fontSize: '1.2rem',
                 fontWeight: 'bold',
+                minWidth: '320px',
+                height: '70px',
+                borderRadius: 3,
+                position: 'relative',
+                '@keyframes float': {
+                  '0%, 100%': { transform: 'translateY(0px)' },
+                  '50%': { transform: 'translateY(-8px)' }
+                },
+                '@keyframes glow': {
+                  '0%, 100%': { boxShadow: '0 4px 20px rgba(25, 118, 210, 0.3)' },
+                  '50%': { boxShadow: '0 4px 35px rgba(25, 118, 210, 0.7)' }
+                },
+                '@keyframes shimmer': {
+                  '0%': { backgroundPosition: '-200% 0' },
+                  '100%': { backgroundPosition: '200% 0' }
+                },
+                '@keyframes pulse': {
+                  '0%, 100%': { transform: 'scale(1)' },
+                  '50%': { transform: 'scale(1.02)' }
+                },
+                '@keyframes plusGlow': {
+                  '0%, 100%': { 
+                    textShadow: '0 0 5px rgba(255, 255, 255, 0.3)',
+                    filter: 'drop-shadow(0 0 3px rgba(255, 255, 255, 0.2))'
+                  },
+                  '50%': { 
+                    textShadow: '0 0 15px rgba(255, 255, 255, 0.8), 0 0 25px rgba(255, 255, 255, 0.4)',
+                    filter: 'drop-shadow(0 0 8px rgba(255, 255, 255, 0.6))'
+                  }
+                },
+                animation: 'float 3s ease-in-out infinite, glow 2s ease-in-out infinite alternate, pulse 4s ease-in-out infinite',
+                backgroundSize: '200% 100%',
+                '& .MuiButton-startIcon': {
+                  animation: 'plusGlow 2s ease-in-out infinite alternate'
+                },
                 '&:hover': {
                   background: 'linear-gradient(45deg, #1565c0 30%, #1976d2 90%)',
-                  transform: 'scale(1.05)',
-                  boxShadow: '0 6px 25px rgba(25, 118, 210, 0.4)',
+                  transform: 'scale(1.08) translateY(-4px)',
+                  boxShadow: '0 10px 40px rgba(25, 118, 210, 0.6)',
+                  animation: 'shimmer 1.5s ease-in-out infinite, float 1s ease-in-out infinite',
+                  '& .MuiButton-startIcon': {
+                    animation: 'plusGlow 1s ease-in-out infinite alternate, float 0.5s ease-in-out infinite'
+                  }
+                },
+                '&:active': {
+                  transform: 'scale(0.95) translateY(0px)',
+                  transition: 'all 0.1s ease-in-out'
                 },
                 transition: 'all 0.3s ease-in-out'
               }}
             >
+              <span style={{
+                textShadow: '0 0 8px rgba(255, 255, 255, 0.5), 0 0 16px rgba(255, 255, 255, 0.3)',
+                filter: 'drop-shadow(0 0 4px rgba(255, 255, 255, 0.4))',
+                transition: 'all 0.3s ease-in-out'
+              }}>
+                ➕
+              </span>
               Add New Purchase
             </Button>
           </Box>

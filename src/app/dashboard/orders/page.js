@@ -38,7 +38,8 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  Divider
 } from '@mui/material';
 
 import {
@@ -2167,6 +2168,19 @@ function OrdersPageContent() {
     }
   };
 
+  // Helper function to get sort label
+  const getSortLabel = (value) => {
+    const labels = {
+      'created_at-desc': 'Newest First',
+      'created_at-asc': 'Oldest First',
+      'customer-asc': 'Customer A-Z',
+      'customer-desc': 'Customer Z-A',
+      'total_amount-desc': 'Amount High-Low',
+      'total_amount-asc': 'Amount Low-High'
+    };
+    return labels[value] || 'Newest First';
+  };
+
   const clearFilters = () => {
     setSearchTerm('');
     setSelectedCustomer(null);
@@ -3712,334 +3726,434 @@ function OrdersPageContent() {
           px: { xs: 2, sm: 3, md: 4 } // Responsive horizontal padding
         }}>
         <Stack spacing={4}>
-          {/* Header */}
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Box>
-              <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
-                Order Management
-              </Typography>
-              <Typography variant="body1" sx={{ color: 'text.secondary', mt: 1 }}>
-                Manage your orders, customers, and revenue
-              </Typography>
-            </Box>
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <Button
-                variant="contained"
-                startIcon={<PackageIcon />}
-                onClick={() => showSnackbar('Hold Bill functionality will be implemented soon', 'info')}
-                sx={{
-                  background: 'linear-gradient(45deg, #FF6B35 30%, #F7931E 90%)',
-                  boxShadow: '0 3px 5px 2px rgba(255, 107, 53, .3)',
-                  '&:hover': {
-                    background: 'linear-gradient(45deg, #E55A2B 30%, #E8851B 90%)',
-                    transform: 'scale(1.05)',
+          {/* Header - New Order Button on the left */}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', py: 2 }}>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => setCurrentView('create')}
+              size="large"
+              sx={{
+                background: 'linear-gradient(45deg, #FFC107 30%, #FF8F00 90%)',
+                boxShadow: '0 4px 20px rgba(255, 193, 7, 0.3)',
+                px: 6,
+                py: 2,
+                fontSize: '1.2rem',
+                fontWeight: 'bold',
+                minWidth: '320px',
+                height: '70px',
+                borderRadius: 3,
+                position: 'relative',
+                '@keyframes float': {
+                  '0%, 100%': { transform: 'translateY(0px)' },
+                  '50%': { transform: 'translateY(-8px)' }
+                },
+                '@keyframes glow': {
+                  '0%, 100%': { boxShadow: '0 4px 20px rgba(255, 193, 7, 0.3)' },
+                  '50%': { boxShadow: '0 4px 35px rgba(255, 193, 7, 0.7)' }
+                },
+                '@keyframes shimmer': {
+                  '0%': { backgroundPosition: '-200% 0' },
+                  '100%': { backgroundPosition: '200% 0' }
+                },
+                '@keyframes pulse': {
+                  '0%, 100%': { transform: 'scale(1)' },
+                  '50%': { transform: 'scale(1.02)' }
+                },
+                '@keyframes plusGlow': {
+                  '0%, 100%': {
+                    textShadow: '0 0 5px rgba(255, 255, 255, 0.3)',
+                    filter: 'drop-shadow(0 0 3px rgba(255, 255, 255, 0.2))'
                   },
-                  transition: 'all 0.2s ease-in-out'
-                }}
-              >
-                Hold Bill
-              </Button>
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={() => setCurrentView('create')}
-                sx={{
-                  background: 'linear-gradient(45deg, #4CAF50 30%, #2E7D32 90%)',
-                  boxShadow: '0 3px 5px 2px rgba(76, 175, 80, .3)',
-                  '&:hover': {
-                    background: 'linear-gradient(45deg, #388E3C 30%, #1B5E20 90%)',
-                    transform: 'scale(1.05)',
-                  },
-                  transition: 'all 0.2s ease-in-out'
-                }}
-              >
-                Add New Order
-              </Button>
-            </Box>
+                  '50%': {
+                    textShadow: '0 0 15px rgba(255, 255, 255, 0.8), 0 0 25px rgba(255, 255, 255, 0.4)',
+                    filter: 'drop-shadow(0 0 8px rgba(255, 255, 255, 0.6))'
+                  }
+                },
+                '@keyframes yellowTransition': {
+                  '0%': { background: 'linear-gradient(45deg, #FFC107 30%, #FF8F00 90%)' },
+                  '25%': { background: 'linear-gradient(45deg, #FFD54F 30%, #FFB74D 90%)' },
+                  '50%': { background: 'linear-gradient(45deg, #FFEB3B 30%, #FFC107 90%)' },
+                  '75%': { background: 'linear-gradient(45deg, #FFF176 30%, #FFD54F 90%)' },
+                  '100%': { background: 'linear-gradient(45deg, #FFC107 30%, #FF8F00 90%)' }
+                },
+                animation: 'float 3s ease-in-out infinite, glow 2s ease-in-out infinite alternate, pulse 4s ease-in-out infinite, yellowTransition 5s ease-in-out infinite',
+                backgroundSize: '200% 100%',
+                '& .MuiButton-startIcon': {
+                  animation: 'plusGlow 2s ease-in-out infinite alternate'
+                },
+                '&:hover': {
+                  background: 'linear-gradient(45deg, #FF8F00 30%, #E65100 90%)',
+                  transform: 'scale(1.08) translateY(-4px)',
+                  boxShadow: '0 10px 40px rgba(255, 193, 7, 0.6)',
+                  animation: 'shimmer 1.5s ease-in-out infinite, float 1s ease-in-out infinite, yellowTransition 2s ease-in-out infinite',
+                  '& .MuiButton-startIcon': {
+                    animation: 'plusGlow 1s ease-in-out infinite alternate, float 0.5s ease-in-out infinite'
+                  }
+                },
+                '&:active': {
+                  transform: 'scale(0.95) translateY(0px)',
+                  transition: 'all 0.1s ease-in-out'
+                },
+                transition: 'all 0.3s ease-in-out'
+              }}
+            >
+              <span style={{
+                textShadow: '0 0 8px rgba(255, 255, 255, 0.5), 0 0 16px rgba(255, 255, 255, 0.3)',
+                filter: 'drop-shadow(0 0 4px rgba(255, 255, 255, 0.4))',
+                transition: 'all 0.3s ease-in-out'
+              }}>
+                ➕
+              </span>
+              New Order
+            </Button>
           </Box>
 
           {/* Stats Cards */}
-          <Grid container spacing={3}>
-            <Grid item xs={12} sm={6} md={3}>
-              <Card sx={{ background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)', color: 'white' }}>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', mr: 2 }}>
-                      <ShoppingCartIcon />
+          <Box sx={{ flexShrink: 0, mb: 3, width: '100%' }}>
+            <Card sx={{
+              borderRadius: 2,
+              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+              overflow: 'hidden',
+              bgcolor: 'white',
+              border: '1px solid #e5e7eb'
+            }}>
+              <Box sx={{
+                display: 'flex',
+                flexDirection: { xs: 'column', md: 'row' },
+                alignItems: 'stretch',
+                justifyContent: 'space-between',
+                p: 0
+              }}>
+                {[
+                  { title: 'Total Orders', val: totalSales, color: '#2563eb', bg: '#eff6ff', icon: <ShoppingCartIcon /> },
+                  { title: 'Total Revenue', val: totalSalesValue, color: '#16a34a', bg: '#f0fdf4', icon: <AttachMoneyIcon /> },
+                  { title: 'Total Discount', val: totalDiscount, color: '#dc2626', bg: '#fef2f2', icon: <TrendingDownIcon /> },
+                  { title: 'Total Payment', val: totalPayment, color: '#d97706', bg: '#fffbeb', icon: <CreditCardIcon /> }
+                ].map((stat, i) => (
+                  <Box key={i} sx={{
+                    flex: 1,
+                    p: 3,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 2.5,
+                    width: '100%',
+                    bgcolor: stat.bg,
+                    position: 'relative',
+                    borderBottom: i < 3 && { xs: '1px solid #e5e7eb', md: 'none' },
+                    '&:hover': {
+                      bgcolor: 'white',
+                      transition: 'background-color 0.3s'
+                    }
+                  }}>
+                    <Avatar sx={{
+                      bgcolor: 'white',
+                      color: stat.color,
+                      width: 52,
+                      height: 52,
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                      border: `1.5px solid ${stat.color}20`
+                    }}>
+                      {stat.icon}
                     </Avatar>
                     <Box>
-                      <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                        Total Orders
+                      <Typography variant="overline" sx={{
+                        display: 'block',
+                        lineHeight: 1,
+                        mb: 0.5,
+                        color: '#6b7280',
+                        fontWeight: 700,
+                        letterSpacing: 1.2
+                      }}>
+                        {stat.title}
                       </Typography>
-                      <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                        {totalSales}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} sm={6} md={3}>
-              <Card sx={{ background: 'linear-gradient(45deg, #4CAF50 30%, #8BC34A 90%)', color: 'white' }}>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', mr: 2 }}>
-                      <AttachMoneyIcon />
-                    </Avatar>
-                    <Box>
-                      <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                        Total Revenue
-                      </Typography>
-                      <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                        {totalSalesValue.toLocaleString()}
+                      <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: 0.5, color: stat.color }}>
+                        {i > 0 && <span style={{ fontSize: '0.8rem', marginRight: 4, opacity: 0.6 }}>PKR</span>}
+                        {stat.val.toLocaleString()}
                       </Typography>
                     </Box>
+                    {i < 3 && (
+                      <Divider
+                        orientation="vertical"
+                        flexItem
+                        sx={{
+                          display: { xs: 'none', md: 'block' },
+                          bgcolor: '#e5e7eb',
+                          height: 60,
+                          position: 'absolute',
+                          right: 0,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          zIndex: 1
+                        }}
+                      />
+                    )}
                   </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} sm={6} md={3}>
-              <Card sx={{ background: 'linear-gradient(45deg, #9C27B0 30%, #E91E63 90%)', color: 'white' }}>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', mr: 2 }}>
-                      <TrendingDownIcon />
-                    </Avatar>
-                    <Box>
-                      <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                        Total Discount
-                      </Typography>
-                      <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                        {totalDiscount.toLocaleString()}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} sm={6} md={3}>
-              <Card sx={{ background: 'linear-gradient(45deg, #FF9800 30%, #F44336 90%)', color: 'white' }}>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', mr: 2 }}>
-                      <CreditCardIcon />
-                    </Avatar>
-                    <Box>
-                      <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                        Total Payment
-                      </Typography>
-                      <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                        {totalPayment.toLocaleString()}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
+                ))}
+              </Box>
+            </Card>
+          </Box>
 
           {/* Sales Filter */}
-          <Card sx={{ mb: 3 }}>
-            <CardContent sx={{ p: 2 }}>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 'semibold' }}>
-                Filter Orders
-              </Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12} md={3}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Search"
-                    placeholder="Search by Order ID, Customer, or Reference"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <SearchIcon />
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
-                </Grid>
-                <Grid item xs={12} md={3}>
-                  <Autocomplete
-                    fullWidth
-                    size="small"
-                    options={customers.filter(customer => {
-                      // Filter for customers with category "Customer"
-                      const isCustomer = customer.customer_category &&
-                        customer.customer_category.cus_cat_title &&
-                        customer.customer_category.cus_cat_title.toLowerCase().includes('customer');
-                      console.log('🔍 Orders List Customer filtering:', customer.cus_name, 'isCustomer:', isCustomer, 'customer_category:', customer.customer_category);
-                      return isCustomer;
-                    })}
-                    getOptionLabel={(option) => option.cus_name || ''}
-                    value={customers.find(c => c.cus_id.toString() === filterCustomer) || null}
-                    onChange={(event, newValue) => {
-                      console.log('🔍 Sales List Customer selected:', newValue);
-                      setFilterCustomer(newValue ? newValue.cus_id.toString() : '');
-                    }}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        label="Customer"
-                        placeholder="Select customer"
-                        sx={{ minWidth: 250 }}
-                      />
-                    )}
-                  />
-                  {/* Debug info */}
-                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                    Debug: {customers.length} total customers, {customers.filter(c => c.customer_category?.cus_cat_title?.toLowerCase().includes('customer')).length} customers
+          {/* Filters & Sorting Section */}
+          <Box sx={{ flexShrink: 0, mb: 3, width: '100%' }}>
+            <Card sx={{
+              borderRadius: 2,
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+              width: '100%',
+              border: '1px solid #e2e8f0',
+              bgcolor: '#f8fafc'
+            }}>
+              <CardContent sx={{ p: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <FilterIcon sx={{ color: '#64748b' }} />
+                    Filters & Sorting
                   </Typography>
-                </Grid>
-                <Grid item xs={12} md={2}>
-                  <FormControl fullWidth size="small" sx={{ minWidth: 150 }}>
-                    <InputLabel>Bill Type</InputLabel>
-                    <Select
-                      value={filterBillType}
-                      onChange={(e) => setFilterBillType(e.target.value)}
-                      label="Bill Type"
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Typography variant="body2" sx={{ color: '#64748b', fontWeight: 500 }}>
+                      Showing <strong>{filteredSales.length}</strong> of <strong>{sales.length}</strong> orders
+                    </Typography>
+                    <Button
+                      onClick={clearFilters}
+                      size="small"
+                      startIcon={<ClearIcon />}
+                      sx={{
+                        color: '#64748b',
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        '&:hover': { color: '#ef4444', bgcolor: '#fee2e2' }
+                      }}
                     >
-                      <MenuItem value="">All Types</MenuItem>
-                      <MenuItem value="ORDER">Order</MenuItem>
-                      <MenuItem value="BILL">Bill</MenuItem>
-                      <MenuItem value="QUOTATION">Quotation</MenuItem>
-                      <MenuItem value="SALE_RETURN">Sale Return</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12} md={3}>
+                      Clear All Filters
+                    </Button>
+                  </Box>
+                </Box>
+                <Box sx={{
+                  display: 'grid',
+                  gridTemplateColumns: {
+                    xs: '1fr',
+                    sm: 'repeat(2, 1fr)',
+                    md: 'repeat(4, 1fr)'
+                  },
+                  gap: 3,
+                  width: '100%'
+                }}>
+                  {/* Search */}
+                  <Box>
+                    <TextField
+                      fullWidth
+                      label="Search Orders"
+                      placeholder="ID, Customer, or Reference..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      onFocus={(e) => e.target.select()}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <SearchIcon size={18} sx={{ color: '#94a3b8' }} />
+                          </InputAdornment>
+                        ),
+                      }}
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
+                    />
+                  </Box>
+
+                  {/* Customer Filter */}
+                  <Box>
+                    <Autocomplete
+                      fullWidth
+                      options={customers.filter(customer => {
+                        // Filter for customers with category "Customer"
+                        const isCustomer = customer.customer_category &&
+                          customer.customer_category.cus_cat_title &&
+                          customer.customer_category.cus_cat_title.toLowerCase().includes('customer');
+                        return isCustomer;
+                      })}
+                      getOptionLabel={(option) => option.cus_name || ''}
+                      value={customers.find(c => c.cus_id.toString() === filterCustomer) || null}
+                      onChange={(event, newValue) => {
+                        setFilterCustomer(newValue ? newValue.cus_id.toString() : '');
+                      }}
+                      autoSelect={true}
+                      autoHighlight={true}
+                      openOnFocus={true}
+                      selectOnFocus={true}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="Customer"
+                          placeholder="All Customers"
+                          onFocus={(e) => e.target.select()}
+                          sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
+                        />
+                      )}
+                    />
+                  </Box>
+                  {/* Bill Type Filter */}
+                  <Box>
+                    <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}>
+                      <InputLabel>Bill Type</InputLabel>
+                      <Select
+                        value={filterBillType}
+                        onChange={(e) => setFilterBillType(e.target.value)}
+                        label="Bill Type"
+                      >
+                        <MenuItem value="">All Types</MenuItem>
+                        <MenuItem value="ORDER">Order</MenuItem>
+                        <MenuItem value="BILL">Bill</MenuItem>
+                        <MenuItem value="QUOTATION">Quotation</MenuItem>
+                        <MenuItem value="SALE_RETURN">Sale Return</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Box>
+
+                  {/* Store Filter */}
+                  <Box>
+                    <Autocomplete
+                      fullWidth
+                      options={stores}
+                      getOptionLabel={(option) => option.store_name || ''}
+                      value={stores.find(s => s.storeid.toString() === filterStore) || null}
+                      onChange={(event, newValue) => setFilterStore(newValue ? newValue.storeid.toString() : '')}
+                      autoSelect={true}
+                      autoHighlight={true}
+                      openOnFocus={true}
+                      selectOnFocus={true}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="Store"
+                          placeholder="All Stores"
+                          onFocus={(e) => e.target.select()}
+                          sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
+                        />
+                      )}
+                    />
+                  </Box>
+                  {/* Date From */}
+                  <Box>
+                    <TextField
+                      fullWidth
+                      label="From Date"
+                      type="date"
+                      value={dateFrom}
+                      onChange={(e) => setDateFrom(e.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
+                    />
+                  </Box>
+
+                  {/* Date To */}
+                  <Box>
+                    <TextField
+                      fullWidth
+                      label="To Date"
+                      type="date"
+                      value={dateTo}
+                      onChange={(e) => setDateTo(e.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
+                    />
+                  </Box>
+
+                  {/* Min Amount */}
+                  <Box>
+                    <TextField
+                      fullWidth
+                      label="Min Amount"
+                      type="number"
+                      placeholder="e.g. 1000"
+                      value={filterMinAmount}
+                      onChange={(e) => setFilterMinAmount(e.target.value)}
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
+                    />
+                  </Box>
+
+                  {/* Max Amount */}
+                  <Box>
+                    <TextField
+                      fullWidth
+                      label="Max Amount"
+                      type="number"
+                      placeholder="e.g. 50000"
+                      value={filterMaxAmount}
+                      onChange={(e) => setFilterMaxAmount(e.target.value)}
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
+                    />
+                  </Box>
+
+                  {/* Payment Type */}
+                  <Box>
+                    <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}>
+                      <InputLabel>Payment Type</InputLabel>
+                      <Select
+                        value={filterPaymentType}
+                        onChange={(e) => setFilterPaymentType(e.target.value)}
+                        label="Payment Type"
+                      >
+                        <MenuItem value="">All Types</MenuItem>
+                        <MenuItem value="CASH">Cash</MenuItem>
+                        <MenuItem value="BANK">Bank</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Box>
+
+                  {/* Balance Status */}
+                  <Box>
+                    <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}>
+                      <InputLabel>Balance Status</InputLabel>
+                      <Select
+                        value={filterBalanceStatus}
+                        onChange={(e) => setFilterBalanceStatus(e.target.value)}
+                        label="Balance Status"
+                      >
+                        <MenuItem value="">All</MenuItem>
+                        <MenuItem value="with_balance">With Balance</MenuItem>
+                        <MenuItem value="without_balance">Without Balance</MenuItem>
+                        <MenuItem value="overpaid">Overpaid</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Box>
+
+                  {/* Sort */}
                   <Autocomplete
                     fullWidth
-                    size="small"
-                    options={stores}
-                    getOptionLabel={(option) => option.store_name || ''}
-                    value={stores.find(s => s.storeid.toString() === filterStore) || null}
+                    options={[
+                      { value: 'created_at-desc', label: 'Newest First' },
+                      { value: 'created_at-asc', label: 'Oldest First' },
+                      { value: 'customer-asc', label: 'Customer A-Z' },
+                      { value: 'customer-desc', label: 'Customer Z-A' },
+                      { value: 'total_amount-desc', label: 'Amount High-Low' },
+                      { value: 'total_amount-asc', label: 'Amount Low-High' }
+                    ]}
+                    getOptionLabel={(option) => option.label}
+                    value={{ value: `${sortBy}-${sortOrder}`, label: getSortLabel(`${sortBy}-${sortOrder}`) }}
                     onChange={(event, newValue) => {
-                      setFilterStore(newValue ? newValue.storeid.toString() : '');
+                      if (newValue) {
+                        const [field, order] = newValue.value.split('-');
+                        setSortBy(field);
+                        setSortOrder(order);
+                      }
                     }}
+                    autoSelect={true}
+                    autoHighlight={true}
+                    openOnFocus={true}
+                    selectOnFocus={true}
                     renderInput={(params) => (
                       <TextField
                         {...params}
-                        label="Store"
-                        placeholder="Select store"
+                        label="Sort By"
+                        placeholder="Select..."
+                        onFocus={(e) => e.target.select()}
+                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
                       />
                     )}
                   />
-                </Grid>
-                <Grid item xs={12} md={2}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Payment Type</InputLabel>
-                    <Select
-                      value={filterPaymentType}
-                      onChange={(e) => setFilterPaymentType(e.target.value)}
-                      label="Payment Type"
-                    >
-                      <MenuItem value="">All Types</MenuItem>
-                      <MenuItem value="CASH">Cash</MenuItem>
-                      <MenuItem value="BANK">Bank</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-              </Grid>
-              <Grid container spacing={2} sx={{ mt: 1 }}>
-                <Grid item xs={12} md={2}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    type="date"
-                    label="From Date"
-                    value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)}
-                    InputLabelProps={{ shrink: true }}
-                  />
-                </Grid>
-                <Grid item xs={12} md={2}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    type="date"
-                    label="To Date"
-                    value={dateTo}
-                    onChange={(e) => setDateTo(e.target.value)}
-                    InputLabelProps={{ shrink: true }}
-                  />
-                </Grid>
-                <Grid item xs={12} md={2}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    type="number"
-                    label="Min Amount"
-                    placeholder=" "
-                    value={filterMinAmount}
-                    onChange={(e) => setFilterMinAmount(e.target.value)}
-                    InputProps={{
-                      startAdornment: <InputAdornment position="start">Rs</InputAdornment>,
-                    }}
-                  />
-                </Grid>
-                <Grid item xs={12} md={2}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    type="number"
-                    label="Max Amount"
-                    placeholder=" "
-                    value={filterMaxAmount}
-                    onChange={(e) => setFilterMaxAmount(e.target.value)}
-                    InputProps={{
-                      startAdornment: <InputAdornment position="start">Rs</InputAdornment>,
-                    }}
-                  />
-                </Grid>
-                <Grid item xs={12} md={2}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Balance Status</InputLabel>
-                    <Select
-                      value={filterBalanceStatus}
-                      onChange={(e) => setFilterBalanceStatus(e.target.value)}
-                      label="Balance Status"
-                    >
-                      <MenuItem value="">All</MenuItem>
-                      <MenuItem value="with_balance">With Balance</MenuItem>
-                      <MenuItem value="without_balance">Without Balance</MenuItem>
-                      <MenuItem value="overpaid">Overpaid</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-              </Grid>
-              <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => {
-                    setSearchTerm('');
-                    setFilterCustomer('');
-                    setFilterBillType('');
-                    setFilterStore('');
-                    setFilterPaymentType('');
-                    setFilterMinAmount('');
-                    setFilterMaxAmount('');
-                    setFilterBalanceStatus('');
-                    setDateFrom('');
-                    setDateTo('');
-                  }}
-                  startIcon={<ClearIcon />}
-                >
-                  Clear Filters
-                </Button>
-                <Typography variant="body2" color="text.secondary" sx={{ alignSelf: 'center', ml: 2 }}>
-                  Showing {filteredSales.length} of {sales.length} sales
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
+                </Box>
+              </CardContent>
+            </Card>
+          </Box>
 
           {/* Sales Table */}
           <Card>
