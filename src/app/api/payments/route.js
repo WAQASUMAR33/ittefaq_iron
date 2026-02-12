@@ -141,107 +141,106 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
+    // Get current balances for all affected accounts (BEFORE transaction)
+    const affectedAccountIds = [parseInt(account_id)];
+    if (cash_account_id) affectedAccountIds.push(parseInt(cash_account_id));
+    if (bank_account_id) affectedAccountIds.push(parseInt(bank_account_id));
+
+    const accountBalances = await prisma.customer.findMany({
+      where: { cus_id: { in: affectedAccountIds } },
+      select: { cus_id: true, cus_balance: true }
+    });
+
+    const balanceMap = {};
+    accountBalances.forEach(acc => {
+      balanceMap[acc.cus_id] = parseFloat(acc.cus_balance || 0);
+    });
+
     // Use transaction to ensure data consistency
-    const result = await prisma.$transaction(async (tx) => {
-      // Create payment
-      const payment = await tx.payment.create({
-        data: {
-          payment_date: new Date(payment_date),
-          payment_type,
-          account_id: parseInt(account_id),
-          total_amount: parseFloat(total_amount),
-          discount_amount: parseFloat(discount_amount),
-          net_amount: netAmount,
-          cash_account_id: cash_account_id ? parseInt(cash_account_id) : null,
-          cash_amount: parseFloat(cash_amount),
-          bank_account_id: bank_account_id ? parseInt(bank_account_id) : null,
-          bank_amount: parseFloat(bank_amount),
-          description,
-          created_by: parseInt(created_by)
-        }
-      });
-
-      // Create payment details for ledger entries
-      const paymentDetails = [];
-
-      // Main account entry (debit for receive, credit for pay)
-      if (payment_type === 'RECEIVE') {
-        paymentDetails.push({
-          payment_id: payment.payment_id,
-          account_id: parseInt(account_id),
-          amount: netAmount,
-          description: description || `Payment received from account`
+    const result = await prisma.$transaction(
+      async (tx) => {
+        // Create payment
+        const payment = await tx.payment.create({
+          data: {
+            payment_date: new Date(payment_date),
+            payment_type,
+            account_id: parseInt(account_id),
+            total_amount: parseFloat(total_amount),
+            discount_amount: parseFloat(discount_amount),
+            net_amount: netAmount,
+            cash_account_id: cash_account_id ? parseInt(cash_account_id) : null,
+            cash_amount: parseFloat(cash_amount),
+            bank_account_id: bank_account_id ? parseInt(bank_account_id) : null,
+            bank_amount: parseFloat(bank_amount),
+            description,
+            created_by: parseInt(created_by)
+          }
         });
-      } else { // PAY
-        paymentDetails.push({
-          payment_id: payment.payment_id,
-          account_id: parseInt(account_id),
-          amount: -netAmount, // Negative for payment out
-          description: description || `Payment made to account`
-        });
-      }
 
-      // Cash account entry (if cash payment exists)
-      if (cash_account_id && parseFloat(cash_amount) > 0) {
+        // Create payment details for ledger entries
+        const paymentDetails = [];
+
+        // Main account entry (debit for receive, credit for pay)
         if (payment_type === 'RECEIVE') {
           paymentDetails.push({
             payment_id: payment.payment_id,
-            account_id: parseInt(cash_account_id),
-            amount: -parseFloat(cash_amount), // Cash out for receive
-            description: `Cash payment received`
+            account_id: parseInt(account_id),
+            amount: netAmount,
+            description: description || `Payment received from account`
           });
         } else { // PAY
           paymentDetails.push({
             payment_id: payment.payment_id,
-            account_id: parseInt(cash_account_id),
-            amount: parseFloat(cash_amount), // Cash in for pay
-            description: `Cash payment made`
+            account_id: parseInt(account_id),
+            amount: parseFloat(total_amount), // Total amount for supplier credit
+            description: description || `Payment made to account`
           });
         }
-      }
 
-      // Bank account entry (if bank payment exists)
-      if (bank_account_id && parseFloat(bank_amount) > 0) {
-        if (payment_type === 'RECEIVE') {
-          paymentDetails.push({
-            payment_id: payment.payment_id,
-            account_id: parseInt(bank_account_id),
-            amount: -parseFloat(bank_amount), // Bank out for receive
-            description: `Bank payment received`
-          });
-        } else { // PAY
-          paymentDetails.push({
-            payment_id: payment.payment_id,
-            account_id: parseInt(bank_account_id),
-            amount: parseFloat(bank_amount), // Bank in for pay
-            description: `Bank payment made`
+        // Cash account entry (if cash payment exists)
+        if (cash_account_id && parseFloat(cash_amount) > 0) {
+          if (payment_type === 'RECEIVE') {
+            paymentDetails.push({
+              payment_id: payment.payment_id,
+              account_id: parseInt(cash_account_id),
+              amount: -parseFloat(cash_amount), // Cash out for receive
+              description: `Cash payment received`
+            });
+          } else { // PAY
+            paymentDetails.push({
+              payment_id: payment.payment_id,
+              account_id: parseInt(cash_account_id),
+              amount: -parseFloat(cash_amount), // Cash out for pay
+              description: `Cash payment made`
+            });
+          }
+        }
+
+        // Bank account entry (if bank payment exists)
+        if (bank_account_id && parseFloat(bank_amount) > 0) {
+          if (payment_type === 'RECEIVE') {
+            paymentDetails.push({
+              payment_id: payment.payment_id,
+              account_id: parseInt(bank_account_id),
+              amount: -parseFloat(bank_amount), // Bank out for receive
+              description: `Bank payment received`
+            });
+          } else { // PAY
+            paymentDetails.push({
+              payment_id: payment.payment_id,
+              account_id: parseInt(bank_account_id),
+              amount: -parseFloat(bank_amount), // Bank out for pay
+              description: `Bank payment made`
+            });
+          }
+        }
+
+        // Create payment details
+        if (paymentDetails.length > 0) {
+          await tx.paymentDetail.createMany({
+            data: paymentDetails
           });
         }
-      }
-
-      // Create payment details
-      if (paymentDetails.length > 0) {
-        await tx.paymentDetail.createMany({
-          data: paymentDetails
-        });
-      }
-
-      // Get current balances for all affected accounts (BEFORE updating customer balance)
-      const affectedAccountIds = [parseInt(account_id)];
-      if (cash_account_id) affectedAccountIds.push(parseInt(cash_account_id));
-      if (bank_account_id) affectedAccountIds.push(parseInt(bank_account_id));
-
-      const accountBalances = await tx.customer.findMany({
-        where: { cus_id: { in: affectedAccountIds } },
-        select: { cus_id: true, cus_balance: true }
-      });
-
-      const balanceMap = {};
-      accountBalances.forEach(acc => {
-        balanceMap[acc.cus_id] = parseFloat(acc.cus_balance || 0);
-      });
-
-      // Create ledger entries with proper balance calculations
       const ledgerEntries = [];
 
       // Main account ledger entry
@@ -250,7 +249,7 @@ export async function POST(request) {
       if (payment_type === 'RECEIVE') {
         mainCreditAmount = parseFloat(total_amount); // Customer is credited for full amount including discount
       } else { // PAY
-        mainDebitAmount = netAmount; // Customer is debited when you pay them
+        mainCreditAmount = parseFloat(total_amount); // Supplier is credited for total amount (discount shown but balance reduced by full amount)
       }
 
       const mainAccountEntry = createLedgerEntry({
@@ -349,7 +348,7 @@ export async function POST(request) {
       if (payment_type === 'RECEIVE') {
         newBalance -= parseFloat(total_amount); // Customer pays full amount including discount
       } else {
-        newBalance += netAmount; // You pay customer, increases their balance
+        newBalance -= parseFloat(total_amount); // You pay supplier total amount (discount is shown but balance reduced by full amount)
       }
 
       await tx.customer.update({
@@ -358,7 +357,7 @@ export async function POST(request) {
       });
 
       return payment;
-    });
+    }, { timeout: 15000 });
 
     return NextResponse.json(result);
   } catch (error) {
