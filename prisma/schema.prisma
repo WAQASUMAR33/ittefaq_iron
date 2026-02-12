@@ -46,6 +46,7 @@ model Users {
   sub_categories      SubCategory[]
   subscriptions       Subscription[]
   vehicles            Vehicle[]
+  payments            Payment[]
 
   @@map("users")
 }
@@ -135,6 +136,10 @@ model Customer {
   subscriptions         Subscription[]
   draft_sales           DraftSale[]
   expenses_paid         Expense[]          @relation("ExpensePaidFrom")
+  payments_account      Payment[]          @relation("PaymentAccount")
+  payments_cash         Payment[]          @relation("PaymentCashAccount")
+  payments_bank         Payment[]          @relation("PaymentBankAccount")
+  payment_details       PaymentDetail[]
 
   @@index([city_id], map: "customers_city_id_fkey")
   @@index([cus_category], map: "customers_cus_category_fkey")
@@ -917,4 +922,65 @@ enum SubscriptionPaymentMethod {
   BALANCE
   CASH
   BANK_TRANSFER
+}
+
+enum PaymentTransactionType {
+  RECEIVE
+  PAY
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+model Payment {
+  payment_id          Int                     @id @default(autoincrement())
+  payment_date        DateTime                @db.Date
+  payment_type        PaymentTransactionType
+  account_id          Int
+  total_amount        Decimal
+  discount_amount     Decimal         @default(0.000000000000000000000000000000)
+  net_amount          Decimal
+  cash_account_id     Int?
+  cash_amount         Decimal         @default(0.000000000000000000000000000000)
+  bank_account_id     Int?
+  bank_amount         Decimal         @default(0.000000000000000000000000000000)
+  description         String?
+  status              PaymentStatus   @default(COMPLETED)
+  created_by          Int
+  created_at          DateTime        @default(now())
+  updated_at          DateTime        @updatedAt
+  
+  // Relations
+  account             Customer        @relation("PaymentAccount", fields: [account_id], references: [cus_id])
+  cash_account        Customer?       @relation("PaymentCashAccount", fields: [cash_account_id], references: [cus_id])
+  bank_account        Customer?       @relation("PaymentBankAccount", fields: [bank_account_id], references: [cus_id])
+  created_by_user     Users           @relation(fields: [created_by], references: [user_id])
+
+  payment_details      PaymentDetail[]
+
+  @@index([account_id], map: "payment_account_id_fkey")
+  @@index([cash_account_id], map: "payment_cash_account_id_fkey")
+  @@index([bank_account_id], map: "payment_bank_account_id_fkey")
+  @@index([created_by], map: "payment_created_by_fkey")
+  @@map("payments")
+}
+
+model PaymentDetail {
+  payment_detail_id   Int      @id @default(autoincrement())
+  payment_id          Int
+  account_id          Int
+  amount              Decimal
+  description         String?
+  created_at          DateTime @default(now())
+  
+  // Relations
+  payment             Payment  @relation(fields: [payment_id], references: [payment_id], onDelete: Cascade)
+  account             Customer @relation(fields: [account_id], references: [cus_id])
+
+  @@index([payment_id], map: "payment_detail_payment_id_fkey")
+  @@index([account_id], map: "payment_detail_account_id_fkey")
+  @@map("payment_details")
 }

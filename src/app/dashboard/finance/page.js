@@ -72,6 +72,7 @@ export default function FinancePage() {
   const [customerCategories, setCustomerCategories] = useState([]);
   const [customerTypes, setCustomerTypes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
   const [showLedgerForm, setShowLedgerForm] = useState(false);
   const [showJournalForm, setShowJournalForm] = useState(false);
   const [editingLedger, setEditingLedger] = useState(null);
@@ -117,9 +118,38 @@ export default function FinancePage() {
     { account_id: '', debit_amount: '', credit_amount: '', description: '', accountSearch: '' }
   ]);
 
+  // Payment Form States
+  const [showReceivePaymentForm, setShowReceivePaymentForm] = useState(false);
+  const [showPayPaymentForm, setShowPayPaymentForm] = useState(false);
+  const [receivePaymentData, setReceivePaymentData] = useState({
+    total_payment: '',
+    discount: '',
+    cash_account: '',
+    cash_amount: '',
+    bank_account: '',
+    bank_amount: '',
+    description: ''
+  });
+  const [payPaymentData, setPayPaymentData] = useState({
+    total_payment: '',
+    discount: '',
+    cash_account: '',
+    cash_amount: '',
+    bank_account: '',
+    bank_amount: '',
+    description: ''
+  });
+  const [cashAccounts, setCashAccounts] = useState([]);
+  const [bankAccounts, setBankAccounts] = useState([]);
+  const [paymentStatus, setPaymentStatus] = useState({ loading: false, error: null });
+
   // Fetch data
   useEffect(() => {
     fetchData();
+  }, []);
+
+  useEffect(() => {
+    setMounted(true);
   }, []);
 
   // Close dropdown when clicking outside
@@ -165,6 +195,9 @@ export default function FinancePage() {
         const typesData = await typesRes.json();
         setCustomerTypes(typesData);
       }
+      
+      // Fetch cash and bank accounts
+      await fetchCashBankAccounts();
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -352,6 +385,245 @@ export default function FinancePage() {
     }
   };
 
+  // Utility function for creating discount expenses
+  const createDiscountExpense = async (discountAmount, description) => {
+    try {
+      // First, check if "Discount" expense title exists
+      const expenseTitlesResponse = await fetch('/api/expense-titles');
+      const expenseTitles = await expenseTitlesResponse.json();
+
+      let discountTitleId = expenseTitles.find(title => title.title.toLowerCase() === 'discount')?.id;
+
+      // If discount title doesn't exist, create it
+      if (!discountTitleId) {
+        const createTitleResponse = await fetch('/api/expense-titles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: 'Discount' })
+        });
+
+        if (createTitleResponse.ok) {
+          const newTitle = await createTitleResponse.json();
+          discountTitleId = newTitle.id;
+        } else {
+          console.error('Failed to create discount expense title');
+          return;
+        }
+      }
+
+      // Create the expense entry
+      const expenseData = {
+        exp_title: `Discount - ${description}`,
+        exp_type: discountTitleId,
+        exp_detail: `Payment discount of PKR ${discountAmount}`,
+        exp_amount: discountAmount,
+        updated_by: 7 // Super admin user ID
+      };
+
+      const expenseResponse = await fetch('/api/expenses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(expenseData)
+      });
+
+      if (expenseResponse.ok) {
+        console.log('Discount expense created successfully');
+      } else {
+        console.error('Failed to create discount expense');
+      }
+    } catch (error) {
+      console.error('Error creating discount expense:', error);
+    }
+  };
+
+  // Payment Functions
+  const handleReceivePayment = () => {
+    if (selectedCustomer) {
+      const customer = customers.find(c => c.cus_id === selectedCustomer);
+      if (customer) {
+        setReceivePaymentData({
+          total_payment: '',
+          discount: '',
+          cash_account: '',
+          cash_amount: '',
+          bank_account: '',
+          bank_amount: '',
+          description: `Payment received from ${customer.cus_name}`
+        });
+        setShowReceivePaymentForm(true);
+      }
+    }
+  };
+
+  const handlePayPayment = () => {
+    if (selectedCustomer) {
+      const customer = customers.find(c => c.cus_id === selectedCustomer);
+      if (customer) {
+        setPayPaymentData({
+          total_payment: '',
+          discount: '',
+          cash_account: '',
+          cash_amount: '',
+          bank_account: '',
+          bank_amount: '',
+          description: `Payment made to ${customer.cus_name}`
+        });
+        setShowPayPaymentForm(true);
+      }
+    }
+  };
+
+  const fetchCashBankAccounts = async () => {
+    try {
+      // Fetch customers with their categories and types
+      const response = await fetch('/api/customers?include=category,type');
+      const allCustomers = await response.json();
+
+      // Filter for cash accounts: category = "Cash Account" (cus_cat_id: 24)
+      const cashAccs = allCustomers.filter(c =>
+        c.customer_category?.cus_cat_title === 'Cash Account'
+      );
+
+      // Filter for bank accounts: category = "Bank Account" (cus_cat_id: 23)
+      const bankAccs = allCustomers.filter(c =>
+        c.customer_category?.cus_cat_title === 'Bank Account'
+      );
+
+      setCashAccounts(cashAccs);
+      setBankAccounts(bankAccs);
+    } catch (error) {
+      console.error('Error fetching cash/bank accounts:', error);
+    }
+  };
+
+  const handleReceivePaymentSubmit = async () => {
+    try {
+      setPaymentStatus({ loading: true, error: null });
+
+      const netAmount = parseFloat(receivePaymentData.total_payment || 0) - parseFloat(receivePaymentData.discount || 0);
+      const totalPaymentAmount = parseFloat(receivePaymentData.cash_amount || 0) + parseFloat(receivePaymentData.bank_amount || 0);
+
+      if (Math.abs(netAmount - totalPaymentAmount) > 0.01) {
+        alert('Payment amounts do not match the net amount after discount');
+        return;
+      }
+
+      const paymentData = {
+        payment_date: new Date().toISOString().split('T')[0],
+        payment_type: 'RECEIVE',
+        account_id: selectedCustomer,
+        total_amount: parseFloat(receivePaymentData.total_payment),
+        discount_amount: parseFloat(receivePaymentData.discount || 0),
+        cash_account_id: receivePaymentData.cash_account || null,
+        cash_amount: parseFloat(receivePaymentData.cash_amount || 0),
+        bank_account_id: receivePaymentData.bank_account || null,
+        bank_amount: parseFloat(receivePaymentData.bank_amount || 0),
+        description: receivePaymentData.description,
+        created_by: 7 // Super admin user ID
+      };
+
+      const response = await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(paymentData)
+      });
+
+      if (response.ok) {
+        // Create discount expense if discount > 0
+        if (parseFloat(receivePaymentData.discount || 0) > 0) {
+          await createDiscountExpense(parseFloat(receivePaymentData.discount), receivePaymentData.description || 'Payment discount');
+        }
+
+        setShowReceivePaymentForm(false);
+        // Reset form
+        setReceivePaymentData({
+          total_payment: '',
+          discount: '',
+          cash_account: '',
+          cash_amount: '',
+          bank_account: '',
+          bank_amount: '',
+          description: ''
+        });
+        // Refresh ledger data
+        fetchData();
+        alert('Payment received successfully!');
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.error}`);
+      }
+    } catch (error) {
+      console.error('Error submitting payment:', error);
+      alert('Failed to process payment');
+    } finally {
+      setPaymentStatus({ loading: false, error: null });
+    }
+  };
+
+  const handlePayPaymentSubmit = async () => {
+    try {
+      setPaymentStatus({ loading: true, error: null });
+
+      const netAmount = parseFloat(payPaymentData.total_payment || 0) - parseFloat(payPaymentData.discount || 0);
+      const totalPaymentAmount = parseFloat(payPaymentData.cash_amount || 0) + parseFloat(payPaymentData.bank_amount || 0);
+
+      if (Math.abs(netAmount - totalPaymentAmount) > 0.01) {
+        alert('Payment amounts do not match the net amount after discount');
+        return;
+      }
+
+      const paymentData = {
+        payment_date: new Date().toISOString().split('T')[0],
+        payment_type: 'PAY',
+        account_id: selectedCustomer,
+        total_amount: parseFloat(payPaymentData.total_payment),
+        discount_amount: parseFloat(payPaymentData.discount || 0),
+        cash_account_id: payPaymentData.cash_account || null,
+        cash_amount: parseFloat(payPaymentData.cash_amount || 0),
+        bank_account_id: payPaymentData.bank_account || null,
+        bank_amount: parseFloat(payPaymentData.bank_amount || 0),
+        description: payPaymentData.description,
+        created_by: 7 // Super admin user ID
+      };
+
+      const response = await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(paymentData)
+      });
+
+      if (response.ok) {
+        // Create discount expense if discount > 0
+        if (parseFloat(payPaymentData.discount || 0) > 0) {
+          await createDiscountExpense(parseFloat(payPaymentData.discount), payPaymentData.description || 'Payment discount');
+        }
+
+        setShowPayPaymentForm(false);
+        // Reset form
+        setPayPaymentData({
+          total_payment: '',
+          discount: '',
+          cash_account: '',
+          cash_amount: '',
+          bank_account: '',
+          bank_amount: '',
+          description: ''
+        });
+        // Refresh ledger data
+        fetchData();
+        alert('Payment processed successfully!');
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.error}`);
+      }
+    } catch (error) {
+      console.error('Error submitting payment:', error);
+      alert('Failed to process payment');
+    } finally {
+      setPaymentStatus({ loading: false, error: null });
+    }
+  };
+
   // Form handlers
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -505,6 +777,26 @@ export default function FinancePage() {
           <CircularProgress size={60} />
           <Typography variant="body1" color="text.secondary">
             Loading ledger entries...
+          </Typography>
+        </Box>
+      </DashboardLayout>
+    );
+  }
+
+  if (!mounted) {
+    return (
+      <DashboardLayout>
+        <Box sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100%',
+          flexDirection: 'column',
+          gap: 2
+        }}>
+          <CircularProgress size={60} />
+          <Typography variant="body1" color="text.secondary">
+            Initializing...
           </Typography>
         </Box>
       </DashboardLayout>
@@ -990,36 +1282,65 @@ export default function FinancePage() {
                     Accounting Period: {new Date().getFullYear()}
                   </Typography>
 
-                  {/* Dynamic Shortcut Button */}
+                  {/* Payment Action Buttons */}
                   {selectedCustomer && (
-                    <Button
-                      variant="contained"
-                      size="small"
-                      startIcon={<Plus size={16} />}
-                      onClick={handleNewJournalEntry}
-                      sx={{
-                        position: 'absolute',
-                        right: 24,
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'linear-gradient(135deg, #2563eb, #3b82f6)',
-                        color: 'white',
-                        fontWeight: 700,
-                        textTransform: 'none',
-                        px: 2,
-                        py: 1,
-                        borderRadius: 1.5,
-                        boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.2)',
-                        '&:hover': {
-                          background: 'linear-gradient(135deg, #1d4ed8, #2563eb)',
-                          boxShadow: '0 10px 15px -3px rgba(37, 99, 235, 0.3)',
-                          transform: 'translateY(-50%) scale(1.05)',
-                        },
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      New Journal Entry
-                    </Button>
+                    <Box sx={{ 
+                      position: 'absolute',
+                      right: 24,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      display: 'flex',
+                      gap: 1
+                    }}>
+                      <Button
+                        variant="contained"
+                        size="small"
+                        startIcon={<ArrowDown size={16} />}
+                        onClick={handleReceivePayment}
+                        sx={{
+                          background: 'linear-gradient(135deg, #10b981, #059669)',
+                          color: 'white',
+                          fontWeight: 600,
+                          textTransform: 'none',
+                          px: 2,
+                          py: 1,
+                          borderRadius: 1.5,
+                          boxShadow: '0 4px 6px -1px rgba(16, 185, 129, 0.2)',
+                          '&:hover': {
+                            background: 'linear-gradient(135deg, #059669, #047857)',
+                            boxShadow: '0 10px 15px -3px rgba(16, 185, 129, 0.3)',
+                            transform: 'translateY(-1px)',
+                          },
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        Receive Payment
+                      </Button>
+                      <Button
+                        variant="contained"
+                        size="small"
+                        startIcon={<ArrowUp size={16} />}
+                        onClick={handlePayPayment}
+                        sx={{
+                          background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                          color: 'white',
+                          fontWeight: 600,
+                          textTransform: 'none',
+                          px: 2,
+                          py: 1,
+                          borderRadius: 1.5,
+                          boxShadow: '0 4px 6px -1px rgba(239, 68, 68, 0.2)',
+                          '&:hover': {
+                            background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+                            boxShadow: '0 10px 15px -3px rgba(239, 68, 68, 0.3)',
+                            transform: 'translateY(-1px)',
+                          },
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        Pay Payment
+                      </Button>
+                    </Box>
                   )}
                 </Box>
               }
@@ -1180,20 +1501,23 @@ export default function FinancePage() {
                           }
                         }
                         
-                        // Determine Bank vs Cash based on transaction type or split info
-                        let bankAmount = 0;
-                        let cashAmount = 0;
+                        // Determine Bank vs Cash amounts from ledger entry fields
+                        let bankAmount = parseFloat(entry.bank_payment || 0);
+                        let cashAmount = parseFloat(entry.cash_payment || 0);
                         
-                        if (isSplitPayment) {
-                          // Use parsed split amounts
-                          bankAmount = splitBankAmount;
-                          cashAmount = splitCashAmount;
-                        } else if (entry.trnx_type === 'BANK_TRANSFER' || entry.trnx_type === 'CHEQUE') {
-                          bankAmount = entryAmount;
-                          cashAmount = 0;
-                        } else if (entry.trnx_type === 'CASH') {
-                          bankAmount = 0;
-                          cashAmount = entryAmount;
+                        // For non-payment entries, fall back to transaction type logic
+                        if (bankAmount === 0 && cashAmount === 0) {
+                          if (isSplitPayment) {
+                            // Use parsed split amounts
+                            bankAmount = splitBankAmount;
+                            cashAmount = splitCashAmount;
+                          } else if (entry.trnx_type === 'BANK_TRANSFER' || entry.trnx_type === 'CHEQUE') {
+                            bankAmount = entryAmount;
+                            cashAmount = 0;
+                          } else if (entry.trnx_type === 'CASH') {
+                            bankAmount = 0;
+                            cashAmount = entryAmount;
+                          }
                         }
 
                         // Color coding: Green for Debit, Red for Credit
@@ -1264,11 +1588,7 @@ export default function FinancePage() {
                               }}
                             >
                               <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                {new Date(entry.created_at).toLocaleDateString('en-GB', {
-                                  day: '2-digit',
-                                  month: '2-digit',
-                                  year: 'numeric'
-                                })}
+                                {new Date(entry.created_at).toISOString().split('T')[0]}
                               </Typography>
                             </TableCell>
 
@@ -2075,6 +2395,454 @@ export default function FinancePage() {
             }}
           >
             {journalStatus.loading ? <CircularProgress size={24} color="inherit" /> : 'Post General Journal'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Receive Payment Dialog */}
+      <Dialog 
+        open={showReceivePaymentForm} 
+        onClose={() => setShowReceivePaymentForm(false)}
+        maxWidth="md"
+        fullWidth
+        sx={{
+          '& .MuiDialog-paper': {
+            borderRadius: 3,
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          bgcolor: 'linear-gradient(135deg, #10b981, #059669)', 
+          color: 'white',
+          fontWeight: 700,
+          fontSize: '1.25rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1
+        }}>
+          <ArrowDown size={24} />
+          Receive Payment
+          <IconButton 
+            onClick={() => setShowReceivePaymentForm(false)} 
+            size="small" 
+            sx={{ 
+              ml: 'auto', 
+              bgcolor: 'rgba(255,255,255,0.2)', 
+              color: 'white',
+              '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' }
+            }}
+          >
+            <X size={20} />
+          </IconButton>
+        </DialogTitle>
+
+        <DialogContent sx={{ p: 4 }}>
+          <Box component="form" sx={{ mt: 2 }}>
+            <Grid container spacing={3}>
+              {/* Selected Account */}
+              <Grid item xs={12}>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: '#374151' }}>
+                  Account: {customers.find(c => c.cus_id === selectedCustomer)?.cus_name || 'N/A'}
+                </Typography>
+              </Grid>
+
+              {/* Total Payment */}
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Total Payment"
+                  type="number"
+                  value={receivePaymentData.total_payment}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setReceivePaymentData(prev => ({ 
+                      ...prev, 
+                      total_payment: value,
+                      cash_amount: prev.cash_account ? Math.min(parseFloat(value || 0) - parseFloat(prev.discount || 0), parseFloat(prev.cash_amount || 0)) : prev.cash_amount,
+                      bank_amount: prev.bank_account ? Math.min(parseFloat(value || 0) - parseFloat(prev.discount || 0), parseFloat(prev.bank_amount || 0)) : prev.bank_amount
+                    }));
+                  }}
+                  InputProps={{
+                    startAdornment: <DollarSign size={20} style={{ marginRight: 8, color: '#6b7280' }} />
+                  }}
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                />
+              </Grid>
+
+              {/* Discount */}
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Discount"
+                  type="number"
+                  value={receivePaymentData.discount}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setReceivePaymentData(prev => ({ 
+                      ...prev, 
+                      discount: value,
+                      cash_amount: prev.cash_account ? Math.min(parseFloat(prev.total_payment || 0) - parseFloat(value || 0), parseFloat(prev.cash_amount || 0)) : prev.cash_amount,
+                      bank_amount: prev.bank_account ? Math.min(parseFloat(prev.total_payment || 0) - parseFloat(value || 0), parseFloat(prev.bank_amount || 0)) : prev.bank_amount
+                    }));
+                  }}
+                  InputProps={{
+                    startAdornment: <DollarSign size={20} style={{ marginRight: 8, color: '#6b7280' }} />
+                  }}
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                />
+              </Grid>
+
+              {/* After Discount Total */}
+              <Grid item xs={12}>
+                <Box sx={{ 
+                  p: 2, 
+                  bgcolor: '#f0f9ff', 
+                  borderRadius: 2, 
+                  border: '1px solid #0ea5e9',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600, color: '#0c4a6e' }}>
+                    After Discount Total:
+                  </Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: '#0369a1' }}>
+                    PKR {(parseFloat(receivePaymentData.total_payment || 0) - parseFloat(receivePaymentData.discount || 0)).toLocaleString()}
+                  </Typography>
+                </Box>
+              </Grid>
+
+              {/* Cash Payment */}
+              <Grid item xs={12} md={6}>
+                <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600, color: '#374151' }}>
+                  Cash Payment
+                </Typography>
+                <TextField
+                  select
+                  fullWidth
+                  label="Cash Account"
+                  value={receivePaymentData.cash_account}
+                  onChange={(e) => setReceivePaymentData(prev => ({ ...prev, cash_account: e.target.value }))}
+                  sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                  SelectProps={{ native: true }}
+                >
+                  <option value="">Select Cash Account</option>
+                  {cashAccounts.map(account => (
+                    <option key={account.cus_id} value={account.cus_id}>
+                      {account.cus_name}
+                    </option>
+                  ))}
+                </TextField>
+                <TextField
+                  fullWidth
+                  label="Cash Amount"
+                  type="number"
+                  value={receivePaymentData.cash_amount}
+                  onChange={(e) => setReceivePaymentData(prev => ({ ...prev, cash_amount: e.target.value }))}
+                  InputProps={{
+                    startAdornment: <DollarSign size={20} style={{ marginRight: 8, color: '#6b7280' }} />
+                  }}
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                />
+              </Grid>
+
+              {/* Bank Payment */}
+              <Grid item xs={12} md={6}>
+                <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600, color: '#374151' }}>
+                  Bank Payment
+                </Typography>
+                <TextField
+                  select
+                  fullWidth
+                  label="Bank Account"
+                  value={receivePaymentData.bank_account}
+                  onChange={(e) => setReceivePaymentData(prev => ({ ...prev, bank_account: e.target.value }))}
+                  sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                  SelectProps={{ native: true }}
+                >
+                  <option value="">Select Bank Account</option>
+                  {bankAccounts.map(account => (
+                    <option key={account.cus_id} value={account.cus_id}>
+                      {account.cus_name}
+                    </option>
+                  ))}
+                </TextField>
+                <TextField
+                  fullWidth
+                  label="Bank Amount"
+                  type="number"
+                  value={receivePaymentData.bank_amount}
+                  onChange={(e) => setReceivePaymentData(prev => ({ ...prev, bank_amount: e.target.value }))}
+                  InputProps={{
+                    startAdornment: <DollarSign size={20} style={{ marginRight: 8, color: '#6b7280' }} />
+                  }}
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                />
+              </Grid>
+
+              {/* Description */}
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Description"
+                  multiline
+                  rows={3}
+                  value={receivePaymentData.description}
+                  onChange={(e) => setReceivePaymentData(prev => ({ ...prev, description: e.target.value }))}
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                />
+              </Grid>
+            </Grid>
+          </Box>
+        </DialogContent>
+
+        <DialogActions sx={{ p: 4, bgcolor: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
+          <Button 
+            onClick={() => setShowReceivePaymentForm(false)} 
+            sx={{ color: '#64748b', textTransform: 'none', fontWeight: 600 }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleReceivePaymentSubmit}
+            variant="contained"
+            disabled={paymentStatus.loading}
+            sx={{
+              background: 'linear-gradient(135deg, #10b981, #059669)',
+              textTransform: 'none',
+              fontWeight: 700,
+              px: 6,
+              py: 1.5,
+              borderRadius: 2,
+              '&:hover': { background: 'linear-gradient(135deg, #059669, #047857)' }
+            }}
+          >
+            {paymentStatus.loading ? <CircularProgress size={24} color="inherit" /> : 'Receive Payment'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Pay Payment Dialog */}
+      <Dialog 
+        open={showPayPaymentForm} 
+        onClose={() => setShowPayPaymentForm(false)}
+        maxWidth="md"
+        fullWidth
+        sx={{
+          '& .MuiDialog-paper': {
+            borderRadius: 3,
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          bgcolor: 'linear-gradient(135deg, #ef4444, #dc2626)', 
+          color: 'white',
+          fontWeight: 700,
+          fontSize: '1.25rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1
+        }}>
+          <ArrowUp size={24} />
+          Pay Payment
+          <IconButton 
+            onClick={() => setShowPayPaymentForm(false)} 
+            size="small" 
+            sx={{ 
+              ml: 'auto', 
+              bgcolor: 'rgba(255,255,255,0.2)', 
+              color: 'white',
+              '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' }
+            }}
+          >
+            <X size={20} />
+          </IconButton>
+        </DialogTitle>
+
+        <DialogContent sx={{ p: 4 }}>
+          <Box component="form" sx={{ mt: 2 }}>
+            <Grid container spacing={3}>
+              {/* Selected Account */}
+              <Grid item xs={12}>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: '#374151' }}>
+                  Account: {customers.find(c => c.cus_id === selectedCustomer)?.cus_name || 'N/A'}
+                </Typography>
+              </Grid>
+
+              {/* Total Payment */}
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Total Payment"
+                  type="number"
+                  value={payPaymentData.total_payment}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setPayPaymentData(prev => ({ 
+                      ...prev, 
+                      total_payment: value,
+                      cash_amount: prev.cash_account ? Math.min(parseFloat(value || 0) - parseFloat(prev.discount || 0), parseFloat(prev.cash_amount || 0)) : prev.cash_amount,
+                      bank_amount: prev.bank_account ? Math.min(parseFloat(value || 0) - parseFloat(prev.discount || 0), parseFloat(prev.bank_amount || 0)) : prev.bank_amount
+                    }));
+                  }}
+                  InputProps={{
+                    startAdornment: <DollarSign size={20} style={{ marginRight: 8, color: '#6b7280' }} />
+                  }}
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                />
+              </Grid>
+
+              {/* Discount */}
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Discount"
+                  type="number"
+                  value={payPaymentData.discount}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setPayPaymentData(prev => ({ 
+                      ...prev, 
+                      discount: value,
+                      cash_amount: prev.cash_account ? Math.min(parseFloat(prev.total_payment || 0) - parseFloat(value || 0), parseFloat(prev.cash_amount || 0)) : prev.cash_amount,
+                      bank_amount: prev.bank_account ? Math.min(parseFloat(prev.total_payment || 0) - parseFloat(value || 0), parseFloat(prev.bank_amount || 0)) : prev.bank_amount
+                    }));
+                  }}
+                  InputProps={{
+                    startAdornment: <DollarSign size={20} style={{ marginRight: 8, color: '#6b7280' }} />
+                  }}
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                />
+              </Grid>
+
+              {/* After Discount Total */}
+              <Grid item xs={12}>
+                <Box sx={{ 
+                  p: 2, 
+                  bgcolor: '#fef2f2', 
+                  borderRadius: 2, 
+                  border: '1px solid #f87171',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600, color: '#991b1b' }}>
+                    After Discount Total:
+                  </Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: '#dc2626' }}>
+                    PKR {(parseFloat(payPaymentData.total_payment || 0) - parseFloat(payPaymentData.discount || 0)).toLocaleString()}
+                  </Typography>
+                </Box>
+              </Grid>
+
+              {/* Cash Payment */}
+              <Grid item xs={12} md={6}>
+                <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600, color: '#374151' }}>
+                  Cash Payment
+                </Typography>
+                <TextField
+                  select
+                  fullWidth
+                  label="Cash Account"
+                  value={payPaymentData.cash_account}
+                  onChange={(e) => setPayPaymentData(prev => ({ ...prev, cash_account: e.target.value }))}
+                  sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                  SelectProps={{ native: true }}
+                >
+                  <option value="">Select Cash Account</option>
+                  {cashAccounts.map(account => (
+                    <option key={account.cus_id} value={account.cus_id}>
+                      {account.cus_name}
+                    </option>
+                  ))}
+                </TextField>
+                <TextField
+                  fullWidth
+                  label="Cash Amount"
+                  type="number"
+                  value={payPaymentData.cash_amount}
+                  onChange={(e) => setPayPaymentData(prev => ({ ...prev, cash_amount: e.target.value }))}
+                  InputProps={{
+                    startAdornment: <DollarSign size={20} style={{ marginRight: 8, color: '#6b7280' }} />
+                  }}
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                />
+              </Grid>
+
+              {/* Bank Payment */}
+              <Grid item xs={12} md={6}>
+                <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600, color: '#374151' }}>
+                  Bank Payment
+                </Typography>
+                <TextField
+                  select
+                  fullWidth
+                  label="Bank Account"
+                  value={payPaymentData.bank_account}
+                  onChange={(e) => setPayPaymentData(prev => ({ ...prev, bank_account: e.target.value }))}
+                  sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                  SelectProps={{ native: true }}
+                >
+                  <option value="">Select Bank Account</option>
+                  {bankAccounts.map(account => (
+                    <option key={account.cus_id} value={account.cus_id}>
+                      {account.cus_name}
+                    </option>
+                  ))}
+                </TextField>
+                <TextField
+                  fullWidth
+                  label="Bank Amount"
+                  type="number"
+                  value={payPaymentData.bank_amount}
+                  onChange={(e) => setPayPaymentData(prev => ({ ...prev, bank_amount: e.target.value }))}
+                  InputProps={{
+                    startAdornment: <DollarSign size={20} style={{ marginRight: 8, color: '#6b7280' }} />
+                  }}
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                />
+              </Grid>
+
+              {/* Description */}
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Description"
+                  multiline
+                  rows={3}
+                  value={payPaymentData.description}
+                  onChange={(e) => setPayPaymentData(prev => ({ ...prev, description: e.target.value }))}
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                />
+              </Grid>
+            </Grid>
+          </Box>
+        </DialogContent>
+
+        <DialogActions sx={{ p: 4, bgcolor: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
+          <Button 
+            onClick={() => setShowPayPaymentForm(false)} 
+            sx={{ color: '#64748b', textTransform: 'none', fontWeight: 600 }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handlePayPaymentSubmit}
+            variant="contained"
+            disabled={paymentStatus.loading}
+            sx={{
+              background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+              textTransform: 'none',
+              fontWeight: 700,
+              px: 6,
+              py: 1.5,
+              borderRadius: 2,
+              '&:hover': { background: 'linear-gradient(135deg, #dc2626, #b91c1c)' }
+            }}
+          >
+            {paymentStatus.loading ? <CircularProgress size={24} color="inherit" /> : 'Pay Payment'}
           </Button>
         </DialogActions>
       </Dialog>

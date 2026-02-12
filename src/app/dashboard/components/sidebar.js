@@ -60,6 +60,7 @@ export default function Sidebar({
   const router = useRouter();
   const menuItems = [
     { id: 'dashboard', name: 'Dashboard', icon: DashboardIcon, category: 'main' },
+    { id: 'ledger', name: 'Ledger', icon: DescriptionIcon, category: 'main' },
     
     // Account Management
     { id: 'customercategory', name: 'Account Categories', icon: LabelIcon, category: 'customer-management', parent: 'Account Management' },
@@ -71,7 +72,6 @@ export default function Sidebar({
     { id: 'products', name: 'Product List', icon: InventoryIcon, category: 'product-management', parent: 'Product Management' },
     
     // Financial Management
-    { id: 'ledger', name: 'Ledger', icon: DescriptionIcon, category: 'financial', parent: 'Finance' },
     { id: 'expense-titles', name: 'Expense Titles', icon: LabelIcon, category: 'financial', parent: 'Finance' },
     { id: 'expenses', name: 'Expense Management', icon: AttachMoneyIcon, category: 'financial', parent: 'Finance' },
     { id: 'journal', name: 'Journal Entries', icon: MenuBookIcon, category: 'financial', parent: 'Finance' },
