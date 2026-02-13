@@ -301,7 +301,8 @@ function PurchasesPageContent() {
   const [productFormData, setProductFormData] = useState({
     qnty: '',
     unit_rate: '',
-    crate: ''
+    crate: '',
+    cost_rate: ''
   });
 
   // Customer dropdown filter states
@@ -694,40 +695,33 @@ function PurchasesPageContent() {
 
   // Function to handle labour charges distribution
   const handleLabourDistribution = (includeLabour, labourAmount, purchaseDetails) => {
+    // Include delivery/unloading/fare when Include Labour is active
     console.log('🔧 handleLabourDistribution called:', { includeLabour, labourAmount, purchaseDetailsLength: purchaseDetails.length });
 
-    if (includeLabour && labourAmount && purchaseDetails.length > 0) {
+    const unloadingAmountNum = parseFloat(formData.unloading_amount || 0);
+    const transportAmountNum = parseFloat(formData.transport_amount || 0);
+    const fareAmountNum = parseFloat(formData.fare_amount || 0);
+
+    if (includeLabour && (labourAmount || unloadingAmountNum || transportAmountNum || fareAmountNum) && purchaseDetails.length > 0) {
       const labourAmountNum = parseFloat(labourAmount || 0);
+      const totalCharge = labourAmountNum + unloadingAmountNum + transportAmountNum + fareAmountNum; // sum labour + delivery
       const totalQuantity = purchaseDetails.reduce((sum, detail) => sum + parseFloat(detail.qnty || 0), 0);
 
-      console.log('🔧 Labour distribution:', { labourAmountNum, totalQuantity });
+      console.log('🔧 Labour+Delivery distribution:', { labourAmountNum, unloadingAmountNum, transportAmountNum, fareAmountNum, totalCharge, totalQuantity });
 
       if (totalQuantity > 0) {
-        const labourPerUnit = labourAmountNum / totalQuantity;
-        console.log('🔧 Labour per unit:', labourPerUnit);
+        const chargePerUnit = totalCharge / totalQuantity;
+        console.log('🔧 Charge per unit:', chargePerUnit);
 
         const updatedDetails = purchaseDetails.map(detail => {
-          // Do NOT change crate. Apply labour only to price (unit_rate/rate)
-          const originalRate = parseFloat(
-            (detail.original_rate ?? detail.unit_rate ?? detail.rate ?? 0)
-          );
-          const newRate = (originalRate + labourPerUnit).toFixed(2);
-
-          console.log('🔧 Product update (price only):', {
-            product: detail.product_name,
-            originalRate,
-            newRate,
-            quantity: detail.qnty,
-            crate: detail.crate
-          });
+          const originalCost = parseFloat(detail.original_cost_rate ?? detail.cost_rate ?? detail.unit_rate ?? 0);
+          const newCost = (originalCost + chargePerUnit).toFixed(2);
 
           return {
             ...detail,
-            // keep crate unchanged; update price fields only
-            unit_rate: newRate,
-            rate: newRate,
-            original_rate: detail.original_rate ?? detail.unit_rate ?? detail.rate ?? 0,
-            // total should remain based on crate
+            cost_rate: newCost,
+            original_cost_rate: detail.original_cost_rate ?? detail.cost_rate ?? detail.unit_rate ?? 0,
+            // totals remain based on crate * qty
             total_amount: (parseFloat(detail.crate ?? 0) * parseFloat(detail.qnty || 0)).toFixed(2)
           };
         });
@@ -735,16 +729,11 @@ function PurchasesPageContent() {
         return updatedDetails;
       }
     } else if (!includeLabour && purchaseDetails.length > 0) {
-      console.log('🔧 Removing labour charges - restoring original unit prices (crate unchanged)');
-      // Remove labour charges - restore original unit prices; crate stays as-is
       const updatedDetails = purchaseDetails.map(detail => {
-        const restoredRate = detail.original_rate ?? detail.unit_rate ?? detail.rate ?? 0;
-
+        const restoredCost = detail.original_cost_rate ?? detail.cost_rate ?? detail.unit_rate ?? 0;
         return {
           ...detail,
-          unit_rate: restoredRate,
-          rate: restoredRate,
-          // total remains crate * quantity
+          cost_rate: restoredCost,
           total_amount: (parseFloat(detail.crate ?? 0) * parseFloat(detail.qnty || 0)).toFixed(2)
         };
       });
@@ -962,7 +951,8 @@ function PurchasesPageContent() {
     setProductFormData({
       qnty: '1',
       unit_rate: (product.pro_sale_price || product.pro_cost_price || 0).toString(), // show sale rate here
-      crate: product.pro_crate ? product.pro_crate.toString() : (product.pro_sale_price || product.pro_cost_price || 0).toString()
+      crate: product.pro_crate ? product.pro_crate.toString() : (product.pro_sale_price || product.pro_cost_price || 0).toString(),
+      cost_rate: product.pro_cost_price ? String(product.pro_cost_price) : (product.pro_crate ? String(product.pro_crate) : (product.pro_sale_price ? String(product.pro_sale_price) : ''))
     });
   };
 
@@ -989,6 +979,10 @@ function PurchasesPageContent() {
       rate: productFormData.unit_rate,
       unit_rate: productFormData.unit_rate, // Keep for backward compatibility
       crate: productFormData.crate || productFormData.unit_rate, // Use crate value or fallback to unit_rate
+      original_crate: (productFormData.crate || productFormData.unit_rate), // preserve baseline purchase rate
+      // COST RATE fields — initialize from product's stored cost price
+      original_cost_rate: productFormData.cost_rate || (selectedProduct?.pro_cost_price ? String(selectedProduct.pro_cost_price) : (productFormData.unit_rate || productFormData.crate || '0')),
+      cost_rate: productFormData.cost_rate || (selectedProduct?.pro_cost_price ? String(selectedProduct.pro_cost_price) : (productFormData.unit_rate || productFormData.crate || '0')),
       total_amount: totalAmount.toString(),
       discount: '0'
     };
@@ -1015,24 +1009,20 @@ function PurchasesPageContent() {
         const newUnit = parseFloat(productFormData.unit_rate || 0) || 0;
         const newCrateVal = productFormData.crate ? parseFloat(productFormData.crate) : null;
 
-        const originalCost = parseFloat(selectedProduct?.pro_cost_price || 0);
+        // Do NOT treat the editable `unit_rate` (sale rate) as a change to product's cost price.
+        // Only update/persist the product's crate (purchase rate) when it was explicitly changed here.
         const originalCrate = selectedProduct?.pro_crate != null ? parseFloat(selectedProduct.pro_crate) : null;
-
-        const costChanged = !Number.isNaN(newUnit) && newUnit !== originalCost;
         const crateChanged = newCrateVal !== null && newCrateVal !== originalCrate;
 
-        if (selectedProduct && (costChanged || crateChanged)) {
+        if (selectedProduct && crateChanged) {
           // Update local products state so next selects show updated defaults
           setProducts(prev => prev.map(p => p.pro_id === selectedProduct.pro_id ? {
             ...p,
-            pro_cost_price: costChanged ? newUnit : p.pro_cost_price,
-            pro_crate: crateChanged ? newCrateVal : p.pro_crate
+            pro_crate: newCrateVal
           } : p));
 
           // Persist change to API (best-effort, non-blocking)
-          const payload = { id: selectedProduct.pro_id };
-          if (costChanged) payload.pro_cost_price = newUnit;
-          if (crateChanged) payload.pro_crate = newCrateVal;
+          const payload = { id: selectedProduct.pro_id, pro_crate: newCrateVal };
 
           const resp = await fetch('/api/products', {
             method: 'PUT',
@@ -1058,7 +1048,8 @@ function PurchasesPageContent() {
     setProductFormData({
       qnty: '1',
       unit_rate: '',
-      crate: ''
+      crate: '',
+      cost_rate: ''
     });
 
     // Auto-focus on product selection field after adding product
@@ -1114,10 +1105,13 @@ function PurchasesPageContent() {
 
   const calculateNetTotal = () => {
     const totalAmount = calculateTotalAmount();
-    const unloadingAmount = parseFloat(formData.unloading_amount || 0);
-    const transportAmount = parseFloat(formData.transport_amount || 0);
-    const labourAmount = parseFloat(formData.labour_amount || 0);
     const discount = parseFloat(formData.discount || 0);
+
+    // Only add delivery/labour charges to net total when "Include Labour" is checked
+    const includeCharges = !!formData.include_labour;
+    const unloadingAmount = includeCharges ? parseFloat(formData.unloading_amount || 0) : 0;
+    const transportAmount = includeCharges ? parseFloat(formData.transport_amount || 0) : 0;
+    const labourAmount = includeCharges ? parseFloat(formData.labour_amount || 0) : 0;
 
     return totalAmount + unloadingAmount + transportAmount + labourAmount - discount;
   };
@@ -1386,6 +1380,40 @@ function PurchasesPageContent() {
           bill_type: purchaseType === 'return' ? 'PURCHASE_RETURN' : 'PURCHASE'
         };
         setCurrentBillData(billDataForPrint);
+
+        // Persist any edited cost_rate values to product records (only when purchase is successfully saved)
+        try {
+          const costUpdates = {};
+          formData.purchase_details.forEach(detail => {
+            const existingProduct = products.find(p => p.pro_id === detail.pro_id);
+            const newCost = parseFloat(detail.cost_rate ?? detail.original_cost_rate ?? existingProduct?.pro_cost_price ?? 0);
+            const existingCost = parseFloat(existingProduct?.pro_cost_price ?? 0);
+            if (!Number.isNaN(newCost) && newCost !== existingCost) {
+              costUpdates[detail.pro_id] = newCost;
+            }
+          });
+
+          const updatePromises = Object.keys(costUpdates).map(async (pid) => {
+            const val = costUpdates[pid];
+            try {
+              const resp = await fetch('/api/products', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: parseInt(pid, 10), pro_cost_price: val })
+              });
+              if (resp.ok) {
+                const updated = await resp.json();
+                setProducts(prev => prev.map(p => p.pro_id === updated.pro_id ? updated : p));
+              }
+            } catch (err) {
+              console.warn('Failed to persist product cost update for', pid, err);
+            }
+          });
+
+          await Promise.all(updatePromises);
+        } catch (err) {
+          console.warn('Error persisting cost_rate updates after purchase save', err);
+        }
 
         // Open receipt dialog
         setReceiptDialogOpen(true);
@@ -3212,6 +3240,58 @@ function PurchasesPageContent() {
                   <Grid item xs={12} md={1.5}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        COST RATE
+                      </Typography>
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={productFormData.cost_rate}
+                        onChange={(e) => setProductFormData(prev => ({ ...prev, cost_rate: e.target.value }))}
+                        onFocus={(e) => e.target.select()}
+                        onBlur={async (e) => {
+                          const newCost = parseFloat(e.target.value || 0);
+                          // update local products state
+                          if (selectedProduct) {
+                            setProducts(prev => prev.map(p => p.pro_id === selectedProduct.pro_id ? { ...p, pro_cost_price: newCost } : p));
+
+                            // persist to backend
+                            try {
+                              await fetch('/api/products', {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ id: selectedProduct.pro_id, pro_cost_price: newCost })
+                              });
+                            } catch (err) {
+                              console.error('Failed to persist cost_rate change from selection', err);
+                            }
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            addProductToPurchase();
+                          } else if (e.key === 'Tab') {
+                            e.preventDefault();
+                            // move focus to Sale Rate field (next)
+                            const allInputs = document.querySelectorAll('input[type="number"]');
+                            const currentInput = e.target;
+                            let foundCurrent = false;
+                            for (let i = 0; i < allInputs.length; i++) {
+                              const input = allInputs[i];
+                              if (input === currentInput) { foundCurrent = true; continue; }
+                              if (foundCurrent) { input.focus(); return; }
+                            }
+                          }
+                        }}
+                        inputProps={{ min: 0 }}
+                        sx={{ width: 80, minWidth: 80 }}
+                      />
+                    </Box>
+                  </Grid>
+
+                  <Grid item xs={12} md={1.5}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                         SALE RATE
                       </Typography>
                       <TextField
@@ -3287,6 +3367,7 @@ function PurchasesPageContent() {
                         <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Store</TableCell>
                         <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Qty</TableCell>
                         <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>PURCHASE RATE</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>COST RATE</TableCell>
                         <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Sale Rate</TableCell>
                         <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Amount</TableCell>
                         <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Actions</TableCell>
@@ -3345,6 +3426,7 @@ function PurchasesPageContent() {
                                         ? {
                                           ...d,
                                           crate: newCrate,
+                                          original_crate: newCrate, // keep baseline in sync with manual edits
                                           total_amount: (parseInt(d.qnty) * parseFloat(newCrate)).toString()
                                         }
                                         : d
@@ -3353,6 +3435,39 @@ function PurchasesPageContent() {
                                   }}
                                   inputProps={{ min: 0 }}
                                   size="small"
+                                  sx={{ width: 100 }}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <TextField
+                                  type="number"
+                                  size="small"
+                                  value={(detail.cost_rate ?? detail.original_cost_rate ?? product?.pro_cost_price ?? 0).toString()}
+                                  onChange={(e) => {
+                                    const newCost = e.target.value;
+                                    const updatedDetails = formData.purchase_details.map((d, i) =>
+                                      i === index ? { ...d, cost_rate: newCost } : d
+                                    );
+                                    setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
+                                  }}
+                                  onBlur={(e) => {
+                                    const newCostVal = parseFloat(e.target.value || 0);
+                                    // Update local products state so UI shows updated cost price immediately
+                                    setProducts(prev => prev.map(p => p.pro_id === detail.pro_id ? { ...p, pro_cost_price: newCostVal } : p));
+
+                                    // DO NOT persist to backend here — persistence will occur when the purchase is saved
+                                    // keep original_cost_rate in sync for undo/restore
+                                    const updatedDetails = formData.purchase_details.map((d, i) =>
+                                      i === index ? { ...d, original_cost_rate: d.original_cost_rate ?? d.cost_rate } : d
+                                    );
+                                    setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.currentTarget.blur();
+                                    }
+                                  }}
+                                  inputProps={{ min: 0 }}
                                   sx={{ width: 100 }}
                                 />
                               </TableCell>
@@ -3614,7 +3729,17 @@ function PurchasesPageContent() {
                         size="small"
                         type="number"
                         value={formData.transport_amount || ''}
-                        onChange={(e) => setFormData(prev => ({ ...prev, transport_amount: e.target.value }))}
+                        onChange={(e) => {
+                          const newTransport = e.target.value;
+                          setFormData(prev => {
+                            const updatedDetails = handleLabourDistribution(
+                              prev.include_labour,
+                              prev.labour_amount,
+                              prev.purchase_details
+                            );
+                            return { ...prev, transport_amount: newTransport, purchase_details: updatedDetails };
+                          });
+                        }}
                         onFocus={(e) => e.target.select()}
                         inputProps={{ min: 0 }}
                         sx={{ width: 150 }}
