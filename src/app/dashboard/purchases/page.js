@@ -3225,7 +3225,7 @@ function PurchasesPageContent() {
                           }
                         }}
                         inputProps={{ min: 1 }}
-                        sx={{ width: '100%' }}
+                        sx={{ width: 80, minWidth: 80 }}
                       />
                     </Box>
                   </Grid>
@@ -3248,15 +3248,29 @@ function PurchasesPageContent() {
                             addProductToPurchase();
                           } else if (e.key === 'Tab') {
                             e.preventDefault();
-                            // Tab should move focus to Sale Rate field (next numeric input)
-                            const numberInputs = document.querySelectorAll('input[type="number"]');
-                            for (let i = 0; i < numberInputs.length; i++) {
-                              const input = numberInputs[i];
-                              if (input.parentElement?.parentElement?.querySelector('p, span')?.textContent?.toLowerCase()?.includes('sale rate') || input.parentElement?.parentElement?.querySelector('p, span')?.textContent?.toLowerCase()?.includes('rate')) {
-                                input.focus();
-                                return;
+                            // Tab should move focus to Sale Rate field
+                            // Find the sale rate input by looking for the grid item containing "SALE RATE"
+                            const gridItems = document.querySelectorAll('[class*="MuiGrid-item"]');
+                            let foundPurchaseRate = false;
+                            
+                            for (let i = 0; i < gridItems.length; i++) {
+                              const gridItem = gridItems[i];
+                              const label = gridItem.querySelector('p, span');
+                              
+                              if (label && label.textContent?.toLowerCase()?.includes('purchase rate')) {
+                                foundPurchaseRate = true;
+                                continue;
+                              }
+                              
+                              if (foundPurchaseRate && label && label.textContent?.toLowerCase()?.includes('sale rate')) {
+                                const input = gridItem.querySelector('input[type="number"]');
+                                if (input) {
+                                  input.focus();
+                                  return;
+                                }
                               }
                             }
+                            
                             // Fallback: focus + button
                             const addBtnFallback = document.getElementById('add-product-btn');
                             if (addBtnFallback) addBtnFallback.focus();
@@ -3294,7 +3308,7 @@ function PurchasesPageContent() {
                           }
                         }}
                         inputProps={{ min: 0 }}
-                        sx={{ width: '100%', minWidth: 150 }}
+                        sx={{ width: 80, minWidth: 80 }}
                       />
                     </Box>
                   </Grid>
