@@ -311,7 +311,6 @@ function PurchasesPageContent() {
   const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false);
   const [bankAccountDropdownOpen, setBankAccountDropdownOpen] = useState(false);
   const [formSelectedCustomer, setFormSelectedCustomer] = useState(null);
-  const [vehicleDropdownOpen, setVehicleDropdownOpen] = useState(false);
 
   // Receipt dialog states
   const [currentBillData, setCurrentBillData] = useState(null);
@@ -2928,95 +2927,16 @@ function PurchasesPageContent() {
                             *
                           </Typography>
                         </Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Autocomplete
-                            size="medium"
-                            autoSelect={true}
-                            autoHighlight={true}
-                            openOnFocus={true}
-                            selectOnFocus={true}
-                            open={vehicleDropdownOpen}
-                            onOpen={() => setVehicleDropdownOpen(true)}
-                            onClose={() => setVehicleDropdownOpen(false)}
-                            options={vehicles}
-                            getOptionLabel={(option) => `${option.vehicle_no} - ${option.driver_name}`}
-                            value={vehicles.find(v => v.vehicle_no === formData.vehicle_no) || null}
-                            onChange={(event, newValue) => {
-                              setFormData(prev => ({
-                                ...prev,
-                                vehicle_no: newValue ? newValue.vehicle_no : ''
-                              }));
-                              setVehicleDropdownOpen(false);
-                            }}
-                            filterOptions={(options, { inputValue }) => {
-                              return options.filter(option =>
-                                option.vehicle_no.toLowerCase().includes(inputValue.toLowerCase()) ||
-                                option.driver_name.toLowerCase().includes(inputValue.toLowerCase()) ||
-                                option.vehicle_type.toLowerCase().includes(inputValue.toLowerCase())
-                              );
-                            }}
-                            renderInput={(params) => (
-                              <TextField
-                                {...params}
-                                placeholder="Select vehicle..."
-                                onFocus={(e) => e.target.select()}
-                                sx={{ width: '100%', minWidth: 250, minHeight: 56 }}
-                                required
-                              />
-                            )}
-                            renderOption={(props, option) => {
-                              const { key, ...optionProps } = props;
-                              return (
-                                <Box component="li" key={option.id} {...optionProps}>
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-                                    <Box sx={{ flex: 1 }}>
-                                      <Typography
-                                        variant="body2"
-                                        sx={{
-                                          fontWeight: formData.vehicle_no === option.vehicle_no ? 'bold' : 'medium',
-                                          color: formData.vehicle_no === option.vehicle_no ? 'primary.main' : 'text.primary'
-                                        }}
-                                      >
-                                        {option.vehicle_no} - {option.driver_name}
-                                      </Typography>
-                                      <Typography variant="caption" color="text.secondary">
-                                        {option.driver_phone} • {option.vehicle_type}
-                                      </Typography>
-                                    </Box>
-                                    <IconButton
-                                      size="small"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleVehicleMenuOpen(e, option);
-                                      }}
-                                      sx={{ ml: 1 }}
-                                    >
-                                      <MoreVertIcon fontSize="small" />
-                                    </IconButton>
-                                  </Box>
-                                </Box>
-                              );
-                            }}
-                            sx={{ width: '100%', minWidth: 250, flex: 1 }}
-                            disablePortal={false}
-                            clearOnBlur={false}
-                            handleHomeEndKeys={true}
-                          />
-                          <Tooltip title="Add New Vehicle">
-                            <IconButton
-                              onClick={handleOpenVehicleDialog}
-                              sx={{
-                                bgcolor: 'primary.main',
-                                color: 'white',
-                                '&:hover': { bgcolor: 'primary.dark' },
-                                minWidth: 56,
-                                height: 56
-                              }}
-                            >
-                              <AddIcon />
-                            </IconButton>
-                          </Tooltip>
-                        </Box>
+                        <TextField
+                          fullWidth
+                          size="medium"
+                          placeholder="Enter vehicle number..."
+                          value={formData.vehicle_no}
+                          onChange={(e) => setFormData(prev => ({ ...prev, vehicle_no: e.target.value }))}
+                          onFocus={(e) => e.target.select()}
+                          sx={{ minWidth: 250, minHeight: 56 }}
+                          required
+                        />
                       </Box>
                     </Grid>
                   )}
