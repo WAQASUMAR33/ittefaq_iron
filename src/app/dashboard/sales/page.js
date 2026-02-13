@@ -4431,10 +4431,12 @@ function SalesPageContent() {
                 </Button>
                 <Button
                   variant="contained"
+                  size="large"
                   sx={{
                     bgcolor: '#28a745',
                     color: 'white',
                     borderRadius: 2,
+                    minWidth: 220,
                     '&:hover': { bgcolor: '#218838' }
                   }}
                   onClick={handleSaveBill}
