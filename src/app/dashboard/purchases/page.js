@@ -4082,7 +4082,6 @@ function PurchasesPageContent() {
                   autoHighlight
                   selectOnFocus
                   autoSelect
-                  autoSelect
                   options={[
                     { id: '', title: 'Select a type' },
                     ...customerTypes.map(type => ({
