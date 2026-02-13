@@ -1061,12 +1061,12 @@ function PurchasesPageContent() {
       crate: ''
     });
 
-    // Auto-focus on CASH field after adding product
+    // Auto-focus on product selection field after adding product
     setTimeout(() => {
-      const cashPaymentInputs = document.querySelectorAll('input[placeholder="Enter amount"]');
-      // Focus on first cash payment input
-      if (cashPaymentInputs.length > 0) {
-        cashPaymentInputs[0]?.focus();
+      const productInputs = document.querySelectorAll('input[placeholder*="Select product"]');
+      // Focus on first product selection input
+      if (productInputs.length > 0) {
+        productInputs[0]?.focus();
       }
     }, 100);
   };
@@ -3169,28 +3169,30 @@ function PurchasesPageContent() {
                           } else if (e.key === 'Tab') {
                             e.preventDefault();
                             // Tab should move focus to Sale Rate field
-                            // Find the sale rate input by looking for the grid item containing "SALE RATE"
-                            const gridItems = document.querySelectorAll('[class*="MuiGrid-item"]');
-                            let foundPurchaseRate = false;
-                            
-                            for (let i = 0; i < gridItems.length; i++) {
-                              const gridItem = gridItems[i];
-                              const label = gridItem.querySelector('p, span');
-                              
-                              if (label && label.textContent?.toLowerCase()?.includes('purchase rate')) {
-                                foundPurchaseRate = true;
+                            // Find the sale rate input by looking for input with specific characteristics
+                            const allInputs = document.querySelectorAll('input[type="number"]');
+                            const currentInput = e.target;
+                            let foundCurrent = false;
+
+                            for (let i = 0; i < allInputs.length; i++) {
+                              const input = allInputs[i];
+                              if (input === currentInput) {
+                                foundCurrent = true;
                                 continue;
                               }
-                              
-                              if (foundPurchaseRate && label && label.textContent?.toLowerCase()?.includes('sale rate')) {
-                                const input = gridItem.querySelector('input[type="number"]');
-                                if (input) {
-                                  input.focus();
-                                  return;
+                              if (foundCurrent) {
+                                // Check if this input is in a container with "SALE RATE" label
+                                const container = input.closest('[class*="MuiBox-root"]');
+                                if (container) {
+                                  const label = container.querySelector('p, span');
+                                  if (label && label.textContent?.toLowerCase()?.includes('sale rate')) {
+                                    input.focus();
+                                    return;
+                                  }
                                 }
                               }
                             }
-                            
+
                             // Fallback: focus + button
                             const addBtnFallback = document.getElementById('add-product-btn');
                             if (addBtnFallback) addBtnFallback.focus();
