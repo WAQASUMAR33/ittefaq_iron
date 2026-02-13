@@ -4613,123 +4613,149 @@ function OrdersPageContent() {
               {/* Second Row - Customer Type, Category */}
 
               <Grid item xs={12} md={4}>
-                <Autocomplete
-                  fullWidth
-                  required
-                  openOnFocus
-                  autoHighlight
-                  selectOnFocus
-                  autoSelect
-                  options={[
-                    { id: '', title: 'Select a type' },
-                    ...customerTypes.map(type => ({
-                      id: type.cus_type_id,
-                      title: type.cus_type_title
-                    }))
-                  ]}
-                  value={(() => {
-                    const options = [
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <IconButton
+                    size="small"
+                    aria-label="Add type"
+                    onMouseDown={(ev) => ev.stopPropagation()}
+                    onClick={() => setShowCustomerTypePopup(true)}
+                    sx={{ color: 'primary.main' }}
+                  >
+                    <AddIcon />
+                  </IconButton>
+
+                  <Autocomplete
+                    fullWidth
+                    required
+                    openOnFocus
+                    autoHighlight
+                    selectOnFocus
+                    autoSelect
+                    sx={{ flex: 1 }}
+                    options={[
                       { id: '', title: 'Select a type' },
                       ...customerTypes.map(type => ({
                         id: type.cus_type_id,
                         title: type.cus_type_title
                       }))
-                    ];
-                    return options.find(option => option.id === newCustomer.cus_type) || { id: '', title: 'Select a type' };
-                  })()}
-                  onChange={(event, newValue) => {
-                    setNewCustomer(prev => ({
-                      ...prev,
-                      cus_type: newValue ? newValue.id : ''
-                    }));
-                  }}
-                  getOptionLabel={(option) => option.title}
-                  open={customerTypeOpen}
-                  onOpen={() => setCustomerTypeOpen(true)}
-                  onClose={() => setCustomerTypeOpen(false)}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label="Account Type"
-                      sx={{ minWidth: 250 }}
-                      onKeyDown={(e) => {
-                        // If user tabs into this field and the dropdown is open, pick the first real type when none selected
-                        if (e.key === 'Tab' && customerTypeOpen) {
-                          const firstType = customerTypes && customerTypes.length ? customerTypes[0].cus_type_id : '';
-                          if (!newCustomer.cus_type && firstType) {
-                            setNewCustomer(prev => ({ ...prev, cus_type: firstType }));
+                    ]}
+                    value={(() => {
+                      const options = [
+                        { id: '', title: 'Select a type' },
+                        ...customerTypes.map(type => ({
+                          id: type.cus_type_id,
+                          title: type.cus_type_title
+                        }))
+                      ];
+                      return options.find(option => option.id === newCustomer.cus_type) || { id: '', title: 'Select a type' };
+                    })()}
+                    onChange={(event, newValue) => {
+                      setNewCustomer(prev => ({
+                        ...prev,
+                        cus_type: newValue ? newValue.id : ''
+                      }));
+                    }}
+                    getOptionLabel={(option) => option.title}
+                    open={customerTypeOpen}
+                    onOpen={() => setCustomerTypeOpen(true)}
+                    onClose={() => setCustomerTypeOpen(false)}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Account Type"
+                        sx={{ minWidth: 250 }}
+                        onKeyDown={(e) => {
+                          // If user tabs into this field and the dropdown is open, pick the first real type when none selected
+                          if (e.key === 'Tab' && customerTypeOpen) {
+                            const firstType = customerTypes && customerTypes.length ? customerTypes[0].cus_type_id : '';
+                            if (!newCustomer.cus_type && firstType) {
+                              setNewCustomer(prev => ({ ...prev, cus_type: firstType }));
+                            }
+                            setCustomerTypeOpen(false);
+                            // allow normal tab navigation to continue
                           }
-                          setCustomerTypeOpen(false);
-                          // allow normal tab navigation to continue
-                        }
-                      }}
-                      InputProps={{
-                        ...params.InputProps,
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <PersonIcon />
-                          </InputAdornment>
-                        ),
-                      }}
-                    />
-                  )}
-                />
+                        }}
+                        InputProps={{
+                          ...params.InputProps,
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <PersonIcon />
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+                    )}
+                  />
+                </Box>
               </Grid>
 
               <Grid item xs={12} md={4}>
-                <Autocomplete
-                  fullWidth
-                  required
-                  openOnFocus
-                  autoHighlight
-                  selectOnFocus
-                  autoSelect
-                  options={[
-                    { id: '', title: 'Select a category' },
-                    ...customerCategories.map(category => ({
-                      id: category.cus_cat_id,
-                      title: category.cus_cat_title
-                    }))
-                  ]}
-                  value={(() => {
-                    const options = [
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <IconButton
+                    size="small"
+                    aria-label="Add category"
+                    onMouseDown={(ev) => ev.stopPropagation()}
+                    onClick={() => setShowCustomerCategoryPopup(true)}
+                    sx={{ color: 'primary.main' }}
+                  >
+                    <AddIcon />
+                  </IconButton>
+
+                  <Autocomplete
+                    fullWidth
+                    required
+                    openOnFocus
+                    autoHighlight
+                    selectOnFocus
+                    autoSelect
+                    sx={{ flex: 1 }}
+                    options={[
                       { id: '', title: 'Select a category' },
                       ...customerCategories.map(category => ({
                         id: category.cus_cat_id,
                         title: category.cus_cat_title
                       }))
-                    ];
-                    return options.find(option => option.id === newCustomer.cus_category) || { id: '', title: 'Select a category' };
-                  })()}
-                  onChange={(event, newValue) => {
-                    setNewCustomer(prev => ({
-                      ...prev,
-                      cus_category: newValue ? newValue.id : ''
-                    }));
-                  }}
-                  getOptionLabel={(option) => option.title}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label="Account Category"
-                      sx={{ minWidth: 250 }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Tab' && params.inputProps?.ariaExpanded) {
-                          const firstCat = customerCategories && customerCategories.length ? customerCategories[0].cus_cat_id : '';
-                          if (!newCustomer.cus_category && firstCat) setNewCustomer(prev => ({ ...prev, cus_category: firstCat }));
-                        }
-                      }}
-                      InputProps={{
-                        ...params.InputProps,
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <BusinessIcon />
-                          </InputAdornment>
-                        ),
-                      }}
-                    />
-                  )}
-                />
+                    ]}
+                    value={(() => {
+                      const options = [
+                        { id: '', title: 'Select a category' },
+                        ...customerCategories.map(category => ({
+                          id: category.cus_cat_id,
+                          title: category.cus_cat_title
+                        }))
+                      ];
+                      return options.find(option => option.id === newCustomer.cus_category) || { id: '', title: 'Select a category' };
+                    })()}
+                    onChange={(event, newValue) => {
+                      setNewCustomer(prev => ({
+                        ...prev,
+                        cus_category: newValue ? newValue.id : ''
+                      }));
+                    }}
+                    getOptionLabel={(option) => option.title}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Account Category"
+                        sx={{ minWidth: 250 }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Tab' && params.inputProps?.ariaExpanded) {
+                            const firstCat = customerCategories && customerCategories.length ? customerCategories[0].cus_cat_id : '';
+                            if (!newCustomer.cus_category && firstCat) setNewCustomer(prev => ({ ...prev, cus_category: firstCat }));
+                          }
+                        }}
+                        InputProps={{
+                          ...params.InputProps,
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <BusinessIcon />
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+                    )}
+                  />
+                </Box>
               </Grid>
 
               {/* Third Row - Reference, Account Info, City */}
@@ -4758,58 +4784,71 @@ function OrdersPageContent() {
               </Grid>
 
               <Grid item xs={12} md={4}>
-                <Autocomplete
-                  fullWidth
-                  openOnFocus
-                  autoHighlight
-                  selectOnFocus
-                  autoSelect
-                  options={[
-                    { id: '', title: 'Select a city' },
-                    ...cities.map(city => ({
-                      id: city.city_id,
-                      title: city.city_name
-                    }))
-                  ]}
-                  value={(() => {
-                    const options = [
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <IconButton
+                    size="small"
+                    aria-label="Add city"
+                    onMouseDown={(ev) => ev.stopPropagation()}
+                    onClick={() => setShowCityPopup(true)}
+                    sx={{ color: 'primary.main' }}
+                  >
+                    <AddIcon />
+                  </IconButton>
+
+                  <Autocomplete
+                    fullWidth
+                    openOnFocus
+                    autoHighlight
+                    selectOnFocus
+                    autoSelect
+                    sx={{ flex: 1 }}
+                    options={[
                       { id: '', title: 'Select a city' },
                       ...cities.map(city => ({
                         id: city.city_id,
                         title: city.city_name
                       }))
-                    ];
-                    return options.find(option => option.id === newCustomer.city_id) || { id: '', title: 'Select a city' };
-                  })()}
-                  onChange={(event, newValue) => {
-                    setNewCustomer(prev => ({
-                      ...prev,
-                      city_id: newValue ? newValue.id : ''
-                    }));
-                  }}
-                  getOptionLabel={(option) => option.title}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label="City"
-                      sx={{ minWidth: 250 }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Tab' && params.inputProps?.ariaExpanded) {
-                          const firstCity = cities && cities.length ? cities[0].city_id : '';
-                          if (!newCustomer.city_id && firstCity) setNewCustomer(prev => ({ ...prev, city_id: firstCity }));
-                        }
-                      }}
-                      InputProps={{
-                        ...params.InputProps,
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <MapPinIcon />
-                          </InputAdornment>
-                        ),
-                      }}
-                    />
-                  )}
-                />
+                    ]}
+                    value={(() => {
+                      const options = [
+                        { id: '', title: 'Select a city' },
+                        ...cities.map(city => ({
+                          id: city.city_id,
+                          title: city.city_name
+                        }))
+                      ];
+                      return options.find(option => option.id === newCustomer.city_id) || { id: '', title: 'Select a city' };
+                    })()}
+                    onChange={(event, newValue) => {
+                      setNewCustomer(prev => ({
+                        ...prev,
+                        city_id: newValue ? newValue.id : ''
+                      }));
+                    }}
+                    getOptionLabel={(option) => option.title}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="City"
+                        sx={{ minWidth: 250 }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Tab' && params.inputProps?.ariaExpanded) {
+                            const firstCity = cities && cities.length ? cities[0].city_id : '';
+                            if (!newCustomer.city_id && firstCity) setNewCustomer(prev => ({ ...prev, city_id: firstCity }));
+                          }
+                        }}
+                        InputProps={{
+                          ...params.InputProps,
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <MapPinIcon />
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+                    )}
+                  />
+                </Box>
               </Grid>
 
               {/* Fourth Row - CNIC, NTN, Balance */}
