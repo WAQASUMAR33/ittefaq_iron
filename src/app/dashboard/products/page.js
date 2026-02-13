@@ -1492,18 +1492,17 @@ export default function ProductsPage() {
                     Pricing Information
                   </Typography>
                   <Grid container spacing={2.5}>
-                    {/* Cost Price */}
+                    {/* CRate */}
                     <Grid item xs={12} sm={6} md={4}>
                       <TextField
                         fullWidth
-                        label="Cost Price"
-                        name="pro_cost_price"
+                        label="Purchase Cost"
+                        name="pro_crate"
                         type="number"
                         inputProps={{ step: "0.01" }}
-                        value={formData.pro_cost_price}
+                        value={formData.pro_crate}
                         onChange={handleFormChange}
                         placeholder="0.00"
-                        data-field="costPrice"
                         InputProps={{
                           startAdornment: <InputAdornment position="start" sx={{ fontSize: '0.95rem', fontWeight: 600 }}>Rs</InputAdornment>,
                         }}
@@ -1589,17 +1588,18 @@ export default function ProductsPage() {
                       />
                     </Grid>
 
-                    {/* CRate */}
+                    {/* Cost Price */}
                     <Grid item xs={12} sm={6} md={4}>
                       <TextField
                         fullWidth
-                        label="CRate"
-                        name="pro_crate"
+                        label="Cost Price"
+                        name="pro_cost_price"
                         type="number"
                         inputProps={{ step: "0.01" }}
-                        value={formData.pro_crate}
+                        value={formData.pro_cost_price}
                         onChange={handleFormChange}
                         placeholder="0.00"
+                        data-field="costPrice"
                         InputProps={{
                           startAdornment: <InputAdornment position="start" sx={{ fontSize: '0.95rem', fontWeight: 600 }}>Rs</InputAdornment>,
                         }}
