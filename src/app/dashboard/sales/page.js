@@ -4432,12 +4432,17 @@ function SalesPageContent() {
                 <Button
                   variant="contained"
                   size="large"
+                  startIcon={<SaveIcon />}
                   sx={{
-                    bgcolor: '#28a745',
+                    background: 'linear-gradient(135deg,#2ecc71 0%,#28a745 50%,#1e7e34 100%)',
                     color: 'white',
-                    borderRadius: 2,
+                    borderRadius: 3,
                     minWidth: 220,
-                    '&:hover': { bgcolor: '#218838' }
+                    boxShadow: '0 6px 18px rgba(40,167,69,0.18)',
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    transition: 'transform 120ms ease, box-shadow 120ms ease',
+                    '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 10px 24px rgba(40,167,69,0.22)' }
                   }}
                   onClick={handleSaveBill}
                   disabled={loading}
@@ -4448,7 +4453,7 @@ function SalesPageContent() {
                       Saving...
                     </>
                   ) : (
-                    'Save'
+                    'Save Sale'
                   )}
                 </Button>
               </Box>
