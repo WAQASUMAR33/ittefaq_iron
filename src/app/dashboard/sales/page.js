@@ -3463,7 +3463,7 @@ function SalesPageContent() {
                     <Autocomplete
                       size="small"
                       options={products || []}
-                      getOptionLabel={(option) => option.pro_title || ''}
+                      getOptionLabel={(option) => `${option.pro_title || ''} (${option.pro_crate ? 'PKR ' + parseFloat(option.pro_crate).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'N/A'})`}
                       value={formSelectedProduct}
                       onChange={(event, newValue) => {
                         console.log('🔍 Product selected:', newValue);
@@ -3563,7 +3563,7 @@ function SalesPageContent() {
                 <Grid item xs={12} md={1.5}>
                   <Box>
                     <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
-                      RATE:
+                      SALE RATE:
                     </Typography>
                     <TextField
                       fullWidth
@@ -3593,12 +3593,12 @@ function SalesPageContent() {
                 <Grid item xs={12} md={1.5}>
                   <Box>
                     <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
-                      C RATE
+                      PURCHASE RATE
                     </Typography>
                     <TextField
                       fullWidth
                       size="small"
-                      value={productFormData.crate}
+                      value={productFormData.crate ? 'PKR ' + parseFloat(productFormData.crate).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''}
                       disabled
                       sx={{ bgcolor: '#f8f9fa', width: 150, minWidth: 150 }}
                     />
@@ -3662,7 +3662,7 @@ function SalesPageContent() {
                       <TableCell sx={{ fontWeight: 'bold', py: 1 }}>Store</TableCell>
                       <TableCell sx={{ fontWeight: 'bold', py: 1 }}>Product</TableCell>
                       <TableCell sx={{ fontWeight: 'bold', py: 1 }}>Qty</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', py: 1 }}>Price</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', py: 1 }}>Sale Price</TableCell>
                       <TableCell sx={{ fontWeight: 'bold', py: 1 }}>Amount</TableCell>
                       <TableCell sx={{ fontWeight: 'bold', py: 1 }}>Actions</TableCell>
                     </TableRow>
