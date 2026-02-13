@@ -3286,7 +3286,7 @@ function PurchasesPageContent() {
                         <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Product</TableCell>
                         <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Store</TableCell>
                         <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Qty</TableCell>
-                              <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Crate</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>PURCHASE RATE</TableCell>
                         <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Sale Rate</TableCell>
                         <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Amount</TableCell>
                         <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Actions</TableCell>
