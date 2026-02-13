@@ -420,11 +420,11 @@ export default function ProductsPage() {
       
       setSubcategoryOpen(false);
       
-      // Move focus to next field (Cost Price)
+      // Move focus to next field (Purchase Cost - first pricing field)
       setTimeout(() => {
-        const costPriceInput = document.querySelector('[data-field="costPrice"] input');
-        if (costPriceInput) {
-          costPriceInput.focus();
+        const purchaseCostInput = document.querySelector('input[name="pro_crate"]');
+        if (purchaseCostInput) {
+          purchaseCostInput.focus();
         }
       }, 50);
     }
