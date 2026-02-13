@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
+import { useState, useEffect, useMemo, useCallback, Suspense, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '../components/dashboard-layout';
 
@@ -187,8 +187,20 @@ function OrdersPageContent() {
 
   // Customer creation popup state
   const [customerPopupOpen, setCustomerPopupOpen] = useState(false);
+  const [customerTypeOpen, setCustomerTypeOpen] = useState(false);
   const [customerCategories, setCustomerCategories] = useState([]);
   const [cities, setCities] = useState([]);
+  const customerNameInputRef = useRef(null);
+
+  // Open customer popup and focus Account Name first (do NOT pre-select Account Type)
+  const handleOpenCustomerPopup = (preferredType = 'customer') => {
+    setNewCustomer(prev => ({ ...prev, cus_type: '' }));
+    setCustomerPopupOpen(true);
+    setTimeout(() => {
+      setCustomerTypeOpen(false);
+      setTimeout(() => customerNameInputRef.current?.focus(), 50);
+    }, 80);
+  }; 
 
   // Popup states for adding new category, type, and city
   const [showCustomerCategoryPopup, setShowCustomerCategoryPopup] = useState(false);
@@ -1220,9 +1232,7 @@ function OrdersPageContent() {
   };
 
   // Customer creation functions
-  const handleOpenCustomerPopup = () => {
-    setCustomerPopupOpen(true);
-  };
+  // (opening the customer popup is handled by the single `handleOpenCustomerPopup(preferredType)` defined near the top)
 
   const handleCloseCustomerPopup = () => {
     setCustomerPopupOpen(false);
@@ -1270,15 +1280,7 @@ function OrdersPageContent() {
       return;
     }
 
-    // Check if customer with same phone number already exists
-    const existingCustomer = customers.find(customer =>
-      customer.cus_phone_no === newCustomer.cus_phone_no.trim()
-    );
-
-    if (existingCustomer) {
-      showSnackbar(`A customer with phone number ${newCustomer.cus_phone_no} already exists. Please use a different phone number.`, 'error');
-      return;
-    }
+    // Allow duplicate phone numbers — do not block creation by phone number.
 
     try {
       const customerData = {
@@ -4412,6 +4414,7 @@ function OrdersPageContent() {
       {/* Customer Creation Popup */}
       <Dialog
         open={customerPopupOpen}
+        disableAutoFocus
         onClose={handleCloseCustomerPopup}
         maxWidth="md"
         fullWidth
@@ -4527,6 +4530,7 @@ function OrdersPageContent() {
                 <TextField
                   fullWidth
                   required
+                  inputRef={customerNameInputRef}
                   label="Account Name"
                   name="cus_name"
                   value={newCustomer.cus_name}
@@ -4612,6 +4616,10 @@ function OrdersPageContent() {
                 <Autocomplete
                   fullWidth
                   required
+                  openOnFocus
+                  autoHighlight
+                  selectOnFocus
+                  autoSelect
                   options={[
                     { id: '', title: 'Select a type' },
                     ...customerTypes.map(type => ({
@@ -4636,11 +4644,25 @@ function OrdersPageContent() {
                     }));
                   }}
                   getOptionLabel={(option) => option.title}
+                  open={customerTypeOpen}
+                  onOpen={() => setCustomerTypeOpen(true)}
+                  onClose={() => setCustomerTypeOpen(false)}
                   renderInput={(params) => (
                     <TextField
                       {...params}
                       label="Account Type"
                       sx={{ minWidth: 250 }}
+                      onKeyDown={(e) => {
+                        // If user tabs into this field and the dropdown is open, pick the first real type when none selected
+                        if (e.key === 'Tab' && customerTypeOpen) {
+                          const firstType = customerTypes && customerTypes.length ? customerTypes[0].cus_type_id : '';
+                          if (!newCustomer.cus_type && firstType) {
+                            setNewCustomer(prev => ({ ...prev, cus_type: firstType }));
+                          }
+                          setCustomerTypeOpen(false);
+                          // allow normal tab navigation to continue
+                        }
+                      }}
                       InputProps={{
                         ...params.InputProps,
                         startAdornment: (
@@ -4658,6 +4680,10 @@ function OrdersPageContent() {
                 <Autocomplete
                   fullWidth
                   required
+                  openOnFocus
+                  autoHighlight
+                  selectOnFocus
+                  autoSelect
                   options={[
                     { id: '', title: 'Select a category' },
                     ...customerCategories.map(category => ({
@@ -4687,6 +4713,12 @@ function OrdersPageContent() {
                       {...params}
                       label="Account Category"
                       sx={{ minWidth: 250 }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Tab' && params.inputProps?.ariaExpanded) {
+                          const firstCat = customerCategories && customerCategories.length ? customerCategories[0].cus_cat_id : '';
+                          if (!newCustomer.cus_category && firstCat) setNewCustomer(prev => ({ ...prev, cus_category: firstCat }));
+                        }
+                      }}
                       InputProps={{
                         ...params.InputProps,
                         startAdornment: (
@@ -4728,6 +4760,10 @@ function OrdersPageContent() {
               <Grid item xs={12} md={4}>
                 <Autocomplete
                   fullWidth
+                  openOnFocus
+                  autoHighlight
+                  selectOnFocus
+                  autoSelect
                   options={[
                     { id: '', title: 'Select a city' },
                     ...cities.map(city => ({
@@ -4757,6 +4793,12 @@ function OrdersPageContent() {
                       {...params}
                       label="City"
                       sx={{ minWidth: 250 }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Tab' && params.inputProps?.ariaExpanded) {
+                          const firstCity = cities && cities.length ? cities[0].city_id : '';
+                          if (!newCustomer.city_id && firstCity) setNewCustomer(prev => ({ ...prev, city_id: firstCity }));
+                        }
+                      }}
                       InputProps={{
                         ...params.InputProps,
                         startAdornment: (

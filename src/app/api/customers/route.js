@@ -155,15 +155,7 @@ export async function POST(request) {
     if (!categoryExists)
       return errorResponse('Customer category not found', 404);
 
-    // Check for duplicate phone number (primary phone)
-    const existingCustomer = await prisma.customer.findFirst({
-      where: {
-        cus_phone_no: cus_phone_no.trim(),
-      },
-    });
-
-    if (existingCustomer)
-      return errorResponse('Customer with this phone number already exists', 409);
+    // Allow duplicate phone numbers — no uniqueness check on phone here (handled by business rules elsewhere if needed).
 
     // Create new customer
     const newCustomer = await prisma.customer.create({
@@ -297,16 +289,7 @@ export async function PUT(request) {
     if (!categoryExists)
       return errorResponse('Customer category not found', 404);
 
-    // Check for duplicate phone number (excluding current customer)
-    const duplicatePhone = await prisma.customer.findFirst({
-      where: {
-        cus_phone_no: cus_phone_no.trim(),
-        NOT: { cus_id: id },
-      },
-    });
-
-    if (duplicatePhone)
-      return errorResponse('Customer with this phone number already exists', 409);
+    // Allow duplicate phone numbers on update as well — do not block by phone number.
 
     // Update customer
     const updated = await prisma.customer.update({
@@ -384,13 +367,23 @@ export async function DELETE(request) {
     if (!existing)
       return errorResponse('Customer not found', 404);
 
-    // Check if customer has any related records (sales, purchases, etc.)
+    // Check if customer has any related records (sales, purchases, ledger, payments, split-payments, etc.)
     const hasRelatedRecords = await prisma.$transaction(async (tx) => {
       const sales = await tx.sale.count({ where: { cus_id: id } });
       const purchases = await tx.purchase.count({ where: { cus_id: id } });
       const ledger = await tx.ledger.count({ where: { cus_id: id } });
-      
-      return sales > 0 || purchases > 0 || ledger > 0;
+      const payments = await tx.payment.count({ where: { account_id: id } }).catch(() => 0);
+      const splitDebit = await tx.splitPayment.count({ where: { debit_account_id: id } }).catch(() => 0);
+      const splitCredit = await tx.splitPayment.count({ where: { credit_account_id: id } }).catch(() => 0);
+
+      return (
+        sales > 0 ||
+        purchases > 0 ||
+        ledger > 0 ||
+        payments > 0 ||
+        splitDebit > 0 ||
+        splitCredit > 0
+      );
     });
 
     if (hasRelatedRecords)

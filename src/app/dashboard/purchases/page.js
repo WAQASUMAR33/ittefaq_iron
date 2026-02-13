@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useState, useEffect, useCallback, Suspense, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '../components/dashboard-layout';
 
@@ -224,6 +224,20 @@ function PurchasesPageContent() {
 
   // Customer form states
   const [showCustomerForm, setShowCustomerForm] = useState(false);
+  const [customerTypeOpenPurchases, setCustomerTypeOpenPurchases] = useState(false);
+  const customerTypeInputRefPurchases = useRef(null);
+  const customerNameInputRefPurchases = useRef(null);
+
+  const openCustomerForm = (preferredType = 'supplier') => {
+    // Open the dialog and keep Account Type blank. Focus Account Name so user can type the name first.
+    setCustomerFormData(prev => ({ ...prev, cus_type: '' }));
+    setShowCustomerForm(true);
+    // ensure the Account Type dropdown is closed and focus the Account Name input after the dialog mounts
+    setTimeout(() => {
+      setCustomerTypeOpenPurchases(false);
+      setTimeout(() => customerNameInputRefPurchases.current?.focus(), 50);
+    }, 80);
+  };  
   const [customerFormData, setCustomerFormData] = useState({
     cus_name: '',
     cus_phone_no: '',
@@ -2362,7 +2376,7 @@ function PurchasesPageContent() {
                     <Button
                       variant="contained"
                       startIcon={<AddIcon />}
-                      onClick={() => setShowCustomerForm(true)}
+                      onClick={() => openCustomerForm('supplier')}
                       sx={{
                         bgcolor: 'primary.main',
                         '&:hover': { bgcolor: 'primary.dark' }
@@ -3731,6 +3745,7 @@ function PurchasesPageContent() {
       <Dialog
         open={showCustomerForm}
         onClose={handleCloseCustomerForm}
+        disableAutoFocus
         maxWidth="md"
         fullWidth
         PaperProps={{
@@ -3841,6 +3856,7 @@ function PurchasesPageContent() {
                 <TextField
                   fullWidth
                   required
+                  inputRef={customerNameInputRefPurchases}
                   label="Account Name"
                   name="cus_name"
                   value={customerFormData.cus_name}
@@ -3926,12 +3942,12 @@ function PurchasesPageContent() {
               <Grid item xs={12} md={4}>
                 <Autocomplete
                   fullWidth
-                  autoSelect={true}
-                  autoHighlight={true}
-                  openOnFocus={true}
-                  selectOnFocus={true}
                   required
-                  size="medium"
+                  openOnFocus
+                  autoHighlight
+                  selectOnFocus
+                  autoSelect
+                  autoSelect
                   options={[
                     { id: '', title: 'Select a type' },
                     ...customerTypes.map(type => ({
@@ -3956,12 +3972,25 @@ function PurchasesPageContent() {
                     }));
                   }}
                   getOptionLabel={(option) => option.title}
+                  open={customerTypeOpenPurchases}
+                  onOpen={() => setCustomerTypeOpenPurchases(true)}
+                  onClose={() => setCustomerTypeOpenPurchases(false)}
                   renderInput={(params) => (
                     <TextField
                       {...params}
+                      inputRef={customerTypeInputRefPurchases}
                       label="Account Type"
                       onFocus={(e) => e.target.select()}
                       sx={{ minHeight: 56, minWidth: 255 }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Tab' && customerTypeOpenPurchases) {
+                          const firstType = customerTypes && customerTypes.length ? customerTypes[0].cus_type_id : '';
+                          if (!customerFormData.cus_type && firstType) {
+                            setCustomerFormData(prev => ({ ...prev, cus_type: firstType }));
+                          }
+                          setCustomerTypeOpenPurchases(false);
+                        }
+                      }}
                       InputProps={{
                         ...params.InputProps,
                         startAdornment: (
@@ -3978,12 +4007,11 @@ function PurchasesPageContent() {
               <Grid item xs={12} md={4}>
                 <Autocomplete
                   fullWidth
-                  autoSelect={true}
-                  autoHighlight={true}
-                  openOnFocus={true}
-                  selectOnFocus={true}
                   required
-                  size="medium"
+                  openOnFocus
+                  autoHighlight
+                  selectOnFocus
+                  autoSelect
                   options={[
                     { id: '', title: 'Select a category' },
                     ...customerCategories.map(category => ({
@@ -4014,6 +4042,12 @@ function PurchasesPageContent() {
                       label="Supplier Category"
                       onFocus={(e) => e.target.select()}
                       sx={{ minHeight: 56, minWidth: 255 }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Tab' && params.inputProps?.ariaExpanded) {
+                          const firstCat = customerCategories && customerCategories.length ? customerCategories[0].cus_cat_id : '';
+                          if (!customerFormData.cus_category && firstCat) setCustomerFormData(prev => ({ ...prev, cus_category: firstCat }));
+                        }
+                      }}
                       InputProps={{
                         ...params.InputProps,
                         startAdornment: (
@@ -4066,6 +4100,12 @@ function PurchasesPageContent() {
                       label="City"
                       onFocus={(e) => e.target.select()}
                       sx={{ minHeight: 56, minWidth: 255 }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Tab' && params.inputProps?.ariaExpanded) {
+                          const firstCity = cities && cities.length ? cities[0].city_id : '';
+                          if (!customerFormData.city_id && firstCity) setCustomerFormData(prev => ({ ...prev, city_id: firstCity }));
+                        }
+                      }}
                       InputProps={{
                         ...params.InputProps,
                         startAdornment: (
@@ -4384,19 +4424,19 @@ function PurchasesPageContent() {
                       <Table size="small">
                         <TableBody>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Previous Balance</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
                               {parseFloat(viewingPurchase.customer?.cus_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجودہ بقایا</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Current Balance</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
                               {(parseFloat(viewingPurchase.total_amount || 0) - parseFloat(viewingPurchase.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                           <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>کل بقایا</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Total Balance</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
                               {(parseFloat(viewingPurchase.customer?.cus_balance || 0) + parseFloat(viewingPurchase.total_amount || 0) - parseFloat(viewingPurchase.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
@@ -4410,71 +4450,71 @@ function PurchasesPageContent() {
                       <Table size="small">
                         <TableBody>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>کل مال کی رقم</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Goods Total</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
                               {parseFloat(viewingPurchase.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>مزدوری</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Labour</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
                               {parseFloat(viewingPurchase.labour_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>ٹرانسپورٹ</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Transport</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
                               {parseFloat(viewingPurchase.transport_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>کرایہ</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Fare</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
                               {parseFloat(viewingPurchase.fare_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>اتارنے کا خرچ</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Unloading Charges</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
                               {parseFloat(viewingPurchase.unloading_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                           {parseFloat(viewingPurchase.discount || 0) > 0 && (
                             <TableRow>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رعایت/ڈسکاؤنٹ</TableCell>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Discount</TableCell>
                               <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
                                 -{parseFloat(viewingPurchase.discount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </TableCell>
                             </TableRow>
                           )}
                           <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>کل بل کی رقم</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Invoice Total</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
                               {(viewingPurchase.display_net_total || parseFloat(viewingPurchase.total_amount || 0) + parseFloat(viewingPurchase.unloading_amount || 0) + parseFloat(viewingPurchase.transport_amount || 0) + parseFloat(viewingPurchase.labour_amount || 0) + parseFloat(viewingPurchase.fare_amount || 0) - parseFloat(viewingPurchase.discount || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>نقد ادائیگی</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Cash Payment</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem', fontWeight: 'bold' }}>
                               {parseFloat(viewingPurchase.cash_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {viewingPurchase.bank_payment > 0 ? (viewingPurchase.bank_title || 'بینک ادائیگی') : 'بینک ادائیگی'}
+                              {viewingPurchase.bank_payment > 0 ? (viewingPurchase.bank_title || 'Bank Payment') : 'Bank Payment'}
                             </TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem', fontWeight: 'bold' }}>
                               {parseFloat(viewingPurchase.bank_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>کل ادائیگی</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Total Payment</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
                               {parseFloat(viewingPurchase.payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>باقی رقم</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Balance Due</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
                               {((viewingPurchase.display_net_total || parseFloat(viewingPurchase.total_amount || 0) + parseFloat(viewingPurchase.unloading_amount || 0) + parseFloat(viewingPurchase.transport_amount || 0) + parseFloat(viewingPurchase.labour_amount || 0) + parseFloat(viewingPurchase.fare_amount || 0) - parseFloat(viewingPurchase.discount || 0)) - parseFloat(viewingPurchase.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>

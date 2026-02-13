@@ -1705,12 +1705,24 @@ function SalesPageContent() {
   };
 
   // Customer creation functions
-  const handleOpenCustomerPopup = () => {
+  const [customerTypeOpen, setCustomerTypeOpen] = useState(false);
+  const customerTypeInputRef = useRef(null);
+  const customerNameInputRef = useRef(null);
+
+  // Open customer popup and focus Account Name first (do NOT pre-select Account Type)
+  const handleOpenCustomerPopup = (preferredType = 'customer') => {
+    setNewCustomer(prev => ({ ...prev, cus_type: '' }));
     setCustomerPopupOpen(true);
-  };
+    // ensure Account Type dropdown is closed and focus the Account Name input after mount
+    setTimeout(() => {
+      setCustomerTypeOpen(false);
+      setTimeout(() => customerNameInputRef.current?.focus(), 50);
+    }, 80);
+  }; 
 
   const handleCloseCustomerPopup = () => {
     setCustomerPopupOpen(false);
+    setCustomerTypeOpen(false);
     setNewCustomer({
       cus_name: '',
       cus_phone_no: '',
@@ -1754,15 +1766,7 @@ function SalesPageContent() {
       return;
     }
 
-    // Check if customer with same phone number already exists
-    const existingCustomer = customers.find(customer =>
-      customer.cus_phone_no === newCustomer.cus_phone_no.trim()
-    );
-
-    if (existingCustomer) {
-      showSnackbar(`A customer with phone number ${newCustomer.cus_phone_no} already exists. Please use a different phone number.`, 'error');
-      return;
-    }
+    // Allow duplicate phone numbers — do not block creation by phone number.
 
     try {
       const customerData = {
@@ -5446,22 +5450,22 @@ function SalesPageContent() {
                   pointerEvents: 'none',
                   animation: 'particleFloat 3s ease-in-out infinite',
                 },
-                '& .particle:nth-child(1)': {
+                '& .particle:nth-of-type(1)': {
                   top: '10%',
                   left: '10%',
                   animationDelay: '0s',
                 },
-                '& .particle:nth-child(2)': {
+                '& .particle:nth-of-type(2)': {
                   top: '20%',
                   right: '15%',
                   animationDelay: '0.5s',
                 },
-                '& .particle:nth-child(3)': {
+                '& .particle:nth-of-type(3)': {
                   bottom: '15%',
                   left: '20%',
                   animationDelay: '1s',
                 },
-                '& .particle:nth-child(4)': {
+                '& .particle:nth-of-type(4)': {
                   bottom: '10%',
                   right: '10%',
                   animationDelay: '1.5s',
@@ -6247,6 +6251,7 @@ function SalesPageContent() {
       {/* Customer Creation Popup */}
       <Dialog
         open={customerPopupOpen}
+        disableAutoFocus
         onClose={handleCloseCustomerPopup}
         maxWidth="md"
         fullWidth
@@ -6362,6 +6367,7 @@ function SalesPageContent() {
                 <TextField
                   fullWidth
                   required
+                  inputRef={customerNameInputRef}
                   label="Account Name"
                   name="cus_name"
                   value={newCustomer.cus_name}
@@ -6446,6 +6452,10 @@ function SalesPageContent() {
                 <Autocomplete
                   fullWidth
                   required
+                  openOnFocus
+                  autoHighlight
+                  selectOnFocus
+                  autoSelect
                   options={[
                     { id: '', title: 'Select a type' },
                     ...customerTypes.map(type => ({
@@ -6470,16 +6480,25 @@ function SalesPageContent() {
                     }));
                   }}
                   getOptionLabel={(option) => option.title}
-                  autoSelect={true}
-                  autoHighlight={true}
-                  openOnFocus={true}
-                  selectOnFocus={true}
+                  open={customerTypeOpen}
+                  onOpen={() => setCustomerTypeOpen(true)}
+                  onClose={() => setCustomerTypeOpen(false)}
                   renderInput={(params) => (
                     <TextField
                       {...params}
+                      inputRef={customerTypeInputRef}
                       label="Account Type"
                       onFocus={(e) => e.target.select()}
                       sx={{ minWidth: 250 }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Tab' && customerTypeOpen) {
+                          const firstType = customerTypes && customerTypes.length ? customerTypes[0].cus_type_id : '';
+                          if (!newCustomer.cus_type && firstType) {
+                            setNewCustomer(prev => ({ ...prev, cus_type: firstType }));
+                          }
+                          setCustomerTypeOpen(false);
+                        }
+                      }}
                       InputProps={{
                         ...params.InputProps,
                         startAdornment: (
@@ -6531,6 +6550,12 @@ function SalesPageContent() {
                       label="Account Category"
                       onFocus={(e) => e.target.select()}
                       sx={{ minWidth: 250 }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Tab' && params.inputProps?.ariaExpanded) {
+                          const firstCat = customerCategories && customerCategories.length ? customerCategories[0].cus_cat_id : '';
+                          if (!newCustomer.cus_category && firstCat) setNewCustomer(prev => ({ ...prev, cus_category: firstCat }));
+                        }
+                      }}
                       InputProps={{
                         ...params.InputProps,
                         startAdornment: (
@@ -6606,6 +6631,12 @@ function SalesPageContent() {
                       label="City"
                       onFocus={(e) => e.target.select()}
                       sx={{ minWidth: 250 }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Tab' && params.inputProps?.ariaExpanded) {
+                          const firstCity = cities && cities.length ? cities[0].city_id : '';
+                          if (!newCustomer.city_id && firstCity) setNewCustomer(prev => ({ ...prev, city_id: firstCity }));
+                        }
+                      }}
                       InputProps={{
                         ...params.InputProps,
                         startAdornment: (

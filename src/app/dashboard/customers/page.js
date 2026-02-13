@@ -383,6 +383,12 @@ export default function CustomersPage() {
   // City handlers
   const handleAddCity = async (e) => {
     e.preventDefault();
+    // Client-side duplicate check (case-insensitive)
+    const name = (cityFormData.city_name || '').trim().toLowerCase();
+    if (!name) return alert('City name is required');
+    const exists = cities.some(c => (c.city_name || '').trim().toLowerCase() === name);
+    if (exists) return alert('City with this name already exists');
+
     setIsAddingCity(true);
     try {
       const response = await fetch('/api/cities', {
@@ -1284,6 +1290,12 @@ export default function CustomersPage() {
                         required
                         onFocus={(e) => e.target.select()}
                         sx={{ minWidth: 250 }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Tab' && params.inputProps?.ariaExpanded) {
+                            const firstCat = customerCategories && customerCategories.length ? customerCategories[0].cus_cat_id : '';
+                            if (!formData.cus_category && firstCat) setFormData(prev => ({ ...prev, cus_category: firstCat }));
+                          }
+                        }}
                         InputProps={{
                           ...params.InputProps,
                           startAdornment: (
@@ -1351,6 +1363,12 @@ export default function CustomersPage() {
                         label="City"
                         onFocus={(e) => e.target.select()}
                         sx={{ minWidth: 250 }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Tab' && params.inputProps?.ariaExpanded) {
+                            const firstCity = cities && cities.length ? cities[0].city_id : '';
+                            if (!formData.city_id && firstCity) setFormData(prev => ({ ...prev, city_id: firstCity }));
+                          }
+                        }}
                         InputProps={{
                           ...params.InputProps,
                           startAdornment: (

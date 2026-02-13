@@ -33,9 +33,15 @@ export async function POST(request) {
       );
     }
 
+    // Prevent duplicate city names (exact match)
+    const existing = await prisma.city.findFirst({ where: { city_name: city_name.trim() } });
+    if (existing) {
+      return NextResponse.json({ error: 'City with this name already exists' }, { status: 409 });
+    }
+
     const city = await prisma.city.create({
       data: {
-        city_name,
+        city_name: city_name.trim(),
         updated_by
       }
     });
@@ -63,10 +69,16 @@ export async function PUT(request) {
       );
     }
 
+    // Prevent duplicate city names on update (exclude current city)
+    const existing = await prisma.city.findFirst({ where: { city_name: city_name.trim(), NOT: { city_id: id } } });
+    if (existing) {
+      return NextResponse.json({ error: 'City with this name already exists' }, { status: 409 });
+    }
+
     const city = await prisma.city.update({
       where: { city_id: id },
       data: {
-        city_name,
+        city_name: city_name.trim(),
         updated_by
       }
     });
