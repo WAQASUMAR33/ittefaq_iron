@@ -84,6 +84,14 @@ export default function ProductsPage() {
   const [sortOrder, setSortOrder] = useState('desc');
   const [stockFilter, setStockFilter] = useState('all');
 
+  // Keyboard navigation states for Category/Subcategory Autocomplete
+  const [categoryInput, setCategoryInput] = useState('');
+  const [subcategoryInput, setSubcategoryInput] = useState('');
+  const [categoryHighlighted, setCategoryHighlighted] = useState(null);
+  const [subcategoryHighlighted, setSubcategoryHighlighted] = useState(null);
+  const [categoryOpen, setCategoryOpen] = useState(false);
+  const [subcategoryOpen, setSubcategoryOpen] = useState(false);
+
   // Form data
   const [formData, setFormData] = useState({
     pro_title: '',
@@ -232,6 +240,11 @@ export default function ProductsPage() {
       cat_id: product.cat_id || '',
       sub_cat_id: product.sub_cat_id || ''
     });
+    // Populate Category and Subcategory input states
+    const category = categories.find(c => c.cat_id === product.cat_id);
+    const subcategory = subcategories.find(s => s.sub_cat_id === product.sub_cat_id);
+    if (category) setCategoryInput(category.cat_name);
+    if (subcategory) setSubcategoryInput(subcategory.sub_cat_name);
     setShowProductForm(true);
   };
 
@@ -344,6 +357,79 @@ export default function ProductsPage() {
     }));
   };
 
+  // Handle Tab key on Category field (select highlighted option and move to Subcategory)
+  const handleCategoryKeyDown = (e) => {
+    if (e.key === 'Tab' && categoryOpen) {
+      e.preventDefault();
+      
+      // Select the highlighted option
+      if (categoryHighlighted) {
+        setFormData(prev => ({
+          ...prev,
+          cat_id: categoryHighlighted.cat_id,
+          sub_cat_id: '' // Reset subcategory when category changes
+        }));
+        setCategoryInput(categoryHighlighted.cat_name);
+      } else if (categories.length > 0) {
+        // If no highlighted, select first match
+        const firstMatch = categories.find(c => c.cat_name.toLowerCase().includes(categoryInput.toLowerCase())) || categories[0];
+        setFormData(prev => ({
+          ...prev,
+          cat_id: firstMatch.cat_id,
+          sub_cat_id: ''
+        }));
+        setCategoryInput(firstMatch.cat_name);
+      }
+      
+      setCategoryOpen(false);
+      
+      // Auto-focus and auto-open Subcategory after a brief delay
+      setTimeout(() => {
+        const subcategoryInput = document.querySelector('[data-field="subcategoryAutocomplete"] input');
+        if (subcategoryInput) {
+          subcategoryInput.focus();
+          setSubcategoryOpen(true);
+        }
+      }, 50);
+    }
+  };
+
+  // Handle Tab key on Subcategory field (select highlighted option and close)
+  const handleSubcategoryKeyDown = (e) => {
+    if (e.key === 'Tab' && subcategoryOpen) {
+      e.preventDefault();
+      
+      // Select the highlighted option
+      if (subcategoryHighlighted) {
+        setFormData(prev => ({
+          ...prev,
+          sub_cat_id: subcategoryHighlighted.sub_cat_id
+        }));
+        setSubcategoryInput(subcategoryHighlighted.sub_cat_name);
+      } else {
+        const formSubcats = getFormSubcategories();
+        if (formSubcats.length > 0) {
+          const firstMatch = formSubcats.find(s => s.sub_cat_name.toLowerCase().includes(subcategoryInput.toLowerCase())) || formSubcats[0];
+          setFormData(prev => ({
+            ...prev,
+            sub_cat_id: firstMatch.sub_cat_id
+          }));
+          setSubcategoryInput(firstMatch.sub_cat_name);
+        }
+      }
+      
+      setSubcategoryOpen(false);
+      
+      // Move focus to next field (Cost Price)
+      setTimeout(() => {
+        const costPriceInput = document.querySelector('[data-field="costPrice"] input');
+        if (costPriceInput) {
+          costPriceInput.focus();
+        }
+      }, 50);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -389,6 +475,13 @@ export default function ProductsPage() {
       cat_id: '',
       sub_cat_id: ''
     });
+    // Clear Category and Subcategory input states
+    setCategoryInput('');
+    setSubcategoryInput('');
+    setCategoryHighlighted(null);
+    setSubcategoryHighlighted(null);
+    setCategoryOpen(false);
+    setSubcategoryOpen(false);
   };
 
   const handleSnackbarClose = () => {
@@ -1273,91 +1366,112 @@ export default function ProductsPage() {
                     Category & Classification
                   </Typography>
                   <Box sx={{ display: 'flex', gap: 4, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                    {/* Category */}
+                    {/* Category - Autocomplete with Tab navigation */}
                     <Box sx={{ flex: '1 1 45%', minWidth: '300px' }}>
-                      <FormControl fullWidth required sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 2,
-                          fontSize: '1.1rem',
-                          height: '60px',
-                          backgroundColor: 'white',
-                          px: 2,
-                          '&:hover': {
-                            backgroundColor: '#f9fafb'
+                      <Autocomplete
+                        openOnFocus
+                        autoHighlight
+                        selectOnFocus
+                        inputValue={categoryInput}
+                        onInputChange={(_, v) => setCategoryInput(v)}
+                        options={categories}
+                        getOptionLabel={(opt) => opt.cat_name || ''}
+                        value={categories.find(c => c.cat_id === formData.cat_id) || null}
+                        onChange={(_, newVal) => {
+                          if (newVal) {
+                            setFormData(prev => ({
+                              ...prev,
+                              cat_id: newVal.cat_id,
+                              sub_cat_id: ''
+                            }));
+                            setCategoryInput(newVal.cat_name);
                           }
-                        },
-                        '& .MuiInputLabel-root': {
-                          fontSize: '1.1rem',
-                          fontWeight: 500
-                        }
-                      }}>
-                        <InputLabel>Category</InputLabel>
-                        <Select
-                          value={formData.cat_id}
-                          label="Category"
-                          name="cat_id"
-                          onChange={handleFormChange}
-                          MenuProps={{
-                            PaperProps: {
-                              sx: {
-                                maxHeight: 300,
-                                borderRadius: 2,
-                                boxShadow: '0 8px 32px rgba(0,0,0,0.12)'
-                              }
+                        }}
+                        onHighlightChange={(_, option) => setCategoryHighlighted(option)}
+                        open={categoryOpen}
+                        onOpen={() => setCategoryOpen(true)}
+                        onClose={() => setCategoryOpen(false)}
+                        onKeyDown={handleCategoryKeyDown}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            label="Category"
+                            required
+                            placeholder="Select category"
+                            data-field="categoryAutocomplete"
+                          />
+                        )}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 2,
+                            fontSize: '1.1rem',
+                            height: '60px',
+                            backgroundColor: 'white',
+                            px: 2,
+                            '&:hover': {
+                              backgroundColor: '#f9fafb'
                             }
-                          }}
-                        >
-                          {categories.map(category => (
-                            <MenuItem key={category.cat_id} value={category.cat_id} sx={{ fontSize: '0.95rem', py: 1.25 }}>
-                              {category.cat_name}
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
+                          },
+                          '& .MuiInputLabel-root': {
+                            fontSize: '1.1rem',
+                            fontWeight: 500
+                          }
+                        }}
+                      />
                     </Box>
 
-                    {/* Subcategory */}
+                    {/* Subcategory - Autocomplete with Tab navigation */}
                     <Box sx={{ flex: '1 1 45%', minWidth: '300px' }}>
-                      <FormControl fullWidth sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 2,
-                          fontSize: '1.1rem',
-                          height: '60px',
-                          backgroundColor: 'white',
-                          px: 2,
-                          '&:hover': {
-                            backgroundColor: '#f9fafb'
+                      <Autocomplete
+                        openOnFocus
+                        autoHighlight
+                        selectOnFocus
+                        disabled={!formData.cat_id}
+                        inputValue={subcategoryInput}
+                        onInputChange={(_, v) => setSubcategoryInput(v)}
+                        options={getFormSubcategories()}
+                        getOptionLabel={(opt) => opt.sub_cat_name || ''}
+                        value={getFormSubcategories().find(s => s.sub_cat_id === formData.sub_cat_id) || null}
+                        onChange={(_, newVal) => {
+                          if (newVal) {
+                            setFormData(prev => ({
+                              ...prev,
+                              sub_cat_id: newVal.sub_cat_id
+                            }));
+                            setSubcategoryInput(newVal.sub_cat_name);
                           }
-                        },
-                        '& .MuiInputLabel-root': {
-                          fontSize: '1.1rem',
-                          fontWeight: 500
-                        }
-                      }}>
-                        <InputLabel>Subcategory</InputLabel>
-                        <Select
-                          value={formData.sub_cat_id}
-                          label="Subcategory"
-                          name="sub_cat_id"
-                          onChange={handleFormChange}
-                          disabled={!formData.cat_id}
-                          MenuProps={{
-                            PaperProps: {
-                              sx: {
-                                maxHeight: 300,
-                                borderRadius: 2,
-                                boxShadow: '0 8px 32px rgba(0,0,0,0.12)'
-                              }
+                        }}
+                        onHighlightChange={(_, option) => setSubcategoryHighlighted(option)}
+                        open={subcategoryOpen}
+                        onOpen={() => setSubcategoryOpen(true)}
+                        onClose={() => setSubcategoryOpen(false)}
+                        onKeyDown={handleSubcategoryKeyDown}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            label="Subcategory"
+                            placeholder="Select subcategory"
+                            data-field="subcategoryAutocomplete"
+                            disabled={!formData.cat_id}
+                          />
+                        )}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 2,
+                            fontSize: '1.1rem',
+                            height: '60px',
+                            backgroundColor: 'white',
+                            px: 2,
+                            '&:hover': {
+                              backgroundColor: '#f9fafb'
                             }
-                          }}
-                        >
-                          {getFormSubcategories().map(subcategory => (
-                            <MenuItem key={subcategory.sub_cat_id} value={subcategory.sub_cat_id} sx={{ fontSize: '0.95rem', py: 1.25 }}>
-                              {subcategory.sub_cat_name}
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
+                          },
+                          '& .MuiInputLabel-root': {
+                            fontSize: '1.1rem',
+                            fontWeight: 500
+                          }
+                        }}
+                      />
                     </Box>
                   </Box>
                 </Box>
@@ -1389,6 +1503,7 @@ export default function ProductsPage() {
                         value={formData.pro_cost_price}
                         onChange={handleFormChange}
                         placeholder="0.00"
+                        data-field="costPrice"
                         InputProps={{
                           startAdornment: <InputAdornment position="start" sx={{ fontSize: '0.95rem', fontWeight: 600 }}>Rs</InputAdornment>,
                         }}

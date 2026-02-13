@@ -65,6 +65,7 @@ import {
   LocalShipping as TruckIcon,
   Inventory as PackageIcon,
   Receipt as ReceiptIcon,
+  Print as PrintIcon,
   ArrowBack as ArrowLeftIcon,
   ArrowForward as ArrowRightIcon,
   Close as CloseIcon,
@@ -315,6 +316,88 @@ function PurchasesPageContent() {
   // Receipt dialog states
   const [currentBillData, setCurrentBillData] = useState(null);
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
+
+  // Handle print receipt (A4 / Thermal) - copied from sales print logic and adapted for purchases
+  const handlePrintReceipt = (mode = 'A4', fromDialog = false) => {
+    try {
+      const className = mode === 'THERMAL' ? 'print-thermal' : 'print-a4';
+      const isThermal = mode === 'THERMAL';
+
+      const printableContainer = mode === 'THERMAL'
+        ? document.getElementById('printable-invoice-thermal-purchase')
+        : document.getElementById('printable-invoice-a4-purchase');
+
+      if (!printableContainer) {
+        console.error('Printable container not found (purchases)');
+        return;
+      }
+
+      // If printing from dialog, copy receipt preview content
+      if (fromDialog) {
+        const receiptPreview = document.getElementById('receipt-preview');
+        if (receiptPreview && printableContainer) {
+          printableContainer.innerHTML = receiptPreview.innerHTML;
+        }
+      }
+
+      // Temporarily show container for print
+      const originalStyles = {
+        position: printableContainer.style.position,
+        left: printableContainer.style.left,
+        top: printableContainer.style.top,
+        visibility: printableContainer.style.visibility,
+        display: printableContainer.style.display
+      };
+
+      printableContainer.style.position = 'fixed';
+      printableContainer.style.left = '0';
+      printableContainer.style.top = '0';
+      printableContainer.style.visibility = 'visible';
+      printableContainer.style.display = 'block';
+      printableContainer.style.zIndex = '9999';
+      printableContainer.style.backgroundColor = 'white';
+
+      let styleId = 'dynamic-print-style-purchase';
+      let styleElement = document.getElementById(styleId);
+
+      if (isThermal) {
+        if (!styleElement) {
+          styleElement = document.createElement('style');
+          styleElement.id = styleId;
+          document.head.appendChild(styleElement);
+        }
+        styleElement.textContent = `@media print { @page { size: 80mm auto; margin: 5mm; } }`;
+      } else if (styleElement) {
+        styleElement.textContent = `@media print { @page { size: A4; margin: 0.5cm 1cm; } }`;
+      }
+
+      document.body.classList.add(className);
+
+      setTimeout(() => {
+        window.print();
+        setTimeout(() => {
+          // restore styles
+          printableContainer.style.position = originalStyles.position;
+          printableContainer.style.left = originalStyles.left;
+          printableContainer.style.top = originalStyles.top;
+          printableContainer.style.visibility = originalStyles.visibility;
+          printableContainer.style.display = originalStyles.display;
+          printableContainer.style.zIndex = '';
+          printableContainer.style.backgroundColor = '';
+
+          document.body.classList.remove('print-thermal');
+          document.body.classList.remove('print-a4');
+
+          if (styleElement && isThermal) {
+            styleElement.remove();
+          }
+        }, 100);
+      }, 100);
+    } catch (e) {
+      console.error('Print error (purchases):', e);
+      window.print();
+    }
+  };
 
   // Purchase Type and Return states
   const [purchaseType, setPurchaseType] = useState('new'); // 'new' or 'return'
@@ -874,12 +957,13 @@ function PurchasesPageContent() {
   };
 
   // Handle product selection (show in preview section)
+  // NOTE: show sale rate in the RATE field (per UX request) and keep crate default from product.pro_crate if provided
   const handleProductSelect = (product) => {
     setSelectedProduct(product);
     setProductFormData({
       qnty: '1',
-      unit_rate: product.pro_cost_price.toString(),
-      crate: product.pro_crate ? product.pro_crate.toString() : product.pro_cost_price.toString()
+      unit_rate: (product.pro_sale_price || product.pro_cost_price || 0).toString(), // show sale rate here
+      crate: product.pro_crate ? product.pro_crate.toString() : (product.pro_sale_price || product.pro_cost_price || 0).toString()
     });
   };
 
@@ -925,6 +1009,50 @@ function PurchasesPageContent() {
         purchase_details: finalPurchaseDetails
       };
     });
+
+    // If user edited unit_rate or crate for this product, update local product and persist to backend
+    (async () => {
+      try {
+        const newUnit = parseFloat(productFormData.unit_rate || 0) || 0;
+        const newCrateVal = productFormData.crate ? parseFloat(productFormData.crate) : null;
+
+        const originalCost = parseFloat(selectedProduct?.pro_cost_price || 0);
+        const originalCrate = selectedProduct?.pro_crate != null ? parseFloat(selectedProduct.pro_crate) : null;
+
+        const costChanged = !Number.isNaN(newUnit) && newUnit !== originalCost;
+        const crateChanged = newCrateVal !== null && newCrateVal !== originalCrate;
+
+        if (selectedProduct && (costChanged || crateChanged)) {
+          // Update local products state so next selects show updated defaults
+          setProducts(prev => prev.map(p => p.pro_id === selectedProduct.pro_id ? {
+            ...p,
+            pro_cost_price: costChanged ? newUnit : p.pro_cost_price,
+            pro_crate: crateChanged ? newCrateVal : p.pro_crate
+          } : p));
+
+          // Persist change to API (best-effort, non-blocking)
+          const payload = { id: selectedProduct.pro_id };
+          if (costChanged) payload.pro_cost_price = newUnit;
+          if (crateChanged) payload.pro_crate = newCrateVal;
+
+          const resp = await fetch('/api/products', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          if (resp.ok) {
+            const updatedProduct = await resp.json();
+            // ensure local products reflect authoritative server response
+            setProducts(prev => prev.map(p => p.pro_id === updatedProduct.pro_id ? updatedProduct : p));
+          } else {
+            console.warn('Failed to persist product update', await resp.text());
+          }
+        }
+      } catch (err) {
+        console.error('Error persisting product price/crate change:', err);
+      }
+    })();
 
     // Reset selection
     setSelectedProduct(null);
@@ -3105,47 +3233,6 @@ function PurchasesPageContent() {
                   <Grid item xs={12} md={1.5}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                        RATE
-                      </Typography>
-                      <TextField
-                        size="small"
-                        type="number"
-                        value={productFormData.unit_rate}
-                        onChange={(e) => setProductFormData(prev => ({ ...prev, unit_rate: e.target.value }))}
-                        onFocus={(e) => e.target.select()}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            // Add product to table when Enter is pressed in rate field
-                            addProductToPurchase();
-                          } else if (e.key === 'Tab') {
-                            e.preventDefault();
-                            // Tab should focus the CRATE field or + button
-                            const crateInputs = document.querySelectorAll('input[type="number"]');
-                            // Find CRATE field (it's after RATE)
-                            for (let i = 0; i < crateInputs.length; i++) {
-                              const input = crateInputs[i];
-                              if (input.parentElement?.parentElement?.querySelector('p, span')?.textContent?.includes('CRATE')) {
-                                input.focus();
-                                return;
-                              }
-                            }
-                            // If no CRATE field, focus the + button
-                            const addBtn = document.getElementById('add-product-btn');
-                            if (addBtn) {
-                              addBtn.focus();
-                            }
-                          }
-                        }}
-                        inputProps={{ min: 0 }}
-                        sx={{ width: '100%' }}
-                      />
-                    </Box>
-                  </Grid>
-
-                  <Grid item xs={12} md={1.5}>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                         CRATE
                       </Typography>
                       <TextField
@@ -3161,11 +3248,18 @@ function PurchasesPageContent() {
                             addProductToPurchase();
                           } else if (e.key === 'Tab') {
                             e.preventDefault();
-                            // Tab should focus the + button
-                            const addBtn = document.getElementById('add-product-btn');
-                            if (addBtn) {
-                              addBtn.focus();
+                            // Tab should move focus to Sale Rate field (next numeric input)
+                            const numberInputs = document.querySelectorAll('input[type="number"]');
+                            for (let i = 0; i < numberInputs.length; i++) {
+                              const input = numberInputs[i];
+                              if (input.parentElement?.parentElement?.querySelector('p, span')?.textContent?.toLowerCase()?.includes('sale rate') || input.parentElement?.parentElement?.querySelector('p, span')?.textContent?.toLowerCase()?.includes('rate')) {
+                                input.focus();
+                                return;
+                              }
                             }
+                            // Fallback: focus + button
+                            const addBtnFallback = document.getElementById('add-product-btn');
+                            if (addBtnFallback) addBtnFallback.focus();
                           }
                         }}
                         inputProps={{ min: 0 }}
@@ -3173,6 +3267,39 @@ function PurchasesPageContent() {
                       />
                     </Box>
                   </Grid>
+
+                  <Grid item xs={12} md={1.5}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        SALE RATE
+                      </Typography>
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={productFormData.unit_rate}
+                        onChange={(e) => setProductFormData(prev => ({ ...prev, unit_rate: e.target.value }))}
+                        onFocus={(e) => e.target.select()}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            // Add product to table when Enter is pressed in rate field
+                            addProductToPurchase();
+                          } else if (e.key === 'Tab') {
+                            e.preventDefault();
+                            // Tab from Sale Rate should focus the + button
+                            const addBtn = document.getElementById('add-product-btn');
+                            if (addBtn) {
+                              addBtn.focus();
+                            }
+                          }
+                        }}
+                        inputProps={{ min: 0 }}
+                        sx={{ width: '100%', minWidth: 150 }}
+                      />
+                    </Box>
+                  </Grid>
+
+
 
                   <Grid item xs={12} md={1.5}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -3218,8 +3345,8 @@ function PurchasesPageContent() {
                         <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Product</TableCell>
                         <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Store</TableCell>
                         <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Qty</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Price</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Crate</TableCell>
+                              <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Crate</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Sale Rate</TableCell>
                         <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Amount</TableCell>
                         <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Actions</TableCell>
                       </TableRow>
@@ -3269,15 +3396,15 @@ function PurchasesPageContent() {
                               <TableCell>
                                 <TextField
                                   type="number"
-                                  value={detail.unit_rate}
+                                  value={detail.crate || detail.unit_rate || '0'}
                                   onChange={(e) => {
-                                    const newUnitRate = e.target.value;
+                                    const newCrate = e.target.value;
                                     const updatedDetails = formData.purchase_details.map((d, i) =>
                                       i === index
                                         ? {
                                           ...d,
-                                          unit_rate: newUnitRate,
-                                          total_amount: (parseInt(d.qnty) * parseFloat(d.crate || newUnitRate)).toString()
+                                          crate: newCrate,
+                                          total_amount: (parseInt(d.qnty) * parseFloat(newCrate)).toString()
                                         }
                                         : d
                                     );
@@ -3291,17 +3418,11 @@ function PurchasesPageContent() {
                               <TableCell>
                                 <TextField
                                   type="number"
-                                  value={detail.crate || detail.unit_rate || '0'}
+                                  value={detail.unit_rate}
                                   onChange={(e) => {
-                                    const newCrate = e.target.value;
+                                    const newUnitRate = e.target.value;
                                     const updatedDetails = formData.purchase_details.map((d, i) =>
-                                      i === index
-                                        ? {
-                                          ...d,
-                                          crate: newCrate,
-                                          total_amount: (parseInt(d.qnty) * parseFloat(newCrate)).toString()
-                                        }
-                                        : d
+                                      i === index ? { ...d, unit_rate: newUnitRate, total_amount: (parseInt(d.qnty) * parseFloat(d.crate || newUnitRate)).toString() } : d
                                     );
                                     setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
                                   }}
@@ -4927,19 +5048,19 @@ function PurchasesPageContent() {
                       <Table size="small">
                         <TableBody>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Previous Balance</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
                               {parseFloat(currentBillData.customer?.cus_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Current Due</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
                               {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                           <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Total Due</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
                               {(parseFloat(currentBillData.customer?.cus_balance || 0) + parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
@@ -4960,40 +5081,40 @@ function PurchasesPageContent() {
                       <Table size="small">
                         <TableBody>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رقم بل</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Bill Amount</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
                               {parseFloat(currentBillData.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>مزدوری</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Labour</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
                               {parseFloat(currentBillData.labour_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>کرایہ</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Fare</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
                               {(parseFloat(currentBillData.fare_amount || 0) + parseFloat(currentBillData.transport_amount || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                           {parseFloat(currentBillData.discount || 0) > 0 && (
                             <TableRow>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رعایت/ڈسکاؤنٹ</TableCell>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Discount</TableCell>
                               <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
                                 -{parseFloat(currentBillData.discount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </TableCell>
                             </TableRow>
                           )}
                           <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Total Amount</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
                               {(parseFloat(currentBillData.total_amount || 0) + parseFloat(currentBillData.unloading_amount || 0) + parseFloat(currentBillData.transport_amount || 0) + parseFloat(currentBillData.labour_amount || 0) + parseFloat(currentBillData.fare_amount || 0) - parseFloat(currentBillData.discount || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                           {/* Always show cash payment */}
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>نقد كيش</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Cash</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
                               {parseFloat(currentBillData.cash_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
@@ -5001,7 +5122,7 @@ function PurchasesPageContent() {
                           {/* Always show bank payment row */}
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              بینک پیمنٹ
+                              {`Bank Payment${currentBillData?.bank_title ? ' (' + currentBillData.bank_title + ')' : ''}`}
                             </TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
                               {parseFloat(currentBillData.bank_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -5009,13 +5130,13 @@ function PurchasesPageContent() {
                           </TableRow>
                           {/* Remove payment breakdown summary */}
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم وصول</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Total Received</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
                               {parseFloat(currentBillData.payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>بقايا رقم</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Remaining Due</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
                               {((parseFloat(currentBillData.total_amount || 0) + parseFloat(currentBillData.unloading_amount || 0) + parseFloat(currentBillData.transport_amount || 0) + parseFloat(currentBillData.labour_amount || 0) + parseFloat(currentBillData.fare_amount || 0) - parseFloat(currentBillData.discount || 0)) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
@@ -5030,12 +5151,41 @@ function PurchasesPageContent() {
           )}
         </DialogContent>
 
-        <DialogActions sx={{ p: 2, borderTop: 1, borderColor: 'divider', bgcolor: '#f5f5f5' }}>
+        {/* Hidden printable containers (copied into before print) */}
+        <Box id="printable-invoice-a4-purchase" sx={{ width: '100%', bgcolor: 'white', display: 'none' }} />
+        <Box id="printable-invoice-thermal-purchase" sx={{ width: '80mm', bgcolor: 'white', display: 'none', mx: 'auto', p: 1 }} />
+
+        {/* Print CSS for purchases (show only printable container when printing) */}
+        <style>{`
+          @media print {
+            body.print-a4 *, body.print-thermal * { visibility: hidden !important; }
+            body.print-a4 #printable-invoice-a4-purchase, body.print-a4 #printable-invoice-a4-purchase * { visibility: visible !important; }
+            body.print-thermal #printable-invoice-thermal-purchase, body.print-thermal #printable-invoice-thermal-purchase * { visibility: visible !important; }
+            body.print-a4 #printable-invoice-a4-purchase { display: block !important; width: 100% !important; }
+            body.print-thermal #printable-invoice-thermal-purchase { display: block !important; width: 80mm !important; }
+          }
+        `}</style>
+
+        <DialogActions sx={{ p: 2, borderTop: 1, borderColor: 'divider', bgcolor: '#f5f5f5' }} className="no-print">
           <Button
             onClick={() => setReceiptDialogOpen(false)}
             sx={{ textTransform: 'none' }}
           >
             Close
+          </Button>
+          <Button
+            startIcon={<PrintIcon />}
+            onClick={() => handlePrintReceipt('A4', true)}
+            sx={{ textTransform: 'none' }}
+          >
+            Print A4
+          </Button>
+          <Button
+            startIcon={<PrintIcon />}
+            onClick={() => handlePrintReceipt('THERMAL', true)}
+            sx={{ textTransform: 'none' }}
+          >
+            Print Thermal
           </Button>
         </DialogActions>
       </Dialog>
