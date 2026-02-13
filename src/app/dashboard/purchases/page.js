@@ -3233,7 +3233,7 @@ function PurchasesPageContent() {
                   <Grid item xs={12} md={1.5}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                        CRATE
+                        PURCHASE RATE
                       </Typography>
                       <TextField
                         size="small"
