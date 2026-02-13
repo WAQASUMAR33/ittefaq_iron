@@ -2982,86 +2982,6 @@ function PurchasesPageContent() {
                   <Grid item xs={12} md={9}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                        STORE
-                      </Typography>
-                      <Autocomplete
-                        size="small"
-                        autoSelect={true}
-                        autoHighlight={true}
-                        openOnFocus={true}
-                        selectOnFocus={true}
-                        options={stores}
-                        getOptionLabel={(option) => option.store_name}
-                        value={stores.find(store => store.storeid === parseInt(formData.store_id)) || null}
-                        onChange={(event, newValue) => {
-                          setFormData(prev => ({
-                            ...prev,
-                            store_id: newValue ? newValue.storeid.toString() : ''
-                          }));
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && formData.store_id) {
-                            e.preventDefault();
-                            // Move focus to Product field
-                            const productInputs = document.querySelectorAll('input[placeholder*="Select product"]');
-                            if (productInputs.length > 0) {
-                              productInputs[0]?.focus();
-                            }
-                          }
-                        }}
-                        renderInput={(params) => (
-                          <TextField
-                            {...params}
-                            placeholder={formData.store_id ? "Store Selected" : "Select store"}
-                            onFocus={(e) => e.target.select()}
-                            sx={{
-                              width: '100%',
-                              minWidth: 200,
-                              '& .MuiInputBase-input': {
-                                fontWeight: formData.store_id ? 'bold' : 'normal',
-                                color: formData.store_id ? 'primary.main' : 'text.primary'
-                              }
-                            }}
-                          />
-                        )}
-                        renderOption={(props, option) => {
-                          const { key, ...optionProps } = props;
-                          return (
-                            <Box component="li" key={option.storeid} {...optionProps}>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <StoreIcon sx={{ color: 'primary.main' }} />
-                                <Box>
-                                  <Typography
-                                    variant="body2"
-                                    sx={{
-                                      fontWeight: formData.store_id === option.storeid.toString() ? 'bold' : 'medium',
-                                      color: formData.store_id === option.storeid.toString() ? 'primary.main' : 'text.primary'
-                                    }}
-                                  >
-                                    {option.store_name}
-                                  </Typography>
-                                  {option.store_address && (
-                                    <Typography variant="caption" color="text.secondary">
-                                      {option.store_address}
-                                    </Typography>
-                                  )}
-                                </Box>
-                              </Box>
-                            </Box>
-                          );
-                        }}
-                        disablePortal={false}
-                        sx={{
-                          width: '100%',
-                          minWidth: 200,
-                        }}
-                      />
-                    </Box>
-                  </Grid>
-
-                  <Grid item xs={12} md={3}>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                         PRODUCT
                       </Typography>
                       <Autocomplete
@@ -3098,9 +3018,94 @@ function PurchasesPageContent() {
                           <TextField
                             {...params}
                             placeholder="Select product..."
-                            size="small"
                             onFocus={(e) => e.target.select()}
                             sx={{ width: '100%', minWidth: 300 }}
+                          />
+                        )}
+                        renderOption={(props, option) => {
+                          const { key, ...optionProps } = props;
+                          return (
+                            <Box component="li" key={option.pro_id} {...optionProps}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                                <Box sx={{ flex: 1 }}>
+                                  <Typography
+                                    variant="body2"
+                                    sx={{
+                                      fontWeight: selectedProduct?.pro_id === option.pro_id ? 'bold' : 'medium',
+                                      color: selectedProduct?.pro_id === option.pro_id ? 'primary.main' : 'text.primary'
+                                    }}
+                                  >
+                                    {option.pro_title}
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {option.category?.cat_name} • {option.sub_category?.sub_cat_name}
+                                  </Typography>
+                                </Box>
+                                <Chip
+                                  label={`PKR ${parseFloat(option.pro_sale_price || 0).toLocaleString('en-PK', { minimumFractionDigits: 2 })}`}
+                                  size="small"
+                                  color="primary"
+                                  variant="outlined"
+                                />
+                              </Box>
+                            </Box>
+                          );
+                        }}
+                        disablePortal={false}
+                        sx={{ width: '100%', minWidth: 300, flex: 1 }}
+                      />
+                    </Box>
+                  </Grid>
+
+                  <Grid item xs={12} md={3}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        STORE
+                      </Typography>
+                      <Autocomplete
+                        size="small"
+                        autoSelect={true}
+                        autoHighlight={true}
+                        openOnFocus={true}
+                        selectOnFocus={true}
+                        options={stores}
+                        getOptionLabel={(option) => option.store_name}
+                        value={stores.find(store => store.storeid === parseInt(formData.store_id)) || null}
+                        onChange={(event, newValue) => {
+                          setFormData(prev => ({
+                            ...prev,
+                            store_id: newValue ? newValue.storeid.toString() : ''
+                          }));
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && formData.store_id) {
+                            e.preventDefault();
+                            // Move focus to Product field
+                            const productInputs = document.querySelectorAll('input[placeholder*="Select product"]');
+                            if (productInputs.length > 0) {
+                              productInputs[0]?.focus();
+                            }
+                          }
+                        }}
+                        filterOptions={(options, { inputValue }) => {
+                          return options.filter(option =>
+                            option.store_name.toLowerCase().includes(inputValue.toLowerCase()) ||
+                            (option.store_address && option.store_address.toLowerCase().includes(inputValue.toLowerCase()))
+                          );
+                        }}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            placeholder={formData.store_id ? "Store Selected" : "Select store"}
+                            onFocus={(e) => e.target.select()}
+                            sx={{
+                              width: '100%',
+                              minWidth: 200,
+                              '& .MuiInputBase-input': {
+                                fontWeight: formData.store_id ? 'bold' : 'normal',
+                                color: formData.store_id ? 'primary.main' : 'text.primary'
+                              }
+                            }}
                           />
                         )}
                         sx={{ width: '100%', minWidth: 300 }}
