@@ -396,25 +396,21 @@ export async function POST(request) {
       const ledgerEntries = [];
       let runningSupplierBalance = 0;
 
-      // Calculate supplier amount - ONLY products minus discount (NOT including labour/delivery/transport/unloading)
-      const supplierAmount = safeParseFloat(total_amount) - safeParseFloat(discount);
+      // Calculate supplier amount — now includes labour and delivery (transport) charges so they become part of supplier invoice.
+      // NOTE: We intentionally include labour_amount and transport_amount in the supplier ledger; labour/delivery
+      // will NOT be created as separate expense records for purchases.
+      const supplierAmount = safeParseFloat(total_amount) - safeParseFloat(discount) + safeParseFloat(labour_amount) + safeParseFloat(transport_amount);
 
-      // 1. Supplier Account Entry - for product cost only (excluding labour/delivery/transport/unloading)
+      // 1. Supplier Account Entry — includes product + labour + delivery
       if (cus_id) {
-        const supplierData = await tx.customer.findUnique({
-          where: { cus_id: cus_id },
-          select: { cus_balance: true, cus_name: true }
-        });
+        const supplierData = await tx.customer.findUnique({ where: { cus_id: cus_id }, select: { cus_balance: true, cus_name: true } });
         runningSupplierBalance = parseFloat(supplierData?.cus_balance || 0);
 
         console.log(`\n📊 PURCHASE LEDGER ENTRY DEBUG`);
         console.log(`   Supplier: ${supplierData?.cus_name} (ID: ${cus_id})`);
         console.log(`   Opening Balance: ${runningSupplierBalance}`);
-        console.log(`   Bill Amount: ${supplierAmount}${safeParseFloat(discount) > 0 ? ` (After Discount: ${safeParseFloat(discount)})` : ''}`);
+        console.log(`   Bill Amount (products + labour + delivery): ${supplierAmount}${safeParseFloat(discount) > 0 ? ` (After Discount: ${safeParseFloat(discount)})` : ''}`);
 
-        // Supplier Account Entry
-        // NEW PURCHASE: Debit (amount owed to supplier increases)
-        // PURCHASE RETURN: Credit (amount owed to supplier decreases)
         const supplierEntry = createLedgerEntry({
           cus_id: cus_id,
           opening_balance: runningSupplierBalance,
@@ -422,7 +418,7 @@ export async function POST(request) {
           credit_amount: isReturn ? supplierAmount : 0,
           bill_no: newPurchase.pur_id.toString(),
           trnx_type: 'CASH',
-          details: `${isReturn ? 'Purchase Return' : 'Purchase Invoice'}${invoice_number ? ` #${invoice_number}` : ''} ${isReturn ? 'to' : 'from'} ${supplierData?.cus_name || 'Supplier'}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}${safeParseFloat(discount) > 0 ? ` [After Discount: ${safeParseFloat(discount)}]` : ''}`,
+          details: `${isReturn ? 'Purchase Return' : 'Purchase Invoice'}${invoice_number ? ` #${invoice_number}` : ''} ${isReturn ? 'to' : 'from'} ${supplierData?.cus_name || 'Supplier'}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}${safeParseFloat(discount) > 0 ? ` [After Discount: ${safeParseFloat(discount)}]` : ''} (includes labour & delivery)`,
           payments: 0,
           updated_by: updated_by ? parseInt(updated_by) : null
         });
@@ -431,7 +427,7 @@ export async function POST(request) {
         runningSupplierBalance = supplierEntry.closing_balance;
 
         console.log(`📝 Supplier Entry Created: Opening=${supplierEntry.opening_balance}, Debit=${supplierEntry.debit_amount}, Closing=${supplierEntry.closing_balance}`);
-        console.log(`   Note: This includes ONLY product charges (NOT labour/delivery/transport/unloading)`);
+        console.log(`   Note: Supplier invoice now includes labour and delivery charges — no separate expense will be created for them.`);
       }
 
       // 2. Consolidated Payment Entry - Cash + Bank Payment to Supplier (similar to sales page)
@@ -450,7 +446,7 @@ export async function POST(request) {
         console.log(`   Opening Balance: ${runningSupplierBalance}`);
 
         // Build payment details with breakdown
-        let paymentDetails = `Payment for Products to ${supplierData?.cus_name || 'Supplier'}`;
+        let paymentDetails = `Payment for Invoice to ${supplierData?.cus_name || 'Supplier'} (includes labour & delivery)`;
         const breakdown = [];
         if (cashPaymentForSupplier > 0) breakdown.push(`Cash: ${cashPaymentForSupplier.toFixed(2)}`);
         if (bankPaymentForSupplier > 0) breakdown.push(`Bank: ${bankPaymentForSupplier.toFixed(2)}`);
@@ -479,7 +475,7 @@ export async function POST(request) {
         runningSupplierBalance = supplierPaymentEntry.closing_balance;
 
         console.log(`💳 Supplier Payment Entry Created: Opening=${supplierPaymentEntry.opening_balance}, Credit=${supplierPaymentEntry.credit_amount}, Closing=${supplierPaymentEntry.closing_balance}`);
-        console.log(`   Note: Payment is for products only (labour/delivery/transport/unloading handled separately as expenses)`);
+        console.log(`   Note: Payment applies to full invoice (products + labour + delivery). No separate expense will be created for labour/delivery.`);
       }
 
       // 3. Bank Account - CREDIT (when bank payment is made)
@@ -564,11 +560,85 @@ export async function POST(request) {
         console.log(`💵 Cash Account Entry Created: Opening=${cashEntry.opening_balance}, Debit=${cashEntry.debit_amount}, Credit=${cashEntry.credit_amount}, Closing=${cashEntry.closing_balance}`);
       }
 
-      // 5. Create all ledger entries in database
-      console.log(`\n📊 CREATING ${ledgerEntries.length} LEDGER ENTRIES IN DATABASE`);
+      // --- Incity (OWN) Ledger Postings (POST) ---
+      // Create separate ledger entries for Incity fields when provided:
+      // - incity_own_labour: DEBIT to Labour account
+      // - incity_own_delivery: DEBIT to Delivery account
+      const incityLabourAmt = safeParseFloat(incity_own_labour || 0);
+      const incityDeliveryAmt = safeParseFloat(incity_own_delivery || 0);
 
+      let incityLabourAccount = null;
+      let incityDeliveryAccount = null;
+
+      if (incityLabourAmt > 0) {
+        incityLabourAccount = await tx.customer.findFirst({
+          where: {
+            OR: [
+              { cus_name: { contains: 'labour' } },
+              { customer_category: { cus_cat_title: { contains: 'labour' } } },
+              { customer_type: { cus_type_title: { contains: 'labour' } } }
+            ]
+          },
+          select: { cus_id: true, cus_balance: true, cus_name: true }
+        });
+
+        if (incityLabourAccount) {
+          const labourEntry = createLedgerEntry({
+            cus_id: incityLabourAccount.cus_id,
+            opening_balance: parseFloat(incityLabourAccount.cus_balance || 0),
+            debit_amount: incityLabourAmt,
+            credit_amount: 0,
+            bill_no: newPurchase.pur_id.toString(),
+            trnx_type: 'CASH',
+            details: `Incity (Own) - Labour - Purchase #${newPurchase.pur_id}${invoice_number ? ` (Inv: ${invoice_number})` : ''}`,
+            payments: 0,
+            updated_by: updated_by ? parseInt(updated_by) : null
+          });
+
+          ledgerEntries.push(labourEntry);
+          console.log(`🔧 Incity labour ledger entry queued for account ${incityLabourAccount.cus_name} (ID: ${incityLabourAccount.cus_id}) amount=${incityLabourAmt}`);
+        } else {
+          console.log('⚠️ Incity labour amount present but Labour account not found — skipping Incity labour ledger posting');
+        }
+      }
+
+      if (incityDeliveryAmt > 0) {
+        incityDeliveryAccount = await tx.customer.findFirst({
+          where: {
+            OR: [
+              { cus_name: { contains: 'delivery' } },
+              { cus_name: { contains: 'transport' } },
+              { customer_category: { cus_cat_title: { contains: 'delivery' } } },
+              { customer_type: { cus_type_title: { contains: 'delivery' } } }
+            ]
+          },
+          select: { cus_id: true, cus_balance: true, cus_name: true }
+        });
+
+        if (incityDeliveryAccount) {
+          const deliveryEntry = createLedgerEntry({
+            cus_id: incityDeliveryAccount.cus_id,
+            opening_balance: parseFloat(incityDeliveryAccount.cus_balance || 0),
+            debit_amount: incityDeliveryAmt,
+            credit_amount: 0,
+            bill_no: newPurchase.pur_id.toString(),
+            trnx_type: 'CASH',
+            details: `Incity (Own) - Delivery - Purchase #${newPurchase.pur_id}${invoice_number ? ` (Inv: ${invoice_number})` : ''}`,
+            payments: 0,
+            updated_by: updated_by ? parseInt(updated_by) : null
+          });
+
+          ledgerEntries.push(deliveryEntry);
+          console.log(`🔧 Incity delivery ledger entry queued for account ${incityDeliveryAccount.cus_name} (ID: ${incityDeliveryAccount.cus_id}) amount=${incityDeliveryAmt}`);
+        } else {
+          console.log('⚠️ Incity delivery amount present but Delivery/Transport account not found — skipping Incity delivery ledger posting');
+        }
+      }
+
+      console.log(`📊 CREATING ${ledgerEntries.length} LEDGER ENTRIES IN DATABASE (POST)`);
       for (let i = 0; i < ledgerEntries.length; i++) {
         const entry = ledgerEntries[i];
+
         console.log(`   Entry ${i + 1}: Customer=${entry.cus_id}, Debit=${entry.debit_amount}, Credit=${entry.credit_amount}`);
 
         await tx.ledger.create({
@@ -649,59 +719,26 @@ export async function POST(request) {
         console.log(`🏦 DEBUG: No bank balance update needed. bank_payment=${bank_payment}, usedBankAccountId=${usedBankAccountId}`);
       }
 
-      // 7. Create expense entries for Labour and Delivery charges
-      const labourAmount = safeParseFloat(labour_amount);
-      const deliveryAmount = safeParseFloat(transport_amount);
+      // 7. Labour & Delivery charges are INCLUDED in the supplier invoice and supplier ledger entry.
+      // Additionally create/update separate ledger balances for Incity (OWN) Labour/Delivery accounts if we created entries above.
 
-      if (!isReturn && (labourAmount > 0 || deliveryAmount > 0)) {
-        // Get or create "Labour" expense title
-        if (labourAmount > 0) {
-          let labourExpenseTitle = await tx.expenseTitle.findFirst({
-            where: { title: 'Labour' }
-          });
-
-          if (!labourExpenseTitle) {
-            labourExpenseTitle = await tx.expenseTitle.create({
-              data: { title: 'Labour' }
-            });
-          }
-
-          // Create labour expense
-          await tx.expense.create({
-            data: {
-              exp_title: `Labour charges for Purchase #${newPurchase.pur_id}${invoice_number ? ` (Invoice: ${invoice_number})` : ''}`,
-              exp_type: labourExpenseTitle.id,
-              exp_detail: `Labour charges for purchase${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
-              exp_amount: labourAmount,
-              updated_by: updated_by ? safeParseInt(updated_by) : null
-            }
-          });
-        }
-
-        // Get or create "Delivery" expense title
-        if (deliveryAmount > 0) {
-          let deliveryExpenseTitle = await tx.expenseTitle.findFirst({
-            where: { title: 'Delivery' }
-          });
-
-          if (!deliveryExpenseTitle) {
-            deliveryExpenseTitle = await tx.expenseTitle.create({
-              data: { title: 'Delivery' }
-            });
-          }
-
-          // Create delivery expense
-          await tx.expense.create({
-            data: {
-              exp_title: `Delivery charges for Purchase #${newPurchase.pur_id}${invoice_number ? ` (Invoice: ${invoice_number})` : ''}`,
-              exp_type: deliveryExpenseTitle.id,
-              exp_detail: `Delivery/Transport charges for purchase${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
-              exp_amount: deliveryAmount,
-              updated_by: updated_by ? safeParseInt(updated_by) : null
-            }
-          });
-        }
+      // Update Incity Labour account balance (if a ledger entry was created)
+      if (typeof incityLabourAccount !== 'undefined' && incityLabourAccount && ledgerEntries.find(e => e.cus_id === incityLabourAccount.cus_id)) {
+        const labourLedgerEntry = ledgerEntries.find(e => e.cus_id === incityLabourAccount.cus_id);
+        await tx.customer.update({ where: { cus_id: incityLabourAccount.cus_id }, data: { cus_balance: labourLedgerEntry.closing_balance } });
+        console.log(`💼 Incity Labour account updated: ID=${incityLabourAccount.cus_id} balance=${labourLedgerEntry.closing_balance}`);
       }
+
+      // Update Incity Delivery/Transport account balance (if a ledger entry was created)
+      if (typeof incityDeliveryAccount !== 'undefined' && incityDeliveryAccount && ledgerEntries.find(e => e.cus_id === incityDeliveryAccount.cus_id)) {
+        const deliveryLedgerEntry = ledgerEntries.find(e => e.cus_id === incityDeliveryAccount.cus_id);
+        await tx.customer.update({ where: { cus_id: incityDeliveryAccount.cus_id }, data: { cus_balance: deliveryLedgerEntry.closing_balance } });
+        console.log(`💼 Incity Delivery account updated: ID=${incityDeliveryAccount.cus_id} balance=${deliveryLedgerEntry.closing_balance}`);
+      }
+
+      // Note: We still DO NOT create separate Expense records for Labour or Delivery here —
+      // the Incity values are posted as ledger entries to the specified Labour/Delivery accounts.
+
 
       return {
         purchase: newPurchase,
@@ -890,8 +927,8 @@ export async function PUT(request) {
       const ledgerEntries = [];
       let runningSupplierBalance = 0;
 
-      // Calculate supplier amount (ONLY product subtotal minus discount)
-      const supplierAmount = safeParseFloat(total_amount) - safeParseFloat(discount);
+      // Calculate supplier amount — include labour and delivery so the supplier invoice reflects them
+      const supplierAmount = safeParseFloat(total_amount) - safeParseFloat(discount) + safeParseFloat(labour_amount) + safeParseFloat(transport_amount);
 
       // 1. Supplier Account Entry
       if (cus_id) {
@@ -908,7 +945,7 @@ export async function PUT(request) {
           credit_amount: 0,
           bill_no: id.toString(),
           trnx_type: 'CASH',
-          details: `Purchase Update from ${supplierData?.cus_name || 'Supplier'}${invoice_number ? ` #${invoice_number}` : ''}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
+          details: `Purchase Update from ${supplierData?.cus_name || 'Supplier'}${invoice_number ? ` #${invoice_number}` : ''}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''} (includes labour & delivery)`,
           payments: 0,
           updated_by: updated_by ? parseInt(updated_by) : null
         });
@@ -993,6 +1030,81 @@ export async function PUT(request) {
         ledgerEntries.push(bankEntry);
       }
 
+      // --- Incity (OWN) Ledger Postings (PUT) ---
+      // Create separate ledger entries for Incity fields when provided:
+      // - incity_own_labour: CREDIT to Labour account
+      // - incity_own_delivery: DEBIT to Delivery account
+      const incityLabourAmt = safeParseFloat(incity_own_labour || 0);
+      const incityDeliveryAmt = safeParseFloat(incity_own_delivery || 0);
+
+      let incityLabourAccount = null;
+      let incityDeliveryAccount = null;
+
+      if (incityLabourAmt > 0) {
+        incityLabourAccount = await tx.customer.findFirst({
+          where: {
+            OR: [
+              { cus_name: { contains: 'labour' } },
+              { customer_category: { cus_cat_title: { contains: 'labour' } } },
+              { customer_type: { cus_type_title: { contains: 'labour' } } }
+            ]
+          },
+          select: { cus_id: true, cus_balance: true, cus_name: true }
+        });
+
+        if (incityLabourAccount) {
+          const labourEntry = createLedgerEntry({
+            cus_id: incityLabourAccount.cus_id,
+            opening_balance: parseFloat(incityLabourAccount.cus_balance || 0),
+            debit_amount: incityLabourAmt,
+            credit_amount: 0,
+            bill_no: id.toString(),
+            trnx_type: 'CASH',
+            details: `Incity (Own) - Labour - Purchase Update #${id}${invoice_number ? ` (Inv: ${invoice_number})` : ''}`,
+            payments: 0,
+            updated_by: updated_by ? parseInt(updated_by) : null
+          });
+
+          ledgerEntries.push(labourEntry);
+          console.log(`🔧 Incity labour ledger entry queued for account ${incityLabourAccount.cus_name} (ID: ${incityLabourAccount.cus_id}) amount=${incityLabourAmt}`);
+        } else {
+          console.log('⚠️ Incity labour amount present but Labour account not found — skipping Incity labour ledger posting');
+        }
+      }
+
+      if (incityDeliveryAmt > 0) {
+        incityDeliveryAccount = await tx.customer.findFirst({
+          where: {
+            OR: [
+              { cus_name: { contains: 'delivery' } },
+              { cus_name: { contains: 'transport' } },
+              { customer_category: { cus_cat_title: { contains: 'delivery' } } },
+              { customer_type: { cus_type_title: { contains: 'delivery' } } }
+            ]
+          },
+          select: { cus_id: true, cus_balance: true, cus_name: true }
+        });
+
+        if (incityDeliveryAccount) {
+          const deliveryEntry = createLedgerEntry({
+            cus_id: incityDeliveryAccount.cus_id,
+            opening_balance: parseFloat(incityDeliveryAccount.cus_balance || 0),
+            debit_amount: incityDeliveryAmt,
+            credit_amount: 0,
+            bill_no: id.toString(),
+            trnx_type: 'CASH',
+            details: `Incity (Own) - Delivery - Purchase Update #${id}${invoice_number ? ` (Inv: ${invoice_number})` : ''}`,
+            payments: 0,
+            updated_by: updated_by ? parseInt(updated_by) : null
+          });
+
+          ledgerEntries.push(deliveryEntry);
+          console.log(`🔧 Incity delivery ledger entry queued for account ${incityDeliveryAccount.cus_name} (ID: ${incityDeliveryAccount.cus_id}) amount=${incityDeliveryAmt}`);
+        } else {
+          console.log('⚠️ Incity delivery amount present but Delivery/Transport account not found — skipping Incity delivery ledger posting');
+        }
+      }
+
       // 5. Create all ledger entries
       console.log(`📊 CREATING ${ledgerEntries.length} LEDGER ENTRIES IN DATABASE (PUT)`);
 
@@ -1041,6 +1153,19 @@ export async function PUT(request) {
             data: { cus_balance: accountLedgerEntry.closing_balance }
           });
         }
+      }
+
+      // Update Incity Labour/Delivery account balances (if we queued entries above)
+      if (typeof incityLabourAccount !== 'undefined' && incityLabourAccount && ledgerEntries.find(e => e.cus_id === incityLabourAccount.cus_id)) {
+        const labourLedgerEntry = ledgerEntries.find(e => e.cus_id === incityLabourAccount.cus_id);
+        await tx.customer.update({ where: { cus_id: incityLabourAccount.cus_id }, data: { cus_balance: labourLedgerEntry.closing_balance } });
+        console.log(`💼 Incity Labour account updated (PUT): ID=${incityLabourAccount.cus_id} balance=${labourLedgerEntry.closing_balance}`);
+      }
+
+      if (typeof incityDeliveryAccount !== 'undefined' && incityDeliveryAccount && ledgerEntries.find(e => e.cus_id === incityDeliveryAccount.cus_id)) {
+        const deliveryLedgerEntry = ledgerEntries.find(e => e.cus_id === incityDeliveryAccount.cus_id);
+        await tx.customer.update({ where: { cus_id: incityDeliveryAccount.cus_id }, data: { cus_balance: deliveryLedgerEntry.closing_balance } });
+        console.log(`💼 Incity Delivery account updated (PUT): ID=${incityDeliveryAccount.cus_id} balance=${deliveryLedgerEntry.closing_balance}`);
       }
 
       return { purchase: updatedPurchase };

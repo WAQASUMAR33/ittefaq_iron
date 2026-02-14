@@ -1113,13 +1113,28 @@ function PurchasesPageContent() {
     const totalAmount = calculateTotalAmount();
     const discount = parseFloat(formData.discount || 0);
 
-    // Only add delivery/labour charges to net total when "Include Labour" is checked
-    const includeCharges = !!formData.include_labour;
-    const unloadingAmount = includeCharges ? parseFloat(formData.unloading_amount || 0) : 0;
-    const transportAmount = includeCharges ? parseFloat(formData.transport_amount || 0) : 0;
-    const labourAmount = includeCharges ? parseFloat(formData.labour_amount || 0) : 0;
+    // Always include delivery / labour values in the grand total when the user enters them.
+    // The `include_labour` checkbox now only controls cost-rate distribution across products — it no longer
+    // toggles whether labour/delivery are added to the grand total.
+    const unloadingAmount = parseFloat(formData.unloading_amount || 0);
+    const transportAmount = parseFloat(formData.transport_amount || 0);
+    const labourAmount = parseFloat(formData.labour_amount || 0);
 
     return totalAmount + unloadingAmount + transportAmount + labourAmount - discount;
+  };
+
+  // Invoice helpers: compute display net and remaining due consistently (uses display_net_total when present)
+  const getInvoiceNet = (bill) => {
+    if (!bill) return 0;
+    const fallback = (parseFloat(bill.total_amount || 0) + parseFloat(bill.unloading_amount || 0) + parseFloat(bill.transport_amount || 0) + parseFloat(bill.labour_amount || 0) + parseFloat(bill.fare_amount || 0)) - parseFloat(bill.discount || 0);
+    const net = parseFloat(bill.display_net_total ?? fallback);
+    return Number.isFinite(net) ? net : 0;
+  };
+
+  const getInvoiceRemainingDue = (bill) => {
+    const net = getInvoiceNet(bill);
+    const payment = parseFloat(bill?.payment || 0);
+    return net - payment;
   };
 
   // Calculate and sync Incity charges total (read-only) — only own labour + own delivery
@@ -5259,13 +5274,13 @@ function PurchasesPageContent() {
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Current Due</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                              {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {getInvoiceRemainingDue(currentBillData).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                           <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Total Due</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                              {(parseFloat(currentBillData.customer?.cus_balance || 0) + parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {(parseFloat(currentBillData.customer?.cus_balance || 0) + (parseFloat(currentBillData.display_net_total || (parseFloat(currentBillData.total_amount || 0) + parseFloat(currentBillData.unloading_amount || 0) + parseFloat(currentBillData.transport_amount || 0) + parseFloat(currentBillData.labour_amount || 0) + parseFloat(currentBillData.fare_amount || 0) - parseFloat(currentBillData.discount || 0))) - parseFloat(currentBillData.payment || 0))).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                         </TableBody>
@@ -5312,7 +5327,7 @@ function PurchasesPageContent() {
                           <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Total Amount</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {(parseFloat(currentBillData.total_amount || 0) + parseFloat(currentBillData.unloading_amount || 0) + parseFloat(currentBillData.transport_amount || 0) + parseFloat(currentBillData.labour_amount || 0) + parseFloat(currentBillData.fare_amount || 0) - parseFloat(currentBillData.discount || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {getInvoiceNet(currentBillData).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                           {/* Always show cash payment */}
@@ -5341,7 +5356,7 @@ function PurchasesPageContent() {
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Remaining Due</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {((parseFloat(currentBillData.total_amount || 0) + parseFloat(currentBillData.unloading_amount || 0) + parseFloat(currentBillData.transport_amount || 0) + parseFloat(currentBillData.labour_amount || 0) + parseFloat(currentBillData.fare_amount || 0) - parseFloat(currentBillData.discount || 0)) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {getInvoiceRemainingDue(currentBillData).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                         </TableBody>

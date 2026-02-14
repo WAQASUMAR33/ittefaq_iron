@@ -39,9 +39,9 @@ export async function GET(request) {
 
       const where = search ? {
         OR: [
-          { vehicle_no: { contains: search, mode: 'insensitive' } }
+          { vehicle_no: { contains: search } }
         ]
-      } : {};
+      } : {}; 
 
       const [cargo, total] = await Promise.all([
         prisma.cargo.findMany({
