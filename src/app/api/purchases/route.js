@@ -22,6 +22,7 @@ export async function GET(request) {
         where: { pur_id: id },
         include: {
           customer: true,
+          cargo_account: true,
           store: true,
           updated_by_user: {
             select: {
@@ -48,7 +49,21 @@ export async function GET(request) {
         return errorResponse('Purchase not found', 404);
       }
 
-      return NextResponse.json(purchase);
+      // Calculate previous customer balance (closing balance of the last ledger entry before this purchase)
+      let previousCustomerBalance = 0;
+      try {
+        const lastLedgerBefore = await prisma.ledger.findFirst({
+          where: { cus_id: purchase.cus_id, created_at: { lt: purchase.created_at } },
+          orderBy: { created_at: 'desc' },
+          select: { closing_balance: true }
+        });
+        previousCustomerBalance = lastLedgerBefore ? parseFloat(lastLedgerBefore.closing_balance || 0) : 0;
+      } catch (err) {
+        console.warn('Could not compute previous customer balance for purchase', purchase.pur_id, err.message);
+      }
+
+      const purchaseWithPrev = Object.assign({}, purchase, { previous_customer_balance: previousCustomerBalance });
+      return NextResponse.json(purchaseWithPrev);
     }
 
     if (invoice) {
@@ -56,6 +71,7 @@ export async function GET(request) {
         where: { invoice_number: invoice },
         include: {
           customer: true,
+          cargo_account: true,
           store: true,
           updated_by_user: {
             select: {
@@ -82,7 +98,21 @@ export async function GET(request) {
         return errorResponse('Purchase not found', 404);
       }
 
-      return NextResponse.json(purchase);
+      // Calculate previous customer balance (closing balance of the last ledger entry before this purchase)
+      let previousCustomerBalance = 0;
+      try {
+        const lastLedgerBefore = await prisma.ledger.findFirst({
+          where: { cus_id: purchase.cus_id, created_at: { lt: purchase.created_at } },
+          orderBy: { created_at: 'desc' },
+          select: { closing_balance: true }
+        });
+        previousCustomerBalance = lastLedgerBefore ? parseFloat(lastLedgerBefore.closing_balance || 0) : 0;
+      } catch (err) {
+        console.warn('Could not compute previous customer balance for purchase (invoice lookup)', purchase.pur_id, err.message);
+      }
+
+      const purchaseWithPrev = Object.assign({}, purchase, { previous_customer_balance: previousCustomerBalance });
+      return NextResponse.json(purchaseWithPrev);
     }
 
     const purchases = await prisma.purchase.findMany({
@@ -93,6 +123,9 @@ export async function GET(request) {
             cus_name: true,
             cus_phone_no: true
           }
+        },
+        cargo_account: {
+          select: { cus_id: true, cus_name: true, cus_phone_no: true }
         },
         store: {
           select: {
@@ -157,6 +190,8 @@ export async function POST(request) {
       vehicle_no,
       invoice_number,
       updated_by,
+      cargo_account_id = null,
+      cargo_account_ids = null,
       purchase_type = 'new',
       return_for_purchase_id = null,
       purchase_details = []
@@ -330,6 +365,8 @@ export async function POST(request) {
         incity_own_delivery: safeParseFloat(incity_own_delivery),
         incity_charges_total: safeParseFloat(incity_charges_total),
         discount: safeParseFloat(discount),
+        cargo_account_id: cargo_account_id ? safeParseInt(cargo_account_id) : null,
+        cargo_account_ids: cargo_account_ids ? (Array.isArray(cargo_account_ids) ? JSON.stringify(cargo_account_ids) : String(cargo_account_ids)) : null,
         net_total: safeParseFloat(net_total),
         payment: totalPaymentAmount,
         payment_type: actualPaymentType,
@@ -790,6 +827,8 @@ export async function PUT(request) {
       store_id,
       debit_account_id,
       credit_account_id,
+      cargo_account_id = null,
+      cargo_account_ids = null,
       total_amount,
       unloading_amount = 0,
       fare_amount = 0,
@@ -876,6 +915,8 @@ export async function PUT(request) {
           incity_own_delivery: parseFloat(incity_own_delivery),
           incity_charges_total: parseFloat(incity_charges_total),
           discount: parseFloat(discount),
+          cargo_account_id: cargo_account_id ? parseInt(cargo_account_id) : null,
+          cargo_account_ids: cargo_account_ids ? (Array.isArray(cargo_account_ids) ? JSON.stringify(cargo_account_ids) : String(cargo_account_ids)) : null,
           net_total: parseFloat(net_total),
           payment: parseFloat(payment),
           payment_type,

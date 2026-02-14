@@ -131,6 +131,8 @@ function PurchasesPageContent() {
   // Filtered customer lists
   const [suppliers, setSuppliers] = useState([]);
   const [bankAccounts, setBankAccounts] = useState([]);
+  const [cargoAccounts, setCargoAccounts] = useState([]); // accounts with category containing "transport"
+  const [selectedCargoAccounts, setSelectedCargoAccounts] = useState([]); // multiple selection
 
   // Function to filter customers by type
   // Function to filter customers by category and type
@@ -411,6 +413,8 @@ function PurchasesPageContent() {
     store_id: '',
     debit_account_id: '',
     credit_account_id: '',
+    cargo_account_id: '',
+    cargo_account_ids: [],
     total_amount: '',
     unloading_amount: '',
     fare_amount: '',
@@ -442,6 +446,23 @@ function PurchasesPageContent() {
       const { suppliers, bankAccounts } = filterCustomersByCategory(customers, customerCategories, customerTypes);
       setSuppliers(suppliers);
       setBankAccounts(bankAccounts);
+
+      // Compute cargo accounts — REQUIRE: category contains "transport" AND type contains "cargo"
+      try {
+        const catMap = new Map(customerCategories.map(c => [c.cus_cat_id, (c.cus_cat_title || '').toLowerCase()]));
+        const typeMap = new Map(customerTypes.map(t => [t.cus_type_id, (t.cus_type_title || '').toLowerCase()]));
+        const cargo = customers.filter(cust => {
+          const catTitle = catMap.get(cust.cus_category) || '';
+          const typeTitle = typeMap.get(cust.cus_type) || '';
+          return (catTitle.includes('transport') || catTitle.includes('transporter')) && typeTitle.includes('cargo');
+        });
+        console.log(`🔍 Found ${cargo.length} cargo accounts (category contains 'transport' AND type contains 'cargo')`);
+        setCargoAccounts(cargo);
+      } catch (err) {
+        console.warn('Error computing cargo accounts', err);
+        setCargoAccounts([]);
+      }
+
     } else {
       console.log('🔍 Not filtering yet - customers:', customers.length, 'categories:', customerCategories.length, 'types:', customerTypes.length);
     }
@@ -453,6 +474,7 @@ function PurchasesPageContent() {
       formData: JSON.parse(JSON.stringify(formData)),
       formSelectedCustomer: formSelectedCustomer ? { ...formSelectedCustomer } : null,
       selectedBankAccount: selectedBankAccount ? { ...selectedBankAccount } : null,
+      selectedCargoAccounts: selectedCargoAccounts ? selectedCargoAccounts.map(c => ({ ...c })) : [],
       purchaseType: purchaseType,
       selectedPurchaseForReturn: selectedPurchaseForReturn ? { ...selectedPurchaseForReturn } : null,
       productFormData: JSON.parse(JSON.stringify(productFormData)),
@@ -461,7 +483,7 @@ function PurchasesPageContent() {
       timestamp: new Date().getTime().toString(),
       customerName: formSelectedCustomer?.cus_name || (purchaseType === 'return' ? 'Purchase Return' : 'New Purchase')
     };
-  }, [formData, formSelectedCustomer, selectedBankAccount, purchaseType, selectedPurchaseForReturn, productFormData, selectedProduct, editingPurchase]);
+  }, [formData, formSelectedCustomer, selectedBankAccount, selectedCargoAccounts, purchaseType, selectedPurchaseForReturn, productFormData, selectedProduct, editingPurchase]);
 
   // Get fresh blank state
   const getFreshPurchaseState = useCallback(() => {
@@ -471,6 +493,8 @@ function PurchasesPageContent() {
         store_id: stores[0]?.storeid?.toString() || '',
         debit_account_id: '',
         credit_account_id: '',
+        cargo_account_id: '',
+        cargo_account_ids: [],
         total_amount: '',
         unloading_amount: '',
         fare_amount: '',
@@ -479,6 +503,7 @@ function PurchasesPageContent() {
         incity_own_labour: '',
         incity_own_delivery: '',
         incity_charges_total: '',
+        cargo_account_id: '',
         include_incity: false,
         include_labour: false,
         discount: '',
@@ -511,6 +536,7 @@ function PurchasesPageContent() {
     setFormData(JSON.parse(JSON.stringify(state.formData)));
     setFormSelectedCustomer(state.formSelectedCustomer);
     setSelectedBankAccount(state.selectedBankAccount);
+    setSelectedCargoAccounts(state.selectedCargoAccounts || []);
     setPurchaseType(state.purchaseType);
     setSelectedPurchaseForReturn(state.selectedPurchaseForReturn);
     setProductFormData(JSON.parse(JSON.stringify(state.productFormData)));
@@ -1355,6 +1381,8 @@ function PurchasesPageContent() {
           debit_account_id: debitAccountId,
           credit_account_id: creditAccountId,
           bank_account_id: selectedBankAccount ? selectedBankAccount.cus_id : null,
+          cargo_account_id: (selectedCargoAccounts && selectedCargoAccounts.length) ? selectedCargoAccounts[0].cus_id : (formData.cargo_account_id ? parseInt(formData.cargo_account_id) : null),
+          cargo_account_ids: (selectedCargoAccounts || []).map(a => a.cus_id),
           payment: totalPayment,
           payment_type: paymentType,
           cash_payment: cashPayment,
@@ -1368,6 +1396,8 @@ function PurchasesPageContent() {
           debit_account_id: debitAccountId,
           credit_account_id: creditAccountId,
           bank_account_id: selectedBankAccount ? selectedBankAccount.cus_id : null,
+          cargo_account_id: (selectedCargoAccounts && selectedCargoAccounts.length) ? selectedCargoAccounts[0].cus_id : (formData.cargo_account_id ? parseInt(formData.cargo_account_id) : null),
+          cargo_account_ids: (selectedCargoAccounts || []).map(a => a.cus_id),
           payment: totalPayment,
           payment_type: paymentType,
           cash_payment: cashPayment,
@@ -1554,6 +1584,24 @@ function PurchasesPageContent() {
       setSelectedBankAccount(bankAccount || null);
     } else {
       setSelectedBankAccount(null);
+    }
+
+    // Set selected cargo accounts if provided (supports multiple IDs)
+    if (purchase.cargo_account_ids) {
+      try {
+        const ids = Array.isArray(purchase.cargo_account_ids) ? purchase.cargo_account_ids : JSON.parse(purchase.cargo_account_ids || '[]');
+        const selected = (ids || []).map(id => customers.find(c => c.cus_id === parseInt(id))).filter(Boolean);
+        setSelectedCargoAccounts(selected);
+      } catch (err) {
+        // fallback to single cargo_account_id
+        const cargoAcc = customers.find(customer => customer.cus_id === purchase.cargo_account_id);
+        setSelectedCargoAccounts(cargoAcc ? [cargoAcc] : []);
+      }
+    } else if (purchase.cargo_account_id) {
+      const cargoAcc = customers.find(customer => customer.cus_id === purchase.cargo_account_id);
+      setSelectedCargoAccounts(cargoAcc ? [cargoAcc] : []);
+    } else {
+      setSelectedCargoAccounts([]);
     }
 
     // Set selected customer for the form
@@ -3829,6 +3877,58 @@ function PurchasesPageContent() {
                           placeholder="Additional notes"
                           sx={{ width: '100%' }}
                         />
+
+                        {/* Cargo — placed directly below NOTES */}
+                        <Box sx={{ mt: 1 }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>Cargo</Typography>
+                          <Autocomplete
+                            size="small"
+                            multiple
+                            openOnFocus
+                            options={cargoAccounts.filter(a => !(selectedCargoAccounts || []).some(s => s.cus_id === a.cus_id))}
+                            getOptionLabel={(option) => option.cus_name}
+                            value={selectedCargoAccounts}
+                            onChange={(e, newValue) => {
+                              setSelectedCargoAccounts(newValue || []);
+                              setFormData(prev => ({ ...prev, cargo_account_ids: (newValue || []).map(a => a.cus_id) }));
+                            }}
+                            renderTags={() => null}
+                            renderInput={(params) => <TextField {...params} placeholder="Select Cargo Account" size="small" sx={{ width: 240 }} />}
+                            renderOption={(props, option) => (
+                              <Box component="li" {...props}>
+                                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', width: '100%' }}>
+                                  <Box sx={{ flex: 1 }}>
+                                    <Typography variant="body2" sx={{ fontWeight: (selectedCargoAccounts || []).some(s => s.cus_id === option.cus_id) ? 'bold' : 'medium' }}>
+                                      {option.cus_name}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary">
+                                      {option.cus_phone_no}
+                                    </Typography>
+                                  </Box>
+                                </Box>
+                              </Box>
+                            )}
+                          />
+
+                          {/* Selected cargo accounts displayed as red chips */}
+                          <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
+                            {(selectedCargoAccounts || []).map(acc => (
+                              <Chip
+                                key={acc.cus_id}
+                                label={acc.cus_name}
+                                size="small"
+                                onDelete={() => {
+                                  setSelectedCargoAccounts(prev => {
+                                    const next = prev.filter(p => p.cus_id !== acc.cus_id);
+                                    setFormData(f => ({ ...f, cargo_account_ids: next.map(a => a.cus_id) }));
+                                    return next;
+                                  });
+                                }}
+                                sx={{ bgcolor: 'error.main', color: 'white', borderRadius: '16px' }}
+                              />
+                            ))}
+                          </Box>
+                        </Box>
                       </Box>
                     </Box>
                   </Box>
@@ -3847,6 +3947,8 @@ function PurchasesPageContent() {
                         sx={{ width: 150 }}
                       />
                     </Box>
+
+
 
                     {/* DELIVERY CHARGES */}
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -3873,6 +3975,8 @@ function PurchasesPageContent() {
                         sx={{ width: 150 }}
                       />
                     </Box>
+
+
 
                     {/* LABOUR */}
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -4731,6 +4835,27 @@ function PurchasesPageContent() {
                     <Typography variant="body2">
                       Vehicle No: <strong>{viewingPurchase.vehicle_no}</strong>
                     </Typography>
+                  )}
+                  {viewingPurchase.cargo_account && (
+                    <Typography variant="body2">
+                      Cargo Account: <strong>{viewingPurchase.cargo_account?.cus_name || 'N/A'}</strong>
+                    </Typography>
+                  )}
+
+                  {viewingPurchase.cargo_account_ids && (
+                    <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                      {(() => {
+                        try {
+                          const ids = Array.isArray(viewingPurchase.cargo_account_ids) ? viewingPurchase.cargo_account_ids : JSON.parse(viewingPurchase.cargo_account_ids || '[]');
+                          return ids.map(id => {
+                            const c = customers.find(cc => cc.cus_id === parseInt(id));
+                            return <Chip key={id} label={c ? c.cus_name : String(id)} size="small" sx={{ bgcolor: 'error.main', color: 'white', borderRadius: '16px' }} />;
+                          });
+                        } catch (err) {
+                          return null;
+                        }
+                      })()}
+                    </Box>
                   )}
                 </Box>
               </Box>

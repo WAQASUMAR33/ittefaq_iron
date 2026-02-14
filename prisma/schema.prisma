@@ -366,6 +366,7 @@ model Purchase {
   cus_id            Int
   debit_account_id  Int?
   credit_account_id Int?
+  cargo_account_id  Int?
   total_amount      Decimal
   unloading_amount  Decimal          @default(0.000000000000000000000000000000)
   fare_amount       Decimal          @default(0.000000000000000000000000000000)
@@ -390,12 +391,15 @@ model Purchase {
   purchase_details  PurchaseDetail[]
   purchase_returns  PurchaseReturn[]
   credit_account    Customer?        @relation("PurchaseCreditAccount", fields: [credit_account_id], references: [cus_id])
+  cargo_account     Customer?        @relation("PurchaseCargoAccount", fields: [cargo_account_id], references: [cus_id])
+  cargo_account_ids String?          @db.LongText
   customer          Customer         @relation("PurchaseCustomer", fields: [cus_id], references: [cus_id])
   debit_account     Customer?        @relation("PurchaseDebitAccount", fields: [debit_account_id], references: [cus_id])
   store             Store?           @relation(fields: [store_id], references: [storeid])
   updated_by_user   Users?           @relation(fields: [updated_by], references: [user_id])
 
   @@index([credit_account_id], map: "purchases_credit_account_id_fkey")
+  @@index([cargo_account_id], map: "purchases_cargo_account_id_fkey")
   @@index([cus_id], map: "purchases_cus_id_fkey")
   @@index([debit_account_id], map: "purchases_debit_account_id_fkey")
   @@index([store_id], map: "purchases_store_id_fkey")
