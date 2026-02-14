@@ -145,6 +145,10 @@ export async function POST(request) {
       fare_amount = 0,
       transport_amount = 0,
       labour_amount = 0,
+      // Incity fields
+      incity_own_labour = 0,
+      incity_own_delivery = 0,
+      incity_charges_total = 0,
       discount = 0,
       payment,
       payment_type,
@@ -321,6 +325,10 @@ export async function POST(request) {
         fare_amount: safeParseFloat(fare_amount),
         transport_amount: safeParseFloat(transport_amount),
         labour_amount: safeParseFloat(labour_amount),
+        // Incity fields
+        incity_own_labour: safeParseFloat(incity_own_labour),
+        incity_own_delivery: safeParseFloat(incity_own_delivery),
+        incity_charges_total: safeParseFloat(incity_charges_total),
         discount: safeParseFloat(discount),
         net_total: safeParseFloat(net_total),
         payment: totalPaymentAmount,
@@ -750,6 +758,10 @@ export async function PUT(request) {
       fare_amount = 0,
       transport_amount = 0,
       labour_amount = 0,
+      // Incity fields
+      incity_own_labour = 0,
+      incity_own_delivery = 0,
+      incity_charges_total = 0,
       discount = 0,
       payment,
       payment_type,
@@ -822,6 +834,10 @@ export async function PUT(request) {
           fare_amount: parseFloat(fare_amount),
           transport_amount: parseFloat(transport_amount),
           labour_amount: parseFloat(labour_amount),
+          // Incity fields
+          incity_own_labour: parseFloat(incity_own_labour),
+          incity_own_delivery: parseFloat(incity_own_delivery),
+          incity_charges_total: parseFloat(incity_charges_total),
           discount: parseFloat(discount),
           net_total: parseFloat(net_total),
           payment: parseFloat(payment),

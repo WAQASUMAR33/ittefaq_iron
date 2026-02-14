@@ -416,6 +416,10 @@ function PurchasesPageContent() {
     fare_amount: '',
     transport_amount: '',
     labour_amount: '',
+    incity_own_labour: '',
+    incity_own_delivery: '',
+    incity_charges_total: '',
+    include_incity: false,
     include_labour: false,
     discount: '',
     cash_payment: '',
@@ -472,6 +476,10 @@ function PurchasesPageContent() {
         fare_amount: '',
         transport_amount: '',
         labour_amount: '',
+        incity_own_labour: '',
+        incity_own_delivery: '',
+        incity_charges_total: '',
+        include_incity: false,
         include_labour: false,
         discount: '',
         cash_payment: '',
@@ -525,6 +533,9 @@ function PurchasesPageContent() {
       fare_amount: '',
       transport_amount: '',
       labour_amount: '',
+      incity_own_labour: '',
+      incity_own_delivery: '',
+      incity_charges_total: '',
       include_labour: false,
       discount: '',
       cash_payment: '',
@@ -693,55 +704,50 @@ function PurchasesPageContent() {
     }
   }, [stores, formData.store_id]);
 
-  // Function to handle labour charges distribution
-  const handleLabourDistribution = (includeLabour, labourAmount, purchaseDetails) => {
-    // Include delivery/unloading/fare when Include Labour is active
-    console.log('🔧 handleLabourDistribution called:', { includeLabour, labourAmount, purchaseDetailsLength: purchaseDetails.length });
+  // Recompute product cost_rate from original_cost_rate + (labourPerUnit) + (incityPerUnit)
+  const recomputeDistributedCosts = (purchaseDetails, { includeLabour = formData.include_labour, labourAmount = formData.labour_amount, includeIncity = formData.include_incity, incityAmount = (parseFloat(formData.incity_own_labour || 0) + parseFloat(formData.incity_own_delivery || 0)) } = {}) => {
+    if (!purchaseDetails || purchaseDetails.length === 0) return purchaseDetails;
 
+    const totalQuantity = purchaseDetails.reduce((sum, d) => sum + parseFloat(d.qnty || 0), 0);
     const unloadingAmountNum = parseFloat(formData.unloading_amount || 0);
     const transportAmountNum = parseFloat(formData.transport_amount || 0);
     const fareAmountNum = parseFloat(formData.fare_amount || 0);
 
-    if (includeLabour && (labourAmount || unloadingAmountNum || transportAmountNum || fareAmountNum) && purchaseDetails.length > 0) {
-      const labourAmountNum = parseFloat(labourAmount || 0);
-      const totalCharge = labourAmountNum + unloadingAmountNum + transportAmountNum + fareAmountNum; // sum labour + delivery
-      const totalQuantity = purchaseDetails.reduce((sum, detail) => sum + parseFloat(detail.qnty || 0), 0);
+    const labourTotal = includeLabour ? (parseFloat(labourAmount || 0) + unloadingAmountNum + transportAmountNum + fareAmountNum) : 0;
+    const incityTotal = includeIncity ? parseFloat(incityAmount || 0) : 0;
 
-      console.log('🔧 Labour+Delivery distribution:', { labourAmountNum, unloadingAmountNum, transportAmountNum, fareAmountNum, totalCharge, totalQuantity });
+    const labourPerUnit = totalQuantity > 0 ? labourTotal / totalQuantity : 0;
+    const incityPerUnit = totalQuantity > 0 ? incityTotal / totalQuantity : 0;
 
-      if (totalQuantity > 0) {
-        const chargePerUnit = totalCharge / totalQuantity;
-        console.log('🔧 Charge per unit:', chargePerUnit);
-
-        const updatedDetails = purchaseDetails.map(detail => {
-          const originalCost = parseFloat(detail.original_cost_rate ?? detail.cost_rate ?? detail.unit_rate ?? 0);
-          const newCost = (originalCost + chargePerUnit).toFixed(2);
-
-          return {
-            ...detail,
-            cost_rate: newCost,
-            original_cost_rate: detail.original_cost_rate ?? detail.cost_rate ?? detail.unit_rate ?? 0,
-            // totals remain based on crate * qty
-            total_amount: (parseFloat(detail.crate ?? 0) * parseFloat(detail.qnty || 0)).toFixed(2)
-          };
-        });
-
-        return updatedDetails;
-      }
-    } else if (!includeLabour && purchaseDetails.length > 0) {
-      const updatedDetails = purchaseDetails.map(detail => {
-        const restoredCost = detail.original_cost_rate ?? detail.cost_rate ?? detail.unit_rate ?? 0;
-        return {
-          ...detail,
-          cost_rate: restoredCost,
-          total_amount: (parseFloat(detail.crate ?? 0) * parseFloat(detail.qnty || 0)).toFixed(2)
-        };
-      });
-
-      return updatedDetails;
+    // If neither distribution is active, restore original_cost_rate if present
+    if (!includeLabour && !includeIncity) {
+      return purchaseDetails.map(detail => ({
+        ...detail,
+        cost_rate: detail.original_cost_rate ?? detail.cost_rate ?? detail.unit_rate ?? 0,
+        total_amount: (parseFloat(detail.crate ?? 0) * parseFloat(detail.qnty || 0)).toFixed(2)
+      }));
     }
 
-    return purchaseDetails;
+    return purchaseDetails.map(detail => {
+      const base = parseFloat(detail.original_cost_rate ?? detail.cost_rate ?? detail.unit_rate ?? 0);
+      const newCost = (base + labourPerUnit + incityPerUnit).toFixed(2);
+      return {
+        ...detail,
+        cost_rate: newCost,
+        original_cost_rate: detail.original_cost_rate ?? detail.cost_rate ?? detail.unit_rate ?? 0,
+        total_amount: (parseFloat(detail.crate ?? 0) * parseFloat(detail.qnty || 0)).toFixed(2)
+      };
+    });
+  };
+
+  // Function to handle labour charges distribution (now independent)
+  const handleLabourDistribution = (includeLabour, labourAmount, purchaseDetails) => {
+    return recomputeDistributedCosts(purchaseDetails, { includeLabour, labourAmount, includeIncity: formData.include_incity });
+  };
+
+  // Function to handle Incity charges distribution (independent)
+  const handleIncityDistribution = (includeIncity, incityAmount, purchaseDetails) => {
+    return recomputeDistributedCosts(purchaseDetails, { includeIncity, incityAmount, includeLabour: formData.include_labour });
   };
 
   // Close dropdown when clicking outside
@@ -1116,6 +1122,21 @@ function PurchasesPageContent() {
     return totalAmount + unloadingAmount + transportAmount + labourAmount - discount;
   };
 
+  // Calculate and sync Incity charges total (read-only) — only own labour + own delivery
+  useEffect(() => {
+    try {
+      const incityLabour = parseFloat(formData.incity_own_labour || 0);
+      const incityDelivery = parseFloat(formData.incity_own_delivery || 0);
+      const computed = parseFloat((incityLabour + incityDelivery).toFixed(2));
+      const current = parseFloat(formData.incity_charges_total || 0);
+      if (isNaN(current) || current !== computed) {
+        setFormData(prev => ({ ...prev, incity_charges_total: computed.toString() }));
+      }
+    } catch (err) {
+      console.warn('Error computing incity charges total', err);
+    }
+  }, [formData.incity_own_labour, formData.incity_own_delivery]);
+
   // Vehicle management functions
   const handleOpenVehicleDialog = () => {
     setEditingVehicle(null);
@@ -1373,6 +1394,10 @@ function PurchasesPageContent() {
           purchase_details: result.purchase_details || formData.purchase_details,
           // Add missing amount fields from formData
           labour_amount: parseFloat(result.labour_amount || formData.labour_amount || 0),
+          // Incity fields
+          incity_own_labour: parseFloat(result.incity_own_labour || formData.incity_own_labour || 0),
+          incity_own_delivery: parseFloat(result.incity_own_delivery || formData.incity_own_delivery || 0),
+          incity_charges_total: parseFloat(result.incity_charges_total || formData.incity_charges_total || 0),
           fare_amount: parseFloat(result.fare_amount || formData.fare_amount || 0),
           transport_amount: parseFloat(result.transport_amount || formData.transport_amount || 0),
           unloading_amount: parseFloat(result.unloading_amount || formData.unloading_amount || 0),
@@ -1442,6 +1467,10 @@ function PurchasesPageContent() {
               fare_amount: '',
               transport_amount: '',
               labour_amount: '',
+              incity_own_labour: '',
+              incity_own_delivery: '',
+              incity_charges_total: '',
+              include_incity: false,
               include_labour: false,
               discount: '',
               cash_payment: '',
@@ -1485,6 +1514,10 @@ function PurchasesPageContent() {
       fare_amount: purchase.fare_amount.toString(),
       transport_amount: purchase.transport_amount?.toString() || '',
       labour_amount: purchase.labour_amount?.toString() || '',
+      incity_own_labour: purchase.incity_own_labour?.toString() || '',
+      incity_own_delivery: purchase.incity_own_delivery?.toString() || '',
+      incity_charges_total: purchase.incity_charges_total?.toString() || '',
+      include_incity: purchase.include_incity || false,
       include_labour: purchase.include_labour || false,
       discount: purchase.discount.toString(),
       cash_payment: purchase.payment_type === 'CASH' ? purchase.payment.toString() : '',
@@ -1627,6 +1660,10 @@ function PurchasesPageContent() {
       fare_amount: purchase.fare_amount.toString(),
       transport_amount: purchase.transport_amount?.toString() || '',
       labour_amount: purchase.labour_amount?.toString() || '',
+      incity_own_labour: purchase.incity_own_labour?.toString() || '',
+      incity_own_delivery: purchase.incity_own_delivery?.toString() || '',
+      incity_charges_total: purchase.incity_charges_total?.toString() || '',
+      include_incity: purchase.include_incity || false,
       include_labour: purchase.include_labour || false,
       discount: purchase.discount.toString(),
       vehicle_no: purchase.vehicle_no || '',
@@ -3677,7 +3714,7 @@ function PurchasesPageContent() {
                       </Box>
                     </Box>
 
-                    {/* Row 2: TOTAL PAYMENT, NOTES */}
+                    {/* Row 2: TOTAL PAYMENT (left) with Incity below, NOTES (right) */}
                     <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
                       <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
                         <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
@@ -3689,7 +3726,69 @@ function PurchasesPageContent() {
                           InputProps={{ readOnly: true }}
                           sx={{ width: '100%', backgroundColor: 'action.hover' }}
                         />
+
+                        {/* Incity box placed below Total Payment */}
+                        <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1, mt: 1, backgroundColor: 'background.paper' }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>Incity</Typography>
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Checkbox
+                                checked={formData.include_incity || false}
+                                onChange={(e) => {
+                                  const newInclude = e.target.checked;
+                                  setFormData(prev => {
+                                    const incityAmount = parseFloat(prev.incity_own_labour || 0) + parseFloat(prev.incity_own_delivery || 0);
+                                    const updatedDetails = handleIncityDistribution(newInclude, incityAmount, prev.purchase_details);
+                                    return { ...prev, include_incity: newInclude, purchase_details: updatedDetails };
+                                  });
+                                }}
+                                size="small"
+                              />
+                              <Typography variant="body2">Include Incity Charges</Typography>
+                            </Box>
+
+                            <TextField
+                              label="Own Labour"
+                              size="small"
+                              type="number"
+                              value={formData.incity_own_labour || ''}
+                              onChange={(e) => {
+                                const newVal = e.target.value;
+                                setFormData(prev => {
+                                  const incityAmount = parseFloat(newVal || 0) + parseFloat(prev.incity_own_delivery || 0);
+                                  const updatedDetails = handleIncityDistribution(prev.include_incity, incityAmount, prev.purchase_details);
+                                  return { ...prev, incity_own_labour: newVal, purchase_details: updatedDetails };
+                                });
+                              }}
+                              inputProps={{ min: 0 }}
+                            />
+
+                            <TextField
+                              label="Own Delivery"
+                              size="small"
+                              type="number"
+                              value={formData.incity_own_delivery || ''}
+                              onChange={(e) => {
+                                const newVal = e.target.value;
+                                setFormData(prev => {
+                                  const incityAmount = parseFloat(prev.incity_own_labour || 0) + parseFloat(newVal || 0);
+                                  const updatedDetails = handleIncityDistribution(prev.include_incity, incityAmount, prev.purchase_details);
+                                  return { ...prev, incity_own_delivery: newVal, purchase_details: updatedDetails };
+                                });
+                              }}
+                              inputProps={{ min: 0 }}
+                            />
+
+                            <TextField
+                              label="Charges Total"
+                              size="small"
+                              value={parseFloat(formData.incity_charges_total || 0).toFixed(2)}
+                              InputProps={{ readOnly: true }}
+                            />
+                          </Box>
+                        </Box>
                       </Box>
+
                       <Box sx={{ flex: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
                         <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                           NOTES
@@ -4127,182 +4226,221 @@ function PurchasesPageContent() {
               </Grid>
 
               <Grid item xs={12} md={4}>
-                <Autocomplete
-                  fullWidth
-                  required
-                  openOnFocus
-                  autoHighlight
-                  selectOnFocus
-                  autoSelect
-                  options={[
-                    { id: '', title: 'Select a type' },
-                    ...customerTypes.map(type => ({
-                      id: type.cus_type_id,
-                      title: type.cus_type_title
-                    }))
-                  ]}
-                  value={(() => {
-                    const options = [
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <IconButton
+                    size="small"
+                    aria-label="Add type"
+                    onMouseDown={(ev) => ev.stopPropagation()}
+                    onClick={() => setShowCustomerTypePopup(true)}
+                    sx={{ color: 'primary.main' }}
+                  >
+                    <AddIcon />
+                  </IconButton>
+
+                  <Autocomplete
+                    fullWidth
+                    required
+                    openOnFocus
+                    autoHighlight
+                    selectOnFocus
+                    autoSelect
+                    sx={{ flex: 1 }}
+                    options={[
                       { id: '', title: 'Select a type' },
                       ...customerTypes.map(type => ({
                         id: type.cus_type_id,
                         title: type.cus_type_title
                       }))
-                    ];
-                    return options.find(option => option.id === customerFormData.cus_type) || { id: '', title: 'Select a type' };
-                  })()}
-                  onChange={(event, newValue) => {
-                    setCustomerFormData(prev => ({
-                      ...prev,
-                      cus_type: newValue ? newValue.id : ''
-                    }));
-                  }}
-                  getOptionLabel={(option) => option.title}
-                  open={customerTypeOpenPurchases}
-                  onOpen={() => setCustomerTypeOpenPurchases(true)}
-                  onClose={() => setCustomerTypeOpenPurchases(false)}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      inputRef={customerTypeInputRefPurchases}
-                      label="Account Type"
-                      onFocus={(e) => e.target.select()}
-                      sx={{ minHeight: 56, minWidth: 255 }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Tab' && customerTypeOpenPurchases) {
-                          const firstType = customerTypes && customerTypes.length ? customerTypes[0].cus_type_id : '';
-                          if (!customerFormData.cus_type && firstType) {
-                            setCustomerFormData(prev => ({ ...prev, cus_type: firstType }));
+                    ]}
+                    value={(() => {
+                      const options = [
+                        { id: '', title: 'Select a type' },
+                        ...customerTypes.map(type => ({
+                          id: type.cus_type_id,
+                          title: type.cus_type_title
+                        }))
+                      ];
+                      return options.find(option => option.id === customerFormData.cus_type) || { id: '', title: 'Select a type' };
+                    })()}
+                    onChange={(event, newValue) => {
+                      setCustomerFormData(prev => ({
+                        ...prev,
+                        cus_type: newValue ? newValue.id : ''
+                      }));
+                    }}
+                    getOptionLabel={(option) => option.title}
+                    open={customerTypeOpenPurchases}
+                    onOpen={() => setCustomerTypeOpenPurchases(true)}
+                    onClose={() => setCustomerTypeOpenPurchases(false)}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        inputRef={customerTypeInputRefPurchases}
+                        label="Account Type"
+                        onFocus={(e) => e.target.select()}
+                        sx={{ minHeight: 56, minWidth: 220 }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Tab' && customerTypeOpenPurchases) {
+                            const firstType = customerTypes && customerTypes.length ? customerTypes[0].cus_type_id : '';
+                            if (!customerFormData.cus_type && firstType) {
+                              setCustomerFormData(prev => ({ ...prev, cus_type: firstType }));
+                            }
+                            setCustomerTypeOpenPurchases(false);
                           }
-                          setCustomerTypeOpenPurchases(false);
-                        }
-                      }}
-                      InputProps={{
-                        ...params.InputProps,
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <PersonIcon />
-                          </InputAdornment>
-                        ),
-                      }}
-                    />
-                  )}
-                />
+                        }}
+                        InputProps={{
+                          ...params.InputProps,
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <PersonIcon />
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+                    )}
+                  />
+                </Box>
               </Grid>
 
               <Grid item xs={12} md={4}>
-                <Autocomplete
-                  fullWidth
-                  required
-                  openOnFocus
-                  autoHighlight
-                  selectOnFocus
-                  autoSelect
-                  options={[
-                    { id: '', title: 'Select a category' },
-                    ...customerCategories.map(category => ({
-                      id: category.cus_cat_id,
-                      title: category.cus_cat_title
-                    }))
-                  ]}
-                  value={(() => {
-                    const options = [
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <IconButton
+                    size="small"
+                    aria-label="Add category"
+                    onMouseDown={(ev) => ev.stopPropagation()}
+                    onClick={() => setShowCustomerCategoryPopup(true)}
+                    sx={{ color: 'primary.main' }}
+                  >
+                    <AddIcon />
+                  </IconButton>
+
+                  <Autocomplete
+                    fullWidth
+                    required
+                    openOnFocus
+                    autoHighlight
+                    selectOnFocus
+                    autoSelect
+                    sx={{ flex: 1 }}
+                    options={[
                       { id: '', title: 'Select a category' },
                       ...customerCategories.map(category => ({
                         id: category.cus_cat_id,
                         title: category.cus_cat_title
                       }))
-                    ];
-                    return options.find(option => option.id === customerFormData.cus_category) || { id: '', title: 'Select a category' };
-                  })()}
-                  onChange={(event, newValue) => {
-                    setCustomerFormData(prev => ({
-                      ...prev,
-                      cus_category: newValue ? newValue.id : ''
-                    }));
-                  }}
-                  getOptionLabel={(option) => option.title}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label="Supplier Category"
-                      onFocus={(e) => e.target.select()}
-                      sx={{ minHeight: 56, minWidth: 255 }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Tab' && params.inputProps?.ariaExpanded) {
-                          const firstCat = customerCategories && customerCategories.length ? customerCategories[0].cus_cat_id : '';
-                          if (!customerFormData.cus_category && firstCat) setCustomerFormData(prev => ({ ...prev, cus_category: firstCat }));
-                        }
-                      }}
-                      InputProps={{
-                        ...params.InputProps,
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <BusinessIcon />
-                          </InputAdornment>
-                        ),
-                      }}
-                    />
-                  )}
-                />
+                    ]}
+                    value={(() => {
+                      const options = [
+                        { id: '', title: 'Select a category' },
+                        ...customerCategories.map(category => ({
+                          id: category.cus_cat_id,
+                          title: category.cus_cat_title
+                        }))
+                      ];
+                      return options.find(option => option.id === customerFormData.cus_category) || { id: '', title: 'Select a category' };
+                    })()}
+                    onChange={(event, newValue) => {
+                      setCustomerFormData(prev => ({
+                        ...prev,
+                        cus_category: newValue ? newValue.id : ''
+                      }));
+                    }}
+                    getOptionLabel={(option) => option.title}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Supplier Category"
+                        onFocus={(e) => e.target.select()}
+                        sx={{ minHeight: 56, minWidth: 220 }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Tab' && params.inputProps?.ariaExpanded) {
+                            const firstCat = customerCategories && customerCategories.length ? customerCategories[0].cus_cat_id : '';
+                            if (!customerFormData.cus_category && firstCat) setCustomerFormData(prev => ({ ...prev, cus_category: firstCat }));
+                          }
+                        }}
+                        InputProps={{
+                          ...params.InputProps,
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <BusinessIcon />
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+                    )}
+                  />
+                </Box>
               </Grid>
 
               {/* Row 3: City, Reference, Account Info */}
               <Grid item xs={12} md={4}>
-                <Autocomplete
-                  fullWidth
-                  autoSelect={true}
-                  autoHighlight={true}
-                  openOnFocus={true}
-                  selectOnFocus={true}
-                  size="medium"
-                  options={[
-                    { id: '', title: 'Select a city' },
-                    ...cities.map(city => ({
-                      id: city.city_id,
-                      title: city.city_name
-                    }))
-                  ]}
-                  value={(() => {
-                    const options = [
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <IconButton
+                    size="small"
+                    aria-label="Add city"
+                    onMouseDown={(ev) => ev.stopPropagation()}
+                    onClick={() => setShowCityPopup(true)}
+                    sx={{ color: 'primary.main' }}
+                  >
+                    <AddIcon />
+                  </IconButton>
+
+                  <Autocomplete
+                    fullWidth
+                    autoSelect={true}
+                    autoHighlight={true}
+                    openOnFocus={true}
+                    selectOnFocus={true}
+                    size="medium"
+                    sx={{ flex: 1 }}
+                    options={[
                       { id: '', title: 'Select a city' },
                       ...cities.map(city => ({
                         id: city.city_id,
                         title: city.city_name
                       }))
-                    ];
-                    return options.find(option => option.id === customerFormData.city_id) || { id: '', title: 'Select a city' };
-                  })()}
-                  onChange={(event, newValue) => {
-                    setCustomerFormData(prev => ({
-                      ...prev,
-                      city_id: newValue ? newValue.id : ''
-                    }));
-                  }}
-                  getOptionLabel={(option) => option.title}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label="City"
-                      onFocus={(e) => e.target.select()}
-                      sx={{ minHeight: 56, minWidth: 255 }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Tab' && params.inputProps?.ariaExpanded) {
-                          const firstCity = cities && cities.length ? cities[0].city_id : '';
-                          if (!customerFormData.city_id && firstCity) setCustomerFormData(prev => ({ ...prev, city_id: firstCity }));
-                        }
-                      }}
-                      InputProps={{
-                        ...params.InputProps,
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <MapPinIcon />
-                          </InputAdornment>
-                        ),
-                      }}
-                    />
-                  )}
-                />
+                    ]}
+                    value={(() => {
+                      const options = [
+                        { id: '', title: 'Select a city' },
+                        ...cities.map(city => ({
+                          id: city.city_id,
+                          title: city.city_name
+                        }))
+                      ];
+                      return options.find(option => option.id === customerFormData.city_id) || { id: '', title: 'Select a city' };
+                    })()}
+                    onChange={(event, newValue) => {
+                      setCustomerFormData(prev => ({
+                        ...prev,
+                        city_id: newValue ? newValue.id : ''
+                      }));
+                    }}
+                    getOptionLabel={(option) => option.title}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="City"
+                        onFocus={(e) => e.target.select()}
+                        sx={{ minHeight: 56, minWidth: 220 }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Tab' && params.inputProps?.ariaExpanded) {
+                            const firstCity = cities && cities.length ? cities[0].city_id : '';
+                            if (!customerFormData.city_id && firstCity) setCustomerFormData(prev => ({ ...prev, city_id: firstCity }));
+                          }
+                        }}
+                        InputProps={{
+                          ...params.InputProps,
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <MapPinIcon />
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+                    )}
+                  />
+                </Box>
               </Grid>
 
               <Grid item xs={12} md={4}>

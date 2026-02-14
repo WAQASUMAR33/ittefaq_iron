@@ -195,7 +195,7 @@ export default function FinancePage() {
         const typesData = await typesRes.json();
         setCustomerTypes(typesData);
       }
-      
+
       // Fetch cash and bank accounts
       await fetchCashBankAccounts();
     } catch (error) {
@@ -1284,7 +1284,7 @@ export default function FinancePage() {
 
                   {/* Payment Action Buttons */}
                   {selectedCustomer && (
-                    <Box sx={{ 
+                    <Box sx={{
                       position: 'absolute',
                       right: 24,
                       top: '50%',
@@ -1484,12 +1484,12 @@ export default function FinancePage() {
                         const isDebit = parseFloat(entry.debit_amount) > 0;
                         const isCredit = parseFloat(entry.credit_amount) > 0;
                         const entryAmount = isDebit ? entry.debit_amount : entry.credit_amount;
-                        
+
                         // Parse split payment info if present in details
                         let splitCashAmount = 0;
                         let splitBankAmount = 0;
                         let isSplitPayment = false;
-                        
+
                         if (entry.details) {
                           // Extract split amounts from details field
                           // Format: "...| {cash_amount: X, bank_amount: Y}"
@@ -1500,11 +1500,11 @@ export default function FinancePage() {
                             isSplitPayment = true;
                           }
                         }
-                        
+
                         // Determine Bank vs Cash amounts from ledger entry fields
                         let bankAmount = parseFloat(entry.bank_payment || 0);
                         let cashAmount = parseFloat(entry.cash_payment || 0);
-                        
+
                         // For non-payment entries, fall back to transaction type logic
                         if (bankAmount === 0 && cashAmount === 0) {
                           if (isSplitPayment) {
@@ -1636,10 +1636,10 @@ export default function FinancePage() {
                               }}
                             >
                               {parseFloat(bankAmount) > 0 ? (
-                                <Typography 
-                                  variant="body2" 
-                                  sx={{ 
-                                    fontWeight: 700, 
+                                <Typography
+                                  variant="body2"
+                                  sx={{
+                                    fontWeight: 700,
                                     color: entryTypeColor,
                                     fontFamily: 'monospace',
                                     fontSize: '0.95rem'
@@ -1668,10 +1668,10 @@ export default function FinancePage() {
                               }}
                             >
                               {parseFloat(cashAmount) > 0 ? (
-                                <Typography 
-                                  variant="body2" 
-                                  sx={{ 
-                                    fontWeight: 700, 
+                                <Typography
+                                  variant="body2"
+                                  sx={{
+                                    fontWeight: 700,
                                     color: entryTypeColor,
                                     fontFamily: 'monospace',
                                     fontSize: '0.95rem'
@@ -1792,6 +1792,8 @@ export default function FinancePage() {
       </Container>
 
       {/* Ledger Form Modal */}
+
+      {/* Add/Edit Ledger Entry Dialog */}
       <Dialog
         open={showLedgerForm}
         onClose={() => {
@@ -1804,224 +1806,165 @@ export default function FinancePage() {
             bill_no: '',
             trnx_type: 'CASH',
             details: '',
-            payments: ''
+            payments: '',
+            bank_title: ''
           });
           setCustomerSearchTerm('');
         }}
-        maxWidth="md"
+        maxWidth="sm"
         fullWidth
         PaperProps={{
           sx: { borderRadius: 2 }
         }}
       >
         <DialogTitle sx={{
+          bgcolor: '#3b82f6',
+          color: 'white',
+          fontWeight: 700,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          pb: 2
+          px: 3,
+          py: 2
         }}>
-          <Typography variant="h5" component="h2" sx={{ fontWeight: 'bold' }}>
-            {editingLedger ? 'Edit Ledger Entry' : 'Add New Ledger Entry'}
+          <Typography variant="h6" sx={{ fontWeight: 800 }}>
+            {editingLedger ? 'EDIT LEDGER ENTRY' : 'NEW LEDGER ENTRY'}
           </Typography>
-          <IconButton
-            onClick={() => {
-              setShowLedgerForm(false);
-              setEditingLedger(null);
-              setFormData({
-                cus_id: '',
-                debit_amount: '',
-                credit_amount: '',
-                bill_no: '',
-                trnx_type: 'CASH',
-                details: '',
-                payments: ''
-              });
-              setCustomerSearchTerm('');
-            }}
-            sx={{ color: 'text.secondary' }}
-          >
-            <X size={20} />
-          </IconButton>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {!editingLedger && (
+              <Typography variant="subtitle1" sx={{ fontWeight: 600, bgcolor: 'rgba(255,255,255,0.2)', px: 1.5, py: 0.5, borderRadius: 1 }}>
+                Serial: #{ledgerEntries.length + 1}
+              </Typography>
+            )}
+            <IconButton
+              onClick={() => {
+                setShowLedgerForm(false);
+                setEditingLedger(null);
+                setFormData({
+                  cus_id: '',
+                  debit_amount: '',
+                  credit_amount: '',
+                  bill_no: '',
+                  trnx_type: 'CASH',
+                  details: '',
+                  payments: '',
+                  bank_title: ''
+                });
+                setCustomerSearchTerm('');
+              }}
+              size="small"
+              sx={{ color: 'white' }}
+            >
+              <X size={20} />
+            </IconButton>
+          </Box>
         </DialogTitle>
 
-        <DialogContent sx={{ pt: 2 }}>
+        <DialogContent sx={{ p: 4 }}>
+          <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
+            <Grid container spacing={3} alignItems="center">
 
-          <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {/* Account Selection */}
-            <Autocomplete
-              autoSelect={true}
-              autoHighlight={true}
-              openOnFocus={true}
-              selectOnFocus={true}
-              options={filteredCustomers}
-              getOptionLabel={(option) => option.cus_name}
-              value={formData.cus_id ? customers.find(c => c.cus_id === formData.cus_id) : null}
-              onChange={(event, newValue) => {
-                if (newValue) {
-                  setFormData(prev => ({ ...prev, cus_id: newValue.cus_id }));
-                  setCustomerSearchTerm(newValue.cus_name);
-                } else {
-                  setFormData(prev => ({ ...prev, cus_id: '' }));
-                  setCustomerSearchTerm('');
-                }
-              }}
-              inputValue={customerSearchTerm}
-              onInputChange={(event, newInputValue) => {
-                setCustomerSearchTerm(newInputValue);
-              }}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Account *"
-                  placeholder="Search accounts..."
-                  required
-                  onFocus={(e) => e.target.select()}
-                  InputProps={{
-                    ...params.InputProps,
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Search size={20} />
-                      </InputAdornment>
-                    ),
-                  }}
-                  sx={{
-                    minWidth: 300,
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 1.5,
-                    }
-                  }}
-                />
-              )}
-              renderOption={(props, option) => {
-                const { key, ...optionProps } = props;
-                return (
-                  <Box component="li" key={key} {...optionProps}>
-                    <Box>
-                      <Typography variant="body2" fontWeight="medium">
-                        {option.cus_name}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {option.cus_phone_no} {option.cus_email && `• ${option.cus_email}`}
-                      </Typography>
-                    </Box>
-                  </Box>
-                );
-              }}
-              noOptionsText="No accounts found"
-              clearOnEscape
-              clearText="Clear"
-            />
-
-            {/* Selected Customer Display */}
-            {formData.cus_id && getSelectedCustomer() && (
-              <Alert
-                severity="success"
-                action={
-                  <IconButton
-                    size="small"
-                    onClick={() => {
+              {/* Account Selection */}
+              <Grid item xs={4}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Account *:</Typography>
+              </Grid>
+              <Grid item xs={8}>
+                <Autocomplete
+                  autoSelect={true}
+                  autoHighlight={true}
+                  openOnFocus={true}
+                  selectOnFocus={true}
+                  options={filteredCustomers}
+                  getOptionLabel={(option) => option.cus_name}
+                  value={formData.cus_id ? customers.find(c => c.cus_id === formData.cus_id) : null}
+                  onChange={(event, newValue) => {
+                    if (newValue) {
+                      setFormData(prev => ({ ...prev, cus_id: newValue.cus_id }));
+                      setCustomerSearchTerm(newValue.cus_name);
+                    } else {
                       setFormData(prev => ({ ...prev, cus_id: '' }));
                       setCustomerSearchTerm('');
-                    }}
-                    sx={{ color: 'error.main' }}
-                  >
-                    <X size={16} />
-                  </IconButton>
-                }
-              >
-                <Typography variant="body2" fontWeight="medium">
-                  {getSelectedCustomer().cus_name}
-                </Typography>
-                <Typography variant="caption">
-                  {getSelectedCustomer().cus_phone_no} {getSelectedCustomer().cus_email && `• ${getSelectedCustomer().cus_email}`}
-                </Typography>
-              </Alert>
-            )}
+                    }
+                  }}
+                  inputValue={customerSearchTerm}
+                  onInputChange={(event, newInputValue) => setCustomerSearchTerm(newInputValue)}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      size="small"
+                      placeholder="Search accounts..."
+                      required
+                      InputProps={{
+                        ...params.InputProps,
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <Search size={16} />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  )}
+                  renderOption={(props, option) => {
+                    const { key, ...optionProps } = props;
+                    return (
+                      <Box component="li" key={key} {...optionProps}>
+                        <Box>
+                          <Typography variant="body2" fontWeight={600}>{option.cus_name}</Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {option.cus_phone_no}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    );
+                  }}
+                />
+              </Grid>
 
-            {/* Amount Fields */}
-            <Grid container spacing={3}>
               {/* Debit Amount */}
-              <Grid item xs={12} md={6}>
+              <Grid item xs={4}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Debit Amount:</Typography>
+              </Grid>
+              <Grid item xs={8}>
                 <TextField
                   fullWidth
-                  label="Debit Amount"
+                  size="small"
                   name="debit_amount"
                   type="number"
                   value={formData.debit_amount}
                   onChange={handleInputChange}
                   inputProps={{ step: 0.01, min: 0 }}
                   placeholder="0.00"
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 1.5,
-                      '&:hover fieldset': {
-                        borderColor: 'error.main',
-                      },
-                      '&.Mui-focused fieldset': {
-                        borderColor: 'error.main',
-                        borderWidth: 2,
-                      },
-                    },
-                    '& .MuiInputLabel-root': {
-                      fontWeight: 600,
-                    }
-                  }}
                 />
               </Grid>
 
               {/* Credit Amount */}
-              <Grid item xs={12} md={6}>
+              <Grid item xs={4}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Credit Amount:</Typography>
+              </Grid>
+              <Grid item xs={8}>
                 <TextField
                   fullWidth
-                  label="Credit Amount"
+                  size="small"
                   name="credit_amount"
                   type="number"
                   value={formData.credit_amount}
                   onChange={handleInputChange}
                   inputProps={{ step: 0.01, min: 0 }}
                   placeholder="0.00"
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 1.5,
-                      '&:hover fieldset': {
-                        borderColor: 'success.main',
-                      },
-                      '&.Mui-focused fieldset': {
-                        borderColor: 'success.main',
-                        borderWidth: 2,
-                      },
-                    },
-                    '& .MuiInputLabel-root': {
-                      fontWeight: 600,
-                    }
-                  }}
                 />
               </Grid>
-            </Grid>
 
-            {/* Transaction Type and Bill No */}
-            <Grid container spacing={3}>
               {/* Transaction Type */}
-              <Grid item xs={12} md={6}>
-                <FormControl fullWidth required>
-                  <InputLabel>Transaction Type</InputLabel>
+              <Grid item xs={4}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Transaction Type:</Typography>
+              </Grid>
+              <Grid item xs={8}>
+                <FormControl fullWidth size="small" required>
                   <Select
                     name="trnx_type"
                     value={formData.trnx_type}
                     onChange={handleInputChange}
-                    label="Transaction Type"
-                    sx={{
-                      borderRadius: 1.5,
-                      '& .MuiOutlinedInput-notchedOutline': {
-                        borderRadius: 1.5,
-                      },
-                      '&:hover .MuiOutlinedInput-notchedOutline': {
-                        borderWidth: 2,
-                      },
-                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                        borderWidth: 2,
-                      }
-                    }}
+                    displayEmpty
                   >
                     <MenuItem value="CASH">Cash</MenuItem>
                     <MenuItem value="CHEQUE">Cheque</MenuItem>
@@ -2030,108 +1973,86 @@ export default function FinancePage() {
                 </FormControl>
               </Grid>
 
-              {/* Bill No */}
-              <Grid item xs={12} md={6}>
+              {/* Bank Name (Conditional) */}
+              {formData.trnx_type === 'BANK_TRANSFER' && (
+                <>
+                  <Grid item xs={4}>
+                    <Typography sx={{ fontWeight: 600, color: '#475569' }}>Bank Name *:</Typography>
+                  </Grid>
+                  <Grid item xs={8}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      name="bank_title"
+                      value={formData.bank_title}
+                      onChange={handleInputChange}
+                      placeholder="e.g. HBL, UBL"
+                      required
+                    />
+                  </Grid>
+                </>
+              )}
+
+              {/* Bill Number */}
+              <Grid item xs={4}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Bill Number:</Typography>
+              </Grid>
+              <Grid item xs={8}>
                 <TextField
                   fullWidth
-                  label="Bill Number"
+                  size="small"
                   name="bill_no"
                   value={formData.bill_no}
                   onChange={handleInputChange}
-                  placeholder="Enter bill number"
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 1.5,
-                    },
-                    '& .MuiInputLabel-root': {
-                      fontWeight: 600,
-                    }
-                  }}
+                  placeholder="Optional"
                 />
               </Grid>
+
+              {/* Payments */}
+              <Grid item xs={4}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Payments:</Typography>
+              </Grid>
+              <Grid item xs={8}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  name="payments"
+                  type="number"
+                  value={formData.payments}
+                  onChange={handleInputChange}
+                  inputProps={{ step: 0.01, min: 0 }}
+                  placeholder="0.00"
+                />
+              </Grid>
+
+              {/* Details */}
+              <Grid item xs={4}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Details:</Typography>
+              </Grid>
+              <Grid item xs={8}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  name="details"
+                  value={formData.details}
+                  onChange={handleInputChange}
+                  multiline
+                  rows={3}
+                  placeholder="Transaction details..."
+                />
+              </Grid>
+
             </Grid>
-
-            {/* Bank Name Field - Show only for Bank Transfer */}
-            {formData.trnx_type === 'BANK_TRANSFER' && (
-              <TextField
-                fullWidth
-                label="Bank Name *"
-                name="bank_title"
-                value={formData.bank_title}
-                onChange={handleInputChange}
-                placeholder="Enter bank name (e.g., HBL, UBL, MCB)"
-                required
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: 1.5,
-                  },
-                  '& .MuiInputLabel-root': {
-                    fontWeight: 600,
-                  }
-                }}
-              />
-            )}
-
-            {/* Details */}
-            <TextField
-              fullWidth
-              label="Details"
-              name="details"
-              value={formData.details}
-              onChange={handleInputChange}
-              multiline
-              rows={3}
-              placeholder="Enter transaction details"
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 1.5,
-                  minHeight: 100,
-                },
-                '& .MuiInputLabel-root': {
-                  fontWeight: 600,
-                }
-              }}
-            />
-
-            {/* Payments */}
-            <TextField
-              fullWidth
-              label="Payments"
-              name="payments"
-              type="number"
-              value={formData.payments}
-              onChange={handleInputChange}
-              inputProps={{ step: 0.01, min: 0 }}
-              placeholder="0.00"
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 1.5,
-                },
-                '& .MuiInputLabel-root': {
-                  fontWeight: 600,
-                }
-              }}
-            />
           </Box>
         </DialogContent>
 
-        <DialogActions sx={{ p: 3, pt: 1 }}>
+        <DialogActions sx={{ p: 3, borderTop: '1px solid #e2e8f0', bgcolor: '#f8fafc' }}>
           <Button
             onClick={() => {
               setShowLedgerForm(false);
               setEditingLedger(null);
-              setFormData({
-                cus_id: '',
-                debit_amount: '',
-                credit_amount: '',
-                bill_no: '',
-                trnx_type: 'CASH',
-                details: '',
-                payments: ''
-              });
-              setCustomerSearchTerm('');
             }}
-            sx={{ textTransform: 'none', fontWeight: 500 }}
+            sx={{ color: '#64748b' }}
           >
             Cancel
           </Button>
@@ -2140,21 +2061,10 @@ export default function FinancePage() {
             variant="contained"
             onClick={handleSubmit}
             sx={{
-              background: 'linear-gradient(45deg, #2196f3, #9c27b0)',
-              '&:hover': {
-                background: 'linear-gradient(45deg, #1976d2, #7b1fa2)',
-              },
+              bgcolor: '#3b82f6',
+              '&:hover': { bgcolor: '#2563eb' },
               px: 4,
-              py: 1.5,
-              borderRadius: 1.5,
-              textTransform: 'none',
-              fontWeight: 600,
-              boxShadow: 3,
-              '&:hover': {
-                boxShadow: 6,
-                transform: 'translateY(-2px)',
-              },
-              transition: 'all 0.2s ease-in-out'
+              fontWeight: 700
             }}
           >
             {editingLedger ? 'Update Entry' : 'Create Entry'}
@@ -2169,48 +2079,58 @@ export default function FinancePage() {
         maxWidth="lg"
         fullWidth
         PaperProps={{
-          sx: { borderRadius: 3, p: 0 }
+          sx: { borderRadius: 2 }
         }}
       >
         <DialogTitle sx={{
-          pb: 2,
-          pt: 3,
-          px: 4,
-          borderBottom: '1px solid #f1f5f9',
+          bgcolor: '#2563eb',
+          color: 'white',
+          fontWeight: 700,
           display: 'flex',
-          justifyContent: 'space-between',
           alignItems: 'center',
-          bgcolor: '#f8fafc'
+          justifyContent: 'space-between',
+          px: 3,
+          py: 2
         }}>
-          <Box>
-            <Typography variant="h5" fontWeight={800} color="#1e293b">General Journal Entry</Typography>
-            <Typography variant="body2" color="#64748b">Record multi-line transactions across different accounts</Typography>
+          <Typography variant="h6" sx={{ fontWeight: 800 }}>GENERAL JOURNAL ENTRY</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600, bgcolor: 'rgba(255,255,255,0.2)', px: 1.5, py: 0.5, borderRadius: 1 }}>
+              Serial: #{ledgerEntries.length + 1}
+            </Typography>
+            <IconButton onClick={() => setShowJournalForm(false)} size="small" sx={{ color: 'white' }}>
+              <X size={20} />
+            </IconButton>
           </Box>
-          <IconButton onClick={() => setShowJournalForm(false)} size="small" sx={{ bgcolor: 'white', border: '1px solid #e2e8f0' }}>
-            <X size={20} />
-          </IconButton>
         </DialogTitle>
 
         <DialogContent sx={{ p: 4 }}>
           <Box component="form" id="journal-form" onSubmit={handleJournalSubmit} sx={{ mt: 1 }}>
-            <Grid container spacing={3} sx={{ mb: 4 }}>
-              <Grid item xs={12} md={3}>
+
+            {/* Top Fields - Single Line Layout */}
+            <Grid container spacing={3} sx={{ mb: 4 }} alignItems="center">
+
+              <Grid item xs={4} md={2}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Journal Date:</Typography>
+              </Grid>
+              <Grid item xs={8} md={4}>
                 <TextField
                   fullWidth
-                  label="Journal Date"
                   type="date"
+                  size="small"
                   value={journalData.journal_date}
                   onChange={(e) => setJournalData({ ...journalData, journal_date: e.target.value })}
-                  InputLabelProps={{ shrink: true }}
                 />
               </Grid>
-              <Grid item xs={12} md={3}>
-                <FormControl fullWidth>
-                  <InputLabel>Type</InputLabel>
+
+              <Grid item xs={4} md={2}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Type:</Typography>
+              </Grid>
+              <Grid item xs={8} md={4}>
+                <FormControl fullWidth size="small">
                   <Select
                     value={journalData.journal_type}
-                    label="Type"
                     onChange={(e) => setJournalData({ ...journalData, journal_type: e.target.value })}
+                    displayEmpty
                   >
                     <MenuItem value="PAYMENT">Payment</MenuItem>
                     <MenuItem value="RECEIPT">Receipt</MenuItem>
@@ -2219,21 +2139,30 @@ export default function FinancePage() {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item xs={12} md={3}>
+
+              <Grid item xs={4} md={2}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Reference / Bill #:</Typography>
+              </Grid>
+              <Grid item xs={8} md={4}>
                 <TextField
                   fullWidth
-                  label="Reference / Bill #"
+                  size="small"
                   value={journalData.reference}
                   onChange={(e) => setJournalData({ ...journalData, reference: e.target.value })}
                   placeholder="Optional"
                 />
               </Grid>
-              <Grid item xs={12} md={3}>
+
+              <Grid item xs={4} md={2}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Description:</Typography>
+              </Grid>
+              <Grid item xs={8} md={4}>
                 <TextField
                   fullWidth
-                  label="Description"
+                  size="small"
                   value={journalData.description}
                   onChange={(e) => setJournalData({ ...journalData, description: e.target.value })}
+                  placeholder="Journal description..."
                 />
               </Grid>
             </Grid>
@@ -2279,14 +2208,17 @@ export default function FinancePage() {
                               InputProps={{ ...params.InputProps, disableUnderline: true }}
                             />
                           )}
-                          renderOption={(props, option) => (
-                            <Box component="li" {...props} key={option.cus_id}>
-                              <Box>
-                                <Typography variant="body2" fontWeight={600}>{option.cus_name}</Typography>
-                                <Typography variant="caption" color="textSecondary">{option.customer_type?.cus_type_title}</Typography>
+                          renderOption={(props, option) => {
+                            const { key, ...optionProps } = props;
+                            return (
+                              <Box component="li" key={key} {...optionProps}>
+                                <Box>
+                                  <Typography variant="body2" fontWeight={600}>{option.cus_name}</Typography>
+                                  <Typography variant="caption" color="textSecondary">{option.customer_type?.cus_type_title}</Typography>
+                                </Box>
                               </Box>
-                            </Box>
-                          )}
+                            );
+                          }}
                         />
                       </TableCell>
                       <TableCell>
@@ -2385,13 +2317,13 @@ export default function FinancePage() {
             variant="contained"
             disabled={journalStatus.loading}
             sx={{
-              background: 'linear-gradient(135deg, #2563eb, #3b82f6)',
+              bgcolor: '#2563eb',
               textTransform: 'none',
               fontWeight: 700,
               px: 6,
               py: 1.5,
               borderRadius: 2,
-              '&:hover': { background: 'linear-gradient(135deg, #1d4ed8, #2563eb)' }
+              '&:hover': { bgcolor: '#1d4ed8' }
             }}
           >
             {journalStatus.loading ? <CircularProgress size={24} color="inherit" /> : 'Post General Journal'}
@@ -2400,208 +2332,196 @@ export default function FinancePage() {
       </Dialog>
 
       {/* Receive Payment Dialog */}
-      <Dialog 
-        open={showReceivePaymentForm} 
+      <Dialog
+        open={showReceivePaymentForm}
         onClose={() => setShowReceivePaymentForm(false)}
-        maxWidth="md"
+        maxWidth="sm"
         fullWidth
-        sx={{
-          '& .MuiDialog-paper': {
-            borderRadius: 3,
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
-          }
-        }}
+        PaperProps={{ sx: { borderRadius: 2 } }}
       >
-        <DialogTitle sx={{ 
-          bgcolor: 'linear-gradient(135deg, #10b981, #059669)', 
+        <DialogTitle sx={{
+          bgcolor: '#10b981',
           color: 'white',
           fontWeight: 700,
-          fontSize: '1.25rem',
           display: 'flex',
           alignItems: 'center',
-          gap: 1
+          justifyContent: 'space-between',
+          px: 3,
+          py: 2
         }}>
-          <ArrowDown size={24} />
-          Receive Payment
-          <IconButton 
-            onClick={() => setShowReceivePaymentForm(false)} 
-            size="small" 
-            sx={{ 
-              ml: 'auto', 
-              bgcolor: 'rgba(255,255,255,0.2)', 
-              color: 'white',
-              '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' }
-            }}
-          >
-            <X size={20} />
-          </IconButton>
+          <Typography variant="h6" sx={{ fontWeight: 800 }}>RECEIVE PAYMENT</Typography>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, bgcolor: 'rgba(255,255,255,0.2)', px: 1.5, py: 0.5, borderRadius: 1 }}>
+            Serial: #{ledgerEntries.length + 1}
+          </Typography>
         </DialogTitle>
 
         <DialogContent sx={{ p: 4 }}>
-          <Box component="form" sx={{ mt: 2 }}>
-            <Grid container spacing={3}>
-              {/* Selected Account */}
-              <Grid item xs={12}>
-                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: '#374151' }}>
-                  Account: {customers.find(c => c.cus_id === selectedCustomer)?.cus_name || 'N/A'}
+          <Box sx={{ mt: 1 }}>
+            <Grid container spacing={3} alignItems="center">
+              {/* Account Information - Single Line Grid */}
+              <Grid item xs={4}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Selected Account:</Typography>
+              </Grid>
+              <Grid item xs={8}>
+                <Typography variant="h6" sx={{ fontWeight: 700, color: '#1e293b' }}>
+                  {customers.find(c => c.cus_id === selectedCustomer)?.cus_name || 'Individual Account'}
                 </Typography>
               </Grid>
 
-              {/* Total Payment */}
-              <Grid item xs={12} md={6}>
+              <Grid item xs={4}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Current Balance:</Typography>
+              </Grid>
+              <Grid item xs={8}>
+                <Typography variant="body1" sx={{ fontWeight: 700, color: '#059669' }}>
+                  PKR {currentBalance.toLocaleString()}
+                </Typography>
+              </Grid>
+
+              <Grid item xs={12}>
+                <Divider sx={{ my: 1 }} />
+              </Grid>
+
+              {/* Form Fields - Aligned Label/Input */}
+              <Grid item xs={4}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Payment Amount:</Typography>
+              </Grid>
+              <Grid item xs={8}>
                 <TextField
                   fullWidth
-                  label="Total Payment"
+                  size="small"
                   type="number"
+                  placeholder="0.00"
                   value={receivePaymentData.total_payment}
                   onChange={(e) => {
                     const value = e.target.value;
-                    setReceivePaymentData(prev => ({ 
-                      ...prev, 
+                    setReceivePaymentData(prev => ({
+                      ...prev,
                       total_payment: value,
-                      cash_amount: prev.cash_account ? Math.min(parseFloat(value || 0) - parseFloat(prev.discount || 0), parseFloat(prev.cash_amount || 0)) : prev.cash_amount,
-                      bank_amount: prev.bank_account ? Math.min(parseFloat(value || 0) - parseFloat(prev.discount || 0), parseFloat(prev.bank_amount || 0)) : prev.bank_amount
+                      cash_amount: prev.cash_account ? (parseFloat(value || 0) - parseFloat(prev.discount || 0)) : prev.cash_amount,
                     }));
                   }}
-                  InputProps={{
-                    startAdornment: <DollarSign size={20} style={{ marginRight: 8, color: '#6b7280' }} />
-                  }}
-                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                 />
               </Grid>
 
-              {/* Discount */}
-              <Grid item xs={12} md={6}>
+              <Grid item xs={4}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Discount:</Typography>
+              </Grid>
+              <Grid item xs={8}>
                 <TextField
                   fullWidth
-                  label="Discount"
+                  size="small"
                   type="number"
+                  placeholder="0.00"
                   value={receivePaymentData.discount}
                   onChange={(e) => {
                     const value = e.target.value;
-                    setReceivePaymentData(prev => ({ 
-                      ...prev, 
+                    setReceivePaymentData(prev => ({
+                      ...prev,
                       discount: value,
-                      cash_amount: prev.cash_account ? Math.min(parseFloat(prev.total_payment || 0) - parseFloat(value || 0), parseFloat(prev.cash_amount || 0)) : prev.cash_amount,
-                      bank_amount: prev.bank_account ? Math.min(parseFloat(prev.total_payment || 0) - parseFloat(value || 0), parseFloat(prev.bank_amount || 0)) : prev.bank_amount
+                      cash_amount: prev.cash_account ? (parseFloat(prev.total_payment || 0) - parseFloat(value || 0)) : prev.cash_amount,
                     }));
                   }}
-                  InputProps={{
-                    startAdornment: <DollarSign size={20} style={{ marginRight: 8, color: '#6b7280' }} />
-                  }}
-                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                 />
               </Grid>
 
-              {/* After Discount Total */}
-              <Grid item xs={12}>
-                <Box sx={{ 
-                  p: 2, 
-                  bgcolor: '#f0f9ff', 
-                  borderRadius: 2, 
-                  border: '1px solid #0ea5e9',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
-                  <Typography variant="h6" sx={{ fontWeight: 600, color: '#0c4a6e' }}>
-                    After Discount Total:
-                  </Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 700, color: '#0369a1' }}>
-                    PKR {(parseFloat(receivePaymentData.total_payment || 0) - parseFloat(receivePaymentData.discount || 0)).toLocaleString()}
-                  </Typography>
-                </Box>
+              <Grid item xs={4}>
+                <Typography sx={{ fontWeight: 700, color: '#166534' }}>Net Amount:</Typography>
+              </Grid>
+              <Grid item xs={8}>
+                <Typography variant="h6" sx={{ fontWeight: 900, color: '#15803d' }}>
+                  PKR {(parseFloat(receivePaymentData.total_payment || 0) - parseFloat(receivePaymentData.discount || 0)).toLocaleString()}
+                </Typography>
               </Grid>
 
-              {/* Cash Payment */}
-              <Grid item xs={12} md={6}>
-                <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600, color: '#374151' }}>
-                  Cash Payment
-                </Typography>
+              <Grid item xs={12}>
+                <Divider sx={{ my: 1 }} />
+              </Grid>
+
+              {/* Settlement Sources */}
+              <Grid item xs={4}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Cash Account:</Typography>
+              </Grid>
+              <Grid item xs={8}>
+                <FormControl fullWidth size="small">
+                  <Select
+                    value={receivePaymentData.cash_account}
+                    onChange={(e) => setReceivePaymentData(prev => ({ ...prev, cash_account: e.target.value }))}
+                    displayEmpty
+                  >
+                    <MenuItem value="">None</MenuItem>
+                    {cashAccounts.map(account => (
+                      <MenuItem key={account.cus_id} value={account.cus_id}>{account.cus_name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              <Grid item xs={4}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Cash Amount:</Typography>
+              </Grid>
+              <Grid item xs={8}>
                 <TextField
-                  select
                   fullWidth
-                  label="Cash Account"
-                  value={receivePaymentData.cash_account}
-                  onChange={(e) => setReceivePaymentData(prev => ({ ...prev, cash_account: e.target.value }))}
-                  sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                  SelectProps={{ native: true }}
-                >
-                  <option value="">Select Cash Account</option>
-                  {cashAccounts.map(account => (
-                    <option key={account.cus_id} value={account.cus_id}>
-                      {account.cus_name}
-                    </option>
-                  ))}
-                </TextField>
-                <TextField
-                  fullWidth
-                  label="Cash Amount"
+                  size="small"
                   type="number"
                   value={receivePaymentData.cash_amount}
                   onChange={(e) => setReceivePaymentData(prev => ({ ...prev, cash_amount: e.target.value }))}
-                  InputProps={{
-                    startAdornment: <DollarSign size={20} style={{ marginRight: 8, color: '#6b7280' }} />
-                  }}
-                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                  disabled={!receivePaymentData.cash_account}
                 />
               </Grid>
 
-              {/* Bank Payment */}
-              <Grid item xs={12} md={6}>
-                <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600, color: '#374151' }}>
-                  Bank Payment
-                </Typography>
+              <Grid item xs={4}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Bank Account:</Typography>
+              </Grid>
+              <Grid item xs={8}>
+                <FormControl fullWidth size="small">
+                  <Select
+                    value={receivePaymentData.bank_account}
+                    onChange={(e) => setReceivePaymentData(prev => ({ ...prev, bank_account: e.target.value }))}
+                    displayEmpty
+                  >
+                    <MenuItem value="">None</MenuItem>
+                    {bankAccounts.map(account => (
+                      <MenuItem key={account.cus_id} value={account.cus_id}>{account.cus_name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              <Grid item xs={4}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Bank Amount:</Typography>
+              </Grid>
+              <Grid item xs={8}>
                 <TextField
-                  select
                   fullWidth
-                  label="Bank Account"
-                  value={receivePaymentData.bank_account}
-                  onChange={(e) => setReceivePaymentData(prev => ({ ...prev, bank_account: e.target.value }))}
-                  sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                  SelectProps={{ native: true }}
-                >
-                  <option value="">Select Bank Account</option>
-                  {bankAccounts.map(account => (
-                    <option key={account.cus_id} value={account.cus_id}>
-                      {account.cus_name}
-                    </option>
-                  ))}
-                </TextField>
-                <TextField
-                  fullWidth
-                  label="Bank Amount"
+                  size="small"
                   type="number"
                   value={receivePaymentData.bank_amount}
                   onChange={(e) => setReceivePaymentData(prev => ({ ...prev, bank_amount: e.target.value }))}
-                  InputProps={{
-                    startAdornment: <DollarSign size={20} style={{ marginRight: 8, color: '#6b7280' }} />
-                  }}
-                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                  disabled={!receivePaymentData.bank_account}
                 />
               </Grid>
 
-              {/* Description */}
-              <Grid item xs={12}>
+              <Grid item xs={4}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Description:</Typography>
+              </Grid>
+              <Grid item xs={8}>
                 <TextField
                   fullWidth
-                  label="Description"
+                  size="small"
                   multiline
-                  rows={3}
+                  rows={2}
                   value={receivePaymentData.description}
                   onChange={(e) => setReceivePaymentData(prev => ({ ...prev, description: e.target.value }))}
-                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                  placeholder="Notes..."
                 />
               </Grid>
             </Grid>
           </Box>
         </DialogContent>
 
-        <DialogActions sx={{ p: 4, bgcolor: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
-          <Button 
-            onClick={() => setShowReceivePaymentForm(false)} 
-            sx={{ color: '#64748b', textTransform: 'none', fontWeight: 600 }}
-          >
+        <DialogActions sx={{ p: 3, borderTop: '1px solid #e2e8f0', bgcolor: '#f8fafc' }}>
+          <Button onClick={() => setShowReceivePaymentForm(false)} sx={{ color: '#64748b' }}>
             Cancel
           </Button>
           <Button
@@ -2609,223 +2529,208 @@ export default function FinancePage() {
             variant="contained"
             disabled={paymentStatus.loading}
             sx={{
-              background: 'linear-gradient(135deg, #10b981, #059669)',
-              textTransform: 'none',
-              fontWeight: 700,
-              px: 6,
-              py: 1.5,
-              borderRadius: 2,
-              '&:hover': { background: 'linear-gradient(135deg, #059669, #047857)' }
+              bgcolor: '#10b981',
+              '&:hover': { bgcolor: '#059669' },
+              px: 4,
+              fontWeight: 700
             }}
           >
-            {paymentStatus.loading ? <CircularProgress size={24} color="inherit" /> : 'Receive Payment'}
+            {paymentStatus.loading ? <CircularProgress size={20} color="inherit" /> : 'Confirm Receipt'}
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Pay Payment Dialog */}
-      <Dialog 
-        open={showPayPaymentForm} 
+      <Dialog
+        open={showPayPaymentForm}
         onClose={() => setShowPayPaymentForm(false)}
-        maxWidth="md"
+        maxWidth="sm"
         fullWidth
-        sx={{
-          '& .MuiDialog-paper': {
-            borderRadius: 3,
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
-          }
-        }}
+        PaperProps={{ sx: { borderRadius: 2 } }}
       >
-        <DialogTitle sx={{ 
-          bgcolor: 'linear-gradient(135deg, #ef4444, #dc2626)', 
+        <DialogTitle sx={{
+          bgcolor: '#ef4444',
           color: 'white',
           fontWeight: 700,
-          fontSize: '1.25rem',
           display: 'flex',
           alignItems: 'center',
-          gap: 1
+          justifyContent: 'space-between',
+          px: 3,
+          py: 2
         }}>
-          <ArrowUp size={24} />
-          Pay Payment
-          <IconButton 
-            onClick={() => setShowPayPaymentForm(false)} 
-            size="small" 
-            sx={{ 
-              ml: 'auto', 
-              bgcolor: 'rgba(255,255,255,0.2)', 
-              color: 'white',
-              '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' }
-            }}
-          >
-            <X size={20} />
-          </IconButton>
+          <Typography variant="h6" sx={{ fontWeight: 800 }}>ISSUE PAYMENT</Typography>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, bgcolor: 'rgba(255,255,255,0.2)', px: 1.5, py: 0.5, borderRadius: 1 }}>
+            Serial: #{ledgerEntries.length + 1}
+          </Typography>
         </DialogTitle>
 
         <DialogContent sx={{ p: 4 }}>
-          <Box component="form" sx={{ mt: 2 }}>
-            <Grid container spacing={3}>
-              {/* Selected Account */}
-              <Grid item xs={12}>
-                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: '#374151' }}>
-                  Account: {customers.find(c => c.cus_id === selectedCustomer)?.cus_name || 'N/A'}
+          <Box sx={{ mt: 1 }}>
+            <Grid container spacing={3} alignItems="center">
+              {/* Account Information - Single Line Grid */}
+              <Grid item xs={4}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Selected Account:</Typography>
+              </Grid>
+              <Grid item xs={8}>
+                <Typography variant="h6" sx={{ fontWeight: 700, color: '#1e293b' }}>
+                  {customers.find(c => c.cus_id === selectedCustomer)?.cus_name || 'Individual Account'}
                 </Typography>
               </Grid>
 
-              {/* Total Payment */}
-              <Grid item xs={12} md={6}>
+              <Grid item xs={4}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Current Balance:</Typography>
+              </Grid>
+              <Grid item xs={8}>
+                <Typography variant="body1" sx={{ fontWeight: 700, color: '#ef4444' }}>
+                  PKR {currentBalance.toLocaleString()}
+                </Typography>
+              </Grid>
+
+              <Grid item xs={12}>
+                <Divider sx={{ my: 1 }} />
+              </Grid>
+
+              {/* Form Fields - Aligned Label/Input */}
+              <Grid item xs={4}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Payment Amount:</Typography>
+              </Grid>
+              <Grid item xs={8}>
                 <TextField
                   fullWidth
-                  label="Total Payment"
+                  size="small"
                   type="number"
+                  placeholder="0.00"
                   value={payPaymentData.total_payment}
                   onChange={(e) => {
                     const value = e.target.value;
-                    setPayPaymentData(prev => ({ 
-                      ...prev, 
+                    setPayPaymentData(prev => ({
+                      ...prev,
                       total_payment: value,
-                      cash_amount: prev.cash_account ? Math.min(parseFloat(value || 0) - parseFloat(prev.discount || 0), parseFloat(prev.cash_amount || 0)) : prev.cash_amount,
-                      bank_amount: prev.bank_account ? Math.min(parseFloat(value || 0) - parseFloat(prev.discount || 0), parseFloat(prev.bank_amount || 0)) : prev.bank_amount
+                      cash_amount: prev.cash_account ? (parseFloat(value || 0) - parseFloat(prev.discount || 0)) : prev.cash_amount,
                     }));
                   }}
-                  InputProps={{
-                    startAdornment: <DollarSign size={20} style={{ marginRight: 8, color: '#6b7280' }} />
-                  }}
-                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                 />
               </Grid>
 
-              {/* Discount */}
-              <Grid item xs={12} md={6}>
+              <Grid item xs={4}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Discount:</Typography>
+              </Grid>
+              <Grid item xs={8}>
                 <TextField
                   fullWidth
-                  label="Discount"
+                  size="small"
                   type="number"
+                  placeholder="0.00"
                   value={payPaymentData.discount}
                   onChange={(e) => {
                     const value = e.target.value;
-                    setPayPaymentData(prev => ({ 
-                      ...prev, 
+                    setPayPaymentData(prev => ({
+                      ...prev,
                       discount: value,
-                      cash_amount: prev.cash_account ? Math.min(parseFloat(prev.total_payment || 0) - parseFloat(value || 0), parseFloat(prev.cash_amount || 0)) : prev.cash_amount,
-                      bank_amount: prev.bank_account ? Math.min(parseFloat(prev.total_payment || 0) - parseFloat(value || 0), parseFloat(prev.bank_amount || 0)) : prev.bank_amount
+                      cash_amount: prev.cash_account ? (parseFloat(prev.total_payment || 0) - parseFloat(value || 0)) : prev.cash_amount,
                     }));
                   }}
-                  InputProps={{
-                    startAdornment: <DollarSign size={20} style={{ marginRight: 8, color: '#6b7280' }} />
-                  }}
-                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                 />
               </Grid>
 
-              {/* After Discount Total */}
-              <Grid item xs={12}>
-                <Box sx={{ 
-                  p: 2, 
-                  bgcolor: '#fef2f2', 
-                  borderRadius: 2, 
-                  border: '1px solid #f87171',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
-                  <Typography variant="h6" sx={{ fontWeight: 600, color: '#991b1b' }}>
-                    After Discount Total:
-                  </Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 700, color: '#dc2626' }}>
-                    PKR {(parseFloat(payPaymentData.total_payment || 0) - parseFloat(payPaymentData.discount || 0)).toLocaleString()}
-                  </Typography>
-                </Box>
+              <Grid item xs={4}>
+                <Typography sx={{ fontWeight: 700, color: '#991b1b' }}>Net Amount:</Typography>
+              </Grid>
+              <Grid item xs={8}>
+                <Typography variant="h6" sx={{ fontWeight: 900, color: '#b91c1c' }}>
+                  PKR {(parseFloat(payPaymentData.total_payment || 0) - parseFloat(payPaymentData.discount || 0)).toLocaleString()}
+                </Typography>
               </Grid>
 
-              {/* Cash Payment */}
-              <Grid item xs={12} md={6}>
-                <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600, color: '#374151' }}>
-                  Cash Payment
-                </Typography>
+              <Grid item xs={12}>
+                <Divider sx={{ my: 1 }} />
+              </Grid>
+
+              {/* Payment Sources */}
+              <Grid item xs={4}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Cash Account:</Typography>
+              </Grid>
+              <Grid item xs={8}>
+                <FormControl fullWidth size="small">
+                  <Select
+                    value={payPaymentData.cash_account}
+                    onChange={(e) => setPayPaymentData(prev => ({ ...prev, cash_account: e.target.value }))}
+                    displayEmpty
+                  >
+                    <MenuItem value="">None</MenuItem>
+                    {cashAccounts.map(account => (
+                      <MenuItem key={account.cus_id} value={account.cus_id}>{account.cus_name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              <Grid item xs={4}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Cash Amount:</Typography>
+              </Grid>
+              <Grid item xs={8}>
                 <TextField
-                  select
                   fullWidth
-                  label="Cash Account"
-                  value={payPaymentData.cash_account}
-                  onChange={(e) => setPayPaymentData(prev => ({ ...prev, cash_account: e.target.value }))}
-                  sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                  SelectProps={{ native: true }}
-                >
-                  <option value="">Select Cash Account</option>
-                  {cashAccounts.map(account => (
-                    <option key={account.cus_id} value={account.cus_id}>
-                      {account.cus_name}
-                    </option>
-                  ))}
-                </TextField>
-                <TextField
-                  fullWidth
-                  label="Cash Amount"
+                  size="small"
                   type="number"
                   value={payPaymentData.cash_amount}
                   onChange={(e) => setPayPaymentData(prev => ({ ...prev, cash_amount: e.target.value }))}
-                  InputProps={{
-                    startAdornment: <DollarSign size={20} style={{ marginRight: 8, color: '#6b7280' }} />
-                  }}
-                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                  disabled={!payPaymentData.cash_account}
                 />
               </Grid>
 
-              {/* Bank Payment */}
-              <Grid item xs={12} md={6}>
-                <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600, color: '#374151' }}>
-                  Bank Payment
-                </Typography>
+              <Grid item xs={4}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Bank Account:</Typography>
+              </Grid>
+              <Grid item xs={8}>
+                <FormControl fullWidth size="small">
+                  <Select
+                    value={payPaymentData.bank_account}
+                    onChange={(e) => setPayPaymentData(prev => ({ ...prev, bank_account: e.target.value }))}
+                    displayEmpty
+                  >
+                    <MenuItem value="">None</MenuItem>
+                    {bankAccounts.map(account => (
+                      <MenuItem key={account.cus_id} value={account.cus_id}>{account.cus_name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              <Grid item xs={4}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Bank Amount:</Typography>
+              </Grid>
+              <Grid item xs={8}>
                 <TextField
-                  select
                   fullWidth
-                  label="Bank Account"
-                  value={payPaymentData.bank_account}
-                  onChange={(e) => setPayPaymentData(prev => ({ ...prev, bank_account: e.target.value }))}
-                  sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                  SelectProps={{ native: true }}
-                >
-                  <option value="">Select Bank Account</option>
-                  {bankAccounts.map(account => (
-                    <option key={account.cus_id} value={account.cus_id}>
-                      {account.cus_name}
-                    </option>
-                  ))}
-                </TextField>
-                <TextField
-                  fullWidth
-                  label="Bank Amount"
+                  size="small"
                   type="number"
                   value={payPaymentData.bank_amount}
                   onChange={(e) => setPayPaymentData(prev => ({ ...prev, bank_amount: e.target.value }))}
-                  InputProps={{
-                    startAdornment: <DollarSign size={20} style={{ marginRight: 8, color: '#6b7280' }} />
-                  }}
-                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                  disabled={!payPaymentData.bank_account}
                 />
               </Grid>
 
-              {/* Description */}
-              <Grid item xs={12}>
+              <Grid item xs={4}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Description:</Typography>
+              </Grid>
+              <Grid item xs={8}>
                 <TextField
                   fullWidth
-                  label="Description"
+                  size="small"
                   multiline
-                  rows={3}
+                  rows={2}
                   value={payPaymentData.description}
                   onChange={(e) => setPayPaymentData(prev => ({ ...prev, description: e.target.value }))}
-                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                  placeholder="Notes..."
                 />
               </Grid>
             </Grid>
           </Box>
         </DialogContent>
 
-        <DialogActions sx={{ p: 4, bgcolor: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
-          <Button 
-            onClick={() => setShowPayPaymentForm(false)} 
-            sx={{ color: '#64748b', textTransform: 'none', fontWeight: 600 }}
-          >
+        <DialogActions sx={{ p: 3, borderTop: '1px solid #e2e8f0', bgcolor: '#f8fafc' }}>
+          <Button onClick={() => setShowPayPaymentForm(false)} sx={{ color: '#64748b' }}>
             Cancel
           </Button>
           <Button
@@ -2833,16 +2738,13 @@ export default function FinancePage() {
             variant="contained"
             disabled={paymentStatus.loading}
             sx={{
-              background: 'linear-gradient(135deg, #ef4444, #dc2626)',
-              textTransform: 'none',
-              fontWeight: 700,
-              px: 6,
-              py: 1.5,
-              borderRadius: 2,
-              '&:hover': { background: 'linear-gradient(135deg, #dc2626, #b91c1c)' }
+              bgcolor: '#ef4444',
+              '&:hover': { bgcolor: '#dc2626' },
+              px: 4,
+              fontWeight: 700
             }}
           >
-            {paymentStatus.loading ? <CircularProgress size={24} color="inherit" /> : 'Pay Payment'}
+            {paymentStatus.loading ? <CircularProgress size={20} color="inherit" /> : 'Confirm Payment'}
           </Button>
         </DialogActions>
       </Dialog>
