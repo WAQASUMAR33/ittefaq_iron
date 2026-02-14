@@ -1109,6 +1109,11 @@ function PurchasesPageContent() {
     return formData.purchase_details.reduce((sum, detail) => sum + parseFloat(detail.total_amount || 0), 0);
   };
 
+  // New: total quantity across purchase details
+  const calculateTotalQuantity = () => {
+    return formData.purchase_details.reduce((sum, detail) => sum + parseFloat(detail.qnty || 0), 0);
+  };
+
   const calculateNetTotal = () => {
     const totalAmount = calculateTotalAmount();
     const discount = parseFloat(formData.discount || 0);
@@ -1558,50 +1563,54 @@ function PurchasesPageContent() {
     setCurrentView('create');
   };
 
-  const handleViewPurchase = (purchase) => {
-    console.log('📊 Viewing Purchase Data:', {
-      pur_id: purchase.pur_id,
-      payment_type: purchase.payment_type,
-      payment: purchase.payment,
-      cash_payment: purchase.cash_payment,
-      bank_payment: purchase.bank_payment,
-      total_amount: purchase.total_amount,
-      net_total: purchase.net_total,
-      fullPurchaseData: purchase
-    });
+  const handleViewPurchase = async (purchase) => {
+    // Fetch canonical purchase data from server (includes previous_customer_balance)
+    let purchaseData = purchase;
+
+    try {
+      const res = await fetch(`/api/purchases?id=${purchase.pur_id}`);
+      if (res.ok) {
+        purchaseData = await res.json();
+      } else {
+        console.warn('Could not fetch fresh purchase data, falling back to list item', res.status);
+      }
+    } catch (err) {
+      console.warn('Error fetching purchase details:', err.message);
+    }
+
+    console.log('📊 Viewing Purchase Data (source):', { pur_id: purchaseData.pur_id, source: purchaseData === purchase ? 'list' : 'api' });
 
     // Calculate actual net total including all charges for display
-    const productTotal = purchase.purchase_details?.reduce((sum, detail) =>
-      sum + parseFloat(detail.total_amount || 0), 0) || parseFloat(purchase.total_amount || 0);
+    const productTotal = (purchaseData.purchase_details || []).reduce((sum, detail) =>
+      sum + parseFloat(detail.total_amount || 0), 0) || parseFloat(purchaseData.total_amount || 0);
     const calculatedNetTotal = productTotal +
-      parseFloat(purchase.unloading_amount || 0) +
-      parseFloat(purchase.transport_amount || 0) +
-      parseFloat(purchase.labour_amount || 0) +
-      parseFloat(purchase.fare_amount || 0) -
-      parseFloat(purchase.discount || 0);
+      parseFloat(purchaseData.unloading_amount || 0) +
+      parseFloat(purchaseData.transport_amount || 0) +
+      parseFloat(purchaseData.labour_amount || 0) +
+      parseFloat(purchaseData.fare_amount || 0) -
+      parseFloat(purchaseData.discount || 0);
 
     // Use database values if available, otherwise calculate based on payment_type
-    let cashPayment = parseFloat(purchase.cash_payment || 0);
-    let bankPayment = parseFloat(purchase.bank_payment || 0);
+    let cashPayment = parseFloat(purchaseData.cash_payment || 0);
+    let bankPayment = parseFloat(purchaseData.bank_payment || 0);
 
     // Fallback logic for older records without cash_payment/bank_payment fields
-    if (cashPayment === 0 && bankPayment === 0 && parseFloat(purchase.payment || 0) > 0) {
-      const totalPayment = parseFloat(purchase.payment || 0);
-      if (purchase.payment_type === 'CASH') {
+    if (cashPayment === 0 && bankPayment === 0 && parseFloat(purchaseData.payment || 0) > 0) {
+      const totalPayment = parseFloat(purchaseData.payment || 0);
+      if (purchaseData.payment_type === 'CASH') {
         cashPayment = totalPayment;
         bankPayment = 0;
-      } else if (purchase.payment_type === 'BANK_TRANSFER') {
+      } else if (purchaseData.payment_type === 'BANK_TRANSFER') {
         cashPayment = 0;
         bankPayment = totalPayment;
       } else {
-        // For other payment types, show as cash by default
         cashPayment = totalPayment;
         bankPayment = 0;
       }
     }
 
     const enhancedPurchase = {
-      ...purchase,
+      ...purchaseData,
       // Use calculated net total for accurate display
       display_net_total: calculatedNetTotal,
       // Use calculated or database payment values
@@ -1609,15 +1618,7 @@ function PurchasesPageContent() {
       bank_payment: bankPayment
     };
 
-    console.log('📊 Enhanced Purchase Data:', {
-      cash_payment: enhancedPurchase.cash_payment,
-      bank_payment: enhancedPurchase.bank_payment,
-      payment_type: enhancedPurchase.payment_type,
-      total_payment: enhancedPurchase.payment,
-      net_total: calculatedNetTotal,
-      display_net_total: enhancedPurchase.display_net_total
-    });
-
+    // Set viewingPurchase (the invoice UI will now use previous_customer_balance when available)
     setViewingPurchase(enhancedPurchase);
     setViewDialogOpen(true);
   };
@@ -3427,136 +3428,149 @@ function PurchasesPageContent() {
                     </TableHead>
                     <TableBody>
                       {formData.purchase_details.length > 0 ? (
-                        formData.purchase_details.map((detail, index) => {
-                          const product = products.find(p => p.pro_id === detail.pro_id);
-                          return (
-                            <TableRow key={index} hover>
-                              <TableCell>{index + 1}</TableCell>
-                              <TableCell>
-                                <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                                  {product?.pro_title || 'Unknown Product'}
-                                </Typography>
-                              </TableCell>
-                              <TableCell>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                  <StoreIcon sx={{ color: 'primary.main', fontSize: 16 }} />
+                        <>
+                          {formData.purchase_details.map((detail, index) => {
+                            const product = products.find(p => p.pro_id === detail.pro_id);
+                            return (
+                              <TableRow key={index} hover>
+                                <TableCell>{index + 1}</TableCell>
+                                <TableCell>
                                   <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                                    {stores.find(store => store.storeid === parseInt(detail.store_id))?.store_name || 'Unknown Store'}
+                                    {product?.pro_title || 'Unknown Product'}
                                   </Typography>
-                                </Box>
-                              </TableCell>
-                              <TableCell>
-                                <TextField
-                                  type="number"
-                                  value={detail.qnty}
-                                  onChange={(e) => {
-                                    const newQuantity = e.target.value;
-                                    const updatedDetails = formData.purchase_details.map((d, i) =>
-                                      i === index
-                                        ? {
-                                          ...d,
-                                          qnty: newQuantity,
-                                          total_amount: (parseInt(newQuantity) * parseFloat(d.unit_rate)).toString()
-                                        }
-                                        : d
-                                    );
-                                    setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
-                                  }}
-                                  inputProps={{ min: 1 }}
-                                  size="small"
-                                  sx={{ width: 80 }}
-                                />
-                              </TableCell>
-                              <TableCell>
-                                <TextField
-                                  type="number"
-                                  value={detail.crate || detail.unit_rate || '0'}
-                                  onChange={(e) => {
-                                    const newCrate = e.target.value;
-                                    const updatedDetails = formData.purchase_details.map((d, i) =>
-                                      i === index
-                                        ? {
-                                          ...d,
-                                          crate: newCrate,
-                                          original_crate: newCrate, // keep baseline in sync with manual edits
-                                          total_amount: (parseInt(d.qnty) * parseFloat(newCrate)).toString()
-                                        }
-                                        : d
-                                    );
-                                    setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
-                                  }}
-                                  inputProps={{ min: 0 }}
-                                  size="small"
-                                  sx={{ width: 100 }}
-                                />
-                              </TableCell>
-                              <TableCell>
-                                <TextField
-                                  type="number"
-                                  size="small"
-                                  value={(detail.cost_rate ?? detail.original_cost_rate ?? product?.pro_cost_price ?? 0).toString()}
-                                  onChange={(e) => {
-                                    const newCost = e.target.value;
-                                    const updatedDetails = formData.purchase_details.map((d, i) =>
-                                      i === index ? { ...d, cost_rate: newCost } : d
-                                    );
-                                    setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
-                                  }}
-                                  onBlur={(e) => {
-                                    const newCostVal = parseFloat(e.target.value || 0);
-                                    // Update local products state so UI shows updated cost price immediately
-                                    setProducts(prev => prev.map(p => p.pro_id === detail.pro_id ? { ...p, pro_cost_price: newCostVal } : p));
+                                </TableCell>
+                                <TableCell>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <StoreIcon sx={{ color: 'primary.main', fontSize: 16 }} />
+                                    <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                                      {stores.find(store => store.storeid === parseInt(detail.store_id))?.store_name || 'Unknown Store'}
+                                    </Typography>
+                                  </Box>
+                                </TableCell>
+                                <TableCell>
+                                  <TextField
+                                    type="number"
+                                    value={detail.qnty}
+                                    onChange={(e) => {
+                                      const newQuantity = e.target.value;
+                                      const updatedDetails = formData.purchase_details.map((d, i) =>
+                                        i === index
+                                          ? {
+                                            ...d,
+                                            qnty: newQuantity,
+                                            total_amount: (parseInt(newQuantity) * parseFloat(d.unit_rate)).toString()
+                                          }
+                                          : d
+                                      );
+                                      setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
+                                    }}
+                                    inputProps={{ min: 1 }}
+                                    size="small"
+                                    sx={{ width: 80 }}
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <TextField
+                                    type="number"
+                                    value={detail.crate || detail.unit_rate || '0'}
+                                    onChange={(e) => {
+                                      const newCrate = e.target.value;
+                                      const updatedDetails = formData.purchase_details.map((d, i) =>
+                                        i === index
+                                          ? {
+                                            ...d,
+                                            crate: newCrate,
+                                            original_crate: newCrate, // keep baseline in sync with manual edits
+                                            total_amount: (parseInt(d.qnty) * parseFloat(newCrate)).toString()
+                                          }
+                                          : d
+                                      );
+                                      setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
+                                    }}
+                                    inputProps={{ min: 0 }}
+                                    size="small"
+                                    sx={{ width: 100 }}
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <TextField
+                                    type="number"
+                                    size="small"
+                                    value={(detail.cost_rate ?? detail.original_cost_rate ?? product?.pro_cost_price ?? 0).toString()}
+                                    onChange={(e) => {
+                                      const newCost = e.target.value;
+                                      const updatedDetails = formData.purchase_details.map((d, i) =>
+                                        i === index ? { ...d, cost_rate: newCost } : d
+                                      );
+                                      setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
+                                    }}
+                                    onBlur={(e) => {
+                                      const newCostVal = parseFloat(e.target.value || 0);
+                                      // Update local products state so UI shows updated cost price immediately
+                                      setProducts(prev => prev.map(p => p.pro_id === detail.pro_id ? { ...p, pro_cost_price: newCostVal } : p));
 
-                                    // DO NOT persist to backend here — persistence will occur when the purchase is saved
-                                    // keep original_cost_rate in sync for undo/restore
-                                    const updatedDetails = formData.purchase_details.map((d, i) =>
-                                      i === index ? { ...d, original_cost_rate: d.original_cost_rate ?? d.cost_rate } : d
-                                    );
-                                    setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
-                                  }}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                      e.currentTarget.blur();
-                                    }
-                                  }}
-                                  inputProps={{ min: 0 }}
-                                  sx={{ width: 100 }}
-                                />
-                              </TableCell>
-                              <TableCell>
-                                <TextField
-                                  type="number"
-                                  value={detail.unit_rate}
-                                  onChange={(e) => {
-                                    const newUnitRate = e.target.value;
-                                    const updatedDetails = formData.purchase_details.map((d, i) =>
-                                      i === index ? { ...d, unit_rate: newUnitRate, total_amount: (parseInt(d.qnty) * parseFloat(d.crate || newUnitRate)).toString() } : d
-                                    );
-                                    setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
-                                  }}
-                                  inputProps={{ min: 0 }}
-                                  size="small"
-                                  sx={{ width: 100 }}
-                                />
-                              </TableCell>
-                              <TableCell>
-                                <Typography variant="body2" sx={{ fontWeight: 'semibold', color: 'success.main' }}>
-                                  {parseFloat(detail.total_amount).toFixed(2)}
-                                </Typography>
-                              </TableCell>
-                              <TableCell>
-                                <IconButton
-                                  onClick={() => removePurchaseDetail(index)}
-                                  color="error"
-                                  size="small"
-                                  title="Remove Product"
-                                >
-                                  <CloseIcon />
-                                </IconButton>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })
+                                      // DO NOT persist to backend here — persistence will occur when the purchase is saved
+                                      // keep original_cost_rate in sync for undo/restore
+                                      const updatedDetails = formData.purchase_details.map((d, i) =>
+                                        i === index ? { ...d, original_cost_rate: d.original_cost_rate ?? d.cost_rate } : d
+                                      );
+                                      setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        e.currentTarget.blur();
+                                      }
+                                    }}
+                                    inputProps={{ min: 0 }}
+                                    sx={{ width: 100 }}
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <TextField
+                                    type="number"
+                                    value={detail.unit_rate}
+                                    onChange={(e) => {
+                                      const newUnitRate = e.target.value;
+                                      const updatedDetails = formData.purchase_details.map((d, i) =>
+                                        i === index ? { ...d, unit_rate: newUnitRate, total_amount: (parseInt(d.qnty) * parseFloat(d.crate || newUnitRate)).toString() } : d
+                                      );
+                                      setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
+                                    }}
+                                    inputProps={{ min: 0 }}
+                                    size="small"
+                                    sx={{ width: 100 }}
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="body2" sx={{ fontWeight: 'semibold', color: 'success.main' }}>
+                                    {parseFloat(detail.total_amount).toFixed(2)}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <IconButton
+                                    onClick={() => removePurchaseDetail(index)}
+                                    color="error"
+                                    size="small"
+                                    title="Remove Product"
+                                  >
+                                    <CloseIcon />
+                                  </IconButton>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+
+                          {/* Totals row */}
+                          <TableRow sx={{ bgcolor: 'grey.50' }}>
+                            <TableCell colSpan={3} sx={{ fontWeight: 'bold' }}>Totals</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>{calculateTotalQuantity()}</TableCell>
+                            <TableCell />
+                            <TableCell />
+                            <TableCell />
+                            <TableCell sx={{ fontWeight: 'bold', color: 'success.main' }}>{calculateTotalAmount().toFixed(2)}</TableCell>
+                            <TableCell />
+                          </TableRow>
+                        </>
                       ) : (
                         <TableRow>
                           <TableCell colSpan={6} align="center">
@@ -4736,15 +4750,26 @@ function PurchasesPageContent() {
                     </TableHead>
                     <TableBody>
                       {viewingPurchase.purchase_details && viewingPurchase.purchase_details.length > 0 ? (
-                        viewingPurchase.purchase_details.map((detail, index) => (
-                          <TableRow key={detail.pur_detail_id || index}>
-                            <TableCell sx={{ px: 1 }}>{index + 1}</TableCell>
-                            <TableCell sx={{ px: 1 }}>{detail.product?.pro_title || detail.pro_title || 'N/A'}</TableCell>
-                            <TableCell sx={{ px: 1 }} align="right">{detail.qnty || 0}</TableCell>
-                            <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.unit_rate || detail.rate || 0).toFixed(2)}</TableCell>
-                            <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.total_amount || detail.amount || 0).toFixed(2)}</TableCell>
+                        <>
+                          {viewingPurchase.purchase_details.map((detail, index) => (
+                            <TableRow key={detail.pur_detail_id || index}>
+                              <TableCell sx={{ px: 1 }}>{index + 1}</TableCell>
+                              <TableCell sx={{ px: 1 }}>{detail.product?.pro_title || detail.pro_title || 'N/A'}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{detail.qnty || 0}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.unit_rate || detail.rate || 0).toFixed(2)}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.total_amount || detail.amount || 0).toFixed(2)}</TableCell>
+                            </TableRow>
+                          ))}
+
+                          {/* Invoice totals row */}
+                          <TableRow sx={{ bgcolor: 'grey.50' }}>
+                            <TableCell sx={{ px: 1 }} />
+                            <TableCell sx={{ px: 1, fontWeight: 'bold' }}>Total</TableCell>
+                            <TableCell sx={{ px: 1, fontWeight: 'bold' }} align="right">{(viewingPurchase.purchase_details || []).reduce((s, d) => s + parseFloat(d.qnty || 0), 0)}</TableCell>
+                            <TableCell sx={{ px: 1 }} align="right" />
+                            <TableCell sx={{ px: 1, fontWeight: 'bold' }} align="right">{((viewingPurchase.purchase_details || []).reduce((s, d) => s + parseFloat(d.total_amount || d.amount || 0), 0)).toFixed(2)}</TableCell>
                           </TableRow>
-                        ))
+                        </>
                       ) : (
                         <TableRow>
                           <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
@@ -4762,24 +4787,36 @@ function PurchasesPageContent() {
                     <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, border: '1px solid #000', width: '100%' }}>
                       <Table size="small">
                         <TableBody>
-                          <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Previous Balance</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                              {parseFloat(viewingPurchase.customer?.cus_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </TableCell>
-                          </TableRow>
-                          <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Current Balance</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                              {(parseFloat(viewingPurchase.total_amount || 0) - parseFloat(viewingPurchase.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </TableCell>
-                          </TableRow>
-                          <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Total Balance</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                              {(parseFloat(viewingPurchase.customer?.cus_balance || 0) + parseFloat(viewingPurchase.total_amount || 0) - parseFloat(viewingPurchase.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </TableCell>
-                          </TableRow>
+                          {(() => {
+                            const previousBalance = parseFloat((viewingPurchase.previous_customer_balance ?? viewingPurchase.customer?.cus_balance) || 0);
+                            const invoiceNet = getInvoiceNet(viewingPurchase);
+                            const payment = parseFloat(viewingPurchase.payment || 0);
+
+                            return (
+                              <>
+                                <TableRow>
+                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Previous Balance</TableCell>
+                                  <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                    {previousBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </TableCell>
+                                </TableRow>
+
+                                <TableRow>
+                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Current Balance</TableCell>
+                                  <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                    {(invoiceNet - payment).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </TableCell>
+                                </TableRow>
+
+                                <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Total Balance</TableCell>
+                                  <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                    {(previousBalance + invoiceNet - payment).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </TableCell>
+                                </TableRow>
+                              </>
+                            );
+                          })()}
                         </TableBody>
                       </Table>
                     </TableContainer>
@@ -4806,18 +4843,7 @@ function PurchasesPageContent() {
                               {parseFloat(viewingPurchase.transport_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
-                          <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Fare</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {parseFloat(viewingPurchase.fare_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </TableCell>
-                          </TableRow>
-                          <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Unloading Charges</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {parseFloat(viewingPurchase.unloading_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </TableCell>
-                          </TableRow>
+
                           {parseFloat(viewingPurchase.discount || 0) > 0 && (
                             <TableRow>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Discount</TableCell>
@@ -5239,15 +5265,26 @@ function PurchasesPageContent() {
                     </TableHead>
                     <TableBody>
                       {currentBillData.purchase_details && currentBillData.purchase_details.length > 0 ? (
-                        currentBillData.purchase_details.map((detail, index) => (
-                          <TableRow key={detail.pur_detail_id || index}>
-                            <TableCell sx={{ px: 1 }}>{index + 1}</TableCell>
-                            <TableCell sx={{ px: 1 }}>{detail.product?.pro_title || detail.pro_title || 'N/A'}</TableCell>
-                            <TableCell sx={{ px: 1 }} align="right">{detail.qnty || 0}</TableCell>
-                            <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.unit_rate || detail.rate || 0).toFixed(2)}</TableCell>
-                            <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.total_amount || detail.amount || 0).toFixed(2)}</TableCell>
+                        <>
+                          {currentBillData.purchase_details.map((detail, index) => (
+                            <TableRow key={detail.pur_detail_id || index}>
+                              <TableCell sx={{ px: 1 }}>{index + 1}</TableCell>
+                              <TableCell sx={{ px: 1 }}>{detail.product?.pro_title || detail.pro_title || 'N/A'}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{detail.qnty || 0}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.unit_rate || detail.rate || 0).toFixed(2)}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.total_amount || detail.amount || 0).toFixed(2)}</TableCell>
+                            </TableRow>
+                          ))}
+
+                          {/* PRINTABLE: Totals row under product list */}
+                          <TableRow sx={{ bgcolor: 'grey.50' }}>
+                            <TableCell sx={{ px: 1 }} />
+                            <TableCell sx={{ px: 1, fontWeight: 'bold' }}>Total</TableCell>
+                            <TableCell sx={{ px: 1, fontWeight: 'bold' }} align="right">{(currentBillData.purchase_details || []).reduce((s, d) => s + parseFloat(d.qnty || 0), 0)}</TableCell>
+                            <TableCell sx={{ px: 1 }} align="right" />
+                            <TableCell sx={{ px: 1, fontWeight: 'bold' }} align="right">{((currentBillData.purchase_details || []).reduce((s, d) => s + parseFloat(d.total_amount || d.amount || 0), 0)).toFixed(2)}</TableCell>
                           </TableRow>
-                        ))
+                        </>
                       ) : (
                         <TableRow>
                           <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
@@ -5311,9 +5348,9 @@ function PurchasesPageContent() {
                             </TableCell>
                           </TableRow>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Fare</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Transport</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {(parseFloat(currentBillData.fare_amount || 0) + parseFloat(currentBillData.transport_amount || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {parseFloat(currentBillData.transport_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                           {parseFloat(currentBillData.discount || 0) > 0 && (
