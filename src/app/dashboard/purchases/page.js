@@ -106,6 +106,9 @@ function PurchasesPageContent() {
       fare_amount: '',
       transport_amount: '',
       labour_amount: '',
+      out_labour_amount: '',
+      out_delivery_amount: '',
+      include_cargo_in_costprice: false,
       include_labour: false,
       discount: '',
       cash_payment: '',
@@ -425,6 +428,7 @@ function PurchasesPageContent() {
     incity_charges_total: '',
     include_incity: false,
     include_labour: false,
+    include_cargo_in_costprice: false,
     discount: '',
     cash_payment: '',
     bank_payment: '',
@@ -559,10 +563,13 @@ function PurchasesPageContent() {
       fare_amount: '',
       transport_amount: '',
       labour_amount: '',
+      out_labour_amount: '',
+      out_delivery_amount: '',
       incity_own_labour: '',
       incity_own_delivery: '',
       incity_charges_total: '',
       include_labour: false,
+      include_cargo_in_costprice: false,
       discount: '',
       cash_payment: '',
       bank_payment: '',
@@ -731,7 +738,7 @@ function PurchasesPageContent() {
   }, [stores, formData.store_id]);
 
   // Recompute product cost_rate from original_cost_rate + (labourPerUnit) + (incityPerUnit)
-  const recomputeDistributedCosts = (purchaseDetails, { includeLabour = formData.include_labour, labourAmount = formData.labour_amount, includeIncity = formData.include_incity, incityAmount = (parseFloat(formData.incity_own_labour || 0) + parseFloat(formData.incity_own_delivery || 0)) } = {}) => {
+  const recomputeDistributedCosts = (purchaseDetails, { includeLabour = formData.include_labour, labourAmount = formData.labour_amount, includeIncity = formData.include_incity, incityAmount = (parseFloat(formData.incity_own_labour || 0) + parseFloat(formData.incity_own_delivery || 0)), includeCargo = formData.include_cargo_in_costprice, outLabour = formData.out_labour_amount, outDelivery = formData.out_delivery_amount } = {}) => {
     if (!purchaseDetails || purchaseDetails.length === 0) return purchaseDetails;
 
     const totalQuantity = purchaseDetails.reduce((sum, d) => sum + parseFloat(d.qnty || 0), 0);
@@ -739,14 +746,19 @@ function PurchasesPageContent() {
     const transportAmountNum = parseFloat(formData.transport_amount || 0);
     const fareAmountNum = parseFloat(formData.fare_amount || 0);
 
+    const outLabourNum = parseFloat(outLabour || 0);
+    const outDeliveryNum = parseFloat(outDelivery || 0);
+    const cargoTotal = includeCargo ? (outLabourNum + outDeliveryNum) : 0;
+
     const labourTotal = includeLabour ? (parseFloat(labourAmount || 0) + unloadingAmountNum + transportAmountNum + fareAmountNum) : 0;
     const incityTotal = includeIncity ? parseFloat(incityAmount || 0) : 0;
 
     const labourPerUnit = totalQuantity > 0 ? labourTotal / totalQuantity : 0;
     const incityPerUnit = totalQuantity > 0 ? incityTotal / totalQuantity : 0;
+    const cargoPerUnit = totalQuantity > 0 ? cargoTotal / totalQuantity : 0;
 
-    // If neither distribution is active, restore original_cost_rate if present
-    if (!includeLabour && !includeIncity) {
+    // If no distribution is active, restore original_cost_rate if present
+    if (!includeLabour && !includeIncity && !includeCargo) {
       return purchaseDetails.map(detail => ({
         ...detail,
         cost_rate: detail.original_cost_rate ?? detail.cost_rate ?? detail.unit_rate ?? 0,
@@ -756,7 +768,7 @@ function PurchasesPageContent() {
 
     return purchaseDetails.map(detail => {
       const base = parseFloat(detail.original_cost_rate ?? detail.cost_rate ?? detail.unit_rate ?? 0);
-      const newCost = (base + labourPerUnit + incityPerUnit).toFixed(2);
+      const newCost = (base + labourPerUnit + incityPerUnit + cargoPerUnit).toFixed(2);
       return {
         ...detail,
         cost_rate: newCost,
@@ -774,6 +786,11 @@ function PurchasesPageContent() {
   // Function to handle Incity charges distribution (independent)
   const handleIncityDistribution = (includeIncity, incityAmount, purchaseDetails) => {
     return recomputeDistributedCosts(purchaseDetails, { includeIncity, incityAmount, includeLabour: formData.include_labour });
+  };
+
+  // Function to handle Cargo charges distribution (independent)
+  const handleCargoDistribution = (includeCargo, outLabour, outDelivery, purchaseDetails) => {
+    return recomputeDistributedCosts(purchaseDetails, { includeCargo, outLabour, outDelivery, includeLabour: formData.include_labour, includeIncity: formData.include_incity });
   };
 
   // Close dropdown when clicking outside
@@ -1150,14 +1167,16 @@ function PurchasesPageContent() {
     const unloadingAmount = parseFloat(formData.unloading_amount || 0);
     const transportAmount = parseFloat(formData.transport_amount || 0);
     const labourAmount = parseFloat(formData.labour_amount || 0);
+    const outLabour = parseFloat(formData.out_labour_amount || 0);
+    const outDelivery = parseFloat(formData.out_delivery_amount || 0);
 
-    return totalAmount + unloadingAmount + transportAmount + labourAmount - discount;
+    return totalAmount + unloadingAmount + transportAmount + labourAmount + outLabour + outDelivery - discount;
   };
 
   // Invoice helpers: compute display net and remaining due consistently (uses display_net_total when present)
   const getInvoiceNet = (bill) => {
     if (!bill) return 0;
-    const fallback = (parseFloat(bill.total_amount || 0) + parseFloat(bill.unloading_amount || 0) + parseFloat(bill.transport_amount || 0) + parseFloat(bill.labour_amount || 0) + parseFloat(bill.fare_amount || 0)) - parseFloat(bill.discount || 0);
+    const fallback = (parseFloat(bill.total_amount || 0) + parseFloat(bill.unloading_amount || 0) + parseFloat(bill.transport_amount || 0) + parseFloat(bill.labour_amount || 0) + parseFloat(bill.out_labour_amount || 0) + parseFloat(bill.out_delivery_amount || 0) + parseFloat(bill.fare_amount || 0)) - parseFloat(bill.discount || 0);
     const net = parseFloat(bill.display_net_total ?? fallback);
     return Number.isFinite(net) ? net : 0;
   };
@@ -1444,6 +1463,8 @@ function PurchasesPageContent() {
           purchase_details: result.purchase_details || formData.purchase_details,
           // Add missing amount fields from formData
           labour_amount: parseFloat(result.labour_amount || formData.labour_amount || 0),
+          out_labour_amount: parseFloat(result.out_labour_amount || formData.out_labour_amount || 0),
+          out_delivery_amount: parseFloat(result.out_delivery_amount || formData.out_delivery_amount || 0),
           // Incity fields
           incity_own_labour: parseFloat(result.incity_own_labour || formData.incity_own_labour || 0),
           incity_own_delivery: parseFloat(result.incity_own_delivery || formData.incity_own_delivery || 0),
@@ -1451,6 +1472,7 @@ function PurchasesPageContent() {
           fare_amount: parseFloat(result.fare_amount || formData.fare_amount || 0),
           transport_amount: parseFloat(result.transport_amount || formData.transport_amount || 0),
           unloading_amount: parseFloat(result.unloading_amount || formData.unloading_amount || 0),
+          include_cargo_in_costprice: result.include_cargo_in_costprice || formData.include_cargo_in_costprice || false,
           vehicle_no: result.vehicle_no || formData.vehicle_no,
           bill_type: purchaseType === 'return' ? 'PURCHASE_RETURN' : 'PURCHASE'
         };
@@ -1564,11 +1586,14 @@ function PurchasesPageContent() {
       fare_amount: purchase.fare_amount.toString(),
       transport_amount: purchase.transport_amount?.toString() || '',
       labour_amount: purchase.labour_amount?.toString() || '',
+      out_labour_amount: purchase.out_labour_amount?.toString() || '',
+      out_delivery_amount: purchase.out_delivery_amount?.toString() || '',
       incity_own_labour: purchase.incity_own_labour?.toString() || '',
       incity_own_delivery: purchase.incity_own_delivery?.toString() || '',
       incity_charges_total: purchase.incity_charges_total?.toString() || '',
       include_incity: purchase.include_incity || false,
       include_labour: purchase.include_labour || false,
+      include_cargo_in_costprice: purchase.include_cargo_in_costprice || false,
       discount: purchase.discount.toString(),
       cash_payment: purchase.payment_type === 'CASH' ? purchase.payment.toString() : '',
       bank_payment: purchase.payment_type === 'BANK_TRANSFER' ? purchase.payment.toString() : '',
@@ -1724,11 +1749,14 @@ function PurchasesPageContent() {
       fare_amount: purchase.fare_amount.toString(),
       transport_amount: purchase.transport_amount?.toString() || '',
       labour_amount: purchase.labour_amount?.toString() || '',
+      out_labour_amount: purchase.out_labour_amount?.toString() || '',
+      out_delivery_amount: purchase.out_delivery_amount?.toString() || '',
       incity_own_labour: purchase.incity_own_labour?.toString() || '',
       incity_own_delivery: purchase.incity_own_delivery?.toString() || '',
       incity_charges_total: purchase.incity_charges_total?.toString() || '',
       include_incity: purchase.include_incity || false,
       include_labour: purchase.include_labour || false,
+      include_cargo_in_costprice: purchase.include_cargo_in_costprice || false,
       discount: purchase.discount.toString(),
       vehicle_no: purchase.vehicle_no || '',
       purchase_details: purchase.purchase_details?.map(detail => ({
@@ -3880,53 +3908,116 @@ function PurchasesPageContent() {
 
                         {/* Cargo — placed directly below NOTES */}
                         <Box sx={{ mt: 1 }}>
-                          <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>Cargo</Typography>
-                          <Autocomplete
-                            size="small"
-                            multiple
-                            openOnFocus
-                            options={cargoAccounts.filter(a => !(selectedCargoAccounts || []).some(s => s.cus_id === a.cus_id))}
-                            getOptionLabel={(option) => option.cus_name}
-                            value={selectedCargoAccounts}
-                            onChange={(e, newValue) => {
-                              setSelectedCargoAccounts(newValue || []);
-                              setFormData(prev => ({ ...prev, cargo_account_ids: (newValue || []).map(a => a.cus_id) }));
-                            }}
-                            renderTags={() => null}
-                            renderInput={(params) => <TextField {...params} placeholder="Select Cargo Account" size="small" sx={{ width: 240 }} />}
-                            renderOption={(props, option) => (
-                              <Box component="li" {...props}>
-                                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', width: '100%' }}>
-                                  <Box sx={{ flex: 1 }}>
-                                    <Typography variant="body2" sx={{ fontWeight: (selectedCargoAccounts || []).some(s => s.cus_id === option.cus_id) ? 'bold' : 'medium' }}>
-                                      {option.cus_name}
-                                    </Typography>
-                                    <Typography variant="caption" color="text.secondary">
-                                      {option.cus_phone_no}
-                                    </Typography>
-                                  </Box>
-                                </Box>
-                              </Box>
-                            )}
-                          />
+                          <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1, backgroundColor: 'background.paper' }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>Cargo</Typography>
 
-                          {/* Selected cargo accounts displayed as red chips */}
-                          <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
-                            {(selectedCargoAccounts || []).map(acc => (
-                              <Chip
-                                key={acc.cus_id}
-                                label={acc.cus_name}
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                              <Autocomplete
                                 size="small"
-                                onDelete={() => {
-                                  setSelectedCargoAccounts(prev => {
-                                    const next = prev.filter(p => p.cus_id !== acc.cus_id);
-                                    setFormData(f => ({ ...f, cargo_account_ids: next.map(a => a.cus_id) }));
-                                    return next;
-                                  });
+                                multiple
+                                openOnFocus
+                                options={cargoAccounts.filter(a => !(selectedCargoAccounts || []).some(s => s.cus_id === a.cus_id))}
+                                getOptionLabel={(option) => option.cus_name}
+                                value={selectedCargoAccounts}
+                                onChange={(e, newValue) => {
+                                  setSelectedCargoAccounts(newValue || []);
+                                  setFormData(prev => ({ ...prev, cargo_account_ids: (newValue || []).map(a => a.cus_id) }));
                                 }}
-                                sx={{ bgcolor: 'error.main', color: 'white', borderRadius: '16px' }}
+                                renderTags={() => null}
+                                renderInput={(params) => <TextField {...params} placeholder="Select Cargo Account" size="small" sx={{ width: 240 }} />}
+                                renderOption={(props, option) => (
+                                  <Box component="li" {...props}>
+                                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', width: '100%' }}>
+                                      <Box sx={{ flex: 1 }}>
+                                        <Typography variant="body2" sx={{ fontWeight: (selectedCargoAccounts || []).some(s => s.cus_id === option.cus_id) ? 'bold' : 'medium' }}>
+                                          {option.cus_name}
+                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary">
+                                          {option.cus_phone_no}
+                                        </Typography>
+                                      </Box>
+                                    </Box>
+                                  </Box>
+                                )}
                               />
-                            ))}
+
+                              {/* Selected cargo accounts displayed as red chips */}
+                              <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
+                                {(selectedCargoAccounts || []).map(acc => (
+                                  <Chip
+                                    key={acc.cus_id}
+                                    label={acc.cus_name}
+                                    size="small"
+                                    onDelete={() => {
+                                      setSelectedCargoAccounts(prev => {
+                                        const next = prev.filter(p => p.cus_id !== acc.cus_id);
+                                        setFormData(f => ({ ...f, cargo_account_ids: next.map(a => a.cus_id) }));
+                                        return next;
+                                      });
+                                    }}
+                                    sx={{ bgcolor: 'error.main', color: 'white', borderRadius: '16px' }}
+                                  />
+                                ))}
+                              </Box>
+
+                              <Box sx={{ display: 'flex', gap: 1, mt: 1, alignItems: 'center' }}>
+                                <TextField
+                                  label="Out Labour"
+                                  size="small"
+                                  type="number"
+                                  value={formData.out_labour_amount || ''}
+                                  onChange={(e) => {
+                                    const newVal = e.target.value;
+                                    setFormData(prev => {
+                                      const updatedDetails = handleCargoDistribution(prev.include_cargo_in_costprice, newVal, prev.out_delivery_amount, prev.purchase_details);
+                                      return { ...prev, out_labour_amount: newVal, purchase_details: updatedDetails };
+                                    });
+                                  }}
+                                  onFocus={(e) => e.target.select()}
+                                  inputProps={{ min: 0 }}
+                                  sx={{ width: 110 }}
+                                />
+                                <TextField
+                                  label="Out Delivery"
+                                  size="small"
+                                  type="number"
+                                  value={formData.out_delivery_amount || ''}
+                                  onChange={(e) => {
+                                    const newVal = e.target.value;
+                                    setFormData(prev => {
+                                      const updatedDetails = handleCargoDistribution(prev.include_cargo_in_costprice, prev.out_labour_amount, newVal, prev.purchase_details);
+                                      return { ...prev, out_delivery_amount: newVal, purchase_details: updatedDetails };
+                                    });
+                                  }}
+                                  onFocus={(e) => e.target.select()}
+                                  inputProps={{ min: 0 }}
+                                  sx={{ width: 110 }}
+                                />
+                                <TextField
+                                  label="Total Charges"
+                                  size="small"
+                                  value={( (parseFloat(formData.out_labour_amount || 0) + parseFloat(formData.out_delivery_amount || 0)) ).toFixed(2)}
+                                  InputProps={{ readOnly: true }}
+                                  sx={{ width: 160 }}
+                                />
+                              </Box>
+
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                                <Checkbox
+                                  checked={formData.include_cargo_in_costprice || false}
+                                  onChange={(e) => {
+                                    const newInclude = e.target.checked;
+                                    setFormData(prev => {
+                                      const updatedDetails = handleCargoDistribution(newInclude, prev.out_labour_amount, prev.out_delivery_amount, prev.purchase_details);
+                                      return { ...prev, include_cargo_in_costprice: newInclude, purchase_details: updatedDetails };
+                                    });
+                                  }}
+                                  size="small"
+                                />
+                                <Typography variant="body2">Include in costprice</Typography>
+                              </Box>
+
+                            </Box>
                           </Box>
                         </Box>
                       </Box>
@@ -4968,15 +5059,18 @@ function PurchasesPageContent() {
                               {parseFloat(viewingPurchase.transport_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
-
-                          {parseFloat(viewingPurchase.discount || 0) > 0 && (
-                            <TableRow>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Discount</TableCell>
-                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                -{parseFloat(viewingPurchase.discount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </TableCell>
-                            </TableRow>
-                          )}
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Out Labour</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                              {parseFloat(viewingPurchase.out_labour_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Out Delivery</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                              {parseFloat(viewingPurchase.out_delivery_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
                           <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Invoice Total</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
@@ -5476,6 +5570,18 @@ function PurchasesPageContent() {
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Transport</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
                               {parseFloat(currentBillData.transport_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Out Labour</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                              {parseFloat(currentBillData.out_labour_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Out Delivery</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                              {parseFloat(currentBillData.out_delivery_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                           {parseFloat(currentBillData.discount || 0) > 0 && (

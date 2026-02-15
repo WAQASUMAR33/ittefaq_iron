@@ -123,6 +123,7 @@ model Customer {
   purchases_credit      Purchase[]         @relation("PurchaseCreditAccount")
   purchases             Purchase[]         @relation("PurchaseCustomer")
   purchases_debit       Purchase[]         @relation("PurchaseDebitAccount")
+  purchases_cargo       Purchase[]         @relation("PurchaseCargoAccount")
   sale_details          SaleDetail[]
   sale_return_details   SaleReturnDetail[]
   sale_returns_credit   SaleReturn[]       @relation("SaleReturnCreditAccount")
@@ -372,6 +373,9 @@ model Purchase {
   fare_amount       Decimal          @default(0.000000000000000000000000000000)
   transport_amount  Decimal?         @default(0.00) @db.Decimal(10, 2)
   labour_amount     Decimal?         @default(0.00) @db.Decimal(10, 2)
+  out_labour_amount Decimal?         @default(0.00) @db.Decimal(10, 2)
+  out_delivery_amount Decimal?       @default(0.00) @db.Decimal(10, 2)
+  include_cargo_in_costprice Boolean @default(false)
   incity_own_labour Decimal?         @default(0.00) @db.Decimal(10, 2)
   incity_own_delivery Decimal?       @default(0.00) @db.Decimal(10, 2)
   incity_charges_total Decimal?      @default(0.00) @db.Decimal(10, 2)

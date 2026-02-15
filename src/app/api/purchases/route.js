@@ -178,6 +178,10 @@ export async function POST(request) {
       fare_amount = 0,
       transport_amount = 0,
       labour_amount = 0,
+      // Cargo / Out charges
+      out_labour_amount = 0,
+      out_delivery_amount = 0,
+      include_cargo_in_costprice = false,
       // Incity fields
       incity_own_labour = 0,
       incity_own_delivery = 0,
@@ -252,8 +256,8 @@ export async function POST(request) {
       return errorResponse('Valid payment type is required (CASH, CHEQUE, BANK_TRANSFER)');
     }
 
-    // Calculate net total: total_amount + unloading_amount + fare_amount + transport_amount + labour_amount - discount
-    const net_total = safeParseFloat(total_amount) + safeParseFloat(unloading_amount) + safeParseFloat(fare_amount) + safeParseFloat(transport_amount) + safeParseFloat(labour_amount) - safeParseFloat(discount);
+    // Calculate net total: total_amount + unloading_amount + fare_amount + transport_amount + labour_amount + OUT charges - discount
+    const net_total = safeParseFloat(total_amount) + safeParseFloat(unloading_amount) + safeParseFloat(fare_amount) + safeParseFloat(transport_amount) + safeParseFloat(labour_amount) + safeParseFloat(out_labour_amount) + safeParseFloat(out_delivery_amount) - safeParseFloat(discount);
 
     // Update payment amount to use total payment from split payments
     // payment is now calculated as totalPaymentAmount
@@ -360,6 +364,9 @@ export async function POST(request) {
         fare_amount: safeParseFloat(fare_amount),
         transport_amount: safeParseFloat(transport_amount),
         labour_amount: safeParseFloat(labour_amount),
+        out_labour_amount: safeParseFloat(out_labour_amount),
+        out_delivery_amount: safeParseFloat(out_delivery_amount),
+        include_cargo_in_costprice: include_cargo_in_costprice ? true : false,
         // Incity fields
         incity_own_labour: safeParseFloat(incity_own_labour),
         incity_own_delivery: safeParseFloat(incity_own_delivery),
@@ -433,12 +440,10 @@ export async function POST(request) {
       const ledgerEntries = [];
       let runningSupplierBalance = 0;
 
-      // Calculate supplier amount — now includes labour and delivery (transport) charges so they become part of supplier invoice.
-      // NOTE: We intentionally include labour_amount and transport_amount in the supplier ledger; labour/delivery
-      // will NOT be created as separate expense records for purchases.
+      // Calculate supplier amount — EXCLUDE OUT charges (Out labour/Out delivery are not billed to supplier)
       const supplierAmount = safeParseFloat(total_amount) - safeParseFloat(discount) + safeParseFloat(labour_amount) + safeParseFloat(transport_amount);
 
-      // 1. Supplier Account Entry — includes product + labour + delivery
+      // 1. Supplier Account Entry — includes product + labour + delivery (OUT charges are NOT included)
       if (cus_id) {
         const supplierData = await tx.customer.findUnique({ where: { cus_id: cus_id }, select: { cus_balance: true, cus_name: true } });
         runningSupplierBalance = parseFloat(supplierData?.cus_balance || 0);
@@ -446,7 +451,7 @@ export async function POST(request) {
         console.log(`\n📊 PURCHASE LEDGER ENTRY DEBUG`);
         console.log(`   Supplier: ${supplierData?.cus_name} (ID: ${cus_id})`);
         console.log(`   Opening Balance: ${runningSupplierBalance}`);
-        console.log(`   Bill Amount (products + labour + delivery): ${supplierAmount}${safeParseFloat(discount) > 0 ? ` (After Discount: ${safeParseFloat(discount)})` : ''}`);
+        console.log(`   Bill Amount (products + labour + delivery) [OUT charges excluded]: ${supplierAmount}${safeParseFloat(discount) > 0 ? ` (After Discount: ${safeParseFloat(discount)})` : ''}`);
 
         const supplierEntry = createLedgerEntry({
           cus_id: cus_id,
@@ -454,8 +459,8 @@ export async function POST(request) {
           debit_amount: isReturn ? 0 : supplierAmount,
           credit_amount: isReturn ? supplierAmount : 0,
           bill_no: newPurchase.pur_id.toString(),
-          trnx_type: 'CASH',
-          details: `${isReturn ? 'Purchase Return' : 'Purchase Invoice'}${invoice_number ? ` #${invoice_number}` : ''} ${isReturn ? 'to' : 'from'} ${supplierData?.cus_name || 'Supplier'}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}${safeParseFloat(discount) > 0 ? ` [After Discount: ${safeParseFloat(discount)}]` : ''} (includes labour & delivery)`,
+          trnx_type: 'PURCHASE',
+          details: `${isReturn ? 'Purchase Return' : 'Purchase Invoice'}${invoice_number ? ` #${invoice_number}` : ''} ${isReturn ? 'to' : 'from'} ${supplierData?.cus_name || 'Supplier'}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}${safeParseFloat(discount) > 0 ? ` [After Discount: ${safeParseFloat(discount)}]` : ''}`,
           payments: 0,
           updated_by: updated_by ? parseInt(updated_by) : null
         });
@@ -464,7 +469,7 @@ export async function POST(request) {
         runningSupplierBalance = supplierEntry.closing_balance;
 
         console.log(`📝 Supplier Entry Created: Opening=${supplierEntry.opening_balance}, Debit=${supplierEntry.debit_amount}, Closing=${supplierEntry.closing_balance}`);
-        console.log(`   Note: Supplier invoice now includes labour and delivery charges — no separate expense will be created for them.`);
+        console.log(`   Note: OUT charges will NOT be credited to the supplier; they are posted to Labour/Cargo and offset against Cash/Bank.`);
       }
 
       // 2. Consolidated Payment Entry - Cash + Bank Payment to Supplier (similar to sales page)
@@ -597,13 +602,120 @@ export async function POST(request) {
         console.log(`💵 Cash Account Entry Created: Opening=${cashEntry.opening_balance}, Debit=${cashEntry.debit_amount}, Credit=${cashEntry.credit_amount}, Closing=${cashEntry.closing_balance}`);
       }
 
+      // --- CARGO / OUT CHARGES LEDGER POSTINGS ---
+      const outLabourAmt = safeParseFloat(out_labour_amount || 0);
+      const outDeliveryAmt = safeParseFloat(out_delivery_amount || 0);
+
+      // 1) OUT LABOUR: Debit labour account only — DO NOT create any Cash/Bank credit offset
+      let outLabourAccount = null;
+
+      if (outLabourAmt > 0) {
+        outLabourAccount = await tx.customer.findFirst({
+          where: {
+            OR: [
+              { cus_name: { contains: 'labour' } },
+              { customer_category: { cus_cat_title: { contains: 'labour' } } },
+              { customer_type: { cus_type_title: { contains: 'labour' } } }
+            ]
+          },
+          select: { cus_id: true, cus_balance: true, cus_name: true }
+        });
+
+        if (outLabourAccount) {
+          const labourEntry = createLedgerEntry({
+            cus_id: outLabourAccount.cus_id,
+            opening_balance: parseFloat(outLabourAccount.cus_balance || 0),
+            debit_amount: outLabourAmt,
+            credit_amount: 0,
+            bill_no: newPurchase.pur_id.toString(),
+            trnx_type: 'PURCHASE',
+            details: `Out Labour - Purchase #${newPurchase.pur_id}${invoice_number ? ` (Inv: ${invoice_number})` : ''}`,
+            payments: 0,
+            updated_by: updated_by ? parseInt(updated_by) : null
+          });
+
+          ledgerEntries.push(labourEntry);
+          // Intentionally NOT creating any Cash/Bank credit offset for Out Labour
+        } else {
+          console.log('⚠️ OUT Labour amount present but Labour account not found — skipping out-labour ledger posting');
+        }
+      }
+
+      // 2) OUT DELIVERY: Debit selected cargo account(s), offset against Cash/Bank (DO NOT credit supplier)
+      if (outDeliveryAmt > 0) {
+        let cargoIds = [];
+        try {
+          if (cargo_account_ids) {
+            cargoIds = Array.isArray(cargo_account_ids) ? cargo_account_ids : JSON.parse(cargo_account_ids || '[]');
+          } else if (cargo_account_id) {
+            cargoIds = [cargo_account_id];
+          }
+        } catch (err) {
+          cargoIds = cargo_account_ids ? (Array.isArray(cargo_account_ids) ? cargo_account_ids : [cargo_account_ids]) : (cargo_account_id ? [cargo_account_id] : []);
+        }
+
+        if (cargoIds.length === 0 && cargo_account_id) cargoIds = [cargo_account_id];
+
+        if (cargoIds.length > 0) {
+          const perAccount = parseFloat((outDeliveryAmt / cargoIds.length).toFixed(2));
+          let remainder = parseFloat((outDeliveryAmt - (perAccount * cargoIds.length)).toFixed(2));
+
+          for (let i = 0; i < cargoIds.length; i++) {
+            const aid = parseInt(cargoIds[i]);
+            const cargoAcc = await tx.customer.findUnique({ where: { cus_id: aid }, select: { cus_id: true, cus_balance: true, cus_name: true } });
+            if (!cargoAcc) {
+              console.log(`⚠️ Cargo account ID ${aid} not found — skipping`);
+              continue;
+            }
+
+            let allocate = perAccount;
+            if (i === 0) allocate = parseFloat((perAccount + remainder).toFixed(2));
+
+            const cargoEntry = createLedgerEntry({
+              cus_id: cargoAcc.cus_id,
+              opening_balance: parseFloat(cargoAcc.cus_balance || 0),
+              debit_amount: allocate,
+              credit_amount: 0,
+              bill_no: newPurchase.pur_id.toString(),
+              trnx_type: 'PURCHASE',
+              details: `Out Delivery - Purchase #${newPurchase.pur_id}${invoice_number ? ` (Inv: ${invoice_number})` : ''}`,
+              payments: 0,
+              updated_by: updated_by ? parseInt(updated_by) : null
+            });
+
+            ledgerEntries.push(cargoEntry);
+
+            // --- CREDIT SUPPLIER FOR THIS PORTION (show in supplier's cash column) ---
+            if (cus_id) {
+              const supplierCreditForCargo = createLedgerEntry({
+                cus_id: cus_id,
+                opening_balance: runningSupplierBalance,
+                debit_amount: 0,
+                credit_amount: allocate,
+                bill_no: newPurchase.pur_id.toString(),
+                trnx_type: 'CASH',
+                details: `Out Delivery allocated to ${cargoAcc.cus_name} - Purchase #${newPurchase.pur_id}`,
+                payments: allocate,
+                cash_payment: allocate,
+                bank_payment: 0,
+                updated_by: updated_by ? parseInt(updated_by) : null
+              });
+
+              ledgerEntries.push(supplierCreditForCargo);
+              runningSupplierBalance = supplierCreditForCargo.closing_balance;
+            }
+          }
+        } else {
+          console.log('⚠️ Out Delivery present but no cargo account selected — skipping cargo ledger postings');
+        }
+      }
+
       // --- Incity (OWN) Ledger Postings (POST) ---
       // Create separate ledger entries for Incity fields when provided:
       // - incity_own_labour: DEBIT to Labour account
       // - incity_own_delivery: DEBIT to Delivery account
       const incityLabourAmt = safeParseFloat(incity_own_labour || 0);
       const incityDeliveryAmt = safeParseFloat(incity_own_delivery || 0);
-
       let incityLabourAccount = null;
       let incityDeliveryAccount = null;
 
@@ -773,6 +885,37 @@ export async function POST(request) {
         console.log(`💼 Incity Delivery account updated: ID=${incityDeliveryAccount.cus_id} balance=${deliveryLedgerEntry.closing_balance}`);
       }
 
+      // --- Update OUT-Labour & Cargo account balances if entries were created ---
+      if (typeof outLabourAccount !== 'undefined' && outLabourAccount && ledgerEntries.find(e => e.cus_id === outLabourAccount.cus_id)) {
+        const outLabourLedgerEntry = ledgerEntries.find(e => e.cus_id === outLabourAccount.cus_id);
+        await tx.customer.update({ where: { cus_id: outLabourAccount.cus_id }, data: { cus_balance: outLabourLedgerEntry.closing_balance } });
+        console.log(`💼 Out-Labour account updated: ID=${outLabourAccount.cus_id} balance=${outLabourLedgerEntry.closing_balance}`);
+      }
+
+      // Update Cash/Bank account used for OUT charges (if we created offset entries)
+      // No Cash/Bank offset entries were created for OUT charges — no balance update required for an OUT payment account.
+
+      // Update cargo accounts (if any cargo ledger entries were created)
+      try {
+        const cargoIdsUsed = [];
+        if (cargo_account_ids) {
+          cargoIdsUsed.push(...(Array.isArray(cargo_account_ids) ? cargo_account_ids.map(id => parseInt(id)) : (JSON.parse(cargo_account_ids || '[]') || [])));
+        } else if (cargo_account_id) {
+          cargoIdsUsed.push(parseInt(cargo_account_id));
+        }
+
+        for (const cid of cargoIdsUsed) {
+          const ledgerForCargo = ledgerEntries.filter(e => e.cus_id === cid);
+          if (ledgerForCargo && ledgerForCargo.length > 0) {
+            const lastCargoEntry = ledgerForCargo[ledgerForCargo.length - 1];
+            await tx.customer.update({ where: { cus_id: cid }, data: { cus_balance: lastCargoEntry.closing_balance } });
+            console.log(`💼 Cargo account updated: ID=${cid} balance=${lastCargoEntry.closing_balance}`);
+          }
+        }
+      } catch (err) {
+        console.log('⚠️ Error updating cargo account balances:', err.message);
+      }
+
       // Note: We still DO NOT create separate Expense records for Labour or Delivery here —
       // the Incity values are posted as ledger entries to the specified Labour/Delivery accounts.
 
@@ -834,6 +977,9 @@ export async function PUT(request) {
       fare_amount = 0,
       transport_amount = 0,
       labour_amount = 0,
+      out_labour_amount = 0,
+      out_delivery_amount = 0,
+      include_cargo_in_costprice = false,
       // Incity fields
       incity_own_labour = 0,
       incity_own_delivery = 0,
@@ -867,7 +1013,7 @@ export async function PUT(request) {
     };
 
     // Calculate net total
-    const net_total = safeParseFloat(total_amount) + safeParseFloat(unloading_amount) + safeParseFloat(fare_amount) + safeParseFloat(transport_amount) + safeParseFloat(labour_amount) - safeParseFloat(discount);
+    const net_total = safeParseFloat(total_amount) + safeParseFloat(unloading_amount) + safeParseFloat(fare_amount) + safeParseFloat(transport_amount) + safeParseFloat(labour_amount) + safeParseFloat(out_labour_amount) + safeParseFloat(out_delivery_amount) - safeParseFloat(discount);
 
     // Check if purchase exists
     const existingPurchase = await prisma.purchase.findUnique({
@@ -910,6 +1056,9 @@ export async function PUT(request) {
           fare_amount: parseFloat(fare_amount),
           transport_amount: parseFloat(transport_amount),
           labour_amount: parseFloat(labour_amount),
+          out_labour_amount: parseFloat(out_labour_amount),
+          out_delivery_amount: parseFloat(out_delivery_amount),
+          include_cargo_in_costprice: include_cargo_in_costprice ? true : false,
           // Incity fields
           incity_own_labour: parseFloat(incity_own_labour),
           incity_own_delivery: parseFloat(incity_own_delivery),
@@ -968,7 +1117,7 @@ export async function PUT(request) {
       const ledgerEntries = [];
       let runningSupplierBalance = 0;
 
-      // Calculate supplier amount — include labour and delivery so the supplier invoice reflects them
+      // Calculate supplier amount — EXCLUDE OUT charges (Out labour/Out delivery are not billed to supplier)
       const supplierAmount = safeParseFloat(total_amount) - safeParseFloat(discount) + safeParseFloat(labour_amount) + safeParseFloat(transport_amount);
 
       // 1. Supplier Account Entry
@@ -985,8 +1134,8 @@ export async function PUT(request) {
           debit_amount: supplierAmount,
           credit_amount: 0,
           bill_no: id.toString(),
-          trnx_type: 'CASH',
-          details: `Purchase Update from ${supplierData?.cus_name || 'Supplier'}${invoice_number ? ` #${invoice_number}` : ''}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''} (includes labour & delivery)`,
+          trnx_type: 'PURCHASE',
+          details: `Purchase Update from ${supplierData?.cus_name || 'Supplier'}${invoice_number ? ` #${invoice_number}` : ''}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
           payments: 0,
           updated_by: updated_by ? parseInt(updated_by) : null
         });
@@ -1069,6 +1218,113 @@ export async function PUT(request) {
         });
 
         ledgerEntries.push(bankEntry);
+      }
+
+      // --- CARGO / OUT CHARGES LEDGER POSTINGS (PUT) ---
+      // Out charges should be posted to Labour/Cargo only — DO NOT create Cash/Bank offset entries.
+      const outLabourAmtPUT = safeParseFloat(out_labour_amount || 0);
+      const outDeliveryAmtPUT = safeParseFloat(out_delivery_amount || 0);
+
+      let outLabourAccountPUT = null;
+
+      if (outLabourAmtPUT > 0) {
+        outLabourAccountPUT = await tx.customer.findFirst({
+          where: {
+            OR: [
+              { cus_name: { contains: 'labour' } },
+              { customer_category: { cus_cat_title: { contains: 'labour' } } },
+              { customer_type: { cus_type_title: { contains: 'labour' } } }
+            ]
+          },
+          select: { cus_id: true, cus_balance: true, cus_name: true }
+        });
+
+        if (outLabourAccountPUT) {
+          const labourEntry = createLedgerEntry({
+            cus_id: outLabourAccountPUT.cus_id,
+            opening_balance: parseFloat(outLabourAccountPUT.cus_balance || 0),
+            debit_amount: outLabourAmtPUT,
+            credit_amount: 0,
+            bill_no: id.toString(),
+            trnx_type: 'PURCHASE',
+            details: `Out Labour - Purchase #${id}${invoice_number ? ` (Inv: ${invoice_number})` : ''}`,
+            payments: 0,
+            updated_by: updated_by ? parseInt(updated_by) : null
+          });
+
+          ledgerEntries.push(labourEntry);
+          // Intentionally NOT creating any Cash/Bank credit offset for Out Labour (PUT)
+        } else {
+          console.log('⚠️ OUT Labour amount present but Labour account not found — skipping out-labour ledger posting (PUT)');
+        }
+      }
+
+      if (outDeliveryAmtPUT > 0) {
+        let cargoIdsPUT = [];
+        try {
+          if (cargo_account_ids) {
+            cargoIdsPUT = Array.isArray(cargo_account_ids) ? cargo_account_ids : JSON.parse(cargo_account_ids || '[]');
+          } else if (cargo_account_id) {
+            cargoIdsPUT = [cargo_account_id];
+          }
+        } catch (err) {
+          cargoIdsPUT = cargo_account_ids ? (Array.isArray(cargo_account_ids) ? cargo_account_ids : [cargo_account_ids]) : (cargo_account_id ? [cargo_account_id] : []);
+        }
+
+        if (cargoIdsPUT.length === 0 && cargo_account_id) cargoIdsPUT = [cargo_account_id];
+
+        if (cargoIdsPUT.length > 0) {
+          const perAccountPUT = parseFloat((outDeliveryAmtPUT / cargoIdsPUT.length).toFixed(2));
+          let remainderPUT = parseFloat((outDeliveryAmtPUT - (perAccountPUT * cargoIdsPUT.length)).toFixed(2));
+
+          for (let i = 0; i < cargoIdsPUT.length; i++) {
+            const aid = parseInt(cargoIdsPUT[i]);
+            const cargoAcc = await tx.customer.findUnique({ where: { cus_id: aid }, select: { cus_id: true, cus_balance: true, cus_name: true } });
+            if (!cargoAcc) {
+              console.log(`⚠️ Cargo account ID ${aid} not found — skipping (PUT)`);
+              continue;
+            }
+
+            let allocatePUT = perAccountPUT;
+            if (i === 0) allocatePUT = parseFloat((perAccountPUT + remainderPUT).toFixed(2));
+
+            const cargoEntry = createLedgerEntry({
+              cus_id: cargoAcc.cus_id,
+              opening_balance: parseFloat(cargoAcc.cus_balance || 0),
+              debit_amount: allocatePUT,
+              credit_amount: 0,
+              bill_no: id.toString(),
+              trnx_type: 'PURCHASE',
+              details: `Out Delivery - Purchase #${id}${invoice_number ? ` (Inv: ${invoice_number})` : ''}`,
+              payments: 0,
+              updated_by: updated_by ? parseInt(updated_by) : null
+            });
+
+            ledgerEntries.push(cargoEntry);
+
+            // --- CREDIT SUPPLIER FOR THIS PORTION (show in supplier's cash column) ---
+            if (cus_id) {
+              const supplierCreditForCargo = createLedgerEntry({
+                cus_id: cus_id,
+                opening_balance: runningSupplierBalance,
+                debit_amount: 0,
+                credit_amount: allocatePUT,
+                bill_no: id.toString(),
+                trnx_type: 'CASH',
+                details: `Out Delivery allocated to ${cargoAcc.cus_name} - Purchase #${id}`,
+                payments: allocatePUT,
+                cash_payment: allocatePUT,
+                bank_payment: 0,
+                updated_by: updated_by ? parseInt(updated_by) : null
+              });
+
+              ledgerEntries.push(supplierCreditForCargo);
+              runningSupplierBalance = supplierCreditForCargo.closing_balance;
+            }
+          }
+        } else {
+          console.log('⚠️ Out Delivery present but no cargo account selected — skipping cargo ledger postings (PUT)');
+        }
       }
 
       // --- Incity (OWN) Ledger Postings (PUT) ---
@@ -1207,6 +1463,35 @@ export async function PUT(request) {
         const deliveryLedgerEntry = ledgerEntries.find(e => e.cus_id === incityDeliveryAccount.cus_id);
         await tx.customer.update({ where: { cus_id: incityDeliveryAccount.cus_id }, data: { cus_balance: deliveryLedgerEntry.closing_balance } });
         console.log(`💼 Incity Delivery account updated (PUT): ID=${incityDeliveryAccount.cus_id} balance=${deliveryLedgerEntry.closing_balance}`);
+      }
+
+      // --- Update OUT-Labour / Cargo / Out-Payment account balances (PUT) ---
+      if (typeof outLabourAccountPUT !== 'undefined' && outLabourAccountPUT && ledgerEntries.find(e => e.cus_id === outLabourAccountPUT.cus_id)) {
+        const outLabourLedgerEntry = ledgerEntries.find(e => e.cus_id === outLabourAccountPUT.cus_id);
+        await tx.customer.update({ where: { cus_id: outLabourAccountPUT.cus_id }, data: { cus_balance: outLabourLedgerEntry.closing_balance } });
+        console.log(`💼 Out-Labour account updated (PUT): ID=${outLabourAccountPUT.cus_id} balance=${outLabourLedgerEntry.closing_balance}`);
+      }
+
+      // No Cash/Bank offset entries were created for OUT charges (PUT) — no balance update required for an OUT payment account.
+
+      try {
+        const cargoIdsUsed = [];
+        if (cargo_account_ids) {
+          cargoIdsUsed.push(...(Array.isArray(cargo_account_ids) ? cargo_account_ids.map(id => parseInt(id)) : (JSON.parse(cargo_account_ids || '[]') || [])));
+        } else if (cargo_account_id) {
+          cargoIdsUsed.push(parseInt(cargo_account_id));
+        }
+
+        for (const cid of cargoIdsUsed) {
+          const ledgerForCargo = ledgerEntries.filter(e => e.cus_id === cid);
+          if (ledgerForCargo && ledgerForCargo.length > 0) {
+            const lastCargoEntry = ledgerForCargo[ledgerForCargo.length - 1];
+            await tx.customer.update({ where: { cus_id: cid }, data: { cus_balance: lastCargoEntry.closing_balance } });
+            console.log(`💼 Cargo account updated (PUT): ID=${cid} balance=${lastCargoEntry.closing_balance}`);
+          }
+        }
+      } catch (err) {
+        console.log('⚠️ Error updating cargo account balances (PUT):', err.message);
       }
 
       return { purchase: updatedPurchase };
