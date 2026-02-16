@@ -13,7 +13,7 @@ import {
   TrendingUp,
   Truck
 } from 'lucide-react';
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Table as MuiTable, TableBody as MuiTableBody, TableCell as MuiTableCell, TableContainer as MuiTableContainer, TableHead as MuiTableHead, TableRow as MuiTableRow, Paper } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Box, Typography, Table as MuiTable, TableBody as MuiTableBody, TableCell as MuiTableCell, TableContainer as MuiTableContainer, TableHead as MuiTableHead, TableRow as MuiTableRow, Paper } from '@mui/material';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
 
@@ -28,11 +28,10 @@ export default function SalesByDateReport() {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedSale, setSelectedSale] = useState(null);
 
-  // Set default dates and auto-fetch on mount
+  // Set default dates and auto-fetch on mount (default to today)
   useEffect(() => {
     const today = new Date().toISOString().split('T')[0];
-    const yearAgo = new Date(2000, 0, 1).toISOString().split('T')[0]; // From year 2000
-    setStartDate(yearAgo);
+    setStartDate(today);
     setEndDate(today);
   }, []);
 
@@ -66,9 +65,37 @@ export default function SalesByDateReport() {
     }
   };
 
+  // Compute readable totals for the selected sale to avoid complex inline JSX expressions
+  const getSaleTotals = (sale) => {
+    if (!sale) return null;
+    const subtotal = parseFloat(sale.total_amount || 0) || 0;
+    const discount = parseFloat(sale.discount || 0) || 0;
+    const labour = parseFloat(sale.labour_charges || 0) || 0;
+    const shipping = parseFloat(sale.shipping_amount || 0) || 0;
+    const netTotal = subtotal - discount + labour + shipping;
+    const prevBalance = parseFloat(sale.customer?.cus_balance || sale.prev_balance || sale.previous_balance || sale.customer?.previous_balance || 0) || 0;
+    const cash = parseFloat(sale.cash_payment || 0) || 0;
+    const bank = parseFloat(sale.bank_payment || 0) || 0;
+    const advance = parseFloat(sale.advance_payment || 0) || 0;
+    const paid = Number.isFinite(Number(sale.payment)) ? parseFloat(sale.payment) || 0 : (cash + bank + advance);
+    const due = prevBalance + netTotal - paid;
+    const totalQty = (sale.sale_details || []).reduce((s, d) => s + (parseFloat(d.qnty || 0) || 0), 0);
+    return { subtotal, discount, labour, shipping, netTotal, prevBalance, cash, bank, advance, paid, due, totalQty };
+  };
+
+  const selectedTotals = selectedSale ? getSaleTotals(selectedSale) : null;
+
   const handlePrint = () => {
+    // If a sale details modal is open, print the single sale invoice
+    if (showDetailsModal && selectedSale) {
+      printSaleBill(selectedSale);
+      return;
+    }
+
     window.print();
   };
+
+  
 
   const handleExport = () => {
     if (!salesData) return;
@@ -102,6 +129,127 @@ export default function SalesByDateReport() {
     a.download = `sales-report-${startDate}-to-${endDate}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
+  };
+
+  // Print a single sale bill using a full invoice layout (matches Sales page fields)
+  const printSaleBill = (sale) => {
+    if (!sale) return;
+
+    // Build an HTML string that matches the Sales page printable A4 invoice
+    const details = sale.sale_details || [];
+    const itemsHtml = details.map((d, i) => `
+      <tr>
+        <td style="padding:6px;border:1px solid #ddd">${i + 1}</td>
+        <td style="padding:6px;border:1px solid #ddd">${d.product?.pro_title || d.product_name || 'Item'}</td>
+        <td style="padding:6px;border:1px solid #ddd;text-align:right">${d.qnty || 0}</td>
+        <td style="padding:6px;border:1px solid #ddd;text-align:right">${(parseFloat(d.unit_rate) || 0).toFixed(2)}</td>
+        <td style="padding:6px;border:1px solid #ddd;text-align:right">${(parseFloat(d.total_amount) || 0).toFixed(2)}</td>
+      </tr>`).join('');
+
+    const subtotal = parseFloat(sale.total_amount || 0) || 0;
+    const discount = parseFloat(sale.discount || 0) || 0;
+    const labour = parseFloat(sale.labour_charges || sale.labour || 0) || 0;
+    const shipping = parseFloat(sale.shipping_amount || 0) || 0;
+    const paid = Number.isFinite(Number(sale.payment)) ? (parseFloat(sale.payment) || 0) : ((parseFloat(sale.cash_payment || 0) || 0) + (parseFloat(sale.bank_payment || 0) || 0) + (parseFloat(sale.advance_payment || 0) || 0));
+    const prevBal = parseFloat(sale.customer?.cus_balance || sale.prev_balance || sale.previous_balance || 0) || 0;
+
+    const totalQty = details.reduce((s, d) => s + (parseFloat(d.qnty || 0) || 0), 0);
+
+    const html = `<!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Sale Invoice - ${sale.sale_id}</title>
+          <style>
+            @page { size: A5; margin: 10mm; }
+            body{font-family:Arial,Helvetica,sans-serif;color:#111;padding:16px}
+            .company{ text-align:center; margin-bottom:8px }
+            .meta{ margin-top:8px; display:flex; justify-content:space-between }
+            table{ width:100%; border-collapse:collapse; margin-top:12px }
+            th,td{ border:1px solid #ddd; padding:8px }
+            th{ background:#f3f4f6; text-align:left }
+            .right{ text-align:right }
+            .totals{ margin-top:12px; width:360px; float:right }
+            .urdu{ font-family: 'Noto Nastaliq Urdu', serif; }
+          </style>
+        </head>
+        <body>
+          <div style="width:148mm;margin:0 auto">
+          <div class="company">
+            <h2 style="margin:0;font-size:20px">اتفاق آئرن اینڈ سیمنٹ سٹور</h2>
+            <div>گجرات سرگودھا روڈ، پاہڑیانوالی</div>
+            <div>Ph: 0346-7560306, 0300-7560306</div>
+            <div style="margin-top:6px;font-weight:bold;font-size:18px">SALE INVOICE</div>
+          </div>
+
+          <div class="meta">
+            <div>
+              <div><strong>Invoice:</strong> ${sale.sale_id}</div>
+              <div><strong>Date:</strong> ${new Date(sale.created_at).toLocaleString()}</div>
+            </div>
+            <div style="text-align:right">
+              <div><strong>Customer:</strong> ${sale.customer?.cus_name || 'N/A'}</div>
+              <div><strong>Phone:</strong> ${sale.customer?.cus_phone_no || ''}</div>
+              <div><strong>Type:</strong> ${sale.bill_type || ''}</div>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>S#</th>
+                <th>Product</th>
+                <th class="right">Qty</th>
+                <th class="right">Rate</th>
+                <th class="right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+
+          <div style="margin-top:8px;text-align:right;font-weight:bold">Total Qty: ${totalQty.toFixed(2)}</div>
+
+          <div class="totals">
+            <table style="width:100%">
+              <tr><td style="border:1px solid #ddd;padding:6px">Subtotal</td><td style="border:1px solid #ddd;padding:6px" class="right">${subtotal.toFixed(2)}</td></tr>
+              <tr><td style="border:1px solid #ddd;padding:6px">Labour</td><td style="border:1px solid #ddd;padding:6px" class="right">${labour.toFixed(2)}</td></tr>
+              <tr><td style="border:1px solid #ddd;padding:6px">Shipping</td><td style="border:1px solid #ddd;padding:6px" class="right">${shipping.toFixed(2)}</td></tr>
+              <tr><td style="border:1px solid #ddd;padding:6px">Discount</td><td style="border:1px solid #ddd;padding:6px" class="right">${discount.toFixed(2)}</td></tr>
+              <tr><td style="border:1px solid #ddd;padding:6px">Previous Balance</td><td style="border:1px solid #ddd;padding:6px" class="right">${prevBal.toFixed(2)}</td></tr>
+              <tr style="background:#f5f5f5"><th style="padding:6px">Grand Total</th><th style="padding:6px" class="right">${subtotal.toFixed(2)}</th></tr>
+              <tr><td style="border:1px solid #ddd;padding:6px">Cash</td><td style="border:1px solid #ddd;padding:6px" class="right">${(parseFloat(sale.cash_payment || 0) || 0).toFixed(2)}</td></tr>
+              ${ (parseFloat(sale.bank_payment || 0) || 0) > 0 ? `<tr><td style="border:1px solid #ddd;padding:6px">${sale.bank_title || 'Bank'}</td><td style="border:1px solid #ddd;padding:6px" class="right">${(parseFloat(sale.bank_payment || 0) || 0).toFixed(2)}</td></tr>` : '' }
+              ${ (parseFloat(sale.advance_payment || 0) || 0) > 0 ? `<tr><td style="border:1px solid #ddd;padding:6px">Advance</td><td style="border:1px solid #ddd;padding:6px" class="right">${(parseFloat(sale.advance_payment || 0) || 0).toFixed(2)}</td></tr>` : '' }
+              <tr style="background:#f5f5f5"><th style="padding:6px">Total Paid</th><th style="padding:6px" class="right">${paid.toFixed(2)}</th></tr>
+              <tr style="background:#d0d0d0"><th style="padding:6px">Balance</th><th style="padding:6px" class="right">${(subtotal - paid).toFixed(2)}</th></tr>
+            </table>
+          </div>
+
+          <div style="clear:both;margin-top:80px">
+            <div style="float:left;width:50%">
+              <div>____________________</div>
+              <div>Customer Signature</div>
+            </div>
+            <div style="float:right;width:50%;text-align:right">
+              <div>____________________</div>
+              <div>Authorized Signature</div>
+            </div>
+          </div>
+
+          <div style="margin-top:30px;font-size:12px;color:#666">Notes: ${sale.notes || ''}</div>
+          </div>
+        </body>
+      </html>`;
+
+    const w = window.open('', '_blank', 'width=900,height=800');
+    if (!w) { alert('Please allow popups to print the bill.'); return; }
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => { w.print(); }, 300);
   };
 
   return (
@@ -202,66 +350,200 @@ export default function SalesByDateReport() {
               </div>
             </div>
 
-            {/* Sale details modal */}
-            <Dialog open={showDetailsModal} onClose={() => setShowDetailsModal(false)} maxWidth="md" fullWidth>
-              <DialogTitle sx={{ fontWeight: 700 }}>Sale Items — {selectedSale ? `#${selectedSale.sale_id}` : ''}</DialogTitle>
+            {/* Sale details modal (match Sales page invoice format) */}
+            <Dialog open={showDetailsModal} onClose={() => setShowDetailsModal(false)} maxWidth="lg" fullWidth>
+              <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: 'primary.main', color: 'white', py: 2, px: 3 }}>
+                <Typography variant="h6" sx={{ fontWeight: 'bold' }}>Bill Details - #{selectedSale?.sale_id}</Typography>
+                <Button size="small" onClick={() => setShowDetailsModal(false)} sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.2)' }}>Close</Button>
+              </DialogTitle>
               <DialogContent dividers>
-                {selectedSale && selectedSale.sale_details && selectedSale.sale_details.length > 0 ? (
-                  <MuiTableContainer component={Paper}>
-                    <MuiTable size="small">
-                      <MuiTableHead>
-                        <MuiTableRow>
-                          <MuiTableCell>S#</MuiTableCell>
-                          <MuiTableCell>Product</MuiTableCell>
-                          <MuiTableCell align="right">Qty</MuiTableCell>
-                          <MuiTableCell align="right">Rate</MuiTableCell>
-                          <MuiTableCell align="right">Amount</MuiTableCell>
-                        </MuiTableRow>
-                      </MuiTableHead>
-                      <MuiTableBody>
-                        {selectedSale.sale_details.map((d, i) => (
-                          <MuiTableRow key={d.sale_detail_id || i}>
-                            <MuiTableCell>{i + 1}</MuiTableCell>
-                            <MuiTableCell>{d.product?.pro_title || d.product_name || 'Item'}</MuiTableCell>
-                            <MuiTableCell align="right">{d.qnty || 0}</MuiTableCell>
-                            <MuiTableCell align="right">{parseFloat(d.unit_rate || 0).toFixed(2)}</MuiTableCell>
-                            <MuiTableCell align="right">{parseFloat(d.total_amount || 0).toFixed(2)}</MuiTableCell>
-                          </MuiTableRow>
-                        ))}
-                      </MuiTableBody>
-                    </MuiTable>
-                  </MuiTableContainer>
-                ) : (
-                  <div className="text-center py-6">No items for this sale</div>
-                )}
+                {selectedSale ? (
+                  <Box sx={{ width: '100%', bgcolor: 'white' }}>
+                    <Box sx={{ textAlign: 'center', py: 2, borderBottom: '2px solid #000' }}>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 0.5 }}>Ittefaq Iron and Cement Store</Typography>
+                      <Typography variant="body2" sx={{ mb: 0.5 }}>Address: Parianwali</Typography>
+                      <Typography variant="body2">Phone: +92 346 7560306</Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 'bold', mt: 1 }}>SALE INVOICE</Typography>
+                    </Box>
 
-                {/* Summary */}
-                {selectedSale && (
-                  <div className="mt-4 flex justify-end space-x-6">
-                    <div className="text-sm">
-                      <div className="text-slate-600">Subtotal</div>
-                      <div className="font-semibold">{parseFloat(selectedSale.total_amount || 0).toFixed(2)}</div>
-                    </div>
-                    <div className="text-sm">
-                      <div className="text-slate-600">Discount</div>
-                      <div className="font-semibold">{parseFloat(selectedSale.discount || 0).toFixed(2)}</div>
-                    </div>
-                    <div className="text-sm">
-                      <div className="text-slate-600">Shipping</div>
-                      <div className="font-semibold">{parseFloat(selectedSale.shipping_amount || 0).toFixed(2)}</div>
-                    </div>
-                    <div className="text-sm">
-                      <div className="text-slate-600">Net Total</div>
-                      <div className="font-semibold">{(parseFloat(selectedSale.total_amount || 0) - parseFloat(selectedSale.discount || 0) + parseFloat(selectedSale.shipping_amount || 0)).toFixed(2)}</div>
-                    </div>
-                  </div>
+                    <Box sx={{ px: 3, py: 2, borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between' }}>
+                      <Box>
+                        <Typography variant="body2" sx={{ mb: 0.5 }}>Customer Name: <strong>{selectedSale.customer?.cus_name || 'N/A'}</strong></Typography>
+                        <Typography variant="body2" sx={{ mb: 0.5 }}>Phone No: <strong>{selectedSale.customer?.cus_phone_no || 'N/A'}</strong></Typography>
+                        {selectedSale.customer?.cus_address && (
+                          <Typography variant="body2">Address: <strong>{selectedSale.customer.cus_address}</strong></Typography>
+                        )}
+                      </Box>
+                      <Box sx={{ textAlign: 'right' }}>
+                        <Typography variant="body2">Invoice No: <strong>#{selectedSale.sale_id}</strong></Typography>
+                        <Typography variant="body2">Time: <strong>{new Date(selectedSale.created_at).toLocaleTimeString()}</strong></Typography>
+                        <Typography variant="body2">Date: <strong>{new Date(selectedSale.created_at).toLocaleDateString()}</strong></Typography>
+                        <Typography variant="body2">Bill Type: <strong>{selectedSale.bill_type || 'BILL'}</strong></Typography>
+                      </Box>
+                    </Box>
+
+                    <MuiTableContainer component={Paper} variant="outlined" sx={{ my: 2 }}>
+                      <MuiTable size="small">
+                        <MuiTableHead>
+                          <MuiTableRow sx={{ bgcolor: '#9e9e9e' }}>
+                            <MuiTableCell sx={{ fontWeight: 'bold', color: 'white' }}>S#</MuiTableCell>
+                            <MuiTableCell sx={{ fontWeight: 'bold', color: 'white' }}>Product</MuiTableCell>
+                            <MuiTableCell sx={{ fontWeight: 'bold', color: 'white' }} align="right">Qty</MuiTableCell>
+                            <MuiTableCell sx={{ fontWeight: 'bold', color: 'white' }} align="right">Rate</MuiTableCell>
+                            <MuiTableCell sx={{ fontWeight: 'bold', color: 'white' }} align="right">Amount</MuiTableCell>
+                          </MuiTableRow>
+                        </MuiTableHead>
+                        <MuiTableBody>
+                          {(selectedSale.sale_details || []).length > 0 ? (
+                            <>
+                              {(selectedSale.sale_details || []).map((d, i) => (
+                                <MuiTableRow key={d.sale_detail_id || i}>
+                                  <MuiTableCell>{i + 1}</MuiTableCell>
+                                  <MuiTableCell>{d.product?.pro_title || d.product_name || 'N/A'}</MuiTableCell>
+                                  <MuiTableCell align="right">{d.qnty || 0}</MuiTableCell>
+                                  <MuiTableCell align="right">{parseFloat(d.unit_rate || 0).toFixed(2)}</MuiTableCell>
+                                  <MuiTableCell align="right">{parseFloat(d.total_amount || 0).toFixed(2)}</MuiTableCell>
+                                </MuiTableRow>
+                              ))}
+                              <MuiTableRow sx={{ bgcolor: '#fafafa' }}>
+                                <MuiTableCell colSpan={2} sx={{ fontWeight: 'bold' }}>Total Qty</MuiTableCell>
+                                <MuiTableCell align="right" sx={{ fontWeight: 'bold' }}>{((selectedTotals ? selectedTotals.totalQty : (selectedSale.sale_details || []).reduce((s,d)=> s + (parseFloat(d.qnty||0)||0),0))).toFixed(2)}</MuiTableCell>
+                                <MuiTableCell />
+                                <MuiTableCell />
+                              </MuiTableRow>
+                            </>
+                          ) : (
+                            <MuiTableRow>
+                              <MuiTableCell colSpan={5} align="center">No items found</MuiTableCell>
+                            </MuiTableRow>
+                          )}
+                        </MuiTableBody>
+                      </MuiTable>
+                    </MuiTableContainer>
+
+                    <Box sx={{ mt: 2 }}>
+                      <Paper variant="outlined" sx={{ p: 2 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, alignItems: 'flex-start' }}>
+                          <Box sx={{ flex: 1 }}>
+                            <Typography variant="body2"><strong>Notes:</strong> {selectedSale.notes || ''}</Typography>
+                          </Box>
+
+                          <Box sx={{ width: 360 }}>
+                            <MuiTableContainer component={Paper} variant="outlined">
+                              <MuiTable size="small">
+                                <MuiTableBody>
+                                  <MuiTableRow>
+                                    <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</MuiTableCell>
+                                    <MuiTableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                      {(selectedTotals?.prevBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </MuiTableCell>
+                                  </MuiTableRow>
+
+                                  <MuiTableRow>
+                                    <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</MuiTableCell>
+                                    <MuiTableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                      {((parseFloat(selectedSale.total_amount || 0) || 0) - (parseFloat(selectedSale.payment || 0) || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </MuiTableCell>
+                                  </MuiTableRow>
+
+                                  <MuiTableRow sx={{ bgcolor: '#f5f5f5' }}>
+                                    <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</MuiTableCell>
+                                    <MuiTableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                      {((selectedTotals?.prevBalance || 0) + (parseFloat(selectedSale.total_amount || 0) || 0) - (parseFloat(selectedSale.payment || 0) || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </MuiTableCell>
+                                  </MuiTableRow>
+
+                                  <MuiTableRow>
+                                    <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>رقم بل</MuiTableCell>
+                                    <MuiTableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                      {(selectedTotals?.subtotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </MuiTableCell>
+                                  </MuiTableRow>
+
+                                  <MuiTableRow>
+                                    <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>مزدوری</MuiTableCell>
+                                    <MuiTableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                      {(selectedTotals?.labour || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </MuiTableCell>
+                                  </MuiTableRow>
+
+                                  <MuiTableRow>
+                                    <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>کرایہ</MuiTableCell>
+                                    <MuiTableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                      {(selectedTotals?.shipping || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </MuiTableCell>
+                                  </MuiTableRow>
+
+                                  <MuiTableRow>
+                                    <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>رعایت</MuiTableCell>
+                                    <MuiTableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                      {(selectedTotals?.discount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </MuiTableCell>
+                                  </MuiTableRow>
+
+                                  <MuiTableRow sx={{ bgcolor: '#f5f5f5' }}>
+                                    <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل رقم</MuiTableCell>
+                                    <MuiTableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                      {(selectedTotals?.netTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </MuiTableCell>
+                                  </MuiTableRow>
+
+                                  <MuiTableRow>
+                                    <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>نقد كيش</MuiTableCell>
+                                    <MuiTableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                      {(selectedTotals?.cash || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </MuiTableCell>
+                                  </MuiTableRow>
+
+                                  { (selectedTotals?.bank || 0) > 0 && (
+                                    <MuiTableRow>
+                                      <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>{selectedSale.bank_title || 'بینک'}</MuiTableCell>
+                                      <MuiTableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                        {(selectedTotals?.bank || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      </MuiTableCell>
+                                    </MuiTableRow>
+                                  )}
+
+                                  { (selectedTotals?.advance || 0) > 0 && (
+                                    <MuiTableRow>
+                                      <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>پیشگی ادائیگی</MuiTableCell>
+                                      <MuiTableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                        {(selectedTotals?.advance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      </MuiTableCell>
+                                    </MuiTableRow>
+                                  )}
+
+                                  <MuiTableRow sx={{ bgcolor: '#f5f5f5' }}>
+                                    <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل رقم وصول</MuiTableCell>
+                                    <MuiTableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                      {(selectedTotals?.paid || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </MuiTableCell>
+                                  </MuiTableRow>
+
+                                  <MuiTableRow sx={{ bgcolor: '#d0d0d0' }}>
+                                    <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>بقايا رقم</MuiTableCell>
+                                    <MuiTableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                      {(selectedTotals?.due || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </MuiTableCell>
+                                  </MuiTableRow>
+
+                                </MuiTableBody>
+                              </MuiTable>
+                            </MuiTableContainer>
+                          </Box>
+                        </Box>
+                      </Paper>
+                    </Box>
+                  </Box>
+                ) : (
+                  <Typography sx={{ p: 2 }}>No sale selected</Typography>
                 )}
               </DialogContent>
               <DialogActions>
+                <Button onClick={() => printSaleBill(selectedSale)} variant="contained">Print</Button>
                 <Button onClick={() => setShowDetailsModal(false)} variant="outlined">Close</Button>
               </DialogActions>
             </Dialog>
-
             {/* Sales Table */}
             <div className="flex-1 min-h-0 print:min-h-0 print:block">
               <div className="bg-white rounded-lg shadow print:shadow-none print:border print:border-gray-300 h-full flex flex-col print:block">
@@ -290,9 +572,7 @@ export default function SalesByDateReport() {
                         return (
                           <tr
                             key={sale.sale_id}
-                            onClick={() => { setSelectedSale(sale); setShowDetailsModal(true); }}
-                            className="hover:bg-gray-50 print:hover:bg-white cursor-pointer"
-                            title="Click to view sale items"
+                            className="hover:bg-gray-50 print:hover:bg-white"
                           >
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                               {new Date(sale.created_at).toLocaleDateString()}
@@ -321,9 +601,12 @@ export default function SalesByDateReport() {
                               {netTotal.toFixed(2)}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-900">
-                              <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setSelectedSale(sale); setShowDetailsModal(true); }}
+                                className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 hover:opacity-90"
+                                title={`View bill ${sale.sale_id}`}>
                                 {sale.bill_type}
-                              </span>
+                              </button>
                             </td>
                           </tr>
                         );

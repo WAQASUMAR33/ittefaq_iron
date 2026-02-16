@@ -8,6 +8,7 @@ import {
   Calendar,
   ShoppingBag
 } from 'lucide-react';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Box, Typography, Table as MuiTable, TableBody as MuiTableBody, TableCell as MuiTableCell, TableContainer as MuiTableContainer, TableHead as MuiTableHead, TableRow as MuiTableRow, Paper } from '@mui/material';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
 
@@ -18,11 +19,10 @@ export default function PurchasesByDateReport() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  // Set default dates and auto-fetch on mount
+  // Set default dates and auto-fetch on mount (default to today)
   useEffect(() => {
     const today = new Date().toISOString().split('T')[0];
-    const yearAgo = new Date(2000, 0, 1).toISOString().split('T')[0]; // From year 2000
-    setStartDate(yearAgo);
+    setStartDate(today);
     setEndDate(today);
   }, []);
 
@@ -69,14 +69,14 @@ export default function PurchasesByDateReport() {
     csv += 'Purchase Report (By Date)\n';
     csv += `From: ${new Date(startDate).toLocaleDateString()} To: ${new Date(endDate).toLocaleDateString()}\n`;
     csv += `Generated on: ${new Date().toLocaleString()}\n\n`;
-    csv += 'Purchase ID,Date,Supplier,Items,Amount,Unloading,Fare,Discount,Net Total,Payment\n';
+    csv += 'Purchase ID,Date,Supplier,Items,Amount,Discount,Net Total,Payment,Type\n';
     
     reportData.purchases.forEach(purchase => {
-      csv += `${purchase.pur_id},${new Date(purchase.created_at).toLocaleDateString()},${purchase.customer?.cus_name || 'N/A'},${purchase.purchase_details?.length || 0},${parseFloat(purchase.total_amount).toFixed(2)},${parseFloat(purchase.unloading_amount).toFixed(2)},${parseFloat(purchase.fare_amount).toFixed(2)},${parseFloat(purchase.discount).toFixed(2)},${parseFloat(purchase.net_total).toFixed(2)},${parseFloat(purchase.payment).toFixed(2)}\n`;
+      csv += `${purchase.pur_id},${new Date(purchase.created_at).toLocaleDateString()},${purchase.customer?.cus_name || 'N/A'},${purchase.purchase_details?.length || 0},${parseFloat(purchase.total_amount).toFixed(2)},${parseFloat(purchase.discount).toFixed(2)},${parseFloat(purchase.net_total).toFixed(2)},${parseFloat(purchase.payment).toFixed(2)},${purchase.bill_type || purchase.type || 'PURCHASE'}\n`;
     });
 
     csv += '\n';
-    csv += `TOTAL,,,${reportData.summary.totalPurchases},${reportData.summary.totalAmount.toFixed(2)},${reportData.summary.totalUnloading.toFixed(2)},${reportData.summary.totalFare.toFixed(2)},${reportData.summary.totalDiscount.toFixed(2)},${reportData.summary.netTotal.toFixed(2)},${reportData.summary.totalPayment.toFixed(2)}\n`;
+    csv += `TOTAL,,,${reportData.summary.totalPurchases},${reportData.summary.totalAmount.toFixed(2)},${reportData.summary.totalDiscount.toFixed(2)},${reportData.summary.netTotal.toFixed(2)},${reportData.summary.totalPayment.toFixed(2)}\n`;
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
@@ -85,6 +85,141 @@ export default function PurchasesByDateReport() {
     a.download = `purchases-report-${startDate}-to-${endDate}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
+  };
+
+  // Purchase details modal state & helpers
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [selectedPurchase, setSelectedPurchase] = useState(null);
+
+  const getPurchaseTotals = (purchase) => {
+    if (!purchase) return null;
+    const subtotal = parseFloat(purchase.total_amount || 0) || 0;
+    const discount = parseFloat(purchase.discount || 0) || 0;
+    const netTotal = subtotal - discount;
+    const prevBalance = parseFloat(purchase.customer?.cus_balance || purchase.prev_balance || 0) || 0;
+    const cash = parseFloat(purchase.cash_payment || 0) || 0;
+    const bank = parseFloat(purchase.bank_payment || 0) || 0;
+    const advance = parseFloat(purchase.advance_payment || 0) || 0;
+    const paid = Number.isFinite(Number(purchase.payment)) ? parseFloat(purchase.payment) || 0 : (cash + bank + advance);
+    const due = prevBalance + netTotal - paid;
+    const totalQty = (purchase.purchase_details || []).reduce((s, d) => s + (parseFloat(d.qnty || 0) || 0), 0);
+    return { subtotal, discount, netTotal, prevBalance, cash, bank, advance, paid, due, totalQty };
+  };
+
+  const selectedTotals = selectedPurchase ? getPurchaseTotals(selectedPurchase) : null;
+
+  const printPurchaseBill = (purchase) => {
+    if (!purchase) return;
+    const details = purchase.purchase_details || [];
+    const itemsHtml = details.map((d, i) => `
+      <tr>
+        <td style="padding:6px;border:1px solid #ddd">${i + 1}</td>
+        <td style="padding:6px;border:1px solid #ddd">${d.product?.pro_title || d.product_name || 'Item'}</td>
+        <td style="padding:6px;border:1px solid #ddd;text-align:right">${d.qnty || 0}</td>
+        <td style="padding:6px;border:1px solid #ddd;text-align:right">${(parseFloat(d.unit_rate) || 0).toFixed(2)}</td>
+        <td style="padding:6px;border:1px solid #ddd;text-align:right">${(parseFloat(d.total_amount) || 0).toFixed(2)}</td>
+      </tr>`).join('');
+
+    const subtotal = parseFloat(purchase.total_amount || 0) || 0;
+    const discount = parseFloat(purchase.discount || 0) || 0;
+    const paid = Number.isFinite(Number(purchase.payment)) ? parseFloat(purchase.payment) || 0 : ((parseFloat(purchase.cash_payment || 0) || 0) + (parseFloat(purchase.bank_payment || 0) || 0) + (parseFloat(purchase.advance_payment || 0) || 0));
+    const prevBal = parseFloat(purchase.customer?.cus_balance || purchase.prev_balance || 0) || 0;
+    const totalQty = details.reduce((s, d) => s + (parseFloat(d.qnty || 0) || 0), 0);
+    const netTotal = (parseFloat(purchase.total_amount || 0) || 0) - (parseFloat(purchase.discount || 0) || 0);
+
+    const html = `<!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Purchase Invoice - ${purchase.pur_id}</title>
+          <style>
+            @page { size: A5; margin: 10mm; }
+            body{font-family:Arial,Helvetica,sans-serif;color:#111;padding:16px}
+            .company{ text-align:center; margin-bottom:8px }
+            .meta{ margin-top:8px; display:flex; justify-content:space-between }
+            table{ width:100%; border-collapse:collapse; margin-top:12px }
+            th,td{ border:1px solid #ddd; padding:8px }
+            th{ background:#f3f4f6; text-align:left }
+            .right{ text-align:right }
+            .totals{ margin-top:12px; width:360px; float:right }
+            .urdu{ font-family: 'Noto Nastaliq Urdu', serif; }
+          </style>
+        </head>
+        <body>
+          <div style="width:148mm;margin:0 auto">
+          <div class="company">
+            <h2 style="margin:0;font-size:20px">اتفاق آئرن اینڈ سیمنٹ سٹور</h2>
+            <div>گجرات سرگودھا روڈ، پاہڑیانوالی</div>
+            <div>Ph: 0346-7560306, 0300-7560306</div>
+            <div style="margin-top:6px;font-weight:bold;font-size:18px">PURCHASE INVOICE</div>
+          </div>
+
+          <div class="meta">
+            <div>
+              <div><strong>Invoice:</strong> ${purchase.pur_id}</div>
+              <div><strong>Date:</strong> ${new Date(purchase.created_at).toLocaleString()}</div>
+            </div>
+            <div style="text-align:right">
+              <div><strong>Supplier:</strong> ${purchase.customer?.cus_name || 'N/A'}</div>
+              <div><strong>Phone:</strong> ${purchase.customer?.cus_phone_no || ''}</div>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>S#</th>
+                <th>Product</th>
+                <th class="right">Qty</th>
+                <th class="right">Rate</th>
+                <th class="right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+
+          <div style="margin-top:8px;text-align:right;font-weight:bold">Total Qty: ${totalQty.toFixed(2)}</div>
+
+          <div class="totals">
+            <table style="width:100%">
+              <tr><td style="border:1px solid #ddd;padding:6px">Subtotal</td><td style="border:1px solid #ddd;padding:6px" class="right">${subtotal.toFixed(2)}</td></tr>
+              <!-- Unloading & Fare removed per request -->
+              <tr><td style="border:1px solid #ddd;padding:6px">Discount</td><td style="border:1px solid #ddd;padding:6px" class="right">${discount.toFixed(2)}</td></tr>
+              <tr><td style="border:1px solid #ddd;padding:6px">Previous Balance</td><td style="border:1px solid #ddd;padding:6px" class="right">${prevBal.toFixed(2)}</td></tr>
+              <tr style="background:#f5f5f5"><th style="padding:6px">Grand Total</th><th style="padding:6px" class="right">${netTotal.toFixed(2)}</th></tr>
+              <tr><td style="border:1px solid #ddd;padding:6px">Cash</td><td style="border:1px solid #ddd;padding:6px" class="right">${(parseFloat(purchase.cash_payment || 0) || 0).toFixed(2)}</td></tr>
+              ${ (parseFloat(purchase.bank_payment || 0) || 0) > 0 ? `<tr><td style="border:1px solid #ddd;padding:6px">${purchase.bank_title || 'Bank'}</td><td style="border:1px solid #ddd;padding:6px" class="right">${(parseFloat(purchase.bank_payment || 0) || 0).toFixed(2)}</td></tr>` : '' }
+              ${ (parseFloat(purchase.advance_payment || 0) || 0) > 0 ? `<tr><td style="border:1px solid #ddd;padding:6px">Advance</td><td style="border:1px solid #ddd;padding:6px" class="right">${(parseFloat(purchase.advance_payment || 0) || 0).toFixed(2)}</td></tr>` : '' }
+              <tr style="background:#f5f5f5"><th style="padding:6px">Total Paid</th><th style="padding:6px" class="right">${paid.toFixed(2)}</th></tr>
+              <tr style="background:#d0d0d0"><th style="padding:6px">Balance</th><th style="padding:6px" class="right">${(subtotal - paid).toFixed(2)}</th></tr>
+            </table>
+          </div>
+
+          <div style="clear:both;margin-top:80px">
+            <div style="float:left;width:50%">
+              <div>____________________</div>
+              <div>Supplier Signature</div>
+            </div>
+            <div style="float:right;width:50%;text-align:right">
+              <div>____________________</div>
+              <div>Authorized Signature</div>
+            </div>
+          </div>
+
+          <div style="margin-top:30px;font-size:12px;color:#666">Notes: ${purchase.notes || ''}</div>
+          </div>
+        </body>
+      </html>`;
+
+    const w = window.open('', '_blank', 'width=900,height=800');
+    if (!w) { alert('Please allow popups to print the bill.'); return; }
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => { w.print(); }, 300);
   };
 
   return (
@@ -185,6 +320,194 @@ export default function PurchasesByDateReport() {
               </div>
             </div>
 
+            {/* Purchase details modal (matches Purchase invoice format) */}
+            <Dialog open={showDetailsModal} onClose={() => setShowDetailsModal(false)} maxWidth="lg" fullWidth>
+              <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: 'primary.main', color: 'white', py: 2, px: 3 }}>
+                <Typography variant="h6" sx={{ fontWeight: 'bold' }}>Purchase Details - #{selectedPurchase?.pur_id}</Typography>
+                <Button size="small" onClick={() => setShowDetailsModal(false)} sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.2)' }}>Close</Button>
+              </DialogTitle>
+              <DialogContent dividers>
+                {selectedPurchase ? (
+                  <Box sx={{ width: '100%', bgcolor: 'white' }}>
+                    <Box sx={{ textAlign: 'center', py: 2, borderBottom: '2px solid #000' }}>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 0.5 }}>Ittefaq Iron and Cement Store</Typography>
+                      <Typography variant="body2" sx={{ mb: 0.5 }}>Address: Parianwali</Typography>
+                      <Typography variant="body2">Phone: +92 346 7560306</Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 'bold', mt: 1 }}>PURCHASE INVOICE</Typography>
+                    </Box>
+
+                    <Box sx={{ px: 3, py: 2, borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between' }}>
+                      <Box>
+                        <Typography variant="body2" sx={{ mb: 0.5 }}>Supplier Name: <strong>{selectedPurchase.customer?.cus_name || 'N/A'}</strong></Typography>
+                        <Typography variant="body2" sx={{ mb: 0.5 }}>Phone No: <strong>{selectedPurchase.customer?.cus_phone_no || 'N/A'}</strong></Typography>
+                        {selectedPurchase.customer?.cus_address && (
+                          <Typography variant="body2">Address: <strong>{selectedPurchase.customer.cus_address}</strong></Typography>
+                        )}
+                      </Box>
+                      <Box sx={{ textAlign: 'right' }}>
+                        <Typography variant="body2">Invoice No: <strong>#{selectedPurchase.pur_id}</strong></Typography>
+                        <Typography variant="body2">Time: <strong>{new Date(selectedPurchase.created_at).toLocaleTimeString()}</strong></Typography>
+                        <Typography variant="body2">Date: <strong>{new Date(selectedPurchase.created_at).toLocaleDateString()}</strong></Typography>
+                      </Box>
+                    </Box>
+
+                    <MuiTableContainer component={Paper} variant="outlined" sx={{ my: 2 }}>
+                      <MuiTable size="small">
+                        <MuiTableHead>
+                          <MuiTableRow sx={{ bgcolor: '#9e9e9e' }}>
+                            <MuiTableCell sx={{ fontWeight: 'bold', color: 'white' }}>S#</MuiTableCell>
+                            <MuiTableCell sx={{ fontWeight: 'bold', color: 'white' }}>Product</MuiTableCell>
+                            <MuiTableCell sx={{ fontWeight: 'bold', color: 'white' }} align="right">Qty</MuiTableCell>
+                            <MuiTableCell sx={{ fontWeight: 'bold', color: 'white' }} align="right">Rate</MuiTableCell>
+                            <MuiTableCell sx={{ fontWeight: 'bold', color: 'white' }} align="right">Amount</MuiTableCell>
+                          </MuiTableRow>
+                        </MuiTableHead>
+                        <MuiTableBody>
+                          {(selectedPurchase.purchase_details || []).length > 0 ? (
+                            <>
+                              {(selectedPurchase.purchase_details || []).map((d, i) => (
+                                <MuiTableRow key={d.purchase_detail_id || i}>
+                                  <MuiTableCell>{i + 1}</MuiTableCell>
+                                  <MuiTableCell>{d.product?.pro_title || d.product_name || 'N/A'}</MuiTableCell>
+                                  <MuiTableCell align="right">{d.qnty || 0}</MuiTableCell>
+                                  <MuiTableCell align="right">{parseFloat(d.unit_rate || 0).toFixed(2)}</MuiTableCell>
+                                  <MuiTableCell align="right">{parseFloat(d.total_amount || 0).toFixed(2)}</MuiTableCell>
+                                </MuiTableRow>
+                              ))}
+                              <MuiTableRow sx={{ bgcolor: '#fafafa' }}>
+                                <MuiTableCell colSpan={2} sx={{ fontWeight: 'bold' }}>Total Qty</MuiTableCell>
+                                <MuiTableCell align="right" sx={{ fontWeight: 'bold' }}>{((selectedTotals ? selectedTotals.totalQty : (selectedPurchase.purchase_details || []).reduce((s,d)=> s + (parseFloat(d.qnty||0)||0),0))).toFixed(2)}</MuiTableCell>
+                                <MuiTableCell />
+                                <MuiTableCell />
+                              </MuiTableRow>
+                            </>
+                          ) : (
+                            <MuiTableRow>
+                              <MuiTableCell colSpan={5} align="center">No items found</MuiTableCell>
+                            </MuiTableRow>
+                          )}
+                        </MuiTableBody>
+                      </MuiTable>
+                    </MuiTableContainer>
+
+                    <Box sx={{ mt: 2 }}>
+                      <Paper variant="outlined" sx={{ p: 2 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, alignItems: 'flex-start' }}>
+                          <Box sx={{ flex: 1 }}>
+                            <Typography variant="body2"><strong>Notes:</strong> {selectedPurchase.notes || ''}</Typography>
+                          </Box>
+
+                          <Box sx={{ width: 360 }}>
+                            <MuiTableContainer component={Paper} variant="outlined">
+                              <MuiTable size="small">
+                                <MuiTableBody>
+                                  <MuiTableRow>
+                                    <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</MuiTableCell>
+                                    <MuiTableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                      {(selectedTotals?.prevBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </MuiTableCell>
+                                  </MuiTableRow>
+
+                                  <MuiTableRow>
+                                    <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</MuiTableCell>
+                                    <MuiTableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                      {((parseFloat(selectedPurchase.total_amount || 0) || 0) - (parseFloat(selectedPurchase.payment || 0) || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </MuiTableCell>
+                                  </MuiTableRow>
+
+                                  <MuiTableRow sx={{ bgcolor: '#f5f5f5' }}>
+                                    <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</MuiTableCell>
+                                    <MuiTableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                      {((selectedTotals?.prevBalance || 0) + (parseFloat(selectedPurchase.total_amount || 0) || 0) - (parseFloat(selectedPurchase.payment || 0) || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </MuiTableCell>
+                                  </MuiTableRow>
+
+                                  <MuiTableRow>
+                                    <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>رقم بل</MuiTableCell>
+                                    <MuiTableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                      {(selectedTotals?.subtotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </MuiTableCell>
+                                  </MuiTableRow>
+
+                                  <MuiTableRow>
+                                    {/* Unloading removed */}
+                                  </MuiTableRow>
+
+                                  <MuiTableRow>
+                          {/* Fare removed */}
+                                  </MuiTableRow>
+
+                                  <MuiTableRow>
+                                    <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>رعایت</MuiTableCell>
+                                    <MuiTableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                      {(selectedTotals?.discount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </MuiTableCell>
+                                  </MuiTableRow>
+
+                                  <MuiTableRow sx={{ bgcolor: '#f5f5f5' }}>
+                                    <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل رقم</MuiTableCell>
+                                    <MuiTableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                      {(selectedTotals?.netTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </MuiTableCell>
+                                  </MuiTableRow>
+
+                                  <MuiTableRow>
+                                    <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>نقد كيش</MuiTableCell>
+                                    <MuiTableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                      {(selectedTotals?.cash || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </MuiTableCell>
+                                  </MuiTableRow>
+
+                                  { (selectedTotals?.bank || 0) > 0 && (
+                                    <MuiTableRow>
+                                      <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>{selectedPurchase.bank_title || 'بینک'}</MuiTableCell>
+                                      <MuiTableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                        {(selectedTotals?.bank || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      </MuiTableCell>
+                                    </MuiTableRow>
+                                  )}
+
+                                  { (selectedTotals?.advance || 0) > 0 && (
+                                    <MuiTableRow>
+                                      <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>پیشگی ادائیگی</MuiTableCell>
+                                      <MuiTableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                        {(selectedTotals?.advance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      </MuiTableCell>
+                                    </MuiTableRow>
+                                  )}
+
+                                  <MuiTableRow sx={{ bgcolor: '#f5f5f5' }}>
+                                    <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل رقم وصول</MuiTableCell>
+                                    <MuiTableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                      {(selectedTotals?.paid || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </MuiTableCell>
+                                  </MuiTableRow>
+
+                                  <MuiTableRow sx={{ bgcolor: '#d0d0d0' }}>
+                                    <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>بقايا رقم</MuiTableCell>
+                                    <MuiTableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                      {(selectedTotals?.due || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </MuiTableCell>
+                                  </MuiTableRow>
+
+                                </MuiTableBody>
+                              </MuiTable>
+                            </MuiTableContainer>
+                          </Box>
+                        </Box>
+                      </Paper>
+                    </Box>
+                  </Box>
+                ) : (
+                  <Typography sx={{ p: 2 }}>No purchase selected</Typography>
+                )}
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => printPurchaseBill(selectedPurchase)} variant="contained">Print</Button>
+                <Button onClick={() => setShowDetailsModal(false)} variant="outlined">Close</Button>
+              </DialogActions>
+            </Dialog>
+
             {/* Table */}
             <div className="flex-1 min-h-0 print:min-h-0 print:block">
               <div className="bg-white rounded-lg shadow print:shadow-none print:border print:border-gray-300 h-full flex flex-col print:block">
@@ -201,11 +524,10 @@ export default function PurchasesByDateReport() {
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier</th>
                         <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
                         <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Unloading</th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Fare</th>
                         <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Discount</th>
                         <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Net Total</th>
                         <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Payment</th>
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -226,12 +548,6 @@ export default function PurchasesByDateReport() {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
                             {parseFloat(purchase.total_amount).toFixed(2)}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-blue-600">
-                            {parseFloat(purchase.unloading_amount).toFixed(2)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-purple-600">
-                            {parseFloat(purchase.fare_amount).toFixed(2)}
-                          </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600">
                             {parseFloat(purchase.discount).toFixed(2)}
                           </td>
@@ -240,6 +556,11 @@ export default function PurchasesByDateReport() {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
                             {parseFloat(purchase.payment).toFixed(2)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                            <button onClick={(e)=>{ e.stopPropagation(); setSelectedPurchase(purchase); setShowDetailsModal(true); }} className="text-sm px-2 py-1 bg-slate-100 rounded hover:bg-slate-200">
+                              {purchase.bill_type || purchase.type || 'PURCHASE'}
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -250,12 +571,6 @@ export default function PurchasesByDateReport() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
                           {reportData.summary.totalAmount.toFixed(2)}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-blue-600">
-                          {reportData.summary.totalUnloading.toFixed(2)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-purple-600">
-                          {reportData.summary.totalFare.toFixed(2)}
-                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600">
                           {reportData.summary.totalDiscount.toFixed(2)}
                         </td>
@@ -265,6 +580,7 @@ export default function PurchasesByDateReport() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
                           {reportData.summary.totalPayment.toFixed(2)}
                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-center"></td>
                       </tr>
                     </tfoot>
                   </table>

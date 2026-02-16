@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Download, Printer, Search, ShoppingCart, TrendingUp } from 'lucide-react';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Box, Typography, Table as MuiTable, TableBody as MuiTableBody, TableCell as MuiTableCell, TableContainer as MuiTableContainer, TableHead as MuiTableHead, TableRow as MuiTableRow, Paper } from '@mui/material';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
 
@@ -21,6 +22,10 @@ export default function SaleReport() {
   const [selectedBillType, setSelectedBillType] = useState('');
   const [minAmount, setMinAmount] = useState('');
   const [maxAmount, setMaxAmount] = useState('');
+
+  // Sale details modal state
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [selectedSale, setSelectedSale] = useState(null);
 
   // Set default dates on mount
   useEffect(() => {
@@ -159,6 +164,121 @@ export default function SaleReport() {
     a.href = url;
     a.download = `sales-register-${startDate}-to-${endDate}.csv`;
     a.click();
+  };
+
+  const printSaleBill = (sale) => {
+    if (!sale) return;
+    const details = sale.sale_details || [];
+    const itemsHtml = details.map((d, i) => `
+      <tr>
+        <td style="padding:6px;border:1px solid #ddd">${i + 1}</td>
+        <td style="padding:6px;border:1px solid #ddd">${d.product?.pro_title || d.product_name || 'Item'}</td>
+        <td style="padding:6px;border:1px solid #ddd;text-align:right">${d.qnty || 0}</td>
+        <td style="padding:6px;border:1px solid #ddd;text-align:right">${(parseFloat(d.unit_rate) || 0).toFixed(2)}</td>
+        <td style="padding:6px;border:1px solid #ddd;text-align:right">${(parseFloat(d.total_amount) || 0).toFixed(2)}</td>
+      </tr>`).join('');
+
+    const subtotal = parseFloat(sale.total_amount || 0) || 0;
+    const discount = parseFloat(sale.discount || 0) || 0;
+    const labour = parseFloat(sale.labour_charges || sale.labour || 0) || 0;
+    const shipping = parseFloat(sale.shipping_amount || 0) || 0;
+    const paid = Number.isFinite(Number(sale.payment)) ? parseFloat(sale.payment) || 0 : ((parseFloat(sale.cash_payment || 0) || 0) + (parseFloat(sale.bank_payment || 0) || 0) + (parseFloat(sale.advance_payment || 0) || 0));
+    const prevBal = parseFloat(sale.customer?.cus_balance || sale.prev_balance || sale.previous_balance || 0) || 0;
+    const totalQty = details.reduce((s, d) => s + (parseFloat(d.qnty || 0) || 0), 0);
+    const netTotal = subtotal - discount + labour + shipping;
+
+    const html = `<!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Sale Invoice - ${sale.sale_id}</title>
+          <style>
+            @page { size: A5; margin: 10mm; }
+            body{font-family:Arial,Helvetica,sans-serif;color:#111;padding:16px}
+            .company{ text-align:center; margin-bottom:8px }
+            table{ width:100%; border-collapse:collapse; margin-top:12px }
+            th,td{ border:1px solid #ddd; padding:8px }
+            th{ background:#f3f4f6; text-align:left }
+            .right{ text-align:right }
+            .totals{ margin-top:12px; width:360px; float:right }
+          </style>
+        </head>
+        <body>
+          <div style="width:148mm;margin:0 auto">
+          <div class="company">
+            <h2 style="margin:0;font-size:20px">Ittefaq Iron and Cement Store</h2>
+            <div>Parianwali</div>
+            <div>Ph: 0346-7560306</div>
+            <div style="margin-top:6px;font-weight:bold;font-size:18px">SALE INVOICE</div>
+          </div>
+
+          <div style="display:flex;justify-content:space-between;margin-top:8px">
+            <div>
+              <div><strong>Invoice:</strong> ${sale.sale_id}</div>
+              <div><strong>Date:</strong> ${new Date(sale.created_at).toLocaleString()}</div>
+            </div>
+            <div style="text-align:right">
+              <div><strong>Customer:</strong> ${sale.customer?.cus_name || 'N/A'}</div>
+              <div><strong>Phone:</strong> ${sale.customer?.cus_phone_no || ''}</div>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>S#</th>
+                <th>Product</th>
+                <th class="right">Qty</th>
+                <th class="right">Rate</th>
+                <th class="right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+
+          <div style="margin-top:8px;text-align:right;font-weight:bold">Total Qty: ${totalQty.toFixed(2)}</div>
+
+          <div class="totals">
+            <table style="width:100%">
+              <tr><td style="border:1px solid #ddd;padding:6px">Subtotal</td><td style="border:1px solid #ddd;padding:6px" class="right">${subtotal.toFixed(2)}</td></tr>
+              <tr><td style="border:1px solid #ddd;padding:6px">Labour</td><td style="border:1px solid #ddd;padding:6px" class="right">${labour.toFixed(2)}</td></tr>
+              <tr><td style="border:1px solid #ddd;padding:6px">Shipping</td><td style="border:1px solid #ddd;padding:6px" class="right">${shipping.toFixed(2)}</td></tr>
+              <tr><td style="border:1px solid #ddd;padding:6px">Discount</td><td style="border:1px solid #ddd;padding:6px" class="right">${discount.toFixed(2)}</td></tr>
+              <tr><td style="border:1px solid #ddd;padding:6px">Previous Balance</td><td style="border:1px solid #ddd;padding:6px" class="right">${prevBal.toFixed(2)}</td></tr>
+              <tr style="background:#f5f5f5"><th style="padding:6px">Grand Total</th><th style="padding:6px" class="right">${netTotal.toFixed(2)}</th></tr>
+              <tr><td style="border:1px solid #ddd;padding:6px">Cash</td><td style="border:1px solid #ddd;padding:6px" class="right">${(parseFloat(sale.cash_payment || 0) || 0).toFixed(2)}</td></tr>
+              ${ (parseFloat(sale.bank_payment || 0) || 0) > 0 ? `<tr><td style="border:1px solid #ddd;padding:6px">${sale.bank_title || 'Bank'}</td><td style="border:1px solid #ddd;padding:6px" class="right">${(parseFloat(sale.bank_payment || 0) || 0).toFixed(2)}</td></tr>` : '' }
+              ${ (parseFloat(sale.advance_payment || 0) || 0) > 0 ? `<tr><td style="border:1px solid #ddd;padding:6px">Advance</td><td style="border:1px solid #ddd;padding:6px" class="right">${(parseFloat(sale.advance_payment || 0) || 0).toFixed(2)}</td></tr>` : '' }
+              <tr style="background:#f5f5f5"><th style="padding:6px">Total Paid</th><th style="padding:6px" class="right">${paid.toFixed(2)}</th></tr>
+              <tr style="background:#d0d0d0"><th style="padding:6px">Balance</th><th style="padding:6px" class="right">${(netTotal - paid).toFixed(2)}</th></tr>
+            </table>
+          </div>
+
+          <div style="clear:both;margin-top:80px">
+            <div style="float:left;width:50%">
+              <div>____________________</div>
+              <div>Customer Signature</div>
+            </div>
+            <div style="float:right;width:50%;text-align:right">
+              <div>____________________</div>
+              <div>Authorized Signature</div>
+            </div>
+          </div>
+
+          <div style="margin-top:30px;font-size:12px;color:#666">Notes: ${sale.notes || ''}</div>
+          </div>
+        </body>
+      </html>`;
+
+    const w = window.open('', '_blank', 'width=900,height=800');
+    if (!w) { alert('Please allow popups to print the bill.'); return; }
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => { w.print(); }, 300);
   };
 
   return (
@@ -367,9 +487,9 @@ export default function SaleReport() {
                           <td className="px-3 py-2.5 text-slate-600 border-r border-slate-200 print:border-black font-mono text-xs">INV-{sale.sale_id}</td>
                           <td className="px-3 py-2.5 text-slate-900 font-medium border-r border-slate-200 print:border-black">{sale.customer?.cus_name || '-'}</td>
                           <td className="px-3 py-2.5 text-center border-r border-slate-200 print:border-black">
-                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${sale.bill_type === 'Cash' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'} print:bg-transparent print:text-black`}>
+                            <button onClick={(e) => { e.stopPropagation(); setSelectedSale(sale); setShowDetailsModal(true); }} className={`px-2 py-0.5 rounded text-xs font-medium ${sale.bill_type === 'Cash' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'} print:bg-transparent print:text-black`}>
                               {sale.bill_type}
-                            </span>
+                            </button>
                           </td>
                           <td className="px-3 py-2.5 text-slate-900 text-right border-r border-slate-200 print:border-black tabular-nums">{formatCurrency(sale.total_amount)}</td>
                           <td className="px-3 py-2.5 text-slate-900 text-right border-r border-slate-200 print:border-black tabular-nums">{formatCurrency(sale.discount)}</td>
