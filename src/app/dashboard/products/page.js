@@ -1075,9 +1075,10 @@ export default function ProductsPage() {
                     <TableCell>Product</TableCell>
                     <TableCell>Store</TableCell>
                     <TableCell>Qty</TableCell>
-                    <TableCell>CRATE</TableCell>
-                    <TableCell>Rate</TableCell>
-                    <TableCell>Total Amount</TableCell>
+                    <TableCell>Purchase Rate</TableCell>
+                    <TableCell>Crate (CodeRate)</TableCell>
+                    <TableCell>Sale Rate</TableCell>
+                    <TableCell>Base Rate</TableCell>
                     <TableCell align="center">Action</TableCell>
                   </TableRow>
                 </TableHead>
@@ -1124,17 +1125,24 @@ export default function ProductsPage() {
                         </Typography>
                       </TableCell>
 
-                      {/* Rate */}
+                      {/* Purchase Rate */}
                       <TableCell>
                         <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                          {parseFloat(product.pro_baser_price || 0).toFixed(2)}
+                          {parseFloat(((product.pro_cost_price ?? product.pro_baser_price) || 0)).toFixed(2)}
                         </Typography>
                       </TableCell>
 
-                      {/* Amount (Rate × Qty) */}
+                      {/* Sale Rate */}
                       <TableCell>
                         <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                          {(parseFloat(product.pro_baser_price || 0) * parseFloat(product.pro_stock_qnty || 0)).toFixed(2)}
+                          {parseFloat(product.pro_sale_price || 0).toFixed(2)}
+                        </Typography>
+                      </TableCell>
+
+                      {/* Base Rate */}
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                          {parseFloat(product.pro_baser_price || 0).toFixed(2)}
                         </Typography>
                       </TableCell>
                       <TableCell align="center">
