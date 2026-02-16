@@ -21,8 +21,10 @@ export default function StockReport() {
   
   // Price adjustment modal state
   const [showAdjustmentModal, setShowAdjustmentModal] = useState(false);
-  const [adjustmentType, setAdjustmentType] = useState('increase'); // 'increase' or 'decrease'
-  const [adjustmentPercentage, setAdjustmentPercentage] = useState('');
+  // Separate percentage controls for purchase (cost/crate) and sale prices.
+  // Values are percentages (e.g. 10 or -5). Positive/negative allowed; no radio needed.
+  const [purchasePercentage, setPurchasePercentage] = useState('');
+  const [salePercentage, setSalePercentage] = useState('');
   const [adjustmentLoading, setAdjustmentLoading] = useState(false);
 
   useEffect(() => { fetchCategories(); fetchStores(); fetchReport(); }, []);
@@ -100,25 +102,38 @@ export default function StockReport() {
       alert('Please select a category');
       return;
     }
-    if (!adjustmentPercentage || parseFloat(adjustmentPercentage) <= 0) {
-      alert('Please enter a valid percentage');
+
+    const purchaseVal = purchasePercentage !== '' ? parseFloat(purchasePercentage) : null;
+    const saleVal = salePercentage !== '' ? parseFloat(salePercentage) : null;
+
+    if ((purchaseVal === null || isNaN(purchaseVal)) && (saleVal === null || isNaN(saleVal))) {
+      alert('Please enter at least one valid percentage (purchase or sale).');
       return;
     }
 
-    if (!window.confirm(`Are you sure you want to ${adjustmentType} prices by ${adjustmentPercentage}% for all products in this category?`)) {
+    if ((purchaseVal === 0 || purchaseVal === null || isNaN(purchaseVal)) && (saleVal === 0 || saleVal === null || isNaN(saleVal))) {
+      alert('Please enter a non-zero percentage for purchase or sale.');
+      return;
+    }
+
+    const confirmParts = [];
+    if (purchaseVal !== null && !isNaN(purchaseVal)) confirmParts.push(`purchase ${purchaseVal}%`);
+    if (saleVal !== null && !isNaN(saleVal)) confirmParts.push(`sale ${saleVal}%`);
+
+    if (!window.confirm(`Are you sure you want to apply ${confirmParts.join(' and ')} to all products in this category?`)) {
       return;
     }
 
     try {
       setAdjustmentLoading(true);
+      const payload = { categoryId: parseInt(selectedCategory) };
+      if (purchaseVal !== null && !isNaN(purchaseVal)) payload.purchasePercentage = purchaseVal;
+      if (saleVal !== null && !isNaN(saleVal)) payload.salePercentage = saleVal;
+
       const response = await fetch('/api/products/adjust-price', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          categoryId: parseInt(selectedCategory),
-          percentage: parseFloat(adjustmentPercentage),
-          type: adjustmentType // 'increase' or 'decrease'
-        })
+        body: JSON.stringify(payload)
       });
 
       const data = await response.json();
@@ -126,10 +141,11 @@ export default function StockReport() {
       if (response.ok) {
         alert(`✅ Successfully updated ${data.updatedCount} products!`);
         setShowAdjustmentModal(false);
-        setAdjustmentPercentage('');
+        setPurchasePercentage('');
+        setSalePercentage('');
         await fetchReport(); // Refresh the data
       } else {
-        alert(`Error: ${data.message || 'Failed to update prices'}`);
+        alert(`Error: ${data.error || data.message || 'Failed to update prices'}`);
       }
     } catch (error) {
       console.error('Error:', error);
@@ -606,57 +622,44 @@ export default function StockReport() {
                 </p>
               </Box>
 
-              {/* Adjustment Type Radio Buttons */}
+              {/* Purchase & Sale percentage inputs */}
               <Box sx={{ mb: 3 }}>
                 <label style={{ display: 'block', fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.75rem', color: '#374151' }}>
-                  ➕➖ Adjustment Type
+                  ⚖️ Apply Percentages
                 </label>
-                <RadioGroup
-                  row
-                  value={adjustmentType}
-                  onChange={(e) => setAdjustmentType(e.target.value)}
-                  sx={{ gap: 3 }}
-                >
-                  <FormControlLabel
-                    value="increase"
-                    control={<Radio />}
-                    label="📈 Increase Prices"
-                  />
-                  <FormControlLabel
-                    value="decrease"
-                    control={<Radio />}
-                    label="📉 Decrease Prices"
-                  />
-                </RadioGroup>
-              </Box>
-
-              {/* Percentage Input */}
-              <Box sx={{ mb: 3 }}>
                 <TextField
                   fullWidth
-                  label="Percentage (%)"
+                  label="Purchase % (base → purchase)"
                   type="number"
-                  inputProps={{ min: 0, max: 100, step: 0.1 }}
-                  value={adjustmentPercentage}
-                  onChange={(e) => setAdjustmentPercentage(e.target.value)}
-                  placeholder="Enter percentage (e.g., 10)"
+                  inputProps={{ step: 0.1 }}
+                  value={purchasePercentage}
+                  onChange={(e) => setPurchasePercentage(e.target.value)}
+                  placeholder="e.g. 10 or -5"
                   variant="outlined"
                   size="small"
-                  autoFocus
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      fontSize: '1rem',
-                      '&:hover': { bgcolor: '#f3f4f6' }
-                    }
-                  }}
+                  sx={{ mb: 2, '& .MuiOutlinedInput-root': { fontSize: '1rem' } }}
+                />
+                <TextField
+                  fullWidth
+                  label="Sale % (base → sale price)"
+                  type="number"
+                  inputProps={{ step: 0.1 }}
+                  value={salePercentage}
+                  onChange={(e) => setSalePercentage(e.target.value)}
+                  placeholder="e.g. 15 or -8"
+                  variant="outlined"
+                  size="small"
+                  sx={{ '& .MuiOutlinedInput-root': { fontSize: '1rem' } }}
                 />
               </Box>
 
               {/* Info Alert with Formula */}
               <Alert severity="info" sx={{ mb: 2, bgcolor: '#dbeafe', borderColor: '#93c5fd' }}>
-                <strong>📋 Adjustment Formula:</strong><br/>
-                Base Price × {adjustmentPercentage || '0'}% = Adjustment Amount<br/>
-                Then {adjustmentType === 'increase' ? '➕ Add' : '➖ Subtract'} this amount to all rates (Cost, Crate, Sale)
+                <strong>📋 Adjustment Formulas:</strong><br/>
+                New Purchase Price = Base Price + (Base Price × purchase% / 100)<br/>
+                New Sale Price = Base Price + (Base Price × sale% / 100)<br/>
+                <strong>Note:</strong> This will update the product's **purchase rate** (`pro_crate`). `pro_cost_price` (internal cost) will remain unchanged.<br/>
+                (You can enter positive or negative percentages; leave a field empty to skip it.)
               </Alert>
             </>
           )}
@@ -666,7 +669,8 @@ export default function StockReport() {
           <Button
             onClick={() => {
               setShowAdjustmentModal(false);
-              setAdjustmentPercentage('');
+              setPurchasePercentage('');
+              setSalePercentage('');
             }}
             disabled={adjustmentLoading}
             variant="outlined"
@@ -676,7 +680,7 @@ export default function StockReport() {
           </Button>
           <Button
             onClick={applyPriceAdjustment}
-            disabled={adjustmentLoading || !adjustmentPercentage}
+            disabled={adjustmentLoading || (purchasePercentage === '' && salePercentage === '')}
             variant="contained"
             sx={{ 
               bgcolor: '#f97316', 
