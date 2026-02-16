@@ -13,6 +13,7 @@ import {
   TrendingUp,
   Truck
 } from 'lucide-react';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Table as MuiTable, TableBody as MuiTableBody, TableCell as MuiTableCell, TableContainer as MuiTableContainer, TableHead as MuiTableHead, TableRow as MuiTableRow, Paper } from '@mui/material';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
 
@@ -22,6 +23,10 @@ export default function SalesByDateReport() {
   const [salesData, setSalesData] = useState(null);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+
+  // Sale details modal state
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [selectedSale, setSelectedSale] = useState(null);
 
   // Set default dates and auto-fetch on mount
   useEffect(() => {
@@ -197,6 +202,66 @@ export default function SalesByDateReport() {
               </div>
             </div>
 
+            {/* Sale details modal */}
+            <Dialog open={showDetailsModal} onClose={() => setShowDetailsModal(false)} maxWidth="md" fullWidth>
+              <DialogTitle sx={{ fontWeight: 700 }}>Sale Items — {selectedSale ? `#${selectedSale.sale_id}` : ''}</DialogTitle>
+              <DialogContent dividers>
+                {selectedSale && selectedSale.sale_details && selectedSale.sale_details.length > 0 ? (
+                  <MuiTableContainer component={Paper}>
+                    <MuiTable size="small">
+                      <MuiTableHead>
+                        <MuiTableRow>
+                          <MuiTableCell>S#</MuiTableCell>
+                          <MuiTableCell>Product</MuiTableCell>
+                          <MuiTableCell align="right">Qty</MuiTableCell>
+                          <MuiTableCell align="right">Rate</MuiTableCell>
+                          <MuiTableCell align="right">Amount</MuiTableCell>
+                        </MuiTableRow>
+                      </MuiTableHead>
+                      <MuiTableBody>
+                        {selectedSale.sale_details.map((d, i) => (
+                          <MuiTableRow key={d.sale_detail_id || i}>
+                            <MuiTableCell>{i + 1}</MuiTableCell>
+                            <MuiTableCell>{d.product?.pro_title || d.product_name || 'Item'}</MuiTableCell>
+                            <MuiTableCell align="right">{d.qnty || 0}</MuiTableCell>
+                            <MuiTableCell align="right">{parseFloat(d.unit_rate || 0).toFixed(2)}</MuiTableCell>
+                            <MuiTableCell align="right">{parseFloat(d.total_amount || 0).toFixed(2)}</MuiTableCell>
+                          </MuiTableRow>
+                        ))}
+                      </MuiTableBody>
+                    </MuiTable>
+                  </MuiTableContainer>
+                ) : (
+                  <div className="text-center py-6">No items for this sale</div>
+                )}
+
+                {/* Summary */}
+                {selectedSale && (
+                  <div className="mt-4 flex justify-end space-x-6">
+                    <div className="text-sm">
+                      <div className="text-slate-600">Subtotal</div>
+                      <div className="font-semibold">{parseFloat(selectedSale.total_amount || 0).toFixed(2)}</div>
+                    </div>
+                    <div className="text-sm">
+                      <div className="text-slate-600">Discount</div>
+                      <div className="font-semibold">{parseFloat(selectedSale.discount || 0).toFixed(2)}</div>
+                    </div>
+                    <div className="text-sm">
+                      <div className="text-slate-600">Shipping</div>
+                      <div className="font-semibold">{parseFloat(selectedSale.shipping_amount || 0).toFixed(2)}</div>
+                    </div>
+                    <div className="text-sm">
+                      <div className="text-slate-600">Net Total</div>
+                      <div className="font-semibold">{(parseFloat(selectedSale.total_amount || 0) - parseFloat(selectedSale.discount || 0) + parseFloat(selectedSale.shipping_amount || 0)).toFixed(2)}</div>
+                    </div>
+                  </div>
+                )}
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setShowDetailsModal(false)} variant="outlined">Close</Button>
+              </DialogActions>
+            </Dialog>
+
             {/* Sales Table */}
             <div className="flex-1 min-h-0 print:min-h-0 print:block">
               <div className="bg-white rounded-lg shadow print:shadow-none print:border print:border-gray-300 h-full flex flex-col print:block">
@@ -223,7 +288,12 @@ export default function SalesByDateReport() {
                       {salesData.sales.map((sale) => {
                         const netTotal = parseFloat(sale.total_amount) - parseFloat(sale.discount) + parseFloat(sale.shipping_amount || 0);
                         return (
-                          <tr key={sale.sale_id} className="hover:bg-gray-50 print:hover:bg-white">
+                          <tr
+                            key={sale.sale_id}
+                            onClick={() => { setSelectedSale(sale); setShowDetailsModal(true); }}
+                            className="hover:bg-gray-50 print:hover:bg-white cursor-pointer"
+                            title="Click to view sale items"
+                          >
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                               {new Date(sale.created_at).toLocaleDateString()}
                             </td>
@@ -234,7 +304,9 @@ export default function SalesByDateReport() {
                               {sale.customer?.cus_name || 'N/A'}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-900">
-                              {sale.sale_details?.length || 0}
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-800">
+                                {sale.sale_details?.length || 0}
+                              </span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
                               {parseFloat(sale.total_amount).toFixed(2)}

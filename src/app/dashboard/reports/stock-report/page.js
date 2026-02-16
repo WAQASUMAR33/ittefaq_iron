@@ -656,9 +656,9 @@ export default function StockReport() {
               {/* Info Alert with Formula */}
               <Alert severity="info" sx={{ mb: 2, bgcolor: '#dbeafe', borderColor: '#93c5fd' }}>
                 <strong>📋 Adjustment Formulas:</strong><br/>
-                New Purchase Price = Base Price + (Base Price × purchase% / 100)<br/>
-                New Sale Price = Base Price + (Base Price × sale% / 100)<br/>
-                <strong>Note:</strong> This will update the product's **purchase rate** (`pro_crate`). `pro_cost_price` (internal cost) will remain unchanged.<br/>
+                - New Purchase Rate (pro_crate) = Base Price × (1 + purchase% / 100)<br/>
+                - New Sale Price (pro_sale_price) = [if purchase% provided → New Purchase Rate, else Base Price] × (1 + sale% / 100)<br/>
+                <strong>Note:</strong> If you provide both purchase% and sale%, the <em>sale%</em> is applied to the updated purchase rate (i.e. sale price is calculated from the new purchase). Both <code>pro_crate</code> and <code>pro_sale_price</code> will be updated; <code>pro_cost_price</code> (internal cost) remains unchanged.<br/>
                 (You can enter positive or negative percentages; leave a field empty to skip it.)
               </Alert>
             </>
