@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { 
+import {
   Calendar,
   Users,
   ShoppingCart,
@@ -142,6 +142,14 @@ export default function ReportsPage() {
       icon: DollarSign,
       color: 'from-red-500 to-pink-500',
       path: '/dashboard/reports/expenses-by-date'
+    },
+    {
+      id: 'rebate-report',
+      title: 'Rebate Report',
+      description: 'View products purchased from supplier',
+      icon: PieChart,
+      color: 'from-teal-500 to-cyan-500',
+      path: '/dashboard/reports/rebate'
     }
   ];
 

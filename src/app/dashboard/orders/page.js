@@ -2872,22 +2872,7 @@ function OrdersPageContent() {
                           onChange={(event, newValue) => {
                             handlePaymentDataChange('bankAccountId', newValue ? newValue.cus_id : '');
                           }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Tab') {
-                              e.preventDefault();
-                              // Auto-select first option and move to next field
-                              if (bankAccounts.length > 0) {
-                                handlePaymentDataChange('bankAccountId', bankAccounts[0].cus_id);
-                              }
-                              // Close dropdown, blur field, and allow natural tab to next element
-                              setTimeout(() => {
-                                const inputField = document.querySelector('input[placeholder="Select Bank Account"]');
-                                if (inputField) {
-                                  inputField.blur();
-                                }
-                              }, 0);
-                            }
-                          }}
+
                           isOptionEqualToValue={(option, value) => option.cus_id === value?.cus_id}
                           autoSelect={true}
                           autoHighlight={true}

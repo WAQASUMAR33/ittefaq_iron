@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { 
+import {
   Box,
   Drawer,
   List,
@@ -44,57 +44,60 @@ import {
   TrendingUp as TrendingUpIcon,
   Store as StoreIcon,
   AssignmentReturn as AssignmentReturnIcon,
-  SwapHoriz as SwapHorizIcon
+  SwapHoriz as SwapHorizIcon,
+  PieChart as PieChartIcon
 } from '@mui/icons-material';
 
-export default function Sidebar({ 
-  sidebarOpen, 
-  setSidebarOpen, 
-  activeTab, 
-  setActiveTab, 
-  expandedDropdowns, 
+export default function Sidebar({
+  sidebarOpen,
+  setSidebarOpen,
+  activeTab,
+  setActiveTab,
+  expandedDropdowns,
   setExpandedDropdowns,
   user,
-  handleLogout 
+  handleLogout
 }) {
   const router = useRouter();
   const menuItems = [
     { id: 'dashboard', name: 'Dashboard', icon: DashboardIcon, category: 'main' },
+    { id: 'orders', name: 'Orders', icon: DescriptionIcon, category: 'main' },
+    { id: 'new-sale', name: 'New Sale', icon: AddIcon, category: 'main' },
+    { id: 'purchases', name: 'New Purchase', icon: ShoppingBagIcon, category: 'main' },
+    { id: 'cash-report', name: 'Cash Report', icon: AttachMoneyIcon, category: 'main' },
+    { id: 'bank-report', name: 'Bank Report', icon: CreditCardIcon, category: 'main' },
     { id: 'ledger', name: 'Ledger', icon: DescriptionIcon, category: 'main' },
-    
+
     // Accounts
     { id: 'customercategory', name: 'Account Categories', icon: LabelIcon, category: 'customer-management', parent: 'Accounts' },
     { id: 'customers', name: 'Accounts', icon: PeopleIcon, category: 'customer-management', parent: 'Accounts' },
-    
+
     // Product Management
     { id: 'categories', name: 'Category Management', icon: FolderIcon, category: 'product-management', parent: 'Product Management' },
     { id: 'sub-categories', name: 'Sub Category Management', icon: FolderOpenIcon, category: 'product-management', parent: 'Product Management' },
     { id: 'products', name: 'Product List', icon: InventoryIcon, category: 'product-management', parent: 'Product Management' },
-    
+
     // Financial Management
     { id: 'expense-titles', name: 'Expense Titles', icon: LabelIcon, category: 'financial', parent: 'Finance' },
     { id: 'expenses', name: 'Expense Management', icon: AttachMoneyIcon, category: 'financial', parent: 'Finance' },
     { id: 'journal', name: 'Journal Entries', icon: MenuBookIcon, category: 'financial', parent: 'Finance' },
     { id: 'day-end', name: 'Day End / Day Close', icon: CalendarIcon, category: 'financial', parent: 'Finance' },
-    
+
     // Sales Operations
-    { id: 'new-sale', name: 'New Sale', icon: AddIcon, category: 'sales-operations', parent: 'Sales' },
     { id: 'sales', name: 'Sales', icon: ShoppingCartIcon, category: 'sales-operations', parent: 'Sales' },
     { id: 'hold-bills', name: 'Hold Bills', icon: InventoryIcon, category: 'sales-operations', parent: 'Sales' },
     { id: 'sale-returns', name: 'Sale Returns', icon: CloseIcon, category: 'sales-operations', parent: 'Sales' },
     { id: 'loaders', name: 'Loader/Transport', icon: LocalShippingIcon, category: 'sales-operations', parent: 'Sales' },
-    { id: 'orders', name: 'Orders', icon: DescriptionIcon, category: 'sales-operations', parent: 'Sales' },
     { id: 'quotations', name: 'Quotations', icon: ReceiptIcon, category: 'sales-operations', parent: 'Sales' },
-    
+
     // Purchase Operations
-    { id: 'purchases', name: 'Purchase Management', icon: ShoppingBagIcon, category: 'purchase-operations', parent: 'Purchase' },
     { id: 'purchase-returns', name: 'Purchase Returns', icon: AssignmentReturnIcon, category: 'purchase-operations', parent: 'Purchase' },
     { id: 'vehicles', name: 'Vehicle Management', icon: LocalShippingIcon, category: 'purchase-operations', parent: 'Purchase' },
     { id: 'purchase-details', name: 'Purchase Details', icon: TableChartIcon, category: 'purchase-operations', parent: 'Purchase' },
-    
+
     // Cargo Operations
     { id: 'cargo', name: 'Cargo Management', icon: LocalShippingIcon, category: 'cargo-operations', parent: 'Cargo' },
-    
+
     // Reports
     { id: 'reports-dashboard', name: 'Reports Dashboard', icon: DashboardIcon, category: 'reports', parent: 'Reports' },
     { id: 'sales-by-date', name: 'Sales (By Date)', icon: CalendarIcon, category: 'reports', parent: 'Reports' },
@@ -104,15 +107,14 @@ export default function Sidebar({
     { id: 'purchases-by-date', name: 'Purchases (By Date)', icon: CalendarIcon, category: 'reports', parent: 'Reports' },
     { id: 'purchases-by-supplier', name: 'Purchases (Supplier Wise)', icon: ShoppingBagIcon, category: 'reports', parent: 'Reports' },
     { id: 'expenses-by-date', name: 'Expenses Report', icon: TrendingUpIcon, category: 'reports', parent: 'Reports' },
-    { id: 'cash-report', name: 'Cash Report', icon: AttachMoneyIcon, category: 'reports', parent: 'Reports' },
-    { id: 'bank-report', name: 'Bank Report', icon: CreditCardIcon, category: 'reports', parent: 'Reports' },
     { id: 'order-report', name: 'Order Report', icon: DescriptionIcon, category: 'reports', parent: 'Reports' },
     { id: 'stock-report', name: 'Stock Report', icon: InventoryIcon, category: 'reports', parent: 'Reports' },
     { id: 'sale-report', name: 'Sale Report', icon: ShoppingCartIcon, category: 'reports', parent: 'Reports' },
     { id: 'profit-report', name: 'Profit Report', icon: TrendingUpIcon, category: 'reports', parent: 'Reports' },
     { id: 'purchase-report', name: 'Purchase Report', icon: ShoppingBagIcon, category: 'reports', parent: 'Reports' },
+    { id: 'rebate-report', name: 'Rebate Report', icon: PieChartIcon, category: 'reports', parent: 'Reports' },
     { id: 'balance-sheet', name: 'Balance Sheet', icon: TableChartIcon, category: 'reports', parent: 'Reports' },
-    
+
     // System Management
     { id: 'usermanagement', name: 'User Management', icon: PersonIcon, category: 'system', parent: 'System' },
     { id: 'stores', name: 'Store Management', icon: StoreIcon, category: 'system', parent: 'System' },
@@ -129,7 +131,7 @@ export default function Sidebar({
 
   const handleNavigation = (itemId) => {
     setActiveTab(itemId);
-    
+
     // Navigate to specific pages
     if (itemId === 'usermanagement') {
       router.push('/dashboard/usermanagement');
@@ -205,6 +207,8 @@ export default function Sidebar({
       router.push('/dashboard/reports/profit-report');
     } else if (itemId === 'purchase-report') {
       router.push('/dashboard/reports/purchase-report');
+    } else if (itemId === 'rebate-report') {
+      router.push('/dashboard/reports/rebate');
     } else if (itemId === 'balance-sheet') {
       router.push('/dashboard/reports/balance-sheet');
     } else if (itemId === 'stores') {
@@ -217,7 +221,7 @@ export default function Sidebar({
       router.push('/dashboard');
     }
     // For other items, they will show "Under Development" message
-    
+
     // Close sidebar on mobile
     setSidebarOpen(false);
   };
@@ -231,7 +235,7 @@ export default function Sidebar({
     const items = menuItems.filter(item => item.category === category);
     const isExpanded = expandedDropdowns[category];
 
-  return (
+    return (
       <Box key={category}>
         <ListItemButton
           onClick={() => toggleDropdown(category)}
@@ -246,7 +250,7 @@ export default function Sidebar({
           <ListItemIcon sx={{ minWidth: 40 }}>
             {icon}
           </ListItemIcon>
-          <ListItemText 
+          <ListItemText
             primary={
               <Typography variant="body2" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                 {title}
@@ -255,13 +259,13 @@ export default function Sidebar({
           />
           {isExpanded ? <ExpandLess /> : <ExpandMore />}
         </ListItemButton>
-        
+
         <Collapse in={isExpanded} timeout="auto" unmountOnExit>
           <List component="div" disablePadding>
             {items.map((item) => (
               <ListItemButton
-                  key={item.id}
-                  onClick={() => handleNavigation(item.id)}
+                key={item.id}
+                onClick={() => handleNavigation(item.id)}
                 sx={{
                   pl: 4,
                   borderRadius: 2,
@@ -276,7 +280,7 @@ export default function Sidebar({
                 <ListItemIcon sx={{ minWidth: 40, color: 'inherit' }}>
                   <item.icon />
                 </ListItemIcon>
-                <ListItemText 
+                <ListItemText
                   primary={
                     <Typography variant="body2" sx={{ fontWeight: activeTab === item.id ? 600 : 400 }}>
                       {item.name}
@@ -294,17 +298,17 @@ export default function Sidebar({
   const drawerContent = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
-      <Box sx={{ 
-        p: 3, 
-        borderBottom: 1, 
+      <Box sx={{
+        p: 3,
+        borderBottom: 1,
         borderColor: 'divider',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between'
       }}>
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <Avatar sx={{ 
-            bgcolor: 'primary.main', 
+          <Avatar sx={{
+            bgcolor: 'primary.main',
             mr: 2,
             width: 48,
             height: 48
@@ -312,7 +316,7 @@ export default function Sidebar({
             <DashboardIcon />
           </Avatar>
           <Box>
-            <Typography variant="h6" sx={{ 
+            <Typography variant="h6" sx={{
               fontWeight: 'bold',
               background: 'linear-gradient(45deg, #2196F3 30%, #9C27B0 90%)',
               backgroundClip: 'text',
@@ -338,9 +342,9 @@ export default function Sidebar({
         <List>
           {/* Dashboard */}
           <Box sx={{ mb: 2 }}>
-            <Typography variant="overline" sx={{ 
-              px: 2, 
-              py: 1, 
+            <Typography variant="overline" sx={{
+              px: 2,
+              py: 1,
               color: 'text.secondary',
               fontWeight: 600,
               letterSpacing: 1
@@ -349,8 +353,8 @@ export default function Sidebar({
             </Typography>
             {menuItems.filter(item => item.category === 'main').map((item) => (
               <ListItemButton
-                      key={item.id}
-                      onClick={() => handleNavigation(item.id)}
+                key={item.id}
+                onClick={() => handleNavigation(item.id)}
                 sx={{
                   borderRadius: 2,
                   mb: 0.5,
@@ -364,7 +368,7 @@ export default function Sidebar({
                 <ListItemIcon sx={{ minWidth: 40, color: 'inherit' }}>
                   <item.icon />
                 </ListItemIcon>
-                <ListItemText 
+                <ListItemText
                   primary={
                     <Typography variant="body2" sx={{ fontWeight: activeTab === item.id ? 600 : 400 }}>
                       {item.name}
@@ -386,9 +390,9 @@ export default function Sidebar({
 
           {/* System */}
           <Box sx={{ mb: 2 }}>
-            <Typography variant="overline" sx={{ 
-              px: 2, 
-              py: 1, 
+            <Typography variant="overline" sx={{
+              px: 2,
+              py: 1,
               color: 'text.secondary',
               fontWeight: 600,
               letterSpacing: 1
@@ -397,8 +401,8 @@ export default function Sidebar({
             </Typography>
             {menuItems.filter(item => item.category === 'system').map((item) => (
               <ListItemButton
-                      key={item.id}
-                      onClick={() => handleNavigation(item.id)}
+                key={item.id}
+                onClick={() => handleNavigation(item.id)}
                 sx={{
                   borderRadius: 2,
                   mb: 0.5,
@@ -412,7 +416,7 @@ export default function Sidebar({
                 <ListItemIcon sx={{ minWidth: 40, color: 'inherit' }}>
                   <item.icon />
                 </ListItemIcon>
-                <ListItemText 
+                <ListItemText
                   primary={
                     <Typography variant="body2" sx={{ fontWeight: activeTab === item.id ? 600 : 400 }}>
                       {item.name}
@@ -427,16 +431,16 @@ export default function Sidebar({
 
       {/* User Profile */}
       <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
-        <Box sx={{ 
-          p: 2, 
-          borderRadius: 2, 
-          border: 1, 
+        <Box sx={{
+          p: 2,
+          borderRadius: 2,
+          border: 1,
           borderColor: 'divider',
           display: 'flex',
           alignItems: 'center'
         }}>
-          <Avatar sx={{ 
-            bgcolor: 'primary.main', 
+          <Avatar sx={{
+            bgcolor: 'primary.main',
             mr: 2,
             width: 40,
             height: 40

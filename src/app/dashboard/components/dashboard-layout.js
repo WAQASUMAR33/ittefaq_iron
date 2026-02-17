@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  Box, 
-  CircularProgress, 
-  useTheme, 
-  useMediaQuery 
+import {
+  Box,
+  CircularProgress,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import Header from './header';
 import Sidebar from './sidebar';
@@ -33,60 +33,62 @@ export default function DashboardLayout({ children }) {
   useEffect(() => {
     // Set client-side flag
     setIsClient(true);
-    
+
     // Check if user is logged in
     const userData = localStorage.getItem('user');
     console.log('Dashboard layout - userData from localStorage:', userData);
-    
+
     if (!userData) {
       console.log('No user data found, redirecting to login');
       router.push('/login');
       return;
     }
 
-      try {
-        const parsedUser = JSON.parse(userData);
-        console.log('Parsed user data:', parsedUser);
-        setUser(parsedUser);
-        
-        // Set initial active tab based on current route
-        const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
-        if (currentPath.startsWith('/dashboard/usermanagement')) {
-          setActiveTab('usermanagement');
-        } else if (currentPath.startsWith('/dashboard/customercategory')) {
-          setActiveTab('customercategory');
-        } else if (currentPath.startsWith('/dashboard/customers')) {
-          setActiveTab('customers');
-        } else if (currentPath.startsWith('/dashboard/categories')) {
-          setActiveTab('categories');
-        } else if (currentPath.startsWith('/dashboard/subcategories')) {
-          setActiveTab('sub-categories');
-        } else if (currentPath.startsWith('/dashboard/finance')) {
-          setActiveTab('ledger');
-        } else if (currentPath.startsWith('/dashboard/sales')) {
-          setActiveTab('sales');
-        } else if (currentPath.startsWith('/dashboard/purchases')) {
-          setActiveTab('purchases');
-        } else if (currentPath.startsWith('/dashboard/expense-titles')) {
-          setActiveTab('expense-titles');
-        } else if (currentPath.startsWith('/dashboard/expenses')) {
-          setActiveTab('expenses');
-        } else if (currentPath.startsWith('/dashboard/cargo')) {
-          setActiveTab('cargo');
-        } else if (currentPath.startsWith('/dashboard/new-sale')) {
-          setActiveTab('sales');
-        } else if (currentPath.startsWith('/dashboard/orders')) {
-          setActiveTab('orders');
-        } else if (currentPath.startsWith('/dashboard/quotations')) {
-          setActiveTab('quotations');
-        } else if (currentPath.startsWith('/dashboard/reports')) {
-          setActiveTab('reports');
-        } else if (currentPath.startsWith('/dashboard/stores')) {
-          setActiveTab('stores');
-        } else if (currentPath === '/dashboard') {
-          setActiveTab('dashboard');
-        }
-      } catch (error) {
+    try {
+      const parsedUser = JSON.parse(userData);
+      console.log('Parsed user data:', parsedUser);
+      setUser(parsedUser);
+
+      // Set initial active tab based on current route
+      const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+      if (currentPath.startsWith('/dashboard/usermanagement')) {
+        setActiveTab('usermanagement');
+      } else if (currentPath.startsWith('/dashboard/customercategory')) {
+        setActiveTab('customercategory');
+      } else if (currentPath.startsWith('/dashboard/customers')) {
+        setActiveTab('customers');
+      } else if (currentPath.startsWith('/dashboard/categories')) {
+        setActiveTab('categories');
+      } else if (currentPath.startsWith('/dashboard/subcategories')) {
+        setActiveTab('sub-categories');
+      } else if (currentPath.startsWith('/dashboard/finance')) {
+        setActiveTab('ledger');
+      } else if (currentPath.startsWith('/dashboard/sales')) {
+        setActiveTab('sales');
+      } else if (currentPath.startsWith('/dashboard/purchases')) {
+        setActiveTab('purchases');
+      } else if (currentPath.startsWith('/dashboard/expense-titles')) {
+        setActiveTab('expense-titles');
+      } else if (currentPath.startsWith('/dashboard/expenses')) {
+        setActiveTab('expenses');
+      } else if (currentPath.startsWith('/dashboard/cargo')) {
+        setActiveTab('cargo');
+      } else if (currentPath.startsWith('/dashboard/new-sale')) {
+        setActiveTab('sales');
+      } else if (currentPath.startsWith('/dashboard/orders')) {
+        setActiveTab('orders');
+      } else if (currentPath.startsWith('/dashboard/quotations')) {
+        setActiveTab('quotations');
+      } else if (currentPath.startsWith('/dashboard/reports/rebate')) {
+        setActiveTab('rebate-report');
+      } else if (currentPath.startsWith('/dashboard/reports')) {
+        setActiveTab('reports');
+      } else if (currentPath.startsWith('/dashboard/stores')) {
+        setActiveTab('stores');
+      } else if (currentPath === '/dashboard') {
+        setActiveTab('dashboard');
+      }
+    } catch (error) {
       console.error('Error parsing user data:', error);
       router.push('/login');
     }
