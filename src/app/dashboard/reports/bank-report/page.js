@@ -306,6 +306,7 @@ export default function BankReport() {
                       <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Date</th>
                       <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Account</th>
                       <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Description</th>
+                      <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Bill</th>
                       <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Withdrawal</th>
                       <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Deposit</th>
                       <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider">Balance</th>
@@ -318,6 +319,24 @@ export default function BankReport() {
                         <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200 print:border-black whitespace-nowrap">{formatDate(entry.created_at)}</td>
                         <td className="px-3 py-2.5 text-slate-900 font-medium border-r border-slate-200 print:border-black">{entry.customer?.cus_name || '-'}</td>
                         <td className="px-3 py-2.5 text-slate-700 border-r border-slate-200 print:border-black">{entry.details || '-'}</td>
+                        {(() => {
+                          const firstIndex = reportData.ledgerEntries.findIndex(e => e.bill_no === entry.bill_no && ((e.cus_id || e.customer?.cus_id) === (entry.cus_id || entry.customer?.cus_id)));
+                          const isFirstBill = entry.bill_no && firstIndex === index;
+                          return (
+                            <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200 print:border-black">
+                              {entry.bill_no ? (
+                                isFirstBill ? (
+                                  <div>
+                                    Bill: {entry.bill_no}{' '}
+                                    {((entry.trnx_type === 'PURCHASE' && parseFloat(entry.debit_amount || 0) > 0) || (/incity \(own\) - (labour|delivery)/i).test(entry.details || '')) ? (
+                                      <div className="text-xs text-blue-600 font-bold">— {parseFloat(entry.debit_amount).toFixed(2)}</div>
+                                    ) : null}
+                                  </div>
+                                ) : ('')
+                              ) : ('-')}
+                            </td>
+                          );
+                        })() }
                         <td className={`px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums ${parseFloat(entry.debit_amount) > 0 ? 'text-red-600 font-semibold print:text-black' : 'text-slate-400'}`}>
                           {parseFloat(entry.debit_amount) > 0 ? formatCurrency(entry.debit_amount) : '-'}
                         </td>

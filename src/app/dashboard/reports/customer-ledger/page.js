@@ -304,6 +304,7 @@ export default function CustomerLedgerReport() {
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-900 font-bold uppercase tracking-wider">Type</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-900 font-bold uppercase tracking-wider">Bill No</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-900 font-bold uppercase tracking-wider">Details</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-900 font-bold uppercase tracking-wider">Bill</th>
                         <th className="px-6 py-3 text-right text-xs font-medium text-gray-900 font-bold uppercase tracking-wider">Debit</th>
                         <th className="px-6 py-3 text-right text-xs font-medium text-gray-900 font-bold uppercase tracking-wider">Credit</th>
                         <th className="px-6 py-3 text-right text-xs font-medium text-gray-900 font-bold uppercase tracking-wider">Balance</th>
@@ -311,7 +312,7 @@ export default function CustomerLedgerReport() {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {reportData.ledgerEntries.map((entry) => (
+                      {reportData.ledgerEntries.map((entry, index) => (
                         <tr key={entry.l_id} className="hover:bg-gray-50 print:hover:bg-white">
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {new Date(entry.created_at).toLocaleDateString()}
@@ -325,6 +326,24 @@ export default function CustomerLedgerReport() {
                           <td className="px-6 py-4 text-sm text-gray-900">
                             {entry.details || 'N/A'}
                           </td>
+                          {(() => {
+                            const firstIndex = reportData.ledgerEntries.findIndex(e => e.bill_no === entry.bill_no && ((e.cus_id || e.customer?.cus_id) === (entry.cus_id || entry.customer?.cus_id)));
+                            const isFirstBill = entry.bill_no && firstIndex === index;
+                            return (
+                              <td className="px-6 py-4 text-sm text-gray-900">
+                                {entry.bill_no ? (
+                                  isFirstBill ? (
+                                    <div>
+                                      Bill: {entry.bill_no}{' '}
+                                      {((entry.trnx_type === 'PURCHASE' && parseFloat(entry.debit_amount || 0) > 0) || (/incity \(own\) - (labour|delivery)/i).test(entry.details || '')) ? (
+                                        <span className="text-xs text-blue-600 font-bold">— {parseFloat(entry.debit_amount).toFixed(2)}</span>
+                                      ) : null}
+                                    </div>
+                                  ) : ''
+                                ) : '-'}
+                              </td>
+                            );
+                          })() }
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600">
                             {parseFloat(entry.debit_amount).toFixed(2)}
                           </td>

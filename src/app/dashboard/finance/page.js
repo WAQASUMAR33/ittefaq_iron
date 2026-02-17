@@ -17,6 +17,7 @@ import {
   ArrowUp,
   ArrowDown,
   Receipt,
+  Eye,
   CreditCard,
   Banknote
 } from 'lucide-react';
@@ -104,6 +105,10 @@ export default function FinancePage() {
     payments: '',
     bank_title: ''
   });
+
+  // Purchase viewer state (opened when clicking the eye / Bill)
+  const [viewingPurchase, setViewingPurchase] = useState(null);
+  const [viewPurchaseDialogOpen, setViewPurchaseDialogOpen] = useState(false);
 
   // Journal Form Data
   const [journalData, setJournalData] = useState({
@@ -202,6 +207,50 @@ export default function FinancePage() {
       console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Open purchase invoice (used by eye icon / Bill links)
+  const handleViewPurchase = async (billNo) => {
+    if (!billNo) return;
+    try {
+      const res = await fetch(`/api/purchases?id=${billNo}`);
+      if (!res.ok) {
+        console.warn('Purchase not found for bill:', billNo);
+        return;
+      }
+      let purchaseData = await res.json();
+
+      // Compute display_net_total (same fallback logic as purchases page)
+      const productTotal = (purchaseData.purchase_details || []).reduce((s, d) => s + parseFloat(d.total_amount || 0), 0) || parseFloat(purchaseData.total_amount || 0);
+      const calculatedNetTotal = productTotal +
+        parseFloat(purchaseData.unloading_amount || 0) +
+        parseFloat(purchaseData.transport_amount || 0) +
+        parseFloat(purchaseData.labour_amount || 0) +
+        parseFloat(purchaseData.fare_amount || 0) -
+        parseFloat(purchaseData.discount || 0);
+
+      // Payment breakdown fallback for older records
+      let cashPayment = parseFloat(purchaseData.cash_payment || 0);
+      let bankPayment = parseFloat(purchaseData.bank_payment || 0);
+      if (cashPayment === 0 && bankPayment === 0 && parseFloat(purchaseData.payment || 0) > 0) {
+        const totalPayment = parseFloat(purchaseData.payment || 0);
+        if (purchaseData.payment_type === 'CASH') cashPayment = totalPayment;
+        else if (purchaseData.payment_type === 'BANK_TRANSFER') bankPayment = totalPayment;
+        else cashPayment = totalPayment;
+      }
+
+      purchaseData = {
+        ...purchaseData,
+        display_net_total: calculatedNetTotal,
+        cash_payment: cashPayment,
+        bank_payment: bankPayment
+      };
+
+      setViewingPurchase(purchaseData);
+      setViewPurchaseDialogOpen(true);
+    } catch (err) {
+      console.error('Error fetching purchase for viewer:', err);
     }
   };
 
@@ -1433,6 +1482,23 @@ export default function FinancePage() {
                         >
                           DESCRIPTION
                         </TableCell>
+
+                        {/* New column: Name / Bill (helps quickly find supplier + bill for Cash/Bank rows) */}
+                        <TableCell
+                          sx={{
+                            fontWeight: 800,
+                            fontSize: '0.85rem',
+                            borderRight: 1,
+                            borderColor: '#e5e7eb',
+                            bgcolor: '#1f2937',
+                            color: 'white',
+                            minWidth: 180,
+                            letterSpacing: 0.5
+                          }}
+                        >
+                          BILL
+                        </TableCell>
+
                         <TableCell
                           sx={{
                             fontWeight: 800,
@@ -1505,18 +1571,25 @@ export default function FinancePage() {
                         let bankAmount = parseFloat(entry.bank_payment || 0);
                         let cashAmount = parseFloat(entry.cash_payment || 0);
 
-                        // For non-payment entries, fall back to transaction type logic
+                        // Do NOT apply the transaction-type fallback for Labour/Delivery accounts
+                        // (prevents the initial labour/delivery DEBIT from showing in Cash/Bank column)
+                        const isLabourOrDeliveryAccount = /(labour|delivery|transport)/i.test(entry.customer?.cus_name || '') || /incity \(own\)/i.test(entry.details || '');
+
+                        // For non-payment entries, fall back to transaction type logic (skip for labour/delivery)
                         if (bankAmount === 0 && cashAmount === 0) {
                           if (isSplitPayment) {
                             // Use parsed split amounts
                             bankAmount = splitBankAmount;
                             cashAmount = splitCashAmount;
-                          } else if (entry.trnx_type === 'BANK_TRANSFER' || entry.trnx_type === 'CHEQUE') {
-                            bankAmount = entryAmount;
-                            cashAmount = 0;
-                          } else if (entry.trnx_type === 'CASH') {
-                            bankAmount = 0;
-                            cashAmount = entryAmount;
+                          } else if (!isLabourOrDeliveryAccount) {
+                            // Preserve existing fallback behavior for non-labour/delivery entries
+                            if (entry.trnx_type === 'BANK_TRANSFER' || entry.trnx_type === 'CHEQUE') {
+                              bankAmount = entryAmount;
+                              cashAmount = 0;
+                            } else if (entry.trnx_type === 'CASH') {
+                              bankAmount = 0;
+                              cashAmount = entryAmount;
+                            }
                           }
                         }
 
@@ -1615,14 +1688,64 @@ export default function FinancePage() {
                                 bgcolor: rowBgColor
                               }}
                             >
-                              <Typography variant="body2" sx={{ lineHeight: 1.4, fontWeight: 500, color: '#374151' }}>
-                                {entry.details || 'General transaction'}
-                              </Typography>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Typography variant="body2" sx={{ lineHeight: 1.4, fontWeight: 500, color: '#374151', flex: 1 }}>
+                                  {entry.details || 'General transaction'}
+                                </Typography>
+
+                                {(entry.bill_no && (entry.trnx_type === 'PURCHASE' || (/^\d+$/.test(String(entry.bill_no))))) && (
+                                  <Tooltip title="View invoice">
+                                    <IconButton
+                                      size="small"
+                                      onClick={(e) => { e.stopPropagation(); handleViewPurchase(entry.bill_no); }}
+                                      sx={{ p: 0.5 }}
+                                    >
+                                      <Eye size={14} />
+                                    </IconButton>
+                                  </Tooltip>
+                                )}
+                              </Box>
+
                               {entry.bill_no && (
                                 <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mt: 0.5, color: entryTypeColor }}>
                                   Bill: {entry.bill_no}
                                 </Typography>
                               )}
+                            </TableCell>
+
+                            {/* BILL (show bill number; if this is a purchase debit show the amount too) */}
+                            <TableCell
+                              sx={{
+                                borderRight: 1,
+                                borderColor: 'divider',
+                                minWidth: 160,
+                                bgcolor: rowBgColor
+                              }}
+                            >
+                              {(() => {
+                                const firstIndex = finalLedgerEntries.findIndex(e => e.bill_no === entry.bill_no && ((e.cus_id || e.customer?.cus_id) === (entry.cus_id || entry.customer?.cus_id)));
+                                const isFirstBill = entry.bill_no && firstIndex === index;
+
+                                // Hide bill for the first ledger row when that row represents a Cash or Bank account
+                                const acctName = (entry.customer?.cus_name || '').toLowerCase();
+                                const isCashOrBankAccount = acctName.includes('cash') || acctName.includes('bank');
+
+                                if (!entry.bill_no) return (<Typography variant="body2" sx={{ color: '#6b7280' }}>-</Typography>);
+
+                                // If this is the first bill row but belongs to Cash/Bank account, don't show the bill here
+                                if (isFirstBill && isCashOrBankAccount) return (<Typography variant="body2" sx={{ color: '#6b7280' }}>-</Typography>);
+
+                                if (!isFirstBill) return '';
+
+                                return (
+                                  <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                                    Bill: {entry.bill_no}{' '}
+                                    {((entry.trnx_type === 'PURCHASE' && parseFloat(entry.debit_amount || 0) > 0) || (/incity \(own\) - (labour|delivery)/i).test(entry.details || '')) ? (
+                                      `— ${parseFloat(entry.debit_amount).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                    ) : ''}
+                                  </Typography>
+                                );
+                              })()}
                             </TableCell>
 
                             {/* Bank Amount */}
@@ -2335,7 +2458,7 @@ export default function FinancePage() {
       <Dialog
         open={showReceivePaymentForm}
         onClose={() => setShowReceivePaymentForm(false)}
-        maxWidth="sm"
+        maxWidth="xs"
         fullWidth
         PaperProps={{ sx: { borderRadius: 2 } }}
       >
@@ -2368,11 +2491,9 @@ export default function FinancePage() {
                 </Typography>
               </Grid>
 
-              <Grid item xs={4}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Current Balance:</Typography>
-              </Grid>
-              <Grid item xs={8}>
-                <Typography variant="body1" sx={{ fontWeight: 700, color: '#059669' }}>
+              <Grid item xs={12}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Current Balance</Typography>
+                <Typography variant="body1" sx={{ fontWeight: 700, color: '#059669', mt: 0.5 }}>
                   PKR {currentBalance.toLocaleString()}
                 </Typography>
               </Grid>
@@ -2424,25 +2545,14 @@ export default function FinancePage() {
                 />
               </Grid>
 
-              <Grid item xs={4}>
-                <Typography sx={{ fontWeight: 700, color: '#166534' }}>Net Amount:</Typography>
-              </Grid>
-              <Grid item xs={8}>
-                <Typography variant="h6" sx={{ fontWeight: 900, color: '#15803d' }}>
-                  PKR {(parseFloat(receivePaymentData.total_payment || 0) - parseFloat(receivePaymentData.discount || 0)).toLocaleString()}
-                </Typography>
-              </Grid>
-
               <Grid item xs={12}>
                 <Divider sx={{ my: 1 }} />
               </Grid>
 
               {/* Settlement Sources */}
-              <Grid item xs={4}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Cash Account:</Typography>
-              </Grid>
-              <Grid item xs={8}>
-                <FormControl fullWidth size="small">
+              <Grid item xs={6}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Cash Account</Typography>
+                <FormControl fullWidth size="small" sx={{ mt: 0.5 }}>
                   <Select
                     value={receivePaymentData.cash_account}
                     onChange={(e) => setReceivePaymentData(prev => ({ ...prev, cash_account: e.target.value }))}
@@ -2456,10 +2566,8 @@ export default function FinancePage() {
                 </FormControl>
               </Grid>
 
-              <Grid item xs={4}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Cash Amount:</Typography>
-              </Grid>
-              <Grid item xs={8}>
+              <Grid item xs={6}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Cash Amount</Typography>
                 <TextField
                   fullWidth
                   size="small"
@@ -2467,14 +2575,13 @@ export default function FinancePage() {
                   value={receivePaymentData.cash_amount}
                   onChange={(e) => setReceivePaymentData(prev => ({ ...prev, cash_amount: e.target.value }))}
                   disabled={!receivePaymentData.cash_account}
+                  sx={{ mt: 0.5 }}
                 />
               </Grid>
 
-              <Grid item xs={4}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Bank Account:</Typography>
-              </Grid>
-              <Grid item xs={8}>
-                <FormControl fullWidth size="small">
+              <Grid item xs={6}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Bank Account</Typography>
+                <FormControl fullWidth size="small" sx={{ mt: 0.5 }}>
                   <Select
                     value={receivePaymentData.bank_account}
                     onChange={(e) => setReceivePaymentData(prev => ({ ...prev, bank_account: e.target.value }))}
@@ -2488,10 +2595,8 @@ export default function FinancePage() {
                 </FormControl>
               </Grid>
 
-              <Grid item xs={4}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Bank Amount:</Typography>
-              </Grid>
-              <Grid item xs={8}>
+              <Grid item xs={6}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Bank Amount</Typography>
                 <TextField
                   fullWidth
                   size="small"
@@ -2499,13 +2604,12 @@ export default function FinancePage() {
                   value={receivePaymentData.bank_amount}
                   onChange={(e) => setReceivePaymentData(prev => ({ ...prev, bank_amount: e.target.value }))}
                   disabled={!receivePaymentData.bank_account}
+                  sx={{ mt: 0.5 }}
                 />
               </Grid>
 
-              <Grid item xs={4}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Description:</Typography>
-              </Grid>
-              <Grid item xs={8}>
+              <Grid item xs={12}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Description</Typography>
                 <TextField
                   fullWidth
                   size="small"
@@ -2514,6 +2618,7 @@ export default function FinancePage() {
                   value={receivePaymentData.description}
                   onChange={(e) => setReceivePaymentData(prev => ({ ...prev, description: e.target.value }))}
                   placeholder="Notes..."
+                  sx={{ mt: 0.5 }}
                 />
               </Grid>
             </Grid>
@@ -2567,6 +2672,13 @@ export default function FinancePage() {
         <DialogContent sx={{ p: 4 }}>
           <Box sx={{ mt: 1 }}>
             <Grid container spacing={3} alignItems="center">
+              {/* Account Information */}
+              <Grid item xs={12}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Selected Account</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 700, color: '#1e293b', mt: 0.5 }}>
+                  {customers.find(c => c.cus_id === selectedCustomer)?.cus_name || 'Individual Account'}
+                </Typography>
+              </Grid>
               {/* Account Information - Single Line Grid */}
               <Grid item xs={4}>
                 <Typography sx={{ fontWeight: 600, color: '#475569' }}>Selected Account:</Typography>
@@ -2577,11 +2689,9 @@ export default function FinancePage() {
                 </Typography>
               </Grid>
 
-              <Grid item xs={4}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Current Balance:</Typography>
-              </Grid>
-              <Grid item xs={8}>
-                <Typography variant="body1" sx={{ fontWeight: 700, color: '#ef4444' }}>
+              <Grid item xs={12}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Current Balance</Typography>
+                <Typography variant="body1" sx={{ fontWeight: 700, color: '#ef4444', mt: 0.5 }}>
                   PKR {currentBalance.toLocaleString()}
                 </Typography>
               </Grid>
@@ -2591,10 +2701,8 @@ export default function FinancePage() {
               </Grid>
 
               {/* Form Fields - Aligned Label/Input */}
-              <Grid item xs={4}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Payment Amount:</Typography>
-              </Grid>
-              <Grid item xs={8}>
+              <Grid item xs={12}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Payment Amount</Typography>
                 <TextField
                   fullWidth
                   size="small"
@@ -2609,13 +2717,12 @@ export default function FinancePage() {
                       cash_amount: prev.cash_account ? (parseFloat(value || 0) - parseFloat(prev.discount || 0)) : prev.cash_amount,
                     }));
                   }}
+                  sx={{ mt: 0.5 }}
                 />
               </Grid>
 
-              <Grid item xs={4}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Discount:</Typography>
-              </Grid>
-              <Grid item xs={8}>
+              <Grid item xs={12}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Discount</Typography>
                 <TextField
                   fullWidth
                   size="small"
@@ -2630,16 +2737,8 @@ export default function FinancePage() {
                       cash_amount: prev.cash_account ? (parseFloat(prev.total_payment || 0) - parseFloat(value || 0)) : prev.cash_amount,
                     }));
                   }}
+                  sx={{ mt: 0.5 }}
                 />
-              </Grid>
-
-              <Grid item xs={4}>
-                <Typography sx={{ fontWeight: 700, color: '#991b1b' }}>Net Amount:</Typography>
-              </Grid>
-              <Grid item xs={8}>
-                <Typography variant="h6" sx={{ fontWeight: 900, color: '#b91c1c' }}>
-                  PKR {(parseFloat(payPaymentData.total_payment || 0) - parseFloat(payPaymentData.discount || 0)).toLocaleString()}
-                </Typography>
               </Grid>
 
               <Grid item xs={12}>
@@ -2647,11 +2746,9 @@ export default function FinancePage() {
               </Grid>
 
               {/* Payment Sources */}
-              <Grid item xs={4}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Cash Account:</Typography>
-              </Grid>
-              <Grid item xs={8}>
-                <FormControl fullWidth size="small">
+              <Grid item xs={6}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Cash Account</Typography>
+                <FormControl fullWidth size="small" sx={{ mt: 0.5 }}>
                   <Select
                     value={payPaymentData.cash_account}
                     onChange={(e) => setPayPaymentData(prev => ({ ...prev, cash_account: e.target.value }))}
@@ -2665,10 +2762,8 @@ export default function FinancePage() {
                 </FormControl>
               </Grid>
 
-              <Grid item xs={4}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Cash Amount:</Typography>
-              </Grid>
-              <Grid item xs={8}>
+              <Grid item xs={6}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Cash Amount</Typography>
                 <TextField
                   fullWidth
                   size="small"
@@ -2676,14 +2771,13 @@ export default function FinancePage() {
                   value={payPaymentData.cash_amount}
                   onChange={(e) => setPayPaymentData(prev => ({ ...prev, cash_amount: e.target.value }))}
                   disabled={!payPaymentData.cash_account}
+                  sx={{ mt: 0.5 }}
                 />
               </Grid>
 
-              <Grid item xs={4}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Bank Account:</Typography>
-              </Grid>
-              <Grid item xs={8}>
-                <FormControl fullWidth size="small">
+              <Grid item xs={6}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Bank Account</Typography>
+                <FormControl fullWidth size="small" sx={{ mt: 0.5 }}>
                   <Select
                     value={payPaymentData.bank_account}
                     onChange={(e) => setPayPaymentData(prev => ({ ...prev, bank_account: e.target.value }))}
@@ -2697,10 +2791,8 @@ export default function FinancePage() {
                 </FormControl>
               </Grid>
 
-              <Grid item xs={4}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Bank Amount:</Typography>
-              </Grid>
-              <Grid item xs={8}>
+              <Grid item xs={6}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Bank Amount</Typography>
                 <TextField
                   fullWidth
                   size="small"
@@ -2708,13 +2800,12 @@ export default function FinancePage() {
                   value={payPaymentData.bank_amount}
                   onChange={(e) => setPayPaymentData(prev => ({ ...prev, bank_amount: e.target.value }))}
                   disabled={!payPaymentData.bank_account}
+                  sx={{ mt: 0.5 }}
                 />
               </Grid>
 
-              <Grid item xs={4}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Description:</Typography>
-              </Grid>
-              <Grid item xs={8}>
+              <Grid item xs={12}>
+                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Description</Typography>
                 <TextField
                   fullWidth
                   size="small"
@@ -2723,6 +2814,7 @@ export default function FinancePage() {
                   value={payPaymentData.description}
                   onChange={(e) => setPayPaymentData(prev => ({ ...prev, description: e.target.value }))}
                   placeholder="Notes..."
+                  sx={{ mt: 0.5 }}
                 />
               </Grid>
             </Grid>
@@ -2748,6 +2840,197 @@ export default function FinancePage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Purchase invoice viewer (opened by eye icon or Bill links) */}
+      <Dialog
+        open={viewPurchaseDialogOpen}
+        onClose={() => { setViewPurchaseDialogOpen(false); setViewingPurchase(null); }}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 2, boxShadow: 3 } }}
+      >
+        <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Receipt />
+          Purchase Receipt - #{viewingPurchase?.sequentialId || viewingPurchase?.pur_id}
+        </DialogTitle>
+
+        <DialogContent sx={{ p: 2, bgcolor: '#f5f5f5', maxHeight: '80vh', overflow: 'auto' }}>
+          {viewingPurchase && (
+            <Box id="purchase-invoice-ledger" sx={{ width: '100%', bgcolor: 'white', p: 3, mt: 2 }}>
+              <Box sx={{ textAlign: 'center', py: 2, borderBottom: '2px solid #000' }}>
+                <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1, fontFamily: 'Arial, sans-serif', direction: 'rtl' }}>
+                  اتفاق آئرن اینڈ سیمنٹ سٹور
+                </Typography>
+                <Typography variant="body2" sx={{ mb: 1, direction: 'rtl' }}>
+                  گجرات سرگودھا روڈ، پاہڑیانوالی
+                </Typography>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, mt: 1 }}>
+                  PURCHASE INVOICE
+                </Typography>
+              </Box>
+
+              <Box sx={{ px: 3, py: 2, borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between' }}>
+                <Box sx={{ flex: '0 0 50%' }}>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>Supplier Name: <strong>{viewingPurchase.customer?.cus_name || 'N/A'}</strong></Typography>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>Phone No: <strong>{viewingPurchase.customer?.cus_phone_no || 'N/A'}</strong></Typography>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>Address: <strong>{viewingPurchase.customer?.cus_address || 'N/A'}</strong></Typography>
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right', flex: '0 0 50%' }}>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>Invoice No: <strong>#{viewingPurchase.pur_id}</strong></Typography>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>Time: <strong>{new Date(viewingPurchase.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong></Typography>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>Date: <strong>{new Date(viewingPurchase.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong></Typography>
+                  {viewingPurchase.vehicle_no && (<Typography variant="body2">Vehicle No: <strong>{viewingPurchase.vehicle_no}</strong></Typography>)}
+                  {viewingPurchase.cargo_account && (<Typography variant="body2">Cargo Account: <strong>{viewingPurchase.cargo_account?.cus_name || 'N/A'}</strong></Typography>)}
+
+                  {viewingPurchase.cargo_account_ids && (
+                    <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                      {(() => {
+                        try {
+                          const ids = Array.isArray(viewingPurchase.cargo_account_ids) ? viewingPurchase.cargo_account_ids : JSON.parse(viewingPurchase.cargo_account_ids || '[]');
+                          return ids.map(id => {
+                            const c = customers.find(cc => cc.cus_id === parseInt(id));
+                            return <Chip key={id} label={c ? c.cus_name : String(id)} size="small" sx={{ bgcolor: 'error.main', color: 'white', borderRadius: '16px' }} />;
+                          });
+                        } catch (err) {
+                          return null;
+                        }
+                      })()}
+                    </Box>
+                  )}
+                </Box>
+              </Box>
+
+              {/* Product table + totals (same layout as Purchases page) */}
+              <Box sx={{ px: 3, py: 2 }}>
+                <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: '#9e9e9e' }}>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }}>S#</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }}>Product Name</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Qty</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Rate</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Amount</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {viewingPurchase.purchase_details && viewingPurchase.purchase_details.length > 0 ? (
+                        <>
+                          {viewingPurchase.purchase_details.map((detail, index) => (
+                            <TableRow key={detail.pur_detail_id || index}>
+                              <TableCell sx={{ px: 1 }}>{index + 1}</TableCell>
+                              <TableCell sx={{ px: 1 }}>{detail.product?.pro_title || detail.pro_title || 'N/A'}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{detail.qnty || 0}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.unit_rate || detail.rate || 0).toFixed(2)}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.total_amount || detail.amount || 0).toFixed(2)}</TableCell>
+                            </TableRow>
+                          ))}
+
+                          <TableRow sx={{ bgcolor: 'grey.50' }}>
+                            <TableCell sx={{ px: 1 }} />
+                            <TableCell sx={{ px: 1, fontWeight: 'bold' }}>Total</TableCell>
+                            <TableCell sx={{ px: 1, fontWeight: 'bold' }} align="right">{(viewingPurchase.purchase_details || []).reduce((s, d) => s + parseFloat(d.qnty || 0), 0)}</TableCell>
+                            <TableCell sx={{ px: 1 }} align="right" />
+                            <TableCell sx={{ px: 1, fontWeight: 'bold' }} align="right">{((viewingPurchase.purchase_details || []).reduce((s, d) => s + parseFloat(d.total_amount || d.amount || 0), 0)).toFixed(2)}</TableCell>
+                          </TableRow>
+                        </>
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={5} align="center" sx={{ py: 4 }}>No items found</TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+
+                <Box sx={{ mt: 2, width: '100%', display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                  <Box sx={{ flex: '0 0 48%' }}>
+                    <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, border: '1px solid #000', width: '100%' }}>
+                      <Table size="small">
+                        <TableBody>
+                          {(() => {
+                            const previousBalance = parseFloat((viewingPurchase.previous_customer_balance ?? viewingPurchase.customer?.cus_balance) || 0);
+                            const invoiceNet = viewingPurchase.display_net_total ?? 0;
+                            const payment = parseFloat(viewingPurchase.payment || 0);
+
+                            return (
+                              <>
+                                <TableRow>
+                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Previous Balance</TableCell>
+                                  <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>{previousBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                                </TableRow>
+
+                                <TableRow>
+                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Current Balance</TableCell>
+                                  <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>{(invoiceNet - payment).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                                </TableRow>
+
+                                <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Total Balance</TableCell>
+                                  <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>{(previousBalance + invoiceNet - payment).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                                </TableRow>
+                              </>
+                            );
+                          })()}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Box>
+
+                  <Box sx={{ flex: '0 0 48%', display: 'flex', justifyContent: 'flex-end' }}>
+                    <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%', maxWidth: '100%' }}>
+                      <Table size="small">
+                        <TableBody>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Goods Total</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{parseFloat(viewingPurchase.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Labour</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{parseFloat(viewingPurchase.labour_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Transport</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{parseFloat(viewingPurchase.transport_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Out Labour</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{parseFloat(viewingPurchase.out_labour_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Out Delivery</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{parseFloat(viewingPurchase.out_delivery_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                          </TableRow>
+                          <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Invoice Total</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{(viewingPurchase.display_net_total || parseFloat(viewingPurchase.total_amount || 0) + parseFloat(viewingPurchase.unloading_amount || 0) + parseFloat(viewingPurchase.transport_amount || 0) + parseFloat(viewingPurchase.labour_amount || 0) + parseFloat(viewingPurchase.fare_amount || 0) - parseFloat(viewingPurchase.discount || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{viewingPurchase.bank_payment > 0 ? (viewingPurchase.bank_title || 'Bank Payment') : 'Bank Payment'}</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem', fontWeight: 'bold' }}>{parseFloat(viewingPurchase.bank_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Total Payment</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{parseFloat(viewingPurchase.payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Balance Due</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{((viewingPurchase.display_net_total || parseFloat(viewingPurchase.total_amount || 0) + parseFloat(viewingPurchase.unloading_amount || 0) + parseFloat(viewingPurchase.transport_amount || 0) + parseFloat(viewingPurchase.labour_amount || 0) + parseFloat(viewingPurchase.fare_amount || 0) - parseFloat(viewingPurchase.discount || 0)) - parseFloat(viewingPurchase.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Box>
+                </Box>
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setViewPurchaseDialogOpen(false); setViewingPurchase(null); }} variant="outlined">Close</Button>
+        </DialogActions>
+      </Dialog>
+
     </DashboardLayout>
   );
 }

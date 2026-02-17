@@ -48,6 +48,8 @@ export function createLedgerEntry(config) {
     trnx_type,
     details,
     payments = 0,
+    cash_payment = 0,
+    bank_payment = 0,
     updated_by = null
   } = config;
 
@@ -68,6 +70,9 @@ export function createLedgerEntry(config) {
     trnx_type,
     details,
     payments: parseFloat(payments || 0),
+    // Preserve explicit cash/bank breakdown when provided so UI/reports can show amounts in Cash/Bank columns
+    cash_payment: parseFloat(cash_payment || 0),
+    bank_payment: parseFloat(bank_payment || 0),
     updated_by: updated_by ? parseInt(updated_by) : null
   };
 }

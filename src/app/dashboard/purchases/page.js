@@ -1161,22 +1161,24 @@ function PurchasesPageContent() {
     const totalAmount = calculateTotalAmount();
     const discount = parseFloat(formData.discount || 0);
 
-    // Always include delivery / labour values in the grand total when the user enters them.
-    // The `include_labour` checkbox now only controls cost-rate distribution across products — it no longer
-    // toggles whether labour/delivery are added to the grand total.
+    // Include internal charges (unloading, transport, labour) in the supplier-facing grand total.
+    // External cargo charges entered in `out_labour_amount` / `out_delivery_amount` are handled
+    // separately and MUST NOT be added to the supplier's bill total.
     const unloadingAmount = parseFloat(formData.unloading_amount || 0);
     const transportAmount = parseFloat(formData.transport_amount || 0);
     const labourAmount = parseFloat(formData.labour_amount || 0);
-    const outLabour = parseFloat(formData.out_labour_amount || 0);
-    const outDelivery = parseFloat(formData.out_delivery_amount || 0);
+    // const outLabour = parseFloat(formData.out_labour_amount || 0); // external — excluded
+    // const outDelivery = parseFloat(formData.out_delivery_amount || 0); // external — excluded
 
-    return totalAmount + unloadingAmount + transportAmount + labourAmount + outLabour + outDelivery - discount;
+    return totalAmount + unloadingAmount + transportAmount + labourAmount - discount;
   };
 
   // Invoice helpers: compute display net and remaining due consistently (uses display_net_total when present)
+  // NOTE: Out-labour / Out-delivery are external cargo charges and should NOT be part of the
+  // supplier-facing invoice net. They are excluded from the fallback calculation below.
   const getInvoiceNet = (bill) => {
     if (!bill) return 0;
-    const fallback = (parseFloat(bill.total_amount || 0) + parseFloat(bill.unloading_amount || 0) + parseFloat(bill.transport_amount || 0) + parseFloat(bill.labour_amount || 0) + parseFloat(bill.out_labour_amount || 0) + parseFloat(bill.out_delivery_amount || 0) + parseFloat(bill.fare_amount || 0)) - parseFloat(bill.discount || 0);
+    const fallback = (parseFloat(bill.total_amount || 0) + parseFloat(bill.unloading_amount || 0) + parseFloat(bill.transport_amount || 0) + parseFloat(bill.labour_amount || 0) + parseFloat(bill.fare_amount || 0)) - parseFloat(bill.discount || 0);
     const net = parseFloat(bill.display_net_total ?? fallback);
     return Number.isFinite(net) ? net : 0;
   };

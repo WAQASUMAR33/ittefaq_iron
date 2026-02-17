@@ -278,6 +278,7 @@ export default function SupplierLedgerReport() {
                         <th className="px-6 py-3 text-left font-semibold text-gray-700">Type</th>
                         <th className="px-6 py-3 text-left font-semibold text-gray-700">Bill No</th>
                         <th className="px-6 py-3 text-left font-semibold text-gray-700">Details</th>
+                        <th className="px-6 py-3 text-left font-semibold text-gray-700">Bill</th>
                         <th className="px-6 py-3 text-right font-semibold text-gray-700">Debit</th>
                         <th className="px-6 py-3 text-right font-semibold text-gray-700">Credit</th>
                         <th className="px-6 py-3 text-right font-semibold text-gray-700">Cash</th>
@@ -301,6 +302,30 @@ export default function SupplierLedgerReport() {
                           </td>
                           <td className="px-6 py-3 text-gray-700 font-medium">{entry.bill_no || '-'}</td>
                           <td className="px-6 py-3 text-gray-600 max-w-xs truncate" title={entry.details}>{entry.details}</td>
+
+                          {/* show Bill only on the first ledger row for this account+bill */}
+                          {(() => {
+                            const firstIndex = reportData.ledgerEntries.findIndex(e => e.bill_no === entry.bill_no && ((e.cus_id || e.customer?.cus_id) === (entry.cus_id || entry.customer?.cus_id)));
+                            const isFirstBill = entry.bill_no && firstIndex === index;
+                            return (
+                              <td className="px-6 py-3 text-gray-700 font-medium">
+                                {entry.bill_no ? (
+                                  isFirstBill ? (
+                                    <div>
+                                      Bill: {entry.bill_no}{' '}
+                                      {(
+                                        (entry.trnx_type === 'PURCHASE' && parseFloat(entry.debit_amount || 0) > 0) ||
+                                        (/incity \(own\) - (labour|delivery)/i).test(entry.details || '')
+                                      ) ? (
+                                        <span className="text-blue-600 font-bold">— {parseFloat(entry.debit_amount).toFixed(2)}</span>
+                                      ) : null}
+                                    </div>
+                                  ) : ''
+                                ) : '-'}
+                              </td>
+                            );
+                          })()}
+
                           <td className="px-6 py-3 text-right font-medium">{parseFloat(entry.debit_amount).toFixed(2)}</td>
                           <td className="px-6 py-3 text-right font-medium">{parseFloat(entry.credit_amount).toFixed(2)}</td>
                           <td className="px-6 py-3 text-right text-blue-600 font-medium">

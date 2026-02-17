@@ -345,6 +345,7 @@ export default function CashReport() {
                       <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black w-24">Date</th>
                       <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Account Title</th>
                       <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Description</th>
+                      <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Bill</th>
                       <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black w-28">Debit (Dr)</th>
                       <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black w-28">Credit (Cr)</th>
                       <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider w-28">Balance</th>
@@ -357,7 +358,24 @@ export default function CashReport() {
                         <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200 print:border-black whitespace-nowrap">{formatDate(entry.created_at)}</td>
                         <td className="px-3 py-2.5 text-slate-900 font-medium border-r border-slate-200 print:border-black">{entry.customer?.cus_name || '-'}</td>
                         <td className="px-3 py-2.5 text-slate-600 border-r border-slate-200 print:border-black">{entry.details || '-'}</td>
-                        <td className="px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums">
+                        {(() => {
+                          const firstIndex = reportData.ledgerEntries.findIndex(e => e.bill_no === entry.bill_no && ((e.cus_id || e.customer?.cus_id) === (entry.cus_id || entry.customer?.cus_id)));
+                          const isFirstBill = entry.bill_no && firstIndex === index;
+                          return (
+                            <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200 print:border-black">
+                              {entry.bill_no ? (
+                                isFirstBill ? (
+                                  <div>
+                                    Bill: {entry.bill_no}{' '}
+                                    {((entry.trnx_type === 'PURCHASE' && parseFloat(entry.debit_amount || 0) > 0) || (/incity \(own\) - (labour|delivery)/i).test(entry.details || '')) ? (
+                                      <div className="text-xs text-blue-600 font-bold">— {parseFloat(entry.debit_amount).toFixed(2)}</div>
+                                    ) : null}
+                                  </div>
+                                ) : ''
+                              ) : '-'}
+                            </td>
+                          );
+                        })() }                        <td className="px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums">
                           {parseFloat(entry.debit_amount) > 0 ? <span className="text-green-600 print:text-black">{formatCurrency(entry.debit_amount)}</span> : '-'}
                         </td>
                         <td className="px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums">
@@ -367,7 +385,7 @@ export default function CashReport() {
                       </tr>
                     ))}
                     {reportData.ledgerEntries.length === 0 && (
-                      <tr><td colSpan="7" className="px-6 py-12 text-center text-slate-500">No cash transactions found for the selected period</td></tr>
+                      <tr><td colSpan="8" className="px-6 py-12 text-center text-slate-500">No cash transactions found for the selected period</td></tr>
                     )}
                   </tbody>
                   <tfoot>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, Download, Printer, Search, ShoppingCart, TrendingUp } from 'lucide-react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Box, Typography, Table as MuiTable, TableBody as MuiTableBody, TableCell as MuiTableCell, TableContainer as MuiTableContainer, TableHead as MuiTableHead, TableRow as MuiTableRow, Paper } from '@mui/material';
 import { useRouter } from 'next/navigation';
@@ -26,6 +26,15 @@ export default function SaleReport() {
   // Sale details modal state
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedSale, setSelectedSale] = useState(null);
+  const [showFullFields, setShowFullFields] = useState(false);
+
+  // Column sorting for main table
+  const [sortBy, setSortBy] = useState('date');
+  const [sortDir, setSortDir] = useState('desc');
+  const toggleSort = (col) => {
+    if (sortBy === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortBy(col); setSortDir('desc'); }
+  };
 
   // Set default dates on mount
   useEffect(() => {
@@ -147,6 +156,48 @@ export default function SaleReport() {
     if (!dateStr) return '-';
     return new Date(dateStr).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   };
+
+  // Derived, sorted sales (client-side sorting)
+  const sortSales = (arr) => {
+    const copy = Array.isArray(arr) ? [...arr] : [];
+    const dir = sortDir === 'asc' ? 1 : -1;
+    copy.sort((a, b) => {
+      if (!sortBy) return 0;
+      switch (sortBy) {
+        case 'date':
+          return dir * (new Date(a.created_at) - new Date(b.created_at));
+        case 'sale_id':
+          return dir * String(a.sale_id).localeCompare(String(b.sale_id), undefined, { numeric: true });
+        case 'customer':
+          return dir * ((a.customer?.cus_name || '').localeCompare(b.customer?.cus_name || ''));
+        case 'items':
+          return dir * ((a.sale_details?.length || 0) - (b.sale_details?.length || 0));
+        case 'amount':
+          return dir * ((parseFloat(a.total_amount) || 0) - (parseFloat(b.total_amount) || 0));
+        case 'discount':
+          return dir * ((parseFloat(a.discount) || 0) - (parseFloat(b.discount) || 0));
+        case 'net': {
+          const an = (parseFloat(a.total_amount) || 0) - (parseFloat(a.discount) || 0) + (parseFloat(a.shipping_amount) || 0);
+          const bn = (parseFloat(b.total_amount) || 0) - (parseFloat(b.discount) || 0) + (parseFloat(b.shipping_amount) || 0);
+          return dir * (an - bn);
+        }
+        case 'received':
+          return dir * ((parseFloat(a.payment) || 0) - (parseFloat(b.payment) || 0));
+        case 'balance': {
+          const ab = ((parseFloat(a.total_amount) || 0) - (parseFloat(a.discount) || 0) + (parseFloat(a.shipping_amount) || 0)) - (parseFloat(a.payment) || 0);
+          const bb = ((parseFloat(b.total_amount) || 0) - (parseFloat(b.discount) || 0) + (parseFloat(b.shipping_amount) || 0)) - (parseFloat(b.payment) || 0);
+          return dir * (ab - bb);
+        }
+        default:
+          return 0;
+      }
+    });
+    return copy;
+  };
+
+  const sortedSales = useMemo(() => {
+    return reportData?.sales ? sortSales(reportData.sales) : [];
+  }, [reportData, sortBy, sortDir]);
 
   const handleExport = () => {
     if (!reportData) return;
@@ -281,6 +332,9 @@ export default function SaleReport() {
     setTimeout(() => { w.print(); }, 300);
   };
 
+  // Normalize possible item keys so panel shows items regardless of API shape
+  const selectedSaleItems = (selectedSale && (selectedSale.sale_details || selectedSale.details || selectedSale.items || selectedSale.sale_items)) || [];
+
   return (
     <DashboardLayout>
       <div className="h-full flex flex-col bg-white print:bg-white overflow-hidden">
@@ -393,45 +447,73 @@ export default function SaleReport() {
         </div>
 
         {/* Report Content */}
-        {reportData ? (
-          <div className="flex-1 overflow-auto p-4 print:p-0 print:overflow-visible">
-            <div className="max-w-[1400px] mx-auto">
-              {/* Print Header */}
-              <div className="hidden print:block border-b-2 border-black pb-4 mb-4">
-                <div className="text-center">
-                  <h1 className="text-2xl font-bold tracking-wider">ITTEFAQ IRON STORE</h1>
-                  <p className="text-sm text-gray-600">Parianwali, Pakistan | Tel: +92 346 7560306</p>
-                  <div className="mt-3 py-2 bg-black text-white">
-                    <h2 className="text-lg font-bold tracking-widest">SALES REGISTER</h2>
+          {reportData ? (
+            <div className="flex-1 overflow-auto p-4 print:p-0 print:overflow-visible">
+              <div className="max-w-[1400px] mx-auto">
+              {/* Selected Sale Summary (shows when a sale is selected) */}
+              {selectedSale && (
+                <div className="mb-4 bg-white border border-slate-300 rounded-lg p-3 print:hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <h3 className="text-lg font-semibold">Selected Sale Summary</h3>
+                      <div className="text-sm text-slate-600">Invoice: INV-{selectedSale.sale_id}</div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <button onClick={() => { setShowFullFields(s => !s); }} className="px-3 py-1 text-sm bg-slate-100 rounded hover:bg-slate-200">
+                        {showFullFields ? 'Hide All Fields' : 'View All Fields'}
+                      </button>
+                      <button onClick={() => { setSelectedSale(null); setShowFullFields(false); }} className="px-3 py-1 text-sm bg-slate-100 rounded hover:bg-slate-200">Clear</button>
+                    </div>
                   </div>
-                  <p className="mt-2 text-sm">
-                    <span className="font-semibold">Period:</span> {formatDate(startDate)} to {formatDate(endDate)}
-                  </p>
-                </div>
-              </div>
 
-              {/* Summary Cards - Screen */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 print:hidden">
-                <div className="bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 rounded-xl p-4">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Total Invoices</p>
-                  <p className="text-2xl font-bold text-slate-800 mt-1">{reportData.summary.totalSales}</p>
-                </div>
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl p-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Gross Sales</p>
-                    <TrendingUp className="w-4 h-4 text-blue-500" />
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+                    <div className="col-span-2">
+                      <div className="flex flex-wrap gap-3 text-sm">
+                        <div className="w-1/2"><strong>Date:</strong> {new Date(selectedSale.created_at).toLocaleString()}</div>
+                        <div className="w-1/2"><strong>Customer:</strong> {selectedSale.customer?.cus_name || '-'}</div>
+                        <div className="w-1/2"><strong>Phone:</strong> {selectedSale.customer?.cus_phone_no || '-'}</div>
+                        <div className="w-1/2"><strong>Bill Type:</strong> {selectedSale.bill_type || '-'}</div>
+                        <div className="w-1/2"><strong>Gross:</strong> Rs. {formatCurrency(selectedSale.total_amount)}</div>
+                        <div className="w-1/2"><strong>Discount:</strong> Rs. {formatCurrency(selectedSale.discount)}</div>
+                        <div className="w-1/2"><strong>Shipping:</strong> Rs. {formatCurrency(selectedSale.shipping_amount)}</div>
+                        <div className="w-1/2"><strong>Paid:</strong> Rs. {formatCurrency(selectedSale.payment)}</div>
+                        <div className="w-1/2"><strong>Balance:</strong> Rs. {formatCurrency((parseFloat(selectedSale.total_amount||0) - parseFloat(selectedSale.discount||0) + parseFloat(selectedSale.shipping_amount||0)) - (parseFloat(selectedSale.payment||0)))}</div>
+                      </div>
+                      {showFullFields && (
+                        <pre className="mt-3 p-3 bg-slate-50 text-xs overflow-auto" style={{maxHeight: 240}}>{JSON.stringify(selectedSale, null, 2)}</pre>
+                      )}
+                    </div>
+
+                    <div className="col-span-1">
+                      <h4 className="text-sm font-semibold mb-2">Products</h4>
+                      <div className="overflow-auto" style={{maxHeight: 220}}>
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-slate-100">
+                              <th className="px-2 py-1 text-left text-xs font-semibold">S#</th>
+                              <th className="px-2 py-1 text-left text-xs font-semibold">Product</th>
+                              <th className="px-2 py-1 text-right text-xs font-semibold">Qty</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200">
+                            {((selectedSale.sale_details || selectedSale.details || selectedSale.items || selectedSale.sale_items) || []).map((d, i) => (
+                              <tr key={i} className={`${i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
+                                <td className="px-2 py-1">{i + 1}</td>
+                                <td className="px-2 py-1">{d.product?.pro_title || d.product_name || '-'}</td>
+                                <td className="px-2 py-1 text-right">{(parseFloat(d.qnty || 0) || 0).toFixed(2)}</td>
+                              </tr>
+                            ))}
+                            {(((selectedSale.sale_details || selectedSale.details || selectedSale.items || selectedSale.sale_items) || []).length === 0) && (
+                              <tr><td colSpan="3" className="px-2 py-3 text-center text-slate-500">No items for this sale</td></tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
                   </div>
-                  <p className="text-2xl font-bold text-blue-800 mt-1">Rs. {formatCurrency(reportData.summary.totalAmount)}</p>
                 </div>
-                <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-200 rounded-xl p-4">
-                  <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wide">Amount Received</p>
-                  <p className="text-2xl font-bold text-emerald-800 mt-1">Rs. {formatCurrency(reportData.summary.totalReceived)}</p>
-                </div>
-                <div className="bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 rounded-xl p-4">
-                  <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide">Receivable Balance</p>
-                  <p className="text-2xl font-bold text-amber-800 mt-1">Rs. {formatCurrency(reportData.summary.netTotal - reportData.summary.totalReceived)}</p>
-                </div>
-              </div>
+              )}
+              
 
               {/* Print Summary */}
               <div className="hidden print:block mb-4 border border-black">
@@ -460,28 +542,114 @@ export default function SaleReport() {
               </div>
 
               {/* Main Table */}
+              {selectedSale && (
+                <div className="mb-4 bg-white border border-slate-300 rounded-lg p-3 print:hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <h3 className="text-lg font-semibold">Sales Transactions</h3>
+                      <div className="text-sm text-slate-600">Invoice: INV-{selectedSale.sale_id}</div>
+                    </div>
+                    <div>
+                      <button onClick={() => setSelectedSale(null)} className="px-3 py-1 text-sm bg-slate-100 rounded hover:bg-slate-200">Clear</button>
+                    </div>
+                  </div>
+                  <div className="overflow-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-slate-100">
+                          <th className="px-3 py-2 text-left text-xs font-semibold">S#</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold">Product</th>
+                          <th className="px-3 py-2 text-right text-xs font-semibold">Qty</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {(selectedSale.sale_details || []).map((d, i) => (
+                          <tr key={i} className={`${i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
+                            <td className="px-3 py-2">{i + 1}</td>
+                            <td className="px-3 py-2">{d.product?.pro_title || d.product_name || '-'}</td>
+                            <td className="px-3 py-2 text-right tabular-nums">{(parseFloat(d.qnty || 0) || 0).toFixed(2)}</td>
+                          </tr>
+                        ))}
+                        {(selectedSale.sale_details || []).length === 0 && (
+                          <tr><td colSpan="3" className="px-3 py-4 text-center text-slate-500">No items for this sale</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
               <div className="bg-white border border-slate-300 rounded-lg overflow-hidden print:border-black print:rounded-none">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-slate-800 text-white print:bg-gray-200 print:text-black">
                       <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">S.No</th>
-                      <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Date</th>
-                      <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Invoice No</th>
-                      <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Customer Name</th>
+
+                      <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">
+                        <button onClick={() => toggleSort('date')} className="flex items-center gap-2 focus:outline-none" aria-label="Sort by Date">
+                          <span>Date</span>
+                          <span className="text-xs opacity-70">{sortBy === 'date' ? (sortDir === 'asc' ? '▲' : '▼') : '▴▾'}</span>
+                        </button>
+                      </th>
+
+                      <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">
+                        <button onClick={() => toggleSort('sale_id')} className="flex items-center gap-2 focus:outline-none" aria-label="Sort by Invoice No">
+                          <span>Invoice No</span>
+                          <span className="text-xs opacity-70">{sortBy === 'sale_id' ? (sortDir === 'asc' ? '▲' : '▼') : '▴▾'}</span>
+                        </button>
+                      </th>
+
+                      <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">
+                        <button onClick={() => toggleSort('customer')} className="flex items-center gap-2 focus:outline-none" aria-label="Sort by Customer">
+                          <span>Customer Name</span>
+                          <span className="text-xs opacity-70">{sortBy === 'customer' ? (sortDir === 'asc' ? '▲' : '▼') : '▴▾'}</span>
+                        </button>
+                      </th>
+
                       <th className="px-3 py-3 text-center text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Type</th>
-                      <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Gross Amt</th>
-                      <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Disc</th>
-                      <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Net Amt</th>
-                      <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Received</th>
-                      <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider">Balance</th>
+
+                      <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">
+                        <button onClick={() => toggleSort('amount')} className="flex items-center justify-end gap-2 w-full focus:outline-none" aria-label="Sort by Gross Amount">
+                          <span>Gross Amt</span>
+                          <span className="text-xs opacity-70">{sortBy === 'amount' ? (sortDir === 'asc' ? '▲' : '▼') : '▴▾'}</span>
+                        </button>
+                      </th>
+
+                      <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black hidden sm:table-cell">
+                        <button onClick={() => toggleSort('discount')} className="flex items-center justify-end gap-2 w-full focus:outline-none" aria-label="Sort by Discount">
+                          <span>Disc</span>
+                          <span className="text-xs opacity-70">{sortBy === 'discount' ? (sortDir === 'asc' ? '▲' : '▼') : '▴▾'}</span>
+                        </button>
+                      </th>
+
+                      <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">
+                        <button onClick={() => toggleSort('net')} className="flex items-center justify-end gap-2 w-full focus:outline-none" aria-label="Sort by Net Amount">
+                          <span>Net Amt</span>
+                          <span className="text-xs opacity-70">{sortBy === 'net' ? (sortDir === 'asc' ? '▲' : '▼') : '▴▾'}</span>
+                        </button>
+                      </th>
+
+                      <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">
+                        <button onClick={() => toggleSort('received')} className="flex items-center justify-end gap-2 w-full focus:outline-none" aria-label="Sort by Received">
+                          <span>Received</span>
+                          <span className="text-xs opacity-70">{sortBy === 'received' ? (sortDir === 'asc' ? '▲' : '▼') : '▴▾'}</span>
+                        </button>
+                      </th>
+
+                      <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider">
+                        <button onClick={() => toggleSort('balance')} className="flex items-center justify-end gap-2 w-full focus:outline-none" aria-label="Sort by Balance">
+                          <span>Balance</span>
+                          <span className="text-xs opacity-70">{sortBy === 'balance' ? (sortDir === 'asc' ? '▲' : '▼') : '▴▾'}</span>
+                        </button>
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 print:divide-black">
-                    {reportData.sales.map((sale, index) => {
-                      const netTotal = parseFloat(sale.total_amount || 0) - parseFloat(sale.discount || 0) + parseFloat(sale.shipping_amount || 0);
-                      const balance = netTotal - parseFloat(sale.payment || 0);
+                        {sortedSales.map((sale, index) => {
+                      const netTotal = (parseFloat(sale.total_amount || 0) || 0) - (parseFloat(sale.discount || 0) || 0) + (parseFloat(sale.shipping_amount || 0) || 0);
+                      const balance = netTotal - (parseFloat(sale.payment || 0) || 0);
                       return (
-                        <tr key={sale.sale_id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} hover:bg-blue-50 print:bg-white transition-colors`}>
+                        <tr key={sale.sale_id} onClick={() => setSelectedSale(sale)} className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} hover:bg-blue-50 print:bg-white transition-colors cursor-pointer`}>
                           <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200 print:border-black">{index + 1}</td>
                           <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200 print:border-black whitespace-nowrap">{formatDate(sale.created_at)}</td>
                           <td className="px-3 py-2.5 text-slate-600 border-r border-slate-200 print:border-black font-mono text-xs">INV-{sale.sale_id}</td>
