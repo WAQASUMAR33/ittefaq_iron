@@ -249,7 +249,7 @@ function PurchasesPageContent() {
       setCustomerTypeOpenPurchases(false);
       setTimeout(() => customerNameInputRefPurchases.current?.focus(), 50);
     }, 80);
-  };  
+  };
   const [customerFormData, setCustomerFormData] = useState({
     cus_name: '',
     cus_phone_no: '',
@@ -768,18 +768,18 @@ function PurchasesPageContent() {
       return purchaseDetails.map(detail => ({
         ...detail,
         cost_rate: detail.original_cost_rate ?? detail.cost_rate ?? detail.unit_rate ?? 0,
-        total_amount: (parseFloat(detail.crate ?? 0) * parseFloat(detail.qnty || 0)).toFixed(2)
+        total_amount: Number((parseFloat(detail.crate ?? 0) * parseFloat(detail.qnty || 0)).toFixed(2))
       }));
     }
 
     return purchaseDetails.map(detail => {
       const base = parseFloat(detail.original_cost_rate ?? detail.cost_rate ?? detail.unit_rate ?? 0);
-      const newCost = (base + labourPerUnit + incityPerUnit + cargoPerUnit).toFixed(2);
+      const newCost = Number((base + labourPerUnit + incityPerUnit + cargoPerUnit).toFixed(2));
       return {
         ...detail,
         cost_rate: newCost,
         original_cost_rate: detail.original_cost_rate ?? detail.cost_rate ?? detail.unit_rate ?? 0,
-        total_amount: (parseFloat(detail.crate ?? 0) * parseFloat(detail.qnty || 0)).toFixed(2)
+        total_amount: Number((parseFloat(detail.crate ?? 0) * parseFloat(detail.qnty || 0)).toFixed(2))
       };
     });
   };
@@ -1162,12 +1162,12 @@ function PurchasesPageContent() {
   };
 
   const calculateTotalAmount = () => {
-    return formData.purchase_details.reduce((sum, detail) => sum + parseFloat(detail.total_amount || 0), 0);
+    return Number(formData.purchase_details.reduce((sum, detail) => sum + parseFloat(detail.total_amount || 0), 0).toFixed(2));
   };
 
   // New: total quantity across purchase details
   const calculateTotalQuantity = () => {
-    return formData.purchase_details.reduce((sum, detail) => sum + parseFloat(detail.qnty || 0), 0);
+    return Number(formData.purchase_details.reduce((sum, detail) => sum + parseFloat(detail.qnty || 0), 0).toFixed(2));
   };
 
   const calculateNetTotal = () => {
@@ -1183,7 +1183,7 @@ function PurchasesPageContent() {
     // const outLabour = parseFloat(formData.out_labour_amount || 0); // external — excluded
     // const outDelivery = parseFloat(formData.out_delivery_amount || 0); // external — excluded
 
-    return totalAmount + unloadingAmount + transportAmount + labourAmount - discount;
+    return Number((totalAmount + unloadingAmount + transportAmount + labourAmount - discount).toFixed(2));
   };
 
   // Invoice helpers: compute display net and remaining due consistently (uses display_net_total when present)
@@ -1193,13 +1193,13 @@ function PurchasesPageContent() {
     if (!bill) return 0;
     const fallback = (parseFloat(bill.total_amount || 0) + parseFloat(bill.unloading_amount || 0) + parseFloat(bill.transport_amount || 0) + parseFloat(bill.labour_amount || 0) + parseFloat(bill.fare_amount || 0)) - parseFloat(bill.discount || 0);
     const net = parseFloat(bill.display_net_total ?? fallback);
-    return Number.isFinite(net) ? net : 0;
+    return Number.isFinite(net) ? Number(net.toFixed(2)) : 0;
   };
 
   const getInvoiceRemainingDue = (bill) => {
     const net = getInvoiceNet(bill);
     const payment = parseFloat(bill?.payment || 0);
-    return net - payment;
+    return Number((net - payment).toFixed(2));
   };
 
   // Calculate and sync Incity charges total (read-only) — only own labour + own delivery
@@ -1207,7 +1207,7 @@ function PurchasesPageContent() {
     try {
       const incityLabour = parseFloat(formData.incity_own_labour || 0);
       const incityDelivery = parseFloat(formData.incity_own_delivery || 0);
-      const computed = parseFloat((incityLabour + incityDelivery).toFixed(2));
+      const computed = Number((incityLabour + incityDelivery).toFixed(2));
       const current = parseFloat(formData.incity_charges_total || 0);
       if (isNaN(current) || current !== computed) {
         setFormData(prev => ({ ...prev, incity_charges_total: computed.toString() }));
@@ -2129,11 +2129,11 @@ function PurchasesPageContent() {
                   '50%': { transform: 'scale(1.02)' }
                 },
                 '@keyframes plusGlow': {
-                  '0%, 100%': { 
+                  '0%, 100%': {
                     textShadow: '0 0 5px rgba(255, 255, 255, 0.3)',
                     filter: 'drop-shadow(0 0 3px rgba(255, 255, 255, 0.2))'
                   },
-                  '50%': { 
+                  '50%': {
                     textShadow: '0 0 15px rgba(255, 255, 255, 0.8), 0 0 25px rgba(255, 255, 255, 0.4)',
                     filter: 'drop-shadow(0 0 8px rgba(255, 255, 255, 0.6))'
                   }
@@ -2530,14 +2530,14 @@ function PurchasesPageContent() {
 
                           {/* Amounts */}
                           <div className="col-span-2">
-                            <div className="text-sm font-semibold text-green-600">{parseFloat(purchase.net_total).toFixed(2)}</div>
+                            <div className="text-sm font-semibold text-green-600">{Number(purchase.net_total)}</div>
                             <div className="text-xs text-gray-500">
-                              Total: {parseFloat(purchase.total_amount).toFixed(2)} |
-                              Unload: {parseFloat(purchase.unloading_amount).toFixed(2)} |
-                              Fare: {parseFloat(purchase.fare_amount).toFixed(2)}
+                              Total: {Number(purchase.total_amount)} |
+                              Unload: {Number(purchase.unloading_amount)} |
+                              Fare: {Number(purchase.fare_amount)}
                             </div>
                             {purchase.discount > 0 && (
-                              <div className="text-xs text-red-500">Discount: -{parseFloat(purchase.discount).toFixed(2)}</div>
+                              <div className="text-xs text-red-500">Discount: -{Number(purchase.discount)}</div>
                             )}
                           </div>
 
@@ -2545,7 +2545,7 @@ function PurchasesPageContent() {
                           <div className="col-span-1 flex items-center">
                             <div>
                               <div className="text-sm font-medium text-gray-900">{purchase.payment_type}</div>
-                              <div className="text-xs text-gray-500">{parseFloat(purchase.payment).toFixed(2)}</div>
+                              <div className="text-xs text-gray-500">{Number(purchase.payment)}</div>
                             </div>
                           </div>
 
@@ -2858,7 +2858,7 @@ function PurchasesPageContent() {
                             fontSize: '0.75rem',
                             fontWeight: 'bold'
                           }}>
-                            Balance: {parseFloat(formSelectedCustomer.cus_balance || 0).toFixed(2)}
+                            Balance: {Number(formSelectedCustomer.cus_balance || 0)}
                           </Box>
                         )}
                       </Box>
@@ -2947,7 +2947,7 @@ function PurchasesPageContent() {
                                     {option.cus_name}
                                   </Typography>
                                   <Typography variant="caption" color="text.secondary">
-                                    {option.cus_phone_no} • Balance: {parseFloat(option.cus_balance || 0).toFixed(2)}
+                                    {option.cus_phone_no} • Balance: {Number(option.cus_balance || 0)}
                                   </Typography>
                                 </Box>
                               </Box>
@@ -2985,7 +2985,7 @@ function PurchasesPageContent() {
                           }}
                           onClose={() => setPurchaseSearchOpen(false)}
                           options={purchaseSearchResults}
-                          getOptionLabel={(option) => `#${option.pur_id} - ${option.invoice_number || 'N/A'} (${parseFloat(option.total_amount).toFixed(2)})`}
+                          getOptionLabel={(option) => `#${option.pur_id} - ${option.invoice_number || 'N/A'} (${Number(option.total_amount)})`}
                           value={selectedPurchaseForReturn}
                           onChange={(event, newValue) => {
                             if (newValue) {
@@ -3032,7 +3032,7 @@ function PurchasesPageContent() {
                                       {option.invoice_number || 'N/A'}
                                     </Typography>
                                     <Typography variant="caption" color="text.secondary">
-                                      {parseFloat(option.total_amount).toFixed(2)} • {new Date(option.created_at).toLocaleDateString()}
+                                      {Number(option.total_amount)} • {new Date(option.created_at).toLocaleDateString()}
                                     </Typography>
                                   </Box>
                                 </Box>
@@ -3323,7 +3323,7 @@ function PurchasesPageContent() {
                             }
                           }
                         }}
-                        inputProps={{ min: 1 }}
+                        inputProps={{ min: 0, step: "any" }}
                         sx={{ width: 80, minWidth: 80 }}
                       />
                     </Box>
@@ -3361,7 +3361,7 @@ function PurchasesPageContent() {
                             if (addBtnFallback) addBtnFallback.focus();
                           }
                         }}
-                        inputProps={{ min: 0 }}
+                        inputProps={{ min: 0, step: "any" }}
                         sx={{ width: 100, minWidth: 100 }}
                       />
                     </Box>
@@ -3413,7 +3413,7 @@ function PurchasesPageContent() {
                             }
                           }
                         }}
-                        inputProps={{ min: 0 }}
+                        inputProps={{ min: 0, step: "any" }}
                         sx={{ width: 80, minWidth: 80 }}
                       />
                     </Box>
@@ -3444,7 +3444,7 @@ function PurchasesPageContent() {
                             }
                           }
                         }}
-                        inputProps={{ min: 0 }}
+                        inputProps={{ min: 0, step: "any" }}
                         sx={{ width: 80, minWidth: 80 }}
                       />
                     </Box>
@@ -3459,7 +3459,7 @@ function PurchasesPageContent() {
                       </Typography>
                       <TextField
                         size="small"
-                        value={(parseFloat(productFormData.qnty || 0) * parseFloat(productFormData.crate || productFormData.unit_rate || 0)).toFixed(2)}
+                        value={parseFloat(productFormData.qnty || 0) * parseFloat(productFormData.crate || productFormData.unit_rate || 0)}
                         InputProps={{ readOnly: true }}
                         sx={{ width: '100%', minWidth: 150 }}
                       />
@@ -3535,13 +3535,13 @@ function PurchasesPageContent() {
                                           ? {
                                             ...d,
                                             qnty: newQuantity,
-                                            total_amount: (parseInt(newQuantity) * parseFloat(d.unit_rate)).toString()
+                                            total_amount: (parseFloat(newQuantity) * parseFloat(d.unit_rate)).toFixed(2)
                                           }
                                           : d
                                       );
                                       setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
                                     }}
-                                    inputProps={{ min: 1 }}
+                                    inputProps={{ min: 0, step: "any" }}
                                     size="small"
                                     sx={{ width: 80 }}
                                   />
@@ -3558,13 +3558,13 @@ function PurchasesPageContent() {
                                             ...d,
                                             crate: newCrate,
                                             original_crate: newCrate, // keep baseline in sync with manual edits
-                                            total_amount: (parseInt(d.qnty) * parseFloat(newCrate)).toString()
+                                            total_amount: (parseFloat(d.qnty) * parseFloat(newCrate)).toFixed(2)
                                           }
                                           : d
                                       );
                                       setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
                                     }}
-                                    inputProps={{ min: 0 }}
+                                    inputProps={{ min: 0, step: "any" }}
                                     size="small"
                                     sx={{ width: 100 }}
                                   />
@@ -3598,7 +3598,7 @@ function PurchasesPageContent() {
                                         e.currentTarget.blur();
                                       }
                                     }}
-                                    inputProps={{ min: 0 }}
+                                    inputProps={{ min: 0, step: "any" }}
                                     sx={{ width: 100 }}
                                   />
                                 </TableCell>
@@ -3609,18 +3609,18 @@ function PurchasesPageContent() {
                                     onChange={(e) => {
                                       const newUnitRate = e.target.value;
                                       const updatedDetails = formData.purchase_details.map((d, i) =>
-                                        i === index ? { ...d, unit_rate: newUnitRate, total_amount: (parseInt(d.qnty) * parseFloat(d.crate || newUnitRate)).toString() } : d
+                                        i === index ? { ...d, unit_rate: newUnitRate, total_amount: (parseFloat(d.qnty) * parseFloat(d.crate || newUnitRate)).toFixed(2) } : d
                                       );
                                       setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
                                     }}
-                                    inputProps={{ min: 0 }}
+                                    inputProps={{ min: 0, step: "any" }}
                                     size="small"
                                     sx={{ width: 100 }}
                                   />
                                 </TableCell>
                                 <TableCell>
                                   <Typography variant="body2" sx={{ fontWeight: 'semibold', color: 'success.main' }}>
-                                    {parseFloat(detail.total_amount).toFixed(2)}
+                                    {detail.total_amount}
                                   </Typography>
                                 </TableCell>
                                 <TableCell>
@@ -3800,7 +3800,7 @@ function PurchasesPageContent() {
                                       {option.cus_name}
                                     </Typography>
                                     <Typography variant="caption" color="text.secondary">
-                                      {option.cus_phone_no} • Balance: {parseFloat(option.cus_balance || 0).toFixed(2)}
+                                      {option.cus_phone_no} • Balance: {Number(option.cus_balance || 0)}
                                     </Typography>
                                   </Box>
                                 </Box>
@@ -3823,7 +3823,7 @@ function PurchasesPageContent() {
                         </Typography>
                         <TextField
                           size="small"
-                          value={(parseFloat(formData.cash_payment || 0) + parseFloat(formData.bank_payment || 0)).toFixed(2)}
+                          value={Number((parseFloat(formData.cash_payment || 0) + parseFloat(formData.bank_payment || 0)).toFixed(2))}
                           InputProps={{ readOnly: true }}
                           sx={{ width: '100%', backgroundColor: 'action.hover' }}
                         />
@@ -4004,7 +4004,7 @@ function PurchasesPageContent() {
                                 <TextField
                                   label="Total Charges"
                                   size="small"
-                                  value={( (parseFloat(formData.out_labour_amount || 0) + parseFloat(formData.out_delivery_amount || 0)) ).toFixed(2)}
+                                  value={(parseFloat(formData.out_labour_amount || 0) + parseFloat(formData.out_delivery_amount || 0)).toFixed(2)}
                                   InputProps={{ readOnly: true }}
                                   sx={{ width: 160 }}
                                 />
@@ -4983,8 +4983,8 @@ function PurchasesPageContent() {
                               <TableCell sx={{ px: 1 }}>{index + 1}</TableCell>
                               <TableCell sx={{ px: 1 }}>{detail.product?.pro_title || detail.pro_title || 'N/A'}</TableCell>
                               <TableCell sx={{ px: 1 }} align="right">{detail.qnty || 0}</TableCell>
-                              <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.unit_rate || detail.rate || 0).toFixed(2)}</TableCell>
-                              <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.total_amount || detail.amount || 0).toFixed(2)}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{Number(detail.unit_rate || detail.rate || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{Number(detail.total_amount || detail.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                             </TableRow>
                           ))}
 
@@ -4994,7 +4994,7 @@ function PurchasesPageContent() {
                             <TableCell sx={{ px: 1, fontWeight: 'bold' }}>Total</TableCell>
                             <TableCell sx={{ px: 1, fontWeight: 'bold' }} align="right">{(viewingPurchase.purchase_details || []).reduce((s, d) => s + parseFloat(d.qnty || 0), 0)}</TableCell>
                             <TableCell sx={{ px: 1 }} align="right" />
-                            <TableCell sx={{ px: 1, fontWeight: 'bold' }} align="right">{((viewingPurchase.purchase_details || []).reduce((s, d) => s + parseFloat(d.total_amount || d.amount || 0), 0)).toFixed(2)}</TableCell>
+                            <TableCell sx={{ px: 1, fontWeight: 'bold' }} align="right">{((viewingPurchase.purchase_details || []).reduce((s, d) => s + parseFloat(d.total_amount || d.amount || 0), 0)).toLocaleString('en-US', { minimumFractionDigits: 2 })}</TableCell>
                           </TableRow>
                         </>
                       ) : (
@@ -5501,8 +5501,8 @@ function PurchasesPageContent() {
                               <TableCell sx={{ px: 1 }}>{index + 1}</TableCell>
                               <TableCell sx={{ px: 1 }}>{detail.product?.pro_title || detail.pro_title || 'N/A'}</TableCell>
                               <TableCell sx={{ px: 1 }} align="right">{detail.qnty || 0}</TableCell>
-                              <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.unit_rate || detail.rate || 0).toFixed(2)}</TableCell>
-                              <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.total_amount || detail.amount || 0).toFixed(2)}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{Number(detail.unit_rate || detail.rate || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{Number(detail.total_amount || detail.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                             </TableRow>
                           ))}
 
@@ -5512,7 +5512,7 @@ function PurchasesPageContent() {
                             <TableCell sx={{ px: 1, fontWeight: 'bold' }}>Total</TableCell>
                             <TableCell sx={{ px: 1, fontWeight: 'bold' }} align="right">{(currentBillData.purchase_details || []).reduce((s, d) => s + parseFloat(d.qnty || 0), 0)}</TableCell>
                             <TableCell sx={{ px: 1 }} align="right" />
-                            <TableCell sx={{ px: 1, fontWeight: 'bold' }} align="right">{((currentBillData.purchase_details || []).reduce((s, d) => s + parseFloat(d.total_amount || d.amount || 0), 0)).toFixed(2)}</TableCell>
+                            <TableCell sx={{ px: 1, fontWeight: 'bold' }} align="right">{(currentBillData.purchase_details || []).reduce((s, d) => s + parseFloat(d.total_amount || d.amount || 0), 0)}</TableCell>
                           </TableRow>
                         </>
                       ) : (
@@ -5716,7 +5716,7 @@ function PurchasesPageContent() {
           <TruckIcon sx={{ fontSize: '1.8rem' }} />
           {editingVehicle ? 'Edit Vehicle Details' : 'Add New Vehicle'}
         </DialogTitle>
-        
+
         <DialogContent sx={{ pt: 4, px: 3 }}>
           <Grid container spacing={2.5}>
             {/* Vehicle Number */}
@@ -5838,9 +5838,9 @@ function PurchasesPageContent() {
 
             {/* Info Alert */}
             <Grid item xs={12} sx={{ mt: 1 }}>
-              <Alert 
+              <Alert
                 severity="info"
-                sx={{ 
+                sx={{
                   bgcolor: '#E3F2FD',
                   color: '#1565C0',
                   '& .MuiAlert-icon': { color: '#1976D2' }
@@ -5858,7 +5858,7 @@ function PurchasesPageContent() {
           <Button
             onClick={handleCloseVehicleDialog}
             variant="outlined"
-            sx={{ 
+            sx={{
               textTransform: 'none',
               fontSize: '0.95rem',
               fontWeight: 500,
@@ -5877,7 +5877,7 @@ function PurchasesPageContent() {
               fontWeight: 600,
               background: 'linear-gradient(135deg, #2196F3 0%, #1976D2 100%)',
               px: 3,
-              '&:hover': { 
+              '&:hover': {
                 background: 'linear-gradient(135deg, #1976D2 0%, #1565C0 100%)',
                 boxShadow: '0 8px 16px rgba(25, 118, 210, 0.3)'
               },

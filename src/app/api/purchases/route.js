@@ -360,26 +360,26 @@ export async function POST(request) {
         store_id: store_id ? safeParseInt(store_id) : null,
         debit_account_id: debit_account_id ? safeParseInt(debit_account_id) : null,
         credit_account_id: credit_account_id ? safeParseInt(credit_account_id) : null,
-        total_amount: safeParseFloat(total_amount),
-        unloading_amount: safeParseFloat(unloading_amount),
-        fare_amount: safeParseFloat(fare_amount),
-        transport_amount: safeParseFloat(transport_amount),
-        labour_amount: safeParseFloat(labour_amount),
-        out_labour_amount: safeParseFloat(out_labour_amount),
-        out_delivery_amount: safeParseFloat(out_delivery_amount),
+        total_amount: Number(safeParseFloat(total_amount).toFixed(2)),
+        unloading_amount: Number(safeParseFloat(unloading_amount).toFixed(2)),
+        fare_amount: Number(safeParseFloat(fare_amount).toFixed(2)),
+        transport_amount: Number(safeParseFloat(transport_amount).toFixed(2)),
+        labour_amount: Number(safeParseFloat(labour_amount).toFixed(2)),
+        out_labour_amount: Number(safeParseFloat(out_labour_amount).toFixed(2)),
+        out_delivery_amount: Number(safeParseFloat(out_delivery_amount).toFixed(2)),
         include_cargo_in_costprice: include_cargo_in_costprice ? true : false,
         // Incity fields
-        incity_own_labour: safeParseFloat(incity_own_labour),
-        incity_own_delivery: safeParseFloat(incity_own_delivery),
-        incity_charges_total: safeParseFloat(incity_charges_total),
-        discount: safeParseFloat(discount),
+        incity_own_labour: Number(safeParseFloat(incity_own_labour).toFixed(2)),
+        incity_own_delivery: Number(safeParseFloat(incity_own_delivery).toFixed(2)),
+        incity_charges_total: Number(safeParseFloat(incity_charges_total).toFixed(2)),
+        discount: Number(safeParseFloat(discount).toFixed(2)),
         cargo_account_id: cargo_account_id ? safeParseInt(cargo_account_id) : null,
         cargo_account_ids: cargo_account_ids ? (Array.isArray(cargo_account_ids) ? JSON.stringify(cargo_account_ids) : String(cargo_account_ids)) : null,
-        net_total: safeParseFloat(net_total),
-        payment: totalPaymentAmount,
+        net_total: Number(safeParseFloat(net_total).toFixed(2)),
+        payment: Number(totalPaymentAmount.toFixed(2)),
         payment_type: actualPaymentType,
-        cash_payment: cashPaymentAmount,
-        bank_payment: bankPaymentAmount,
+        cash_payment: Number(cashPaymentAmount.toFixed(2)),
+        bank_payment: Number(bankPaymentAmount.toFixed(2)),
         bank_title: isSplitPayment && bankPaymentAmount > 0 ? 'Bank Payment' : null,
         vehicle_no: vehicle_no || null,
         invoice_number: invoice_number || null,
@@ -403,13 +403,13 @@ export async function POST(request) {
             vehicle_no: vehicle_no || null,
             cus_id: parseInt(cus_id),
             pro_id: safeParseInt(detail.pro_id, 0),
-            qnty: safeParseInt(detail.qnty || detail.quantity, 1),
+            qnty: Number(safeParseFloat(detail.qnty || detail.quantity, 1).toFixed(2)),
             unit: detail.unit || 'pcs',
-            unit_rate: safeParseFloat(detail.unit_rate || detail.rate),
-            prate: safeParseFloat(detail.prate || detail.unit_rate || detail.rate),
-            crate: safeParseFloat(detail.crate || detail.unit_rate || detail.rate),
-            total_amount: safeParseFloat(detail.total_amount),
-            net_total: safeParseFloat(detail.total_amount), // Use total_amount as net_total for now
+            unit_rate: Number(safeParseFloat(detail.unit_rate || detail.rate).toFixed(2)),
+            prate: Number(safeParseFloat(detail.prate || detail.unit_rate || detail.rate).toFixed(2)),
+            crate: Number(safeParseFloat(detail.crate || detail.unit_rate || detail.rate).toFixed(2)),
+            total_amount: Number(safeParseFloat(detail.total_amount).toFixed(2)),
+            net_total: Number(safeParseFloat(detail.total_amount).toFixed(2)), // Use total_amount as net_total for now
             updated_by: updated_by ? safeParseInt(updated_by) : null
           };
 
@@ -524,7 +524,7 @@ export async function POST(request) {
       // 3. Bank Account - CREDIT (when bank payment is made)
       // When bank payment is made, bank account balance DECREASES (credit decreases asset)
       let usedBankAccountId = null;  // Track which bank account is being used
-      
+
       if (parseFloat(bank_payment || 0) > 0) {
         let bankAccountToUse = null;
 

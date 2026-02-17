@@ -200,7 +200,7 @@ function OrdersPageContent() {
       setCustomerTypeOpen(false);
       setTimeout(() => customerNameInputRef.current?.focus(), 50);
     }, 80);
-  }; 
+  };
 
   // Popup states for adding new category, type, and city
   const [showCustomerCategoryPopup, setShowCustomerCategoryPopup] = useState(false);
@@ -718,7 +718,7 @@ function OrdersPageContent() {
   const handleQuantityChange = (newQuantity) => {
     const quantity = parseFloat(newQuantity) || 0;
     const rate = productFormData.rate;
-    const amount = quantity * rate;
+    const amount = Number((quantity * rate).toFixed(2));
 
     setProductFormData(prev => ({
       ...prev,
@@ -731,7 +731,7 @@ function OrdersPageContent() {
   const handleRateChange = (newRate) => {
     const rate = parseFloat(newRate) || 0;
     const quantity = productFormData.quantity;
-    const amount = quantity * rate;
+    const amount = Number((quantity * rate).toFixed(2));
 
     setProductFormData(prev => ({
       ...prev,
@@ -786,18 +786,13 @@ function OrdersPageContent() {
       stock: 0
     });
 
-    // Auto-focus on CASH field after adding product
+    // Auto-focus on Product field after adding product to allow adding more items
     setTimeout(() => {
-      const cashInputs = document.querySelectorAll('input[type="number"]');
-      // Find CASH field (first number input after product form)
-      if (cashInputs.length > 0) {
-        // The CASH field should be one of the payment inputs
-        const paymentSection = document.querySelector('input[placeholder=" "]');
-        if (paymentSection) {
-          paymentSection.focus();
-        }
+      const productInput = document.querySelector('input[placeholder*="Select product"]');
+      if (productInput) {
+        productInput.focus();
       }
-    }, 5000);
+    }, 100);
   };
 
   // Handle removing product from table
@@ -806,9 +801,9 @@ function OrdersPageContent() {
     showSnackbar('Product removed from table', 'success');
   };
 
-  // Calculate total amount
   const calculateTotalAmount = () => {
-    return productTableData.reduce((total, product) => total + product.amount, 0);
+    const total = productTableData.reduce((total, product) => total + (parseFloat(product.amount) || 0), 0);
+    return Number(total.toFixed(2));
   };
 
   // Calculate subtotal (products + transport)
@@ -816,7 +811,7 @@ function OrdersPageContent() {
     const productTotal = calculateTotalAmount();
     const transportTotal = calculateTransportTotal();
     const subtotal = productTotal + transportTotal;
-    return subtotal;
+    return Number(subtotal.toFixed(2));
   };
 
   // Calculate grand total (products + labour + delivery (including transport) - discount)
@@ -827,14 +822,14 @@ function OrdersPageContent() {
     const transportTotal = calculateTransportTotal();
     const totalDelivery = deliveryCharges + transportTotal; // Transport added to delivery
     const discount = parseFloat(paymentData.discount) || 0;
-    return productTotal + labour + totalDelivery - discount;
+    return Number((productTotal + labour + totalDelivery - discount).toFixed(2));
   };
 
   // Calculate balance (grand total - total cash received)
   const calculateBalance = () => {
     const grandTotal = calculateGrandTotal();
     const totalCashReceived = parseFloat(paymentData.totalCashReceived) || 0;
-    return grandTotal - totalCashReceived;
+    return Number((grandTotal - totalCashReceived).toFixed(2));
   };
 
   // Handle payment data changes
@@ -2564,6 +2559,7 @@ function OrdersPageContent() {
                       value={productFormData.quantity === 0 ? '' : productFormData.quantity}
                       onChange={(e) => handleQuantityChange(e.target.value)}
                       onFocus={(e) => e.target.select()}
+                      inputProps={{ step: 'any' }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
@@ -2572,21 +2568,14 @@ function OrdersPageContent() {
                             handleAddProductToTable();
                           } else {
                             // Focus on rate field if rate is not filled
-                            setTimeout(() => {
-                              const rateInputs = document.querySelectorAll('input[type="number"]');
-                              // Find the rate input (it's the next number input after quantity)
-                              if (rateInputs.length > 1) {
-                                rateInputs[1].focus();
-                              }
-                            }, 0);
+                            const rateInput = document.getElementById('product-rate-input');
+                            if (rateInput) rateInput.focus();
                           }
                         } else if (e.key === 'Tab') {
                           e.preventDefault();
                           // Tab should move to RATE field
-                          const rateInputs = document.querySelectorAll('input[type="number"]');
-                          if (rateInputs.length > 1) {
-                            rateInputs[1].focus();
-                          }
+                          const rateInput = document.getElementById('product-rate-input');
+                          if (rateInput) rateInput.focus();
                         }
                       }}
                       sx={{ bgcolor: 'white', width: 160, minWidth: 160 }}
@@ -2605,6 +2594,8 @@ function OrdersPageContent() {
                       value={productFormData.rate === 0 ? '' : productFormData.rate}
                       onChange={(e) => handleRateChange(e.target.value)}
                       onFocus={(e) => e.target.select()}
+                      inputProps={{ step: 'any' }}
+                      id="product-rate-input"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
@@ -2612,13 +2603,9 @@ function OrdersPageContent() {
                           handleAddProductToTable();
                         } else if (e.key === 'Tab') {
                           e.preventDefault();
-                          // Check if STOCK/AMOUNT fields exist and focus + button
-                          setTimeout(() => {
-                            const addBtn = document.querySelector('button[onClick]');
-                            if (addBtn && addBtn.parentElement?.parentElement?.textContent?.includes('+')) {
-                              addBtn.focus();
-                            }
-                          }, 0);
+                          // Focus + button
+                          const addBtn = document.getElementById('add-product-btn');
+                          if (addBtn) addBtn.focus();
                         }
                       }}
                       sx={{ bgcolor: 'white', width: 150, minWidth: 150 }}
@@ -2658,6 +2645,7 @@ function OrdersPageContent() {
                   <Box sx={{ mt: 2 }}>
                     <Button
                       variant="contained"
+                      id="add-product-btn"
                       onClick={handleAddProductToTable}
                       sx={{
                         bgcolor: '#6f42c1',
@@ -2715,7 +2703,7 @@ function OrdersPageContent() {
                                       ? {
                                         ...p,
                                         quantity: newQuantity,
-                                        amount: newQuantity * p.rate
+                                        amount: Number((newQuantity * p.rate).toFixed(2))
                                       }
                                       : p
                                   );
@@ -2730,7 +2718,8 @@ function OrdersPageContent() {
                                 }
                               }}
                               inputProps={{
-                                min: 0.01
+                                min: 0.01,
+                                step: 'any'
                               }}
                             />
                           </TableCell>
@@ -2747,7 +2736,7 @@ function OrdersPageContent() {
                                       ? {
                                         ...p,
                                         rate: newRate,
-                                        amount: p.quantity * newRate
+                                        amount: Number((p.quantity * newRate).toFixed(2))
                                       }
                                       : p
                                   );
@@ -2762,7 +2751,8 @@ function OrdersPageContent() {
                                 }
                               }}
                               inputProps={{
-                                min: 0
+                                min: 0,
+                                step: 'any'
                               }}
                             />
                           </TableCell>
@@ -2820,6 +2810,8 @@ function OrdersPageContent() {
                           type="number"
                           value={paymentData.cash === 0 ? '' : paymentData.cash}
                           onChange={(e) => handlePaymentDataChange('cash', e.target.value)}
+                          onFocus={(e) => e.target.select()}
+                          inputProps={{ step: 'any' }}
                           sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' } }}
                           placeholder=" "
                         />
@@ -2836,26 +2828,30 @@ function OrdersPageContent() {
                           type="number"
                           value={paymentData.bank === 0 ? '' : paymentData.bank}
                           onChange={(e) => handlePaymentDataChange('bank', e.target.value)}
+                          onFocus={(e) => e.target.select()}
+                          inputProps={{ step: 'any' }}
                           onKeyDown={(e) => {
                             if (e.key === 'Tab') {
-                              e.preventDefault();
-                              // Move focus to BANK ACCOUNT field
-                              setTimeout(() => {
-                                const bankAccInputs = document.querySelectorAll('input[placeholder="Select Bank Account"]');
-                                if (bankAccInputs.length > 0) {
-                                  bankAccInputs[0].focus();
-                                } else {
-                                  // Fallback: look for input by searching all inputs in payment section
-                                  const allInputs = document.querySelectorAll('input[type="text"]');
-                                  for (let i = 0; i < allInputs.length; i++) {
-                                    const input = allInputs[i];
-                                    if (input.placeholder && input.placeholder.includes('Bank')) {
-                                      input.focus();
-                                      return;
+                              // Only intercept Tab and move focus to BANK ACCOUNT when a bank amount is present
+                              if (parseFloat(paymentData.bank || 0) > 0) {
+                                e.preventDefault();
+                                setTimeout(() => {
+                                  const bankAccInputs = document.querySelectorAll('input[placeholder="Select Bank Account"]');
+                                  if (bankAccInputs.length > 0) {
+                                    bankAccInputs[0].focus();
+                                  } else {
+                                    // Fallback: search for input that might be the bank account select
+                                    const allInputs = document.querySelectorAll('input[type="text"]');
+                                    for (let i = 0; i < allInputs.length; i++) {
+                                      const input = allInputs[i];
+                                      if (input.placeholder && input.placeholder.toLowerCase().includes('bank')) {
+                                        input.focus();
+                                        return;
+                                      }
                                     }
                                   }
-                                }
-                              }, 0);
+                                }, 0);
+                              }
                             }
                           }}
                           sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' } }}
@@ -2917,7 +2913,7 @@ function OrdersPageContent() {
                           fullWidth
                           size="small"
                           type="number"
-                          value={paymentData.totalCashReceived}
+                          value={Number(paymentData.totalCashReceived).toFixed(2)}
                           sx={{ bgcolor: '#f5f5f5', '& .MuiInputBase-input': { padding: '8px' } }}
                           disabled
                         />
@@ -2981,6 +2977,8 @@ function OrdersPageContent() {
                       type="number"
                       value={paymentData.labour === 0 ? '' : paymentData.labour}
                       onChange={(e) => handlePaymentDataChange('labour', e.target.value)}
+                      onFocus={(e) => e.target.select()}
+                      inputProps={{ step: 'any' }}
                       sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' }, flex: 1 }}
                       placeholder=" "
                     />
@@ -2997,8 +2995,7 @@ function OrdersPageContent() {
                       value={(() => {
                         const totalDelivery = (parseFloat(paymentData.deliveryCharges || 0) + calculateTransportTotal());
                         if (totalDelivery === 0) return '';
-                        // Only show decimals if the number has decimal places
-                        return totalDelivery % 1 === 0 ? totalDelivery.toString() : totalDelivery.toFixed(2);
+                        return totalDelivery.toFixed(2);
                       })()
                       }
                       onChange={(e) => {
@@ -3008,6 +3005,8 @@ function OrdersPageContent() {
                         const deliveryOnly = totalValue - transportTotal;
                         handlePaymentDataChange('deliveryCharges', deliveryOnly >= 0 ? deliveryOnly : 0);
                       }}
+                      onFocus={(e) => e.target.select()}
+                      inputProps={{ step: 'any' }}
                       sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px', fontWeight: 'bold' }, flex: 1 }}
                       placeholder=" "
                     />
@@ -3028,6 +3027,8 @@ function OrdersPageContent() {
                       type="number"
                       value={paymentData.discount === 0 ? '' : paymentData.discount}
                       onChange={(e) => handlePaymentDataChange('discount', e.target.value)}
+                      onFocus={(e) => e.target.select()}
+                      inputProps={{ step: 'any' }}
                       sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' }, flex: 1 }}
                       placeholder=" "
                     />
@@ -5069,7 +5070,7 @@ function OrdersPageContent() {
                           <TableRow key={detail.sale_detail_id || index}>
                             <TableCell sx={{ px: 1 }}>{index + 1}</TableCell>
                             <TableCell sx={{ px: 1 }}>{detail.product?.pro_title || detail.product?.pro_name || detail.product?.prod_name || 'N/A'}</TableCell>
-                            <TableCell sx={{ px: 1 }} align="right">{detail.qnty || 0}</TableCell>
+                            <TableCell sx={{ px: 1 }} align="right">{Number(detail.qnty || 0).toFixed(2)}</TableCell>
                             <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.unit_rate || 0).toFixed(2)}</TableCell>
                             <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.total_amount || 0).toFixed(2)}</TableCell>
                           </TableRow>

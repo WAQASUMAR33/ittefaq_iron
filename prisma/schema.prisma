@@ -191,7 +191,7 @@ model Product {
   pro_sale_price          Decimal
   pro_baser_price         Decimal
   pro_crate               Decimal?               @default(0.00) @db.Decimal(10, 2)
-  pro_stock_qnty          Int                    @default(0)
+  pro_stock_qnty          Decimal                @default(0)
   pro_unit                String
   pro_packing             String?
   created_at              DateTime               @default(now())
@@ -318,7 +318,7 @@ model SaleDetail {
   store_id        Int?
   pro_id          Int
   vehicle_no      String?
-  qnty            Int
+  qnty            Decimal
   unit            String
   unit_rate       Decimal
   total_amount    Decimal
@@ -417,7 +417,7 @@ model PurchaseDetail {
   vehicle_no      String?
   cus_id          Int
   pro_id          Int
-  qnty            Int
+  qnty            Decimal
   unit            String
   unit_rate       Decimal
   prate           Decimal? @default(0.00) @db.Decimal(10, 2)
@@ -461,7 +461,7 @@ model PurchaseReturnDetail {
   id              Int            @id @default(autoincrement())
   return_id       Int
   pro_id          Int
-  return_quantity Int
+  return_quantity Decimal
   unit_rate       Decimal        @db.Decimal(10, 2)
   return_amount   Decimal        @db.Decimal(10, 2)
   created_at      DateTime       @default(now())
@@ -566,7 +566,7 @@ model SaleReturnDetail {
   return_detail_id Int        @id @default(autoincrement())
   return_id        Int
   pro_id           Int
-  qnty             Int
+  qnty             Decimal
   unit             String
   unit_rate        Decimal
   total_amount     Decimal
@@ -628,7 +628,7 @@ model HoldBillDetail {
   hold_bill_id        Int
   pro_id              Int
   vehicle_no          String?
-  qnty                Int
+  qnty                Decimal
   unit                String
   unit_rate           Decimal
   total_amount        Decimal
@@ -749,9 +749,9 @@ model StoreStock {
   store_stock_id  Int      @id @default(autoincrement())
   store_id        Int
   pro_id          Int
-  stock_quantity  Int      @default(0)
-  min_stock       Int      @default(0)
-  max_stock       Int      @default(0)
+  stock_quantity  Decimal      @default(0)
+  min_stock       Decimal      @default(0)
+  max_stock       Decimal      @default(0)
   created_at      DateTime @default(now())
   updated_at      DateTime @updatedAt
   updated_by      Int?

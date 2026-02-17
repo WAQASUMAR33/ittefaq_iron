@@ -547,14 +547,14 @@ function SalesPageContent() {
 
     const currentState = captureScreenState();
     const newStack = screenStack.slice(0, currentScreenIndex + 1);
-    
+
     // Ensure new screen has current transport accounts
     const newScreenState = {
       ...currentState,
       transportAccounts: transportAccounts.map(t => ({ ...t })),
       transportOptions: transportOptions.map(t => ({ ...t }))
     };
-    
+
     newStack.push(newScreenState);
 
     console.log('📚 New stack created:', newStack.length, 'screens');
@@ -769,11 +769,10 @@ function SalesPageContent() {
     }
   }, [formSelectedStore, formSelectedProduct]);
 
-  // Handle quantity change
   const handleQuantityChange = (newQuantity) => {
     const quantity = parseFloat(newQuantity) || 0;
     const rate = productFormData.rate;
-    const amount = quantity * rate;
+    const amount = Number((quantity * rate).toFixed(2));
 
     setProductFormData(prev => ({
       ...prev,
@@ -786,7 +785,7 @@ function SalesPageContent() {
   const handleRateChange = (newRate) => {
     const rate = parseFloat(newRate) || 0;
     const quantity = productFormData.quantity;
-    const amount = quantity * rate;
+    const amount = Number((quantity * rate).toFixed(2));
 
     setProductFormData(prev => ({
       ...prev,
@@ -842,18 +841,13 @@ function SalesPageContent() {
       crate: ''
     });
 
-    // Auto-focus on CASH field after adding product
+    // Auto-focus on Product field after adding product to allow adding more items
     setTimeout(() => {
-      const paymentInputs = document.querySelectorAll('input[type="number"]');
-      // Find cash field - it should be one of the payment inputs
-      if (paymentInputs.length > 0) {
-        // Look for payment data inputs in the payment section
-        const paymentSection = document.querySelectorAll('input[placeholder=" "]');
-        if (paymentSection.length > 0) {
-          paymentSection[0]?.focus();
-        }
+      const productInput = document.querySelector('input[placeholder*="Select product"]');
+      if (productInput) {
+        productInput.focus();
       }
-    }, 5000);
+    }, 100);
   };
 
   // Keyboard shortcut 'a' to add product
@@ -885,9 +879,9 @@ function SalesPageContent() {
     showSnackbar('Product removed from table', 'success');
   };
 
-  // Calculate total amount
   const calculateTotalAmount = () => {
-    return productTableData.reduce((total, product) => total + (parseFloat(product.amount) || 0), 0);
+    const total = productTableData.reduce((total, product) => total + (parseFloat(product.amount) || 0), 0);
+    return Number(total.toFixed(2));
   };
 
   // Calculate subtotal (products + transport)
@@ -895,7 +889,7 @@ function SalesPageContent() {
     const productTotal = calculateTotalAmount();
     const transportTotal = calculateTransportTotal();
     const subtotal = productTotal + transportTotal;
-    return subtotal;
+    return Number(subtotal.toFixed(2));
   };
 
   // Calculate grand total (products + labour + delivery (including transport) - discount)
@@ -906,7 +900,7 @@ function SalesPageContent() {
     const transportTotal = calculateTransportTotal();
     const totalDelivery = deliveryCharges + transportTotal; // Transport added to delivery
     const discount = parseFloat(paymentData.discount) || 0;
-    return productTotal + labour + totalDelivery - discount;
+    return Number((productTotal + labour + totalDelivery - discount).toFixed(2));
   };
 
   // Calculate balance (grand total - total cash received - advance payment)
@@ -914,7 +908,7 @@ function SalesPageContent() {
     const grandTotal = calculateGrandTotal();
     const totalCashReceived = parseFloat(paymentData.totalCashReceived) || 0;
     const advancePayment = parseFloat(paymentData.advancePayment) || 0;
-    return grandTotal - totalCashReceived - advancePayment;
+    return Number((grandTotal - totalCashReceived - advancePayment).toFixed(2));
   };
 
   // Handle payment data changes
@@ -1139,14 +1133,14 @@ function SalesPageContent() {
         const returnBody = {
           sale_id: selectedSaleForReturnMain.sale_id,
           cus_id: formSelectedCustomer ? formSelectedCustomer.cus_id : selectedSaleForReturnMain.cus_id,
-          total_amount: totalAmount.toString(),
-          discount: discount.toString(),
-          labour_charges: labourCharges.toString(),
-          shipping_amount: deliveryCharges.toString(),
-          payment: totalReturn.toString(), // The total amount being refunded to customer
+          total_amount: Number(totalAmount.toFixed(2)),
+          discount: Number(discount.toFixed(2)),
+          labour_charges: Number(labourCharges.toFixed(2)),
+          shipping_amount: Number(deliveryCharges.toFixed(2)),
+          payment: Number(totalReturn.toFixed(2)), // The total amount being refunded to customer
           payment_type: bankReturn > 0 ? 'BANK_TRANSFER' : 'CASH', // Use BANK_TRANSFER if there's bank amount
-          cash_return: cashReturn.toString(), // Additional: cash portion
-          bank_return: bankReturn.toString(), // Additional: bank portion
+          cash_return: Number(cashReturn.toFixed(2)), // Additional: cash portion
+          bank_return: Number(bankReturn.toFixed(2)), // Additional: bank portion
           bank_account_id: paymentData.bankAccountId || null, // Bank account for transfer
           bill_type: 'SALE_RETURN',
           reason: paymentData.notes || 'Returned from Sale Entry',
@@ -1653,7 +1647,7 @@ function SalesPageContent() {
       if (Array.isArray(accountsData) && customerCategories.length > 0 && customerTypes.length > 0) {
         // Filter bank accounts using category + type validation
         let bankAccountsData = filterBankAccountsByCategory(accountsData, customerCategories, customerTypes);
-        
+
         // Remove duplicates based on cus_id to ensure no bank appears twice
         const seenIds = new Set();
         bankAccountsData = bankAccountsData.filter(account => {
@@ -1664,7 +1658,7 @@ function SalesPageContent() {
           seenIds.add(account.cus_id);
           return true;
         });
-        
+
         console.log('🏦 Bank accounts found (after deduplication):', bankAccountsData.length);
         setBankAccounts(bankAccountsData);
       } else {
@@ -1727,7 +1721,7 @@ function SalesPageContent() {
       setCustomerTypeOpen(false);
       setTimeout(() => customerNameInputRef.current?.focus(), 50);
     }, 80);
-  }; 
+  };
 
   const handleCloseCustomerPopup = () => {
     setCustomerPopupOpen(false);
@@ -3340,6 +3334,19 @@ function SalesPageContent() {
                       autoHighlight={true}
                       openOnFocus={true}
                       selectOnFocus={true}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && formSelectedCustomer) {
+                          e.preventDefault();
+                          // Move focus to Invoice selection (if return) or Product selection
+                          if (billType === 'SALE_RETURN') {
+                            const invoiceInput = document.querySelector('input[placeholder*="Search Sale ID"]');
+                            if (invoiceInput) invoiceInput.focus();
+                          } else {
+                            const productInput = document.querySelector('input[placeholder*="Select product"]');
+                            if (productInput) productInput.focus();
+                          }
+                        }
+                      }}
                       renderInput={(params) => (
                         <TextField
                           {...params}
@@ -3411,6 +3418,13 @@ function SalesPageContent() {
                             size="small"
                             placeholder="Search Sale ID..."
                             onFocus={(e) => e.target.select()}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && selectedSaleForReturnMain) {
+                                e.preventDefault();
+                                const productInput = document.querySelector('input[placeholder*="Select product"]');
+                                if (productInput) productInput.focus();
+                              }
+                            }}
                             sx={{ bgcolor: 'white', minWidth: 250 }}
                             InputProps={{
                               ...params.InputProps,
@@ -3511,6 +3525,14 @@ function SalesPageContent() {
                       autoHighlight={true}
                       openOnFocus={true}
                       selectOnFocus={true}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && formSelectedProduct) {
+                          e.preventDefault();
+                          // Move focus to Store selection
+                          const storeInput = document.querySelector('input[placeholder*="Select Store"]');
+                          if (storeInput) storeInput.focus();
+                        }
+                      }}
                       renderInput={(params) => (
                         <TextField
                           {...params}
@@ -3545,6 +3567,19 @@ function SalesPageContent() {
                       autoHighlight={true}
                       openOnFocus={true}
                       selectOnFocus={true}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && formSelectedStore) {
+                          e.preventDefault();
+                          // Move focus to QTY field
+                          const qtyInput = document.querySelector('input[type="number"][value=""], input[type="number"]:not([disabled])');
+                          // Actually let's find it more accurately
+                          const allNumInputs = document.querySelectorAll('input[type="number"]');
+                          // QTY is typically the first or second numeric input in the product row
+                          if (allNumInputs.length > 0) {
+                            allNumInputs[0].focus();
+                          }
+                        }
+                      }}
                       renderInput={(params) => (
                         <TextField
                           {...params}
@@ -3568,6 +3603,7 @@ function SalesPageContent() {
                       value={productFormData.quantity === 0 ? '' : productFormData.quantity}
                       onChange={(e) => handleQuantityChange(e.target.value)}
                       onFocus={(e) => e.target.select()}
+                      inputProps={{ step: 'any' }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
@@ -3576,21 +3612,14 @@ function SalesPageContent() {
                             handleAddProductToTable();
                           } else {
                             // Focus on rate field if rate is not filled
-                            setTimeout(() => {
-                              const rateInputs = document.querySelectorAll('input[type="number"]');
-                              // Find the rate input (it's the next number input after quantity)
-                              if (rateInputs.length > 1) {
-                                rateInputs[1].focus();
-                              }
-                            }, 0);
+                            const rateInput = document.getElementById('sale-rate-input');
+                            if (rateInput) rateInput.focus();
                           }
                         } else if (e.key === 'Tab') {
                           e.preventDefault();
                           // Move to RATE field
-                          const rateInputs = document.querySelectorAll('input[type="number"]');
-                          if (rateInputs.length > 1) {
-                            rateInputs[1].focus();
-                          }
+                          const rateInput = document.getElementById('sale-rate-input');
+                          if (rateInput) rateInput.focus();
                         }
                       }}
                       sx={{ bgcolor: 'white', width: 130, minWidth: 130 }}
@@ -3609,6 +3638,8 @@ function SalesPageContent() {
                       value={productFormData.rate === 0 ? '' : productFormData.rate}
                       onChange={(e) => handleRateChange(e.target.value)}
                       onFocus={(e) => e.target.select()}
+                      inputProps={{ step: 'any' }}
+                      id="sale-rate-input"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
@@ -3719,13 +3750,14 @@ function SalesPageContent() {
                                       ? {
                                         ...p,
                                         quantity: newQuantity,
-                                        amount: newQuantity * p.rate
+                                        amount: Number((newQuantity * p.rate).toFixed(2))
                                       }
                                       : p
                                   );
                                   setProductTableData(updatedData);
                                 }
                               }}
+                              onFocus={(e) => e.target.select()}
                               sx={{
                                 width: 80,
                                 '& .MuiInputBase-input': {
@@ -3734,7 +3766,8 @@ function SalesPageContent() {
                                 }
                               }}
                               inputProps={{
-                                min: 0.01
+                                min: 0.01,
+                                step: 'any'
                               }}
                             />
                           </TableCell>
@@ -3751,13 +3784,14 @@ function SalesPageContent() {
                                       ? {
                                         ...p,
                                         rate: newRate,
-                                        amount: p.quantity * newRate
+                                        amount: Number((p.quantity * newRate).toFixed(2))
                                       }
                                       : p
                                   );
                                   setProductTableData(updatedData);
                                 }
                               }}
+                              onFocus={(e) => e.target.select()}
                               sx={{
                                 width: 100,
                                 '& .MuiInputBase-input': {
@@ -3766,7 +3800,8 @@ function SalesPageContent() {
                                 }
                               }}
                               inputProps={{
-                                min: 0
+                                min: 0,
+                                step: 'any'
                               }}
                             />
                           </TableCell>
@@ -3899,6 +3934,7 @@ function SalesPageContent() {
                           value={paymentData.cash === 0 ? '' : paymentData.cash}
                           onChange={(e) => handlePaymentDataChange('cash', e.target.value)}
                           onFocus={(e) => e.target.select()}
+                          inputProps={{ step: 'any' }}
                           sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' } }}
                           placeholder="0"
                         />
@@ -3916,16 +3952,19 @@ function SalesPageContent() {
                           value={paymentData.bank === 0 ? '' : paymentData.bank}
                           onChange={(e) => handlePaymentDataChange('bank', e.target.value)}
                           onFocus={(e) => e.target.select()}
+                          inputProps={{ step: 'any' }}
                           onKeyDown={(e) => {
                             if (e.key === 'Tab') {
-                              e.preventDefault();
-                              // Move focus to BANK ACCOUNT field
-                              setTimeout(() => {
-                                const bankAccountInput = document.querySelector('input[placeholder="Select Bank"]');
-                                if (bankAccountInput) {
-                                  bankAccountInput.focus();
-                                }
-                              }, 0);
+                              // Only intercept Tab and move focus to BANK ACCOUNT when a bank amount is present
+                              if (parseFloat(paymentData.bank || 0) > 0) {
+                                e.preventDefault();
+                                setTimeout(() => {
+                                  const bankAccountInput = document.querySelector('input[placeholder="Select Bank"]');
+                                  if (bankAccountInput) {
+                                    bankAccountInput.focus();
+                                  }
+                                }, 0);
+                              }
                             }
                           }}
                           sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' } }}
@@ -3987,7 +4026,7 @@ function SalesPageContent() {
                           fullWidth
                           size="small"
                           type="number"
-                          value={paymentData.totalCashReceived}
+                          value={Number(paymentData.totalCashReceived).toFixed(2)}
                           sx={{ bgcolor: '#f5f5f5', '& .MuiInputBase-input': { padding: '8px' } }}
                           disabled
                         />
@@ -4037,6 +4076,7 @@ function SalesPageContent() {
                         value={paymentData.advancePayment === 0 ? '' : paymentData.advancePayment}
                         onChange={(e) => handlePaymentDataChange('advancePayment', e.target.value)}
                         onFocus={(e) => e.target.select()}
+                        inputProps={{ step: 'any' }}
                         sx={{
                           bgcolor: 'success.50',
                           '& .MuiInputBase-input': {
@@ -4101,6 +4141,7 @@ function SalesPageContent() {
                       value={parseFloat(paymentData.labour || 0) === 0 ? '' : paymentData.labour}
                       onChange={(e) => handlePaymentDataChange('labour', e.target.value)}
                       onFocus={(e) => e.target.select()}
+                      inputProps={{ step: 'any' }}
                       sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' }, flex: 1 }}
                       placeholder="0"
                     />
@@ -4117,8 +4158,7 @@ function SalesPageContent() {
                       value={(() => {
                         const totalDelivery = (parseFloat(paymentData.deliveryCharges || 0) + calculateTransportTotal());
                         if (totalDelivery === 0) return '';
-                        // Only show decimals if the number has decimal places
-                        return totalDelivery % 1 === 0 ? totalDelivery.toString() : totalDelivery.toFixed(2);
+                        return totalDelivery.toFixed(2);
                       })()}
                       onChange={(e) => {
                         // Calculate delivery charges by subtracting transport from total
@@ -4128,6 +4168,7 @@ function SalesPageContent() {
                         handlePaymentDataChange('deliveryCharges', deliveryOnly >= 0 ? deliveryOnly : 0);
                       }}
                       onFocus={(e) => e.target.select()}
+                      inputProps={{ step: 'any' }}
                       sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px', fontWeight: 'bold' }, flex: 1 }}
                       placeholder="0"
                     />
@@ -4149,6 +4190,7 @@ function SalesPageContent() {
                       value={paymentData.discount === 0 ? '' : paymentData.discount}
                       onChange={(e) => handlePaymentDataChange('discount', e.target.value)}
                       onFocus={(e) => e.target.select()}
+                      inputProps={{ step: 'any' }}
                       sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' }, flex: 1 }}
                       placeholder="0"
                     />
@@ -4551,7 +4593,7 @@ function SalesPageContent() {
                             <TableRow key={detail.sale_detail_id || index}>
                               <TableCell sx={{ px: 1 }}>{index + 1}</TableCell>
                               <TableCell sx={{ px: 1 }}>{detail.product?.pro_title || 'N/A'}</TableCell>
-                              <TableCell sx={{ px: 1 }} align="right">{detail.qnty || 0}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{Number(detail.qnty || 0).toFixed(2)}</TableCell>
                               <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.unit_rate || 0).toFixed(2)}</TableCell>
                               <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.total_amount || 0).toFixed(2)}</TableCell>
                             </TableRow>

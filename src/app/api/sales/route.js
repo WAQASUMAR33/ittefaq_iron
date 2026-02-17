@@ -712,19 +712,19 @@ export async function POST(request) {
           data: {
             cus_id,
             store_id: parseInt(store_id), // Added store_id
-            total_amount: parseFloat(total_amount),
-            discount: parseFloat(discount || 0),
-            payment: parseFloat(payment),
+            total_amount: Number(parseFloat(total_amount).toFixed(2)),
+            discount: Number(parseFloat(discount || 0).toFixed(2)),
+            payment: Number(parseFloat(payment).toFixed(2)),
             payment_type,
-            cash_payment: parseFloat(cash_payment || 0),
-            bank_payment: parseFloat(bank_payment || 0),
+            cash_payment: Number(parseFloat(cash_payment || 0).toFixed(2)),
+            bank_payment: Number(parseFloat(bank_payment || 0).toFixed(2)),
             bank_title: bank_title || null,
-            advance_payment: parseFloat(advance_payment || 0),
+            advance_payment: Number(parseFloat(advance_payment || 0).toFixed(2)),
             debit_account_id: debit_account_id || null,
             credit_account_id: credit_account_id || null,
             loader_id: loader_id || null,
-            labour_charges: parseFloat(labour_charges || 0),
-            shipping_amount: parseFloat(shipping_amount || 0),
+            labour_charges: Number(parseFloat(labour_charges || 0).toFixed(2)),
+            shipping_amount: Number(parseFloat(shipping_amount || 0).toFixed(2)),
             bill_type: bill_type || 'BILL',
             reference: reference || null,
             updated_by: validatedUpdatedBy
@@ -743,12 +743,12 @@ export async function POST(request) {
               debit_account_id, credit_account_id, loader_id, labour_charges, shipping_amount,
               bill_type, reference, updated_by, created_at, updated_at
             ) VALUES (
-              ${cus_id}, ${parseFloat(total_amount)}, ${parseFloat(discount || 0)},
-              ${parseFloat(payment)}, ${payment_type},
-              ${parseFloat(cash_payment || 0)}, ${parseFloat(bank_payment || 0)}, ${bank_title || null},
-              ${parseFloat(advance_payment || 0)},
+              ${cus_id}, ${Number(parseFloat(total_amount).toFixed(2))}, ${Number(parseFloat(discount || 0).toFixed(2))},
+              ${Number(parseFloat(payment).toFixed(2))}, ${payment_type},
+              ${Number(parseFloat(cash_payment || 0).toFixed(2))}, ${Number(parseFloat(bank_payment || 0).toFixed(2))}, ${bank_title || null},
+              ${Number(parseFloat(advance_payment || 0).toFixed(2))},
               ${debit_account_id || null}, ${credit_account_id || null},
-              ${loader_id || null}, ${parseFloat(labour_charges || 0)}, ${parseFloat(shipping_amount || 0)},
+              ${loader_id || null}, ${Number(parseFloat(labour_charges || 0).toFixed(2))}, ${Number(parseFloat(shipping_amount || 0).toFixed(2))},
               ${bill_type || 'BILL'}, ${reference || null}, ${validatedUpdatedBy},
               NOW(), NOW()
             )
@@ -780,12 +780,12 @@ export async function POST(request) {
           sale_id: sale.sale_id,
           pro_id: detail.pro_id,
           vehicle_no: detail.vehicle_no || null,
-          qnty: parseInt(detail.qnty),
+          qnty: Number(parseFloat(detail.qnty || 0).toFixed(2)),
           unit: detail.unit,
-          unit_rate: parseFloat(detail.unit_rate),
-          total_amount: parseFloat(detail.total_amount),
-          discount: parseFloat(detail.discount || 0),
-          net_total: parseFloat(detail.total_amount) - parseFloat(detail.discount || 0),
+          unit_rate: Number(parseFloat(detail.unit_rate || 0).toFixed(2)),
+          total_amount: Number(parseFloat(detail.total_amount || 0).toFixed(2)),
+          discount: Number(parseFloat(detail.discount || 0).toFixed(2)),
+          net_total: Number((parseFloat(detail.total_amount || 0) - parseFloat(detail.discount || 0)).toFixed(2)),
           cus_id,
           updated_by: validatedUpdatedBy
         };
@@ -876,7 +876,7 @@ export async function POST(request) {
       // Update store stock quantities (instead of global product stock) - Skip for quotations and orders
       if (!isQuotation && !isOrder && store_id) {
         const storeStockUpdatePromises = sale_details.map(async detail => {
-          await updateStoreStock(store_id, detail.pro_id, parseInt(detail.qnty), 'decrement', validatedUpdatedBy);
+          await updateStoreStock(store_id, detail.pro_id, parseFloat(detail.qnty || 0), 'decrement', validatedUpdatedBy);
         });
         await Promise.all(storeStockUpdatePromises);
       }
@@ -901,7 +901,7 @@ export async function POST(request) {
         console.log(`Today's Payments: Cash=${parseFloat(cash_payment || 0)}, Bank=${parseFloat(bank_payment || 0)}, Advance=${parseFloat(advance_payment || 0)}`);
         console.log(`Expected Final Balance: ${runningBalance + parseFloat(total_amount) - (parseFloat(cash_payment || 0) + parseFloat(bank_payment || 0) + parseFloat(advance_payment || 0))}`);
         console.log(`${'='.repeat(60)}\n`);
-        
+
         // For loaded orders, SKIP creating the bill entry (it already exists from the order)
         if (!actualIsLoadedOrder) {
           // Bill debit amount is the final amount (discount already applied)
@@ -913,7 +913,7 @@ export async function POST(request) {
             if (parseFloat(discount || 0) > 0) {
               billDetails += ` [Discount Applied: ${parseFloat(discount || 0)}]`;
             }
-            
+
             const billEntry = createLedgerEntry({
               cus_id,
               opening_balance: runningBalance,
@@ -941,20 +941,20 @@ export async function POST(request) {
         const cashAmount = parseFloat(cash_payment || 0);
         const bankAmount = parseFloat(bank_payment || 0);
         const advancePaymentAmount = parseFloat(advance_payment || 0);
-        
+
         // For loaded orders, don't include advance payment in the payment entry (it was already recorded)
-        const newPaymentReceived = actualIsLoadedOrder ? 
+        const newPaymentReceived = actualIsLoadedOrder ?
           (cashAmount + bankAmount) : // Only new cash/bank payments
           (cashAmount + bankAmount + advancePaymentAmount); // Include advance for new sales
-        
+
         if (newPaymentReceived > 0) {
           console.log(`\n💳 CREATING ${actualIsLoadedOrder ? 'NEW PAYMENT' : 'CONSOLIDATED PAYMENT'} ENTRY: Total=${newPaymentReceived}`);
           console.log(`   Breakdown: Cash=${cashAmount}, Bank=${bankAmount}${actualIsLoadedOrder ? ', Advance=ALREADY_RECORDED' : `, Advance=${advancePaymentAmount}`}`);
           console.log(`   Opening Balance: ${runningBalance}`);
-          
+
           // Build details with split information
           let paymentDetails = `Payment Received - ${bill_type || 'BILL'} - Customer Account (Credit)`;
-          
+
           // Add split payment breakdown to details as JSON-like info
           if (cashAmount > 0 || bankAmount > 0) {
             const breakdown = [];
@@ -963,19 +963,19 @@ export async function POST(request) {
             if (!actualIsLoadedOrder && advancePaymentAmount > 0) breakdown.push(`Advance: ${advancePaymentAmount.toFixed(2)}`);
             paymentDetails += ` | Split: [${breakdown.join(', ')}]`;
           }
-          
+
           // Store split amounts in a JSON-like format for frontend parsing
           if (cashAmount > 0 && bankAmount > 0) {
             paymentDetails += ` | {cash_amount: ${cashAmount}, bank_amount: ${bankAmount}}`;
           }
-          
+
           // Determine trnx_type: Use CASH for payment entries (default), or BANK_TRANSFER if only bank payment
           let paymentTrnxType = 'CASH';  // Default to CASH
           if (newPaymentReceived > 0 && bankAmount > 0 && cashAmount === 0 && (!actualIsLoadedOrder || advancePaymentAmount === 0)) {
             // Only bank payment, no cash (and no advance for loaded orders)
             paymentTrnxType = 'BANK_TRANSFER';
           }
-          
+
           const paymentEntry = createLedgerEntry({
             cus_id,
             opening_balance: runningBalance,
@@ -1001,14 +1001,14 @@ export async function POST(request) {
         // When bank payment is received, bank account balance INCREASES (debit increases asset)
         // Always create ledger entry for bank payments
         let usedBankAccountId = null;  // Track which bank account is being used
-        
+
         if (parseFloat(bank_payment || 0) > 0) {
           let bankAccountToUse = specialAccounts.bank;
 
           // If a specific bank_title is provided, find that specific bank account
           if (bank_title && bank_title.trim()) {
             console.log(`🏦 BANK PAYMENT DETECTED with specific bank: ${bank_title}`);
-            
+
             // Find the specific bank account by name (MySQL is case-insensitive by default)
             const specificBank = await tx.customer.findFirst({
               where: {
@@ -1036,14 +1036,14 @@ export async function POST(request) {
             const bankEntry = createLedgerEntry({
               cus_id: bankAccountToUse.cus_id,
               opening_balance: bankAccountToUse.cus_balance,
-              debit_amount: parseFloat(bank_payment),
+              debit_amount: Number(parseFloat(bank_payment).toFixed(2)),
               credit_amount: 0,
               bill_no: sale.sale_id.toString(),
               trnx_type: 'BANK_TRANSFER',
               details: `Payment Received - ${bill_type || 'BILL'} - BANK Account: ${bankAccountToUse.cus_name} (Debit)`,
-              payments: parseFloat(bank_payment),
+              payments: Number(parseFloat(bank_payment).toFixed(2)),
               cash_payment: 0,
-              bank_payment: parseFloat(bank_payment),  // Mark as bank payment
+              bank_payment: Number(parseFloat(bank_payment).toFixed(2)),  // Mark as bank payment
               updated_by: validatedUpdatedBy
             });
             console.log(`🏦 Bank Ledger Entry: Opening=${bankEntry.opening_balance}, Debit=${bankEntry.debit_amount}, Closing=${bankEntry.closing_balance}`);
@@ -1061,13 +1061,13 @@ export async function POST(request) {
           const cashEntry = createLedgerEntry({
             cus_id: specialAccounts.cash.cus_id,
             opening_balance: specialAccounts.cash.cus_balance,
-            debit_amount: parseFloat(cash_payment),
+            debit_amount: Number(parseFloat(cash_payment).toFixed(2)),
             credit_amount: 0,
             bill_no: sale.sale_id.toString(),
             trnx_type: 'CASH',
             details: `Payment Received - ${bill_type || 'BILL'} - CASH Account (Debit)`,
-            payments: parseFloat(cash_payment),
-            cash_payment: parseFloat(cash_payment),  // Mark as cash payment
+            payments: Number(parseFloat(cash_payment).toFixed(2)),
+            cash_payment: Number(parseFloat(cash_payment).toFixed(2)),  // Mark as cash payment
             bank_payment: 0,
             updated_by: validatedUpdatedBy
           });
@@ -1188,7 +1188,7 @@ export async function POST(request) {
             console.log(`Bill Amount (netTotal): ${netTotal}`);
             console.log(`Payment Received - Cash: ${cash_payment}, Bank: ${bank_payment}, Advance: ${advance_payment}`);
             console.log(`Found ${customerLedgerEntries.length} ledger entries for customer`);
-            
+
             // Show all customer ledger entries
             customerLedgerEntries.forEach((entry, idx) => {
               console.log(`\n  Ledger Entry ${idx + 1}:`);
@@ -1197,7 +1197,7 @@ export async function POST(request) {
               console.log(`    Closing: ${entry.closing_balance}`);
               console.log(`    Details: ${entry.details.substring(0, 60)}`);
             });
-            
+
             console.log(`\nSetting balance to match last customer ledger closing: ${ledgerClosingBalance}`);
 
             await tx.customer.update({
@@ -1217,7 +1217,7 @@ export async function POST(request) {
         // IMPORTANT: Always update cash balance if cash payment exists, regardless of split payments
         // Skip only if split payments explicitly handle cash separately (cash in debit_account_id)
         const cashHandledBysSplitPayment = split_payments && split_payments.some(sp => sp.debit_account_id === specialAccounts.cash?.cus_id);
-        
+
         if (parseFloat(cash_payment || 0) > 0 && specialAccounts.cash && !cashHandledBysSplitPayment) {
           // Find the cash account ledger entry to get its closing balance
           const cashLedgerEntry = ledgerEntries.find(e => e.cus_id === specialAccounts.cash.cus_id);
@@ -1240,13 +1240,13 @@ export async function POST(request) {
         // IMPORTANT: Always update bank balance if bank payment exists, regardless of split payments
         // Skip only if split payments explicitly handle bank separately (bank in debit_account_id)
         const bankHandledBySplitPayment = split_payments && split_payments.some(sp => sp.debit_account_id === usedBankAccountId);
-        
+
         if (parseFloat(bank_payment || 0) > 0 && usedBankAccountId && !bankHandledBySplitPayment) {
           // Find the bank account ledger entry - it will be the BANK_TRANSFER entry with bank_payment
-          const bankLedgerEntry = ledgerEntries.find(e => 
+          const bankLedgerEntry = ledgerEntries.find(e =>
             e.cus_id === usedBankAccountId && e.trnx_type === 'BANK_TRANSFER' && e.bank_payment > 0
           );
-          
+
           if (bankLedgerEntry) {
             console.log(`🏦 UPDATING BANK ACCOUNT (ID: ${bankLedgerEntry.cus_id}): Setting balance from ledger closing balance ${bankLedgerEntry.closing_balance}`);
 
@@ -1479,7 +1479,7 @@ ALTER TABLE \`sale_details\` ADD CONSTRAINT \`sale_details_store_id_fkey\` FOREI
     // Check if this is a ledger-related error
     let isLedgerError = false;
     if (error.message?.includes('ledger') || error.message?.includes('Ledger') ||
-        error.code === 'P1000' || error.code === 'P2002' || error.code === 'P2017') {
+      error.code === 'P1000' || error.code === 'P2002' || error.code === 'P2017') {
       isLedgerError = true;
       console.error('⚠️ LEDGER ERROR DETECTED - This might indicate missing special accounts (Cash Account, Bank Account) or category setup issues');
     }
@@ -1583,14 +1583,14 @@ export async function PUT(request) {
         data: {
           cus_id,
           store_id: store_id ? parseInt(store_id) : existingSale.store_id, // Update store_id if provided
-          total_amount: parseFloat(total_amount),
-          discount: parseFloat(discount || 0),
-          payment: parseFloat(payment),
+          total_amount: Number(parseFloat(total_amount).toFixed(2)),
+          discount: Number(parseFloat(discount || 0).toFixed(2)),
+          payment: Number(parseFloat(payment).toFixed(2)),
           payment_type,
           debit_account_id: debit_account_id || null,
           credit_account_id: credit_account_id || null,
           loader_id: loader_id || null,
-          shipping_amount: parseFloat(shipping_amount || 0),
+          shipping_amount: Number(parseFloat(shipping_amount || 0).toFixed(2)),
           bill_type: bill_type || 'BILL',
           reference: reference || null,
           updated_by: validatedUpdatedBy
@@ -1606,12 +1606,12 @@ export async function PUT(request) {
             store_id: finalStoreId, // Added store_id
             pro_id: detail.pro_id,
             vehicle_no: detail.vehicle_no || null,
-            qnty: parseInt(detail.qnty),
+            qnty: Number(parseFloat(detail.qnty || 0).toFixed(2)),
             unit: detail.unit,
-            unit_rate: parseFloat(detail.unit_rate),
-            total_amount: parseFloat(detail.total_amount),
-            discount: parseFloat(detail.discount || 0),
-            net_total: parseFloat(detail.total_amount) - parseFloat(detail.discount || 0),
+            unit_rate: Number(parseFloat(detail.unit_rate || 0).toFixed(2)),
+            total_amount: Number(parseFloat(detail.total_amount || 0).toFixed(2)),
+            discount: Number(parseFloat(detail.discount || 0).toFixed(2)),
+            net_total: Number((parseFloat(detail.total_amount || 0) - parseFloat(detail.discount || 0)).toFixed(2)),
             cus_id,
             updated_by: validatedUpdatedBy
           }
@@ -1680,7 +1680,7 @@ export async function PUT(request) {
         // }
 
         const storeStockUpdatePromises = sale_details.map(async detail => {
-          await updateStoreStock(finalStoreIdForStock, detail.pro_id, parseInt(detail.qnty), 'decrement', validatedUpdatedBy);
+          await updateStoreStock(finalStoreIdForStock, detail.pro_id, parseFloat(detail.qnty || 0), 'decrement', validatedUpdatedBy);
         });
         await Promise.all(storeStockUpdatePromises);
       }

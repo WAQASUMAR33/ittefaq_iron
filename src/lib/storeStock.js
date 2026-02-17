@@ -13,9 +13,9 @@ async function ensureStoreStocksTable(prismaClient) {
         store_stock_id INT NOT NULL AUTO_INCREMENT,
         store_id INT NOT NULL,
         pro_id INT NOT NULL,
-        stock_quantity INT NOT NULL DEFAULT 0,
-        min_stock INT NOT NULL DEFAULT 0,
-        max_stock INT NOT NULL DEFAULT 0,
+        stock_quantity DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        min_stock DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        max_stock DECIMAL(10,2) NOT NULL DEFAULT 0.00,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         updated_by INT NULL,
@@ -34,11 +34,11 @@ async function ensureStoreStocksTable(prismaClient) {
  */
 export async function getOrCreateStoreStock(storeId, productId, updatedBy = null, prismaClient = null) {
   const prisma = prismaClient ?? getPrismaClient();
-  
+
   // Ensure storeId and productId are integers
   const storeIdInt = parseInt(storeId);
   const productIdInt = parseInt(productId);
-  
+
   try {
     const useDelegate = !!prisma.storeStock;
     let storeStock;
@@ -89,7 +89,7 @@ export async function getOrCreateStoreStock(storeId, productId, updatedBy = null
       }
 
       if (!storeStock) {
-        await prisma.$executeRaw`INSERT INTO store_stocks (store_id, pro_id, stock_quantity, min_stock, max_stock, updated_by) VALUES (${storeIdInt}, ${productIdInt}, 0, 0, 1000, ${updatedBy})`;
+        await prisma.$executeRaw`INSERT INTO store_stocks (store_id, pro_id, stock_quantity, min_stock, max_stock, updated_by) VALUES (${storeIdInt}, ${productIdInt}, 0.00, 0.00, 1000.00, ${updatedBy})`;
         const rows2 = await prisma.$queryRaw`SELECT * FROM store_stocks WHERE store_id = ${storeIdInt} AND pro_id = ${productIdInt} LIMIT 1`;
         storeStock = Array.isArray(rows2) && rows2.length > 0 ? rows2[0] : null;
       }
@@ -109,14 +109,14 @@ export async function getOrCreateStoreStock(storeId, productId, updatedBy = null
  */
 export async function updateStoreStock(storeId, productId, quantityChange, operation = 'increment', updatedBy = null, prismaClient = null) {
   const prisma = prismaClient ?? getPrismaClient();
-  
+
   // Ensure storeId and productId are integers
   const storeIdInt = parseInt(storeId);
   const productIdInt = parseInt(productId);
-  
+
   try {
     const storeStock = await getOrCreateStoreStock(storeIdInt, productIdInt, updatedBy, prisma);
-    
+
     const updateData = {
       updated_by: updatedBy,
       updated_at: new Date()
@@ -175,11 +175,11 @@ export async function updateStoreStock(storeId, productId, quantityChange, opera
  */
 export async function getStoreStock(storeId, productId, prismaClient = null) {
   const prisma = prismaClient ?? getPrismaClient();
-  
+
   // Ensure storeId and productId are integers
   const storeIdInt = parseInt(storeId);
   const productIdInt = parseInt(productId);
-  
+
   try {
     if (prisma.storeStock) {
       try {
@@ -242,10 +242,10 @@ export async function getStoreStock(storeId, productId, prismaClient = null) {
  */
 export async function getProductStocksAcrossStores(productId, prismaClient = null) {
   const prisma = prismaClient ?? getPrismaClient();
-  
+
   // Ensure productId is an integer
   const productIdInt = parseInt(productId);
-  
+
   try {
     if (prisma.storeStock) {
       try {
@@ -302,10 +302,10 @@ export async function getProductStocksAcrossStores(productId, prismaClient = nul
  */
 export async function getStoreStockSummary(storeId, prismaClient = null) {
   const prisma = prismaClient ?? getPrismaClient();
-  
+
   // Ensure storeId is an integer
   const storeIdInt = parseInt(storeId);
-  
+
   try {
     // Check if storeStock model exists, otherwise use raw SQL
     if (prisma.storeStock) {
@@ -360,7 +360,7 @@ export async function getStoreStockSummary(storeId, prismaClient = null) {
           WHERE ss.store_id = ${storeIdInt}
           ORDER BY p.pro_title ASC
         `;
-        
+
         // Transform raw SQL results to match expected format
         return rows.map(row => ({
           store_stock_id: row.store_stock_id,
@@ -409,10 +409,10 @@ export async function checkStockAvailability(storeId, productId, requiredQuantit
  */
 export async function getLowStockProducts(storeId, prismaClient = null) {
   const prisma = prismaClient ?? getPrismaClient();
-  
+
   // Ensure storeId is an integer
   const storeIdInt = parseInt(storeId);
-  
+
   try {
     if (prisma.storeStock) {
       try {
@@ -480,15 +480,15 @@ export async function getLowStockProducts(storeId, prismaClient = null) {
  */
 export async function transferStock(fromStoreId, toStoreId, productId, quantity, updatedBy = null, prismaClient = null) {
   const prisma = prismaClient ?? getPrismaClient();
-  
+
   try {
     return await prisma.$transaction(async (tx) => {
       // Decrease stock in source store
       await updateStoreStock(fromStoreId, productId, quantity, 'decrement', updatedBy);
-      
+
       // Increase stock in destination store
       await updateStoreStock(toStoreId, productId, quantity, 'increment', updatedBy);
-      
+
       return {
         success: true,
         message: `Transferred ${quantity} units of product ${productId} from store ${fromStoreId} to store ${toStoreId}`
