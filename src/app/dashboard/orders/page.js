@@ -159,6 +159,15 @@ function OrdersPageContent() {
   // Product table state
   const [productTableData, setProductTableData] = useState([]);
 
+  // Per-product dropdown 'eye' visibility state (which options show purchase rate)
+  const [visibleCrates, setVisibleCrates] = useState([]);
+  const toggleVisibleCrate = (proId) => {
+    setVisibleCrates(prev => {
+      const exists = prev.includes(proId);
+      return exists ? prev.filter(id => id !== proId) : [...prev, proId];
+    });
+  };
+
   // Transport state
   const [transportOptions, setTransportOptions] = useState([]);
   const [transportAccounts, setTransportAccounts] = useState([]);
@@ -2472,6 +2481,34 @@ function OrdersPageContent() {
                       size="small"
                       options={products || []}
                       getOptionLabel={(option) => option.pro_title || ''}
+                      renderOption={(props, option) => (
+                        <li {...props} key={option.pro_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography sx={{ fontWeight: 500 }}>{option.pro_title}</Typography>
+                            {option.pro_code && (
+                              <Typography variant="caption" sx={{ color: 'text.secondary', ml: 0.5 }}>#{option.pro_code}</Typography>
+                            )}
+                          </Box>
+
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            {visibleCrates.includes(option.pro_id) && (
+                              <Typography variant="body2" sx={{ color: 'text.secondary', mr: 1 }}>
+                                {option.pro_crate ? 'PKR ' + parseFloat(option.pro_crate).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'N/A'}
+                              </Typography>
+                            )}
+
+                            <IconButton
+                              size="small"
+                              tabIndex={-1}
+                              onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                              onClick={(e) => { e.stopPropagation(); e.preventDefault(); toggleVisibleCrate(option.pro_id); }}
+                              aria-label={visibleCrates.includes(option.pro_id) ? 'Hide purchase rate' : 'Show purchase rate'}
+                            >
+                              <VisibilityIcon fontSize="small" />
+                            </IconButton>
+                          </Box>
+                        </li>
+                      )}
                       value={formSelectedProduct}
                       onChange={(event, newValue) => {
                         console.log('🔍 Product selected:', newValue);

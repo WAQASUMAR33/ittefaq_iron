@@ -3908,45 +3908,62 @@ function PurchasesPageContent() {
                             <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>Cargo</Typography>
 
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                              <Autocomplete
-                                size="small"
-                                multiple
-                                openOnFocus
-                                options={cargoAccounts.filter(a => !(selectedCargoAccounts || []).some(s => s.cus_id === a.cus_id))}
-                                getOptionLabel={(option) => option.cus_name}
-                                value={selectedCargoAccounts}
-                                onChange={(e, newValue) => {
-                                  setSelectedCargoAccounts(newValue || []);
-                                  setFormData(prev => ({ ...prev, cargo_account_ids: (newValue || []).map(a => a.cus_id) }));
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Tab') {
-                                    const available = cargoAccounts.filter(a => !(selectedCargoAccounts || []).some(s => s.cus_id === a.cus_id));
-                                    if (available.length > 0 && (selectedCargoAccounts || []).length === 0) {
-                                      e.preventDefault();
-                                      setSelectedCargoAccounts([available[0]]);
-                                      setFormData(prev => ({ ...prev, cargo_account_ids: [available[0].cus_id] }));
-                                      setTimeout(() => { outLabourInputRef.current?.focus(); }, 0);
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Autocomplete
+                                  size="small"
+                                  multiple
+                                  openOnFocus
+                                  options={cargoAccounts.filter(a => !(selectedCargoAccounts || []).some(s => s.cus_id === a.cus_id))}
+                                  getOptionLabel={(option) => option.cus_name}
+                                  value={selectedCargoAccounts}
+                                  onChange={(e, newValue) => {
+                                    setSelectedCargoAccounts(newValue || []);
+                                    setFormData(prev => ({ ...prev, cargo_account_ids: (newValue || []).map(a => a.cus_id) }));
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Tab') {
+                                      const available = cargoAccounts.filter(a => !(selectedCargoAccounts || []).some(s => s.cus_id === a.cus_id));
+                                      if (available.length > 0 && (selectedCargoAccounts || []).length === 0) {
+                                        e.preventDefault();
+                                        setSelectedCargoAccounts([available[0]]);
+                                        setFormData(prev => ({ ...prev, cargo_account_ids: [available[0].cus_id] }));
+                                        setTimeout(() => { outLabourInputRef.current?.focus(); }, 0);
+                                      }
                                     }
-                                  }
-                                }}
-                                renderTags={() => null}
-                                renderInput={(params) => <TextField {...params} inputRef={cargoInputRef} placeholder="Select Cargo Account" size="small" sx={{ width: 240 }} />}
-                                renderOption={(props, option) => (
-                                  <Box component="li" {...props}>
-                                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', width: '100%' }}>
-                                      <Box sx={{ flex: 1 }}>
-                                        <Typography variant="body2" sx={{ fontWeight: (selectedCargoAccounts || []).some(s => s.cus_id === option.cus_id) ? 'bold' : 'medium' }}>
-                                          {option.cus_name}
-                                        </Typography>
-                                        <Typography variant="caption" color="text.secondary">
-                                          {option.cus_phone_no}
-                                        </Typography>
+                                  }}
+                                  renderTags={() => null}
+                                  renderInput={(params) => <TextField {...params} inputRef={cargoInputRef} placeholder="Select Cargo Account" size="small" sx={{ width: 240 }} />}
+                                  renderOption={(props, option) => (
+                                    <Box component="li" {...props}>
+                                      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', width: '100%' }}>
+                                        <Box sx={{ flex: 1 }}>
+                                          <Typography variant="body2" sx={{ fontWeight: (selectedCargoAccounts || []).some(s => s.cus_id === option.cus_id) ? 'bold' : 'medium' }}>
+                                            {option.cus_name}
+                                          </Typography>
+                                          <Typography variant="caption" color="text.secondary">
+                                            {option.cus_phone_no}
+                                          </Typography>
+                                        </Box>
                                       </Box>
                                     </Box>
-                                  </Box>
-                                )}
-                              />
+                                  )}
+                                />
+                                <IconButton
+                                  size="small"
+                                  onClick={() => openCustomerForm('cargo')}
+                                  sx={{
+                                    bgcolor: 'primary.main',
+                                    color: 'white',
+                                    '&:hover': { bgcolor: 'primary.dark' },
+                                    borderRadius: 1,
+                                    width: 38,
+                                    height: 38
+                                  }}
+                                  title="Add New Cargo Account"
+                                >
+                                  <AddIcon />
+                                </IconButton>
+                              </Box>
 
                               {/* Selected cargo accounts displayed as red chips */}
                               <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
