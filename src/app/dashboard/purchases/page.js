@@ -768,7 +768,7 @@ function PurchasesPageContent() {
       return purchaseDetails.map(detail => ({
         ...detail,
         cost_rate: detail.original_cost_rate ?? detail.cost_rate ?? detail.unit_rate ?? 0,
-        total_amount: Number((parseFloat(detail.crate ?? 0) * parseFloat(detail.qnty || 0)).toFixed(2))
+        total_amount: Number((parseFloat(detail.crate || detail.unit_rate || 0) * parseFloat(detail.qnty || 0)).toFixed(2))
       }));
     }
 
@@ -779,7 +779,7 @@ function PurchasesPageContent() {
         ...detail,
         cost_rate: newCost,
         original_cost_rate: detail.original_cost_rate ?? detail.cost_rate ?? detail.unit_rate ?? 0,
-        total_amount: Number((parseFloat(detail.crate ?? 0) * parseFloat(detail.qnty || 0)).toFixed(2))
+        total_amount: Number((parseFloat(detail.crate || detail.unit_rate || 0) * parseFloat(detail.qnty || 0)).toFixed(2))
       };
     });
   };
@@ -1007,13 +1007,13 @@ function PurchasesPageContent() {
   };
 
   // Handle product selection (show in preview section)
-  // NOTE: show sale rate in the RATE field (per UX request) and keep crate default from product.pro_crate if provided
+  // NOTE: show sale rate in the SALE RATE field and cost rate in the PURCHASE RATE (crate) field
   const handleProductSelect = (product) => {
     setSelectedProduct(product);
     setProductFormData({
       qnty: '1',
-      unit_rate: (product.pro_sale_price || product.pro_cost_price || 0).toString(), // show sale rate here
-      crate: product.pro_crate ? product.pro_crate.toString() : (product.pro_sale_price || product.pro_cost_price || 0).toString(),
+      unit_rate: (product.pro_sale_price || 0).toString(), // maintain sale rate here
+      crate: (product.pro_crate || product.pro_cost_price || product.pro_sale_price || 0).toString(), // prioritized cost rate for purchase
       cost_rate: product.pro_cost_price ? String(product.pro_cost_price) : (product.pro_crate ? String(product.pro_crate) : (product.pro_sale_price ? String(product.pro_sale_price) : ''))
     });
   };
@@ -1043,8 +1043,8 @@ function PurchasesPageContent() {
       crate: productFormData.crate || productFormData.unit_rate, // Use crate value or fallback to unit_rate
       original_crate: (productFormData.crate || productFormData.unit_rate), // preserve baseline purchase rate
       // COST RATE fields — initialize from product's stored cost price
-      original_cost_rate: productFormData.cost_rate || (selectedProduct?.pro_cost_price ? String(selectedProduct.pro_cost_price) : (productFormData.unit_rate || productFormData.crate || '0')),
-      cost_rate: productFormData.cost_rate || (selectedProduct?.pro_cost_price ? String(selectedProduct.pro_cost_price) : (productFormData.unit_rate || productFormData.crate || '0')),
+      original_cost_rate: productFormData.cost_rate || (selectedProduct?.pro_cost_price ? String(selectedProduct.pro_cost_price) : (productFormData.crate || productFormData.unit_rate || '0')),
+      cost_rate: productFormData.cost_rate || (selectedProduct?.pro_cost_price ? String(selectedProduct.pro_cost_price) : (productFormData.crate || productFormData.unit_rate || '0')),
       total_amount: totalAmount.toString(),
       discount: '0'
     };
@@ -3216,7 +3216,7 @@ function PurchasesPageContent() {
                                   </Typography>
                                 </Box>
                                 <Chip
-                                  label={`PKR ${parseFloat(option.pro_sale_price || 0).toLocaleString('en-PK', { minimumFractionDigits: 2 })}`}
+                                  label={`PKR ${parseFloat(option.pro_cost_price || 0).toLocaleString('en-PK', { minimumFractionDigits: 2 })}`}
                                   size="small"
                                   color="primary"
                                   variant="outlined"
@@ -3535,7 +3535,7 @@ function PurchasesPageContent() {
                                           ? {
                                             ...d,
                                             qnty: newQuantity,
-                                            total_amount: (parseFloat(newQuantity) * parseFloat(d.unit_rate)).toFixed(2)
+                                            total_amount: (parseFloat(newQuantity) * parseFloat(d.crate || d.unit_rate || 0)).toFixed(2)
                                           }
                                           : d
                                       );
@@ -5000,7 +5000,7 @@ function PurchasesPageContent() {
                               <TableCell sx={{ px: 1 }}>{index + 1}</TableCell>
                               <TableCell sx={{ px: 1 }}>{detail.product?.pro_title || detail.pro_title || 'N/A'}</TableCell>
                               <TableCell sx={{ px: 1 }} align="right">{detail.qnty || 0}</TableCell>
-                              <TableCell sx={{ px: 1 }} align="right">{Number(detail.unit_rate || detail.rate || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{Number(detail.crate || detail.unit_rate || detail.rate || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                               <TableCell sx={{ px: 1 }} align="right">{Number(detail.total_amount || detail.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                             </TableRow>
                           ))}
@@ -5518,7 +5518,7 @@ function PurchasesPageContent() {
                               <TableCell sx={{ px: 1 }}>{index + 1}</TableCell>
                               <TableCell sx={{ px: 1 }}>{detail.product?.pro_title || detail.pro_title || 'N/A'}</TableCell>
                               <TableCell sx={{ px: 1 }} align="right">{detail.qnty || 0}</TableCell>
-                              <TableCell sx={{ px: 1 }} align="right">{Number(detail.unit_rate || detail.rate || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{Number(detail.crate || detail.unit_rate || detail.rate || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                               <TableCell sx={{ px: 1 }} align="right">{Number(detail.total_amount || detail.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                             </TableRow>
                           ))}

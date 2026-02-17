@@ -375,7 +375,7 @@ export default function CashReport() {
                               ) : '-'}
                             </td>
                           );
-                        })() }                        <td className="px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums">
+                        })()}                        <td className="px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums">
                           {parseFloat(entry.debit_amount) > 0 ? <span className="text-green-600 print:text-black">{formatCurrency(entry.debit_amount)}</span> : '-'}
                         </td>
                         <td className="px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums">

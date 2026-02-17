@@ -336,7 +336,7 @@ export default function BankReport() {
                               ) : ('-')}
                             </td>
                           );
-                        })() }
+                        })()}
                         <td className={`px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums ${parseFloat(entry.debit_amount) > 0 ? 'text-red-600 font-semibold print:text-black' : 'text-slate-400'}`}>
                           {parseFloat(entry.debit_amount) > 0 ? formatCurrency(entry.debit_amount) : '-'}
                         </td>

@@ -493,7 +493,7 @@ export default function FinancePage() {
         setReceivePaymentData({
           total_payment: '',
           discount: '',
-          cash_account: '',
+          cash_account: cashAccounts.length > 0 ? cashAccounts[0].cus_id : '',
           cash_amount: '',
           bank_account: '',
           bank_amount: '',
@@ -511,7 +511,7 @@ export default function FinancePage() {
         setPayPaymentData({
           total_payment: '',
           discount: '',
-          cash_account: '',
+          cash_account: cashAccounts.length > 0 ? cashAccounts[0].cus_id : '',
           cash_amount: '',
           bank_account: '',
           bank_amount: '',
@@ -549,11 +549,13 @@ export default function FinancePage() {
     try {
       setPaymentStatus({ loading: true, error: null });
 
-      const netAmount = parseFloat(receivePaymentData.total_payment || 0) - parseFloat(receivePaymentData.discount || 0);
-      const totalPaymentAmount = parseFloat(receivePaymentData.cash_amount || 0) + parseFloat(receivePaymentData.bank_amount || 0);
+      const cashAmount = parseFloat(receivePaymentData.cash_amount || 0);
+      const bankAmount = parseFloat(receivePaymentData.bank_amount || 0);
+      const discountAmount = parseFloat(receivePaymentData.discount || 0);
+      const totalAmount = cashAmount + bankAmount + discountAmount;
 
-      if (Math.abs(netAmount - totalPaymentAmount) > 0.01) {
-        alert('Payment amounts do not match the net amount after discount');
+      if (totalAmount <= 0) {
+        alert('Please enter at least one amount (Cash, Bank, or Discount)');
         return;
       }
 
@@ -561,12 +563,12 @@ export default function FinancePage() {
         payment_date: new Date().toISOString().split('T')[0],
         payment_type: 'RECEIVE',
         account_id: selectedCustomer,
-        total_amount: parseFloat(receivePaymentData.total_payment),
-        discount_amount: parseFloat(receivePaymentData.discount || 0),
+        total_amount: totalAmount,
+        discount_amount: discountAmount,
         cash_account_id: receivePaymentData.cash_account || null,
-        cash_amount: parseFloat(receivePaymentData.cash_amount || 0),
+        cash_amount: cashAmount,
         bank_account_id: receivePaymentData.bank_account || null,
-        bank_amount: parseFloat(receivePaymentData.bank_amount || 0),
+        bank_amount: bankAmount,
         description: receivePaymentData.description,
         created_by: 7 // Super admin user ID
       };
@@ -613,11 +615,13 @@ export default function FinancePage() {
     try {
       setPaymentStatus({ loading: true, error: null });
 
-      const netAmount = parseFloat(payPaymentData.total_payment || 0) - parseFloat(payPaymentData.discount || 0);
-      const totalPaymentAmount = parseFloat(payPaymentData.cash_amount || 0) + parseFloat(payPaymentData.bank_amount || 0);
+      const cashAmount = parseFloat(payPaymentData.cash_amount || 0);
+      const bankAmount = parseFloat(payPaymentData.bank_amount || 0);
+      const discountAmount = parseFloat(payPaymentData.discount || 0);
+      const totalAmount = cashAmount + bankAmount + discountAmount;
 
-      if (Math.abs(netAmount - totalPaymentAmount) > 0.01) {
-        alert('Payment amounts do not match the net amount after discount');
+      if (totalAmount <= 0) {
+        alert('Please enter at least one amount (Cash, Bank, or Discount)');
         return;
       }
 
@@ -625,12 +629,12 @@ export default function FinancePage() {
         payment_date: new Date().toISOString().split('T')[0],
         payment_type: 'PAY',
         account_id: selectedCustomer,
-        total_amount: parseFloat(payPaymentData.total_payment),
-        discount_amount: parseFloat(payPaymentData.discount || 0),
+        total_amount: totalAmount,
+        discount_amount: discountAmount,
         cash_account_id: payPaymentData.cash_account || null,
-        cash_amount: parseFloat(payPaymentData.cash_amount || 0),
+        cash_amount: cashAmount,
         bank_account_id: payPaymentData.bank_account || null,
-        bank_amount: parseFloat(payPaymentData.bank_amount || 0),
+        bank_amount: bankAmount,
         description: payPaymentData.description,
         created_by: 7 // Super admin user ID
       };
@@ -2504,77 +2508,7 @@ export default function FinancePage() {
 
             <Divider sx={{ my: 1 }} />
 
-            {/* Payment Amount */}
-            <Box>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
-                Payment Amount
-              </Typography>
-              <TextField
-                fullWidth
-                placeholder="0.00"
-                type="number"
-                value={receivePaymentData.total_payment}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setReceivePaymentData(prev => ({
-                    ...prev,
-                    total_payment: value,
-                    cash_amount: prev.cash_account ? (parseFloat(value || 0) - parseFloat(prev.discount || 0)) : prev.cash_amount,
-                  }));
-                }}
-                InputProps={{
-                  startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
-                  sx: { fontWeight: 700, fontSize: '1.1rem' }
-                }}
-              />
-            </Box>
-
-            {/* Discount */}
-            <Box>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
-                Discount
-              </Typography>
-              <TextField
-                fullWidth
-                placeholder="0.00"
-                type="number"
-                value={receivePaymentData.discount}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setReceivePaymentData(prev => ({
-                    ...prev,
-                    discount: value,
-                    cash_amount: prev.cash_account ? (parseFloat(prev.total_payment || 0) - parseFloat(value || 0)) : prev.cash_amount,
-                  }));
-                }}
-                InputProps={{
-                  startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
-                }}
-              />
-            </Box>
-
-            <Divider sx={{ borderStyle: 'dashed' }} />
-
-            {/* Cash Account Section */}
-            <Box>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
-                Cash Account
-              </Typography>
-              <FormControl fullWidth>
-                <Select
-                  value={receivePaymentData.cash_account}
-                  onChange={(e) => setReceivePaymentData(prev => ({ ...prev, cash_account: e.target.value }))}
-                  displayEmpty
-                  sx={{ bgcolor: '#f8fafc' }}
-                >
-                  <MenuItem value="">Select Cash Account</MenuItem>
-                  {cashAccounts.map(account => (
-                    <MenuItem key={account.cus_id} value={account.cus_id}>{account.cus_name}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Box>
-
+            {/* Cash Amount Section */}
             <Box>
               <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
                 Cash Amount
@@ -2584,8 +2518,10 @@ export default function FinancePage() {
                 type="number"
                 value={receivePaymentData.cash_amount}
                 onChange={(e) => setReceivePaymentData(prev => ({ ...prev, cash_amount: e.target.value }))}
-                disabled={!receivePaymentData.cash_account}
                 placeholder="0.00"
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
+                }}
               />
             </Box>
 
@@ -2620,8 +2556,30 @@ export default function FinancePage() {
                 onChange={(e) => setReceivePaymentData(prev => ({ ...prev, bank_amount: e.target.value }))}
                 disabled={!receivePaymentData.bank_account}
                 placeholder="0.00"
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
+                }}
               />
             </Box>
+
+            {/* Discount */}
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
+                Discount
+              </Typography>
+              <TextField
+                fullWidth
+                placeholder="0.00"
+                type="number"
+                value={receivePaymentData.discount}
+                onChange={(e) => setReceivePaymentData(prev => ({ ...prev, discount: e.target.value }))}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
+                }}
+              />
+            </Box>
+
+            <Divider sx={{ borderStyle: 'dotted', my: 1 }} />
 
             {/* Description */}
             <Box>
@@ -2711,77 +2669,7 @@ export default function FinancePage() {
 
             <Divider sx={{ my: 1 }} />
 
-            {/* Payment Amount */}
-            <Box>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
-                Payment Amount
-              </Typography>
-              <TextField
-                fullWidth
-                placeholder="0.00"
-                type="number"
-                value={payPaymentData.total_payment}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setPayPaymentData(prev => ({
-                    ...prev,
-                    total_payment: value,
-                    cash_amount: prev.cash_account ? (parseFloat(value || 0) - parseFloat(prev.discount || 0)) : prev.cash_amount,
-                  }));
-                }}
-                InputProps={{
-                  startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
-                  sx: { fontWeight: 700, fontSize: '1.1rem' }
-                }}
-              />
-            </Box>
-
-            {/* Discount */}
-            <Box>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
-                Discount
-              </Typography>
-              <TextField
-                fullWidth
-                placeholder="0.00"
-                type="number"
-                value={payPaymentData.discount}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setPayPaymentData(prev => ({
-                    ...prev,
-                    discount: value,
-                    cash_amount: prev.cash_account ? (parseFloat(prev.total_payment || 0) - parseFloat(value || 0)) : prev.cash_amount,
-                  }));
-                }}
-                InputProps={{
-                  startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
-                }}
-              />
-            </Box>
-
-            <Divider sx={{ borderStyle: 'dashed' }} />
-
-            {/* Cash Account Section */}
-            <Box>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
-                Cash Account
-              </Typography>
-              <FormControl fullWidth>
-                <Select
-                  value={payPaymentData.cash_account}
-                  onChange={(e) => setPayPaymentData(prev => ({ ...prev, cash_account: e.target.value }))}
-                  displayEmpty
-                  sx={{ bgcolor: '#f8fafc' }}
-                >
-                  <MenuItem value="">Select Cash Account</MenuItem>
-                  {cashAccounts.map(account => (
-                    <MenuItem key={account.cus_id} value={account.cus_id}>{account.cus_name}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Box>
-
+            {/* Cash Amount Section */}
             <Box>
               <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
                 Cash Amount
@@ -2791,8 +2679,10 @@ export default function FinancePage() {
                 type="number"
                 value={payPaymentData.cash_amount}
                 onChange={(e) => setPayPaymentData(prev => ({ ...prev, cash_amount: e.target.value }))}
-                disabled={!payPaymentData.cash_account}
                 placeholder="0.00"
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
+                }}
               />
             </Box>
 
@@ -2827,8 +2717,30 @@ export default function FinancePage() {
                 onChange={(e) => setPayPaymentData(prev => ({ ...prev, bank_amount: e.target.value }))}
                 disabled={!payPaymentData.bank_account}
                 placeholder="0.00"
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
+                }}
               />
             </Box>
+
+            {/* Discount */}
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
+                Discount
+              </Typography>
+              <TextField
+                fullWidth
+                placeholder="0.00"
+                type="number"
+                value={payPaymentData.discount}
+                onChange={(e) => setPayPaymentData(prev => ({ ...prev, discount: e.target.value }))}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
+                }}
+              />
+            </Box>
+
+            <Divider sx={{ borderStyle: 'dotted', my: 1 }} />
 
             {/* Description */}
             <Box>
