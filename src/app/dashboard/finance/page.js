@@ -2458,7 +2458,7 @@ export default function FinancePage() {
       <Dialog
         open={showReceivePaymentForm}
         onClose={() => setShowReceivePaymentForm(false)}
-        maxWidth="xs"
+        maxWidth="sm"
         fullWidth
         PaperProps={{ sx: { borderRadius: 2 } }}
       >
@@ -2478,151 +2478,167 @@ export default function FinancePage() {
           </Typography>
         </DialogTitle>
 
-        <DialogContent sx={{ p: 4 }}>
-          <Box sx={{ mt: 1 }}>
-            <Grid container spacing={3} alignItems="center">
-              {/* Account Information - Single Line Grid */}
-              <Grid item xs={4}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Selected Account:</Typography>
+        <DialogContent sx={{ p: 3 }}>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            {/* Account Info */}
+            <Box sx={{ p: 2, bgcolor: '#f0fdf4', borderRadius: 2, border: '1px solid #bbf7d0' }}>
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <Typography variant="caption" sx={{ color: '#166534', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Selected Account
+                  </Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: '#14532d' }}>
+                    {customers.find(c => c.cus_id === selectedCustomer)?.cus_name || 'Individual Account'}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="caption" sx={{ color: '#166534', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Current Balance
+                  </Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 800, color: '#16a34a' }}>
+                    PKR {currentBalance.toLocaleString()}
+                  </Typography>
+                </Grid>
               </Grid>
-              <Grid item xs={8}>
-                <Typography variant="h6" sx={{ fontWeight: 700, color: '#1e293b' }}>
-                  {customers.find(c => c.cus_id === selectedCustomer)?.cus_name || 'Individual Account'}
-                </Typography>
-              </Grid>
+            </Box>
 
-              <Grid item xs={12}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Current Balance</Typography>
-                <Typography variant="body1" sx={{ fontWeight: 700, color: '#059669', mt: 0.5 }}>
-                  PKR {currentBalance.toLocaleString()}
-                </Typography>
-              </Grid>
+            <Divider sx={{ my: 1 }} />
 
-              <Grid item xs={12}>
-                <Divider sx={{ my: 1 }} />
-              </Grid>
+            {/* Payment Amount */}
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
+                Payment Amount
+              </Typography>
+              <TextField
+                fullWidth
+                placeholder="0.00"
+                type="number"
+                value={receivePaymentData.total_payment}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setReceivePaymentData(prev => ({
+                    ...prev,
+                    total_payment: value,
+                    cash_amount: prev.cash_account ? (parseFloat(value || 0) - parseFloat(prev.discount || 0)) : prev.cash_amount,
+                  }));
+                }}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
+                  sx: { fontWeight: 700, fontSize: '1.1rem' }
+                }}
+              />
+            </Box>
 
-              {/* Form Fields - Aligned Label/Input */}
-              <Grid item xs={4}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Payment Amount:</Typography>
-              </Grid>
-              <Grid item xs={8}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  type="number"
-                  placeholder="0.00"
-                  value={receivePaymentData.total_payment}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setReceivePaymentData(prev => ({
-                      ...prev,
-                      total_payment: value,
-                      cash_amount: prev.cash_account ? (parseFloat(value || 0) - parseFloat(prev.discount || 0)) : prev.cash_amount,
-                    }));
-                  }}
-                />
-              </Grid>
+            {/* Discount */}
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
+                Discount
+              </Typography>
+              <TextField
+                fullWidth
+                placeholder="0.00"
+                type="number"
+                value={receivePaymentData.discount}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setReceivePaymentData(prev => ({
+                    ...prev,
+                    discount: value,
+                    cash_amount: prev.cash_account ? (parseFloat(prev.total_payment || 0) - parseFloat(value || 0)) : prev.cash_amount,
+                  }));
+                }}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
+                }}
+              />
+            </Box>
 
-              <Grid item xs={4}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Discount:</Typography>
-              </Grid>
-              <Grid item xs={8}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  type="number"
-                  placeholder="0.00"
-                  value={receivePaymentData.discount}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setReceivePaymentData(prev => ({
-                      ...prev,
-                      discount: value,
-                      cash_amount: prev.cash_account ? (parseFloat(prev.total_payment || 0) - parseFloat(value || 0)) : prev.cash_amount,
-                    }));
-                  }}
-                />
-              </Grid>
+            <Divider sx={{ borderStyle: 'dashed' }} />
 
-              <Grid item xs={12}>
-                <Divider sx={{ my: 1 }} />
-              </Grid>
+            {/* Cash Account Section */}
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
+                Cash Account
+              </Typography>
+              <FormControl fullWidth>
+                <Select
+                  value={receivePaymentData.cash_account}
+                  onChange={(e) => setReceivePaymentData(prev => ({ ...prev, cash_account: e.target.value }))}
+                  displayEmpty
+                  sx={{ bgcolor: '#f8fafc' }}
+                >
+                  <MenuItem value="">Select Cash Account</MenuItem>
+                  {cashAccounts.map(account => (
+                    <MenuItem key={account.cus_id} value={account.cus_id}>{account.cus_name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
 
-              {/* Settlement Sources */}
-              <Grid item xs={6}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Cash Account</Typography>
-                <FormControl fullWidth size="small" sx={{ mt: 0.5 }}>
-                  <Select
-                    value={receivePaymentData.cash_account}
-                    onChange={(e) => setReceivePaymentData(prev => ({ ...prev, cash_account: e.target.value }))}
-                    displayEmpty
-                  >
-                    <MenuItem value="">None</MenuItem>
-                    {cashAccounts.map(account => (
-                      <MenuItem key={account.cus_id} value={account.cus_id}>{account.cus_name}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
+                Cash Amount
+              </Typography>
+              <TextField
+                fullWidth
+                type="number"
+                value={receivePaymentData.cash_amount}
+                onChange={(e) => setReceivePaymentData(prev => ({ ...prev, cash_amount: e.target.value }))}
+                disabled={!receivePaymentData.cash_account}
+                placeholder="0.00"
+              />
+            </Box>
 
-              <Grid item xs={6}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Cash Amount</Typography>
-                <TextField
-                  fullWidth
-                  size="small"
-                  type="number"
-                  value={receivePaymentData.cash_amount}
-                  onChange={(e) => setReceivePaymentData(prev => ({ ...prev, cash_amount: e.target.value }))}
-                  disabled={!receivePaymentData.cash_account}
-                  sx={{ mt: 0.5 }}
-                />
-              </Grid>
+            {/* Bank Account Section */}
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
+                Bank Account
+              </Typography>
+              <FormControl fullWidth>
+                <Select
+                  value={receivePaymentData.bank_account}
+                  onChange={(e) => setReceivePaymentData(prev => ({ ...prev, bank_account: e.target.value }))}
+                  displayEmpty
+                  sx={{ bgcolor: '#f8fafc' }}
+                >
+                  <MenuItem value="">Select Bank Account</MenuItem>
+                  {bankAccounts.map(account => (
+                    <MenuItem key={account.cus_id} value={account.cus_id}>{account.cus_name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
 
-              <Grid item xs={6}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Bank Account</Typography>
-                <FormControl fullWidth size="small" sx={{ mt: 0.5 }}>
-                  <Select
-                    value={receivePaymentData.bank_account}
-                    onChange={(e) => setReceivePaymentData(prev => ({ ...prev, bank_account: e.target.value }))}
-                    displayEmpty
-                  >
-                    <MenuItem value="">None</MenuItem>
-                    {bankAccounts.map(account => (
-                      <MenuItem key={account.cus_id} value={account.cus_id}>{account.cus_name}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
+                Bank Amount
+              </Typography>
+              <TextField
+                fullWidth
+                type="number"
+                value={receivePaymentData.bank_amount}
+                onChange={(e) => setReceivePaymentData(prev => ({ ...prev, bank_amount: e.target.value }))}
+                disabled={!receivePaymentData.bank_account}
+                placeholder="0.00"
+              />
+            </Box>
 
-              <Grid item xs={6}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Bank Amount</Typography>
-                <TextField
-                  fullWidth
-                  size="small"
-                  type="number"
-                  value={receivePaymentData.bank_amount}
-                  onChange={(e) => setReceivePaymentData(prev => ({ ...prev, bank_amount: e.target.value }))}
-                  disabled={!receivePaymentData.bank_account}
-                  sx={{ mt: 0.5 }}
-                />
-              </Grid>
-
-              <Grid item xs={12}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Description</Typography>
-                <TextField
-                  fullWidth
-                  size="small"
-                  multiline
-                  rows={2}
-                  value={receivePaymentData.description}
-                  onChange={(e) => setReceivePaymentData(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Notes..."
-                  sx={{ mt: 0.5 }}
-                />
-              </Grid>
-            </Grid>
-          </Box>
+            {/* Description */}
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
+                Description
+              </Typography>
+              <TextField
+                fullWidth
+                multiline
+                rows={3}
+                value={receivePaymentData.description}
+                onChange={(e) => setReceivePaymentData(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Enter payment details..."
+                sx={{ bgcolor: '#f8fafc' }}
+              />
+            </Box>
+          </Stack>
         </DialogContent>
 
         <DialogActions sx={{ p: 3, borderTop: '1px solid #e2e8f0', bgcolor: '#f8fafc' }}>
@@ -2669,156 +2685,167 @@ export default function FinancePage() {
           </Typography>
         </DialogTitle>
 
-        <DialogContent sx={{ p: 4 }}>
-          <Box sx={{ mt: 1 }}>
-            <Grid container spacing={3} alignItems="center">
-              {/* Account Information */}
-              <Grid item xs={12}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Selected Account</Typography>
-                <Typography variant="h6" sx={{ fontWeight: 700, color: '#1e293b', mt: 0.5 }}>
-                  {customers.find(c => c.cus_id === selectedCustomer)?.cus_name || 'Individual Account'}
-                </Typography>
+        <DialogContent sx={{ p: 3 }}>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            {/* Account Info */}
+            <Box sx={{ p: 2, bgcolor: '#fef2f2', borderRadius: 2, border: '1px solid #fecaca' }}>
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <Typography variant="caption" sx={{ color: '#991b1b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Selected Account
+                  </Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: '#7f1d1d' }}>
+                    {customers.find(c => c.cus_id === selectedCustomer)?.cus_name || 'Individual Account'}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="caption" sx={{ color: '#991b1b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Current Balance
+                  </Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 800, color: '#dc2626' }}>
+                    PKR {currentBalance.toLocaleString()}
+                  </Typography>
+                </Grid>
               </Grid>
-              {/* Account Information - Single Line Grid */}
-              <Grid item xs={4}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Selected Account:</Typography>
-              </Grid>
-              <Grid item xs={8}>
-                <Typography variant="h6" sx={{ fontWeight: 700, color: '#1e293b' }}>
-                  {customers.find(c => c.cus_id === selectedCustomer)?.cus_name || 'Individual Account'}
-                </Typography>
-              </Grid>
+            </Box>
 
-              <Grid item xs={12}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Current Balance</Typography>
-                <Typography variant="body1" sx={{ fontWeight: 700, color: '#ef4444', mt: 0.5 }}>
-                  PKR {currentBalance.toLocaleString()}
-                </Typography>
-              </Grid>
+            <Divider sx={{ my: 1 }} />
 
-              <Grid item xs={12}>
-                <Divider sx={{ my: 1 }} />
-              </Grid>
+            {/* Payment Amount */}
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
+                Payment Amount
+              </Typography>
+              <TextField
+                fullWidth
+                placeholder="0.00"
+                type="number"
+                value={payPaymentData.total_payment}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setPayPaymentData(prev => ({
+                    ...prev,
+                    total_payment: value,
+                    cash_amount: prev.cash_account ? (parseFloat(value || 0) - parseFloat(prev.discount || 0)) : prev.cash_amount,
+                  }));
+                }}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
+                  sx: { fontWeight: 700, fontSize: '1.1rem' }
+                }}
+              />
+            </Box>
 
-              {/* Form Fields - Aligned Label/Input */}
-              <Grid item xs={12}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Payment Amount</Typography>
-                <TextField
-                  fullWidth
-                  size="small"
-                  type="number"
-                  placeholder="0.00"
-                  value={payPaymentData.total_payment}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setPayPaymentData(prev => ({
-                      ...prev,
-                      total_payment: value,
-                      cash_amount: prev.cash_account ? (parseFloat(value || 0) - parseFloat(prev.discount || 0)) : prev.cash_amount,
-                    }));
-                  }}
-                  sx={{ mt: 0.5 }}
-                />
-              </Grid>
+            {/* Discount */}
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
+                Discount
+              </Typography>
+              <TextField
+                fullWidth
+                placeholder="0.00"
+                type="number"
+                value={payPaymentData.discount}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setPayPaymentData(prev => ({
+                    ...prev,
+                    discount: value,
+                    cash_amount: prev.cash_account ? (parseFloat(prev.total_payment || 0) - parseFloat(value || 0)) : prev.cash_amount,
+                  }));
+                }}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
+                }}
+              />
+            </Box>
 
-              <Grid item xs={12}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Discount</Typography>
-                <TextField
-                  fullWidth
-                  size="small"
-                  type="number"
-                  placeholder="0.00"
-                  value={payPaymentData.discount}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setPayPaymentData(prev => ({
-                      ...prev,
-                      discount: value,
-                      cash_amount: prev.cash_account ? (parseFloat(prev.total_payment || 0) - parseFloat(value || 0)) : prev.cash_amount,
-                    }));
-                  }}
-                  sx={{ mt: 0.5 }}
-                />
-              </Grid>
+            <Divider sx={{ borderStyle: 'dashed' }} />
 
-              <Grid item xs={12}>
-                <Divider sx={{ my: 1 }} />
-              </Grid>
+            {/* Cash Account Section */}
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
+                Cash Account
+              </Typography>
+              <FormControl fullWidth>
+                <Select
+                  value={payPaymentData.cash_account}
+                  onChange={(e) => setPayPaymentData(prev => ({ ...prev, cash_account: e.target.value }))}
+                  displayEmpty
+                  sx={{ bgcolor: '#f8fafc' }}
+                >
+                  <MenuItem value="">Select Cash Account</MenuItem>
+                  {cashAccounts.map(account => (
+                    <MenuItem key={account.cus_id} value={account.cus_id}>{account.cus_name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
 
-              {/* Payment Sources */}
-              <Grid item xs={6}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Cash Account</Typography>
-                <FormControl fullWidth size="small" sx={{ mt: 0.5 }}>
-                  <Select
-                    value={payPaymentData.cash_account}
-                    onChange={(e) => setPayPaymentData(prev => ({ ...prev, cash_account: e.target.value }))}
-                    displayEmpty
-                  >
-                    <MenuItem value="">None</MenuItem>
-                    {cashAccounts.map(account => (
-                      <MenuItem key={account.cus_id} value={account.cus_id}>{account.cus_name}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
+                Cash Amount
+              </Typography>
+              <TextField
+                fullWidth
+                type="number"
+                value={payPaymentData.cash_amount}
+                onChange={(e) => setPayPaymentData(prev => ({ ...prev, cash_amount: e.target.value }))}
+                disabled={!payPaymentData.cash_account}
+                placeholder="0.00"
+              />
+            </Box>
 
-              <Grid item xs={6}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Cash Amount</Typography>
-                <TextField
-                  fullWidth
-                  size="small"
-                  type="number"
-                  value={payPaymentData.cash_amount}
-                  onChange={(e) => setPayPaymentData(prev => ({ ...prev, cash_amount: e.target.value }))}
-                  disabled={!payPaymentData.cash_account}
-                  sx={{ mt: 0.5 }}
-                />
-              </Grid>
+            {/* Bank Account Section */}
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
+                Bank Account
+              </Typography>
+              <FormControl fullWidth>
+                <Select
+                  value={payPaymentData.bank_account}
+                  onChange={(e) => setPayPaymentData(prev => ({ ...prev, bank_account: e.target.value }))}
+                  displayEmpty
+                  sx={{ bgcolor: '#f8fafc' }}
+                >
+                  <MenuItem value="">Select Bank Account</MenuItem>
+                  {bankAccounts.map(account => (
+                    <MenuItem key={account.cus_id} value={account.cus_id}>{account.cus_name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
 
-              <Grid item xs={6}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Bank Account</Typography>
-                <FormControl fullWidth size="small" sx={{ mt: 0.5 }}>
-                  <Select
-                    value={payPaymentData.bank_account}
-                    onChange={(e) => setPayPaymentData(prev => ({ ...prev, bank_account: e.target.value }))}
-                    displayEmpty
-                  >
-                    <MenuItem value="">None</MenuItem>
-                    {bankAccounts.map(account => (
-                      <MenuItem key={account.cus_id} value={account.cus_id}>{account.cus_name}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
+                Bank Amount
+              </Typography>
+              <TextField
+                fullWidth
+                type="number"
+                value={payPaymentData.bank_amount}
+                onChange={(e) => setPayPaymentData(prev => ({ ...prev, bank_amount: e.target.value }))}
+                disabled={!payPaymentData.bank_account}
+                placeholder="0.00"
+              />
+            </Box>
 
-              <Grid item xs={6}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Bank Amount</Typography>
-                <TextField
-                  fullWidth
-                  size="small"
-                  type="number"
-                  value={payPaymentData.bank_amount}
-                  onChange={(e) => setPayPaymentData(prev => ({ ...prev, bank_amount: e.target.value }))}
-                  disabled={!payPaymentData.bank_account}
-                  sx={{ mt: 0.5 }}
-                />
-              </Grid>
-
-              <Grid item xs={12}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Description</Typography>
-                <TextField
-                  fullWidth
-                  size="small"
-                  multiline
-                  rows={2}
-                  value={payPaymentData.description}
-                  onChange={(e) => setPayPaymentData(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Notes..."
-                  sx={{ mt: 0.5 }}
-                />
-              </Grid>
-            </Grid>
-          </Box>
+            {/* Description */}
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
+                Description
+              </Typography>
+              <TextField
+                fullWidth
+                multiline
+                rows={3}
+                value={payPaymentData.description}
+                onChange={(e) => setPayPaymentData(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Enter payment details..."
+                sx={{ bgcolor: '#f8fafc' }}
+              />
+            </Box>
+          </Stack>
         </DialogContent>
 
         <DialogActions sx={{ p: 3, borderTop: '1px solid #e2e8f0', bgcolor: '#f8fafc' }}>
