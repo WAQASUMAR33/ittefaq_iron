@@ -4506,12 +4506,15 @@ function PurchasesPageContent() {
                         onFocus={(e) => e.target.select()}
                         sx={{ minHeight: 56, minWidth: 220 }}
                         onKeyDown={(e) => {
-                          if (e.key === 'Tab' && customerTypeOpenPurchases) {
+                          // When Tab is pressed while the options are open, set a sensible default
+                          // but do NOT forcibly close the Autocomplete — let MUI handle the Tab selection.
+                          if (e.key === 'Tab' && params.inputProps?.ariaExpanded) {
                             const firstType = customerTypes && customerTypes.length ? customerTypes[0].cus_type_id : '';
                             if (!customerFormData.cus_type && firstType) {
                               setCustomerFormData(prev => ({ ...prev, cus_type: firstType }));
                             }
-                            setCustomerTypeOpenPurchases(false);
+                            // do NOT call setCustomerTypeOpenPurchases(false) here — this was preventing
+                            // the Autocomplete from performing its normal Tab-selection behavior.
                           }
                         }}
                         InputProps={{
