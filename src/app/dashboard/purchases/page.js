@@ -234,6 +234,12 @@ function PurchasesPageContent() {
   const customerTypeInputRefPurchases = useRef(null);
   const customerNameInputRefPurchases = useRef(null);
 
+  // Refs for keyboard accessibility
+  const bankAccountInputRef = useRef(null);
+  const cargoInputRef = useRef(null);
+  const outLabourInputRef = useRef(null);
+  const outDeliveryInputRef = useRef(null);
+
   const openCustomerForm = (preferredType = 'supplier') => {
     // Open the dialog and keep Account Type blank. Focus Account Name so user can type the name first.
     setCustomerFormData(prev => ({ ...prev, cus_type: '' }));
@@ -806,6 +812,13 @@ function PurchasesPageContent() {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showCustomerDropdown]);
+
+  // Close bank account dropdown if bank payment is cleared so Autocomplete won't try to open without an input
+  useEffect(() => {
+    if (parseFloat(formData.bank_payment || 0) <= 0) {
+      setBankAccountDropdownOpen(false);
+    }
+  }, [formData.bank_payment]);
 
   const fetchData = async () => {
     try {
@@ -2800,6 +2813,8 @@ function PurchasesPageContent() {
                               {...params}
                               placeholder="Select Transaction"
                               variant="standard"
+                              // Preserve Autocomplete's inputProps/ref and only add tabIndex
+                              inputProps={{ ...params.inputProps, tabIndex: -1 }}
                               sx={{
                                 minWidth: 200,
                                 '& .MuiInputBase-input': {
@@ -3332,29 +3347,13 @@ function PurchasesPageContent() {
                             addProductToPurchase();
                           } else if (e.key === 'Tab') {
                             e.preventDefault();
-                            // Tab should move focus to Sale Rate field
-                            // Find the sale rate input by looking for input with specific characteristics
+                            // Move focus to the next numeric input (Cost Rate should be next)
                             const allInputs = document.querySelectorAll('input[type="number"]');
                             const currentInput = e.target;
                             let foundCurrent = false;
-
                             for (let i = 0; i < allInputs.length; i++) {
-                              const input = allInputs[i];
-                              if (input === currentInput) {
-                                foundCurrent = true;
-                                continue;
-                              }
-                              if (foundCurrent) {
-                                // Check if this input is in a container with "SALE RATE" label
-                                const container = input.closest('[class*="MuiBox-root"]');
-                                if (container) {
-                                  const label = container.querySelector('p, span');
-                                  if (label && label.textContent?.toLowerCase()?.includes('sale rate')) {
-                                    input.focus();
-                                    return;
-                                  }
-                                }
-                              }
+                              if (allInputs[i] === currentInput) { foundCurrent = true; continue; }
+                              if (foundCurrent) { allInputs[i].focus(); return; }
                             }
 
                             // Fallback: focus + button
@@ -3699,14 +3698,13 @@ function PurchasesPageContent() {
                           }}
                           onKeyDown={(e) => {
                             if (e.key === 'Tab') {
-                              e.preventDefault();
-                              // Move focus to BANK ACCOUNT field
-                              setTimeout(() => {
-                                const bankAccountInput = document.querySelector('input[placeholder="Select Bank Account"]');
-                                if (bankAccountInput) {
-                                  bankAccountInput.focus();
-                                }
-                              }, 0);
+                              // Only intercept Tab and move focus to BANK ACCOUNT when a bank amount is present
+                              if (parseFloat(formData.bank_payment || 0) > 0) {
+                                e.preventDefault();
+                                setTimeout(() => {
+                                  bankAccountInputRef.current?.focus();
+                                }, 0);
+                              } // otherwise allow normal Tab behavior (skip bank account)
                             }
                           }}
                           inputProps={{ min: 0 }}
@@ -3727,10 +3725,8 @@ function PurchasesPageContent() {
                           disabled={parseFloat(formData.bank_payment || 0) <= 0}
                           open={bankAccountDropdownOpen}
                           onOpen={() => {
-                            console.log('🏦 Opening bank account dropdown');
-                            console.log('   Bank accounts available:', bankAccounts.length);
-                            console.log('   Bank account data:', bankAccounts.map(b => ({ id: b.cus_id, name: b.cus_name, type_id: b.cus_type })));
-                            console.log('   All customers:', customers.length);
+                            // only open when bank payment is present
+                            if (parseFloat(formData.bank_payment || 0) <= 0) return;
                             setBankAccountDropdownOpen(true);
                           }}
                           onClose={() => setBankAccountDropdownOpen(false)}
@@ -3758,14 +3754,11 @@ function PurchasesPageContent() {
                                   credit_account_id: firstAccount.cus_id.toString()
                                 }));
                               }
-                              // Close dropdown, blur field, and allow natural tab to next element
+
+                              // Close dropdown and blur the input (use ref)
                               setBankAccountDropdownOpen(false);
                               setTimeout(() => {
-                                // Find this autocomplete field and blur it to force focus movement
-                                const inputField = document.querySelector('input[placeholder="Select Bank Account"]');
-                                if (inputField) {
-                                  inputField.blur();
-                                }
+                                bankAccountInputRef.current?.blur();
                               }, 0);
                             }
                           }}
@@ -3778,6 +3771,7 @@ function PurchasesPageContent() {
                           renderInput={(params) => (
                             <TextField
                               {...params}
+                              inputRef={bankAccountInputRef}
                               placeholder="Select Bank Account"
                               onFocus={(e) => e.target.select()}
                               sx={
@@ -3925,8 +3919,19 @@ function PurchasesPageContent() {
                                   setSelectedCargoAccounts(newValue || []);
                                   setFormData(prev => ({ ...prev, cargo_account_ids: (newValue || []).map(a => a.cus_id) }));
                                 }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Tab') {
+                                    const available = cargoAccounts.filter(a => !(selectedCargoAccounts || []).some(s => s.cus_id === a.cus_id));
+                                    if (available.length > 0 && (selectedCargoAccounts || []).length === 0) {
+                                      e.preventDefault();
+                                      setSelectedCargoAccounts([available[0]]);
+                                      setFormData(prev => ({ ...prev, cargo_account_ids: [available[0].cus_id] }));
+                                      setTimeout(() => { outLabourInputRef.current?.focus(); }, 0);
+                                    }
+                                  }
+                                }}
                                 renderTags={() => null}
-                                renderInput={(params) => <TextField {...params} placeholder="Select Cargo Account" size="small" sx={{ width: 240 }} />}
+                                renderInput={(params) => <TextField {...params} inputRef={cargoInputRef} placeholder="Select Cargo Account" size="small" sx={{ width: 240 }} />}
                                 renderOption={(props, option) => (
                                   <Box component="li" {...props}>
                                     <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', width: '100%' }}>
@@ -3967,6 +3972,7 @@ function PurchasesPageContent() {
                                   label="Out Labour"
                                   size="small"
                                   type="number"
+                                  inputRef={outLabourInputRef}
                                   value={formData.out_labour_amount || ''}
                                   onChange={(e) => {
                                     const newVal = e.target.value;
