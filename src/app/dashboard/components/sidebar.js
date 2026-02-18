@@ -102,7 +102,8 @@ export default function Sidebar({
     { id: 'reports-dashboard', name: 'Reports Dashboard', icon: DashboardIcon, category: 'reports', parent: 'Reports' },
     { id: 'sales-by-date', name: 'Sales (By Date)', icon: CalendarIcon, category: 'reports', parent: 'Reports' },
     { id: 'sales-by-customer', name: 'Sales (Customer Wise)', icon: PeopleIcon, category: 'reports', parent: 'Reports' },
-    { id: 'customers-balance', name: 'Customers Balance', icon: AttachMoneyIcon, category: 'reports', parent: 'Reports' },
+    { id: 'customer-balance-report', name: 'Customer Balance Report', icon: TableChartIcon, category: 'reports', parent: 'Reports' },
+    { id: 'customers-balance', name: 'Customers Balance (Basic)', icon: AttachMoneyIcon, category: 'reports', parent: 'Reports' },
     { id: 'customer-ledger', name: 'Customer Ledger', icon: DescriptionIcon, category: 'reports', parent: 'Reports' },
     { id: 'purchases-by-date', name: 'Purchases (By Date)', icon: CalendarIcon, category: 'reports', parent: 'Reports' },
     { id: 'purchases-by-supplier', name: 'Purchases (Supplier Wise)', icon: ShoppingBagIcon, category: 'reports', parent: 'Reports' },
@@ -183,6 +184,8 @@ export default function Sidebar({
       router.push('/dashboard/reports/sales-by-date');
     } else if (itemId === 'sales-by-customer') {
       router.push('/dashboard/reports/sales-by-customer');
+    } else if (itemId === 'customer-balance-report') {
+      router.push('/dashboard/reports/customer-balance-report');
     } else if (itemId === 'customers-balance') {
       router.push('/dashboard/reports/customers-balance');
     } else if (itemId === 'customer-ledger') {

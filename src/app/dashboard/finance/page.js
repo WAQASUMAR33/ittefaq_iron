@@ -342,11 +342,21 @@ export default function FinancePage() {
     sequentialId: index + 1
   }));
 
-  // Stats calculations
-  const totalDebit = ledgerEntries.reduce((sum, entry) => sum + parseFloat(entry.debit_amount), 0);
-  const totalCredit = ledgerEntries.reduce((sum, entry) => sum + parseFloat(entry.credit_amount), 0);
-  const totalPayments = ledgerEntries.reduce((sum, entry) => sum + parseFloat(entry.payments), 0);
-  const currentBalance = ledgerEntries.length > 0 ? parseFloat(ledgerEntries[ledgerEntries.length - 1].closing_balance) : 0;
+  // Stats calculations - use filtered entries for accuracy when filters are applied
+  const statsEntries = (selectedCustomer || searchTerm || selectedCategory || selectedSubCategory)
+    ? filteredLedgerEntries
+    : ledgerEntries;
+
+  const totalDebit = statsEntries.reduce((sum, entry) => sum + parseFloat(entry.debit_amount || 0), 0);
+  const totalCredit = statsEntries.reduce((sum, entry) => sum + parseFloat(entry.credit_amount || 0), 0);
+  const totalPayments = statsEntries.reduce((sum, entry) => sum + parseFloat(entry.payments || 0), 0);
+
+  // Get the most accurate current balance: 
+  // 1. For a selected customer, use their direct balance from the customer record
+  // 2. Otherwise, use the closing balance from the most recent ledger entry (index 0 as it's sorted DESC from API)
+  const currentBalance = selectedCustomer
+    ? parseFloat(customers.find(c => c.cus_id === selectedCustomer)?.cus_balance || 0)
+    : (ledgerEntries.length > 0 ? parseFloat(ledgerEntries[0].closing_balance || 0) : 0);
 
   const handleNewJournalEntry = () => {
     if (selectedCustomer) {

@@ -104,8 +104,16 @@ export default function ReportsPage() {
       path: '/dashboard/reports/sales-by-customer'
     },
     {
+      id: 'customer-balance-report',
+      title: 'Customer Balance Report',
+      description: 'Advanced balance report with aging and activity filters',
+      icon: Users,
+      color: 'from-indigo-600 to-indigo-800',
+      path: '/dashboard/reports/customer-balance-report'
+    },
+    {
       id: 'customers-balance',
-      title: 'Customers Balance',
+      title: 'Customers Balance (Basic)',
       description: 'View all customers with balance',
       icon: Users,
       color: 'from-green-500 to-emerald-500',

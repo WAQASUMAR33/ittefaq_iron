@@ -66,6 +66,9 @@ export async function GET(request) {
         const rebateSupplierId = searchParams.get('supplierId') ? parseInt(searchParams.get('supplierId')) : null;
         return await getRebateReport(rebateSupplierId, startDate, endDate);
 
+      case 'customer-balance-report':
+        return await getDetailedCustomerBalanceReport();
+
       default:
         return NextResponse.json({ error: 'Invalid report type' }, { status: 400 });
     }
@@ -73,6 +76,45 @@ export async function GET(request) {
     console.error('Error fetching report:', error);
     return NextResponse.json({ error: 'Failed to fetch report' }, { status: 500 });
   }
+}
+
+// Detailed Customers Balance Report with Last Activity
+async function getDetailedCustomerBalanceReport() {
+  const customers = await prisma.customer.findMany({
+    include: {
+      customer_category: true,
+      customer_type: true,
+      city: true,
+      ledger: {
+        orderBy: {
+          created_at: 'desc'
+        },
+        take: 1,
+        select: {
+          created_at: true
+        }
+      }
+    },
+    orderBy: {
+      cus_name: 'asc'
+    }
+  });
+
+  // Calculate summary
+  const summary = {
+    totalCustomers: customers.length,
+    totalBalance: customers.reduce((sum, c) => sum + parseFloat(c.cus_balance), 0),
+    receivable: customers.reduce((sum, c) => parseFloat(c.cus_balance) > 0 ? sum + parseFloat(c.cus_balance) : sum, 0),
+    payable: customers.reduce((sum, c) => parseFloat(c.cus_balance) < 0 ? sum + Math.abs(parseFloat(c.cus_balance)) : sum, 0)
+  };
+
+  return NextResponse.json({
+    customers: customers.map(c => ({
+      ...c,
+      last_activity: c.ledger && c.ledger.length > 0 ? c.ledger[0].created_at : null
+    })),
+    summary
+  });
 }
 
 // Sales Report by Date Range
