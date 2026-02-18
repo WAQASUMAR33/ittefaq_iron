@@ -114,7 +114,7 @@ export async function POST(request) {
 
     // Check if customer exists
     const customer = await prisma.customer.findUnique({
-      where: { cus_id }
+      where: { cus_id: parseInt(cus_id) }
     });
 
     if (!customer) {
@@ -125,32 +125,38 @@ export async function POST(request) {
     const result = await prisma.$transaction(async (tx) => {
       // Get customer's current balance
       const customerData = await tx.customer.findUnique({
-        where: { cus_id },
+        where: { cus_id: parseInt(cus_id) },
         select: { cus_balance: true }
       });
 
-      const openingBalance = parseFloat(customerData?.cus_balance || 0);
-      const closingBalance = openingBalance + parseFloat(debit_amount) - parseFloat(credit_amount);
+      if (!customerData) {
+        throw new Error('Customer data not found for balance calculation');
+      }
+
+      const openingBalance = parseFloat(customerData.cus_balance || 0);
+      const debitNum = parseFloat(debit_amount || 0);
+      const creditNum = parseFloat(credit_amount || 0);
+      const closingBalance = openingBalance + debitNum - creditNum;
 
       // Create the ledger entry
       const newLedger = await tx.ledger.create({
         data: {
-          cus_id,
+          cus_id: parseInt(cus_id),
           opening_balance: openingBalance,
-          debit_amount: parseFloat(debit_amount),
-          credit_amount: parseFloat(credit_amount),
+          debit_amount: debitNum,
+          credit_amount: creditNum,
           closing_balance: closingBalance,
           bill_no: bill_no ? String(bill_no) : null,
-          trnx_type,
+          trnx_type: trnx_type,
           details: details || null,
-          payments: parseFloat(payments),
-          updated_by: updated_by || null
+          payments: parseFloat(payments || 0),
+          updated_by: updated_by ? parseInt(updated_by) : null
         }
       });
 
       // Update customer balance
       await tx.customer.update({
-        where: { cus_id },
+        where: { cus_id: parseInt(cus_id) },
         data: { cus_balance: closingBalance }
       });
 
@@ -183,7 +189,7 @@ export async function POST(request) {
     return NextResponse.json(completeLedger, { status: 201 });
   } catch (err) {
     console.error('❌ Error creating ledger entry:', err);
-    return errorResponse('Failed to create ledger entry', 500);
+    return errorResponse(`Failed to create ledger entry: ${err.message}`, 500);
   }
 }
 

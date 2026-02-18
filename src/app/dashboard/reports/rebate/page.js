@@ -98,7 +98,8 @@ export default function RebateReport() {
 
         try {
             setSavingRebate(true);
-            const user = JSON.parse(localStorage.getItem('user'));
+            const userStr = localStorage.getItem('user');
+            const user = userStr ? JSON.parse(userStr) : null;
 
             const ledgerEntry = {
                 cus_id: parseInt(selectedSupplierId),
@@ -106,7 +107,7 @@ export default function RebateReport() {
                 debit_amount: 0,
                 trnx_type: 'CASH', // User requested cash column
                 details: `Rebate From: ${startDate} To: ${endDate} | Qty: ${totalQty.toFixed(2)} | Rate: ${rate.toFixed(2)}`,
-                updated_by: user?.user_id
+                updated_by: user?.user_id ? parseInt(user.user_id) : null
             };
 
             const response = await fetch('/api/ledger', {
@@ -367,6 +368,11 @@ export default function RebateReport() {
                                                 step="0.01"
                                                 value={rebateRate}
                                                 onChange={(e) => setRebateRate(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' && rebateRate && parseFloat(rebateRate) > 0) {
+                                                        handleSaveRebate();
+                                                    }
+                                                }}
                                                 placeholder="0.00"
                                                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-semibold text-lg"
                                                 autoFocus
