@@ -107,7 +107,7 @@ export default function RebateReport() {
                 debit_amount: 0,
                 trnx_type: 'CASH', // User requested cash column
                 details: `Rebate From: ${startDate} To: ${endDate} | Qty: ${totalQty.toFixed(2)} | Rate: ${rate.toFixed(2)}`,
-                updated_by: user?.user_id ? parseInt(user.user_id) : null
+                updated_by: user?.user_id ? parseInt(user.user_id) : (user?.id ? parseInt(user.id) : null)
             };
 
             const response = await fetch('/api/ledger', {

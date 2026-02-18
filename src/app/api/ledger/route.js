@@ -121,6 +121,19 @@ export async function POST(request) {
       return errorResponse('Customer not found', 404);
     }
 
+    // Verify updated_by user exists to avoid foreign key violation
+    let validUpdatedBy = null;
+    if (updated_by) {
+      const userExists = await prisma.users.findUnique({
+        where: { user_id: parseInt(updated_by) }
+      });
+      if (userExists) {
+        validUpdatedBy = parseInt(updated_by);
+      } else {
+        console.warn(`⚠️ User with id ${updated_by} not found. Setting updated_by to null.`);
+      }
+    }
+
     // Create ledger entry in a transaction
     const result = await prisma.$transaction(async (tx) => {
       // Get customer's current balance
@@ -150,7 +163,7 @@ export async function POST(request) {
           trnx_type: trnx_type,
           details: details || null,
           payments: parseFloat(payments || 0),
-          updated_by: updated_by ? parseInt(updated_by) : null
+          updated_by: validUpdatedBy
         }
       });
 
