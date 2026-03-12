@@ -1,302 +1,481 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Download, Printer, Search, Package, AlertTriangle, XCircle, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Download, Printer, Search, Package, AlertTriangle, XCircle, RefreshCw, Store, BarChart2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
-import { Autocomplete, TextField, InputAdornment, Dialog, DialogTitle, DialogContent, DialogActions, Button, RadioGroup, FormControlLabel, Radio, Box, Alert } from '@mui/material';
+import {
+  Autocomplete, TextField, InputAdornment, Dialog, DialogTitle, DialogContent,
+  DialogActions, Button, Box, Alert, Tab, Tabs, Chip
+} from '@mui/material';
+
+const TABS = [
+  { id: 'all', label: 'All Stock', icon: Package },
+  { id: 'store-wise', label: 'Store Wise', icon: Store },
+  { id: 'low-stock', label: 'Low Stock', icon: AlertTriangle },
+  { id: 'low-stock-store', label: 'Low Stock (Store Wise)', icon: BarChart2 },
+];
 
 export default function StockReport() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [reportData, setReportData] = useState(null);
   const [categories, setCategories] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState('');
   const [stores, setStores] = useState([]);
+
+  // Filters
+  const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedStore, setSelectedStore] = useState('');
-  const [selectedStockStatus, setSelectedStockStatus] = useState('');
-  const [minStockValue, setMinStockValue] = useState('');
-  const [maxStockValue, setMaxStockValue] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  
-  // Price adjustment modal state
+
+  // Active tab
+  const [activeTab, setActiveTab] = useState('all');
+
+  // Price adjustment modal
   const [showAdjustmentModal, setShowAdjustmentModal] = useState(false);
-  // Separate percentage controls for purchase (cost/crate) and sale prices.
-  // Values are percentages (e.g. 10 or -5). Positive/negative allowed; no radio needed.
   const [purchasePercentage, setPurchasePercentage] = useState('');
   const [salePercentage, setSalePercentage] = useState('');
   const [adjustmentLoading, setAdjustmentLoading] = useState(false);
 
-  useEffect(() => { fetchCategories(); fetchStores(); fetchReport(); }, []);
+  useEffect(() => {
+    fetchCategories();
+    fetchStores();
+    fetchReport();
+  }, []);
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch('/api/categories');
-      const data = await response.json();
-      if (response.ok) setCategories(data);
-    } catch (error) { console.error('Error:', error); }
+      const res = await fetch('/api/categories');
+      const data = await res.json();
+      if (res.ok) setCategories(data);
+    } catch (e) { console.error(e); }
   };
 
   const fetchStores = async () => {
     try {
-      const response = await fetch('/api/stores');
-      const result = await response.json();
-      if (response.ok && result.success && Array.isArray(result.data)) {
-        setStores(result.data);
-      } else {
-        console.error('Stores API did not return valid data:', result);
-        setStores([]);
-      }
-    } catch (error) {
-      console.error('Error fetching stores:', error);
-      setStores([]);
-    }
+      const res = await fetch('/api/stores');
+      const result = await res.json();
+      if (res.ok && result.success) setStores(result.data || []);
+    } catch (e) { console.error(e); }
   };
 
   const fetchReport = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/reports?type=stock-report`);
-      const data = await response.json();
-      if (response.ok) setReportData(data);
-    } catch (error) { console.error('Error:', error); }
+      const res = await fetch('/api/reports?type=stock-report');
+      const data = await res.json();
+      if (res.ok) setReportData(data);
+    } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
 
-  const handlePrint = () => window.print();
+  const formatCurrency = (v) => (parseFloat(v) || 0).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const formatNumber = (v) => (v || 0).toLocaleString('en-PK');
 
-  const formatCurrency = (amount) => {
-    const num = parseFloat(amount) || 0;
-    return num.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // ─── Filtering helpers ─────────────────────────────────────────────────────
+
+  const getStoreQty = (product, storeId) => {
+    const ss = product.store_stocks?.find(s => s.store_id === parseInt(storeId));
+    return ss?.stock_quantity || 0;
   };
 
-  const formatNumber = (num) => {
-    return (num || 0).toLocaleString('en-PK');
+  const getTotalQty = (product) =>
+    product.store_stocks?.reduce((s, ss) => s + (ss.stock_quantity || 0), 0) || 0;
+
+  const isLowStock = (product, storeId = null) => {
+    const threshold = product.low_stock_quantity ?? 10;
+    const qty = storeId ? getStoreQty(product, storeId) : getTotalQty(product);
+    return qty > 0 && qty <= threshold;
   };
+
+  const isOutOfStock = (product, storeId = null) => {
+    const qty = storeId ? getStoreQty(product, storeId) : getTotalQty(product);
+    return qty === 0;
+  };
+
+  const applyBaseFilters = (products) => {
+    let list = [...products];
+    if (selectedCategory) list = list.filter(p => p.cat_id === parseInt(selectedCategory));
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(p => p.pro_title?.toLowerCase().includes(q));
+    }
+    return list;
+  };
+
+  // ─── Derived data for each tab ─────────────────────────────────────────────
+
+  const getAllStockData = () => {
+    if (!reportData) return [];
+    return applyBaseFilters(reportData.products);
+  };
+
+  const getStoreWiseData = () => {
+    if (!reportData) return [];
+    const products = applyBaseFilters(reportData.products);
+    const storeList = selectedStore
+      ? stores.filter(s => s.storeid === parseInt(selectedStore))
+      : stores;
+
+    return storeList.map(store => {
+      const storeProducts = products
+        .map(p => ({ ...p, _storeQty: getStoreQty(p, store.storeid) }))
+        .filter(p => p._storeQty > 0);
+      const totalQty = storeProducts.reduce((s, p) => s + p._storeQty, 0);
+      const totalValue = storeProducts.reduce((s, p) => s + p._storeQty * parseFloat(p.pro_cost_price || 0), 0);
+      return { store, products: storeProducts, totalQty, totalValue };
+    }).filter(g => g.products.length > 0);
+  };
+
+  const getLowStockData = () => {
+    if (!reportData) return [];
+    return applyBaseFilters(reportData.products).filter(p => {
+      const qty = selectedStore ? getStoreQty(p, selectedStore) : getTotalQty(p);
+      const threshold = p.low_stock_quantity ?? 10;
+      return qty > 0 && qty <= threshold;
+    });
+  };
+
+  const getLowStockStoreWiseData = () => {
+    if (!reportData) return [];
+    const products = applyBaseFilters(reportData.products);
+    const storeList = selectedStore
+      ? stores.filter(s => s.storeid === parseInt(selectedStore))
+      : stores;
+
+    return storeList.map(store => {
+      const threshold = (p) => p.low_stock_quantity ?? 10;
+      const lowProducts = products
+        .map(p => ({ ...p, _storeQty: getStoreQty(p, store.storeid) }))
+        .filter(p => p._storeQty > 0 && p._storeQty <= threshold(p));
+      return { store, products: lowProducts };
+    }).filter(g => g.products.length > 0);
+  };
+
+  // ─── Summary stats ─────────────────────────────────────────────────────────
+
+  const getSummary = () => {
+    if (!reportData) return null;
+    const products = applyBaseFilters(reportData.products);
+    const getQty = (p) => selectedStore ? getStoreQty(p, selectedStore) : getTotalQty(p);
+    return {
+      total: products.length,
+      totalQty: products.reduce((s, p) => s + getQty(p), 0),
+      totalValue: products.reduce((s, p) => s + getQty(p) * parseFloat(p.pro_cost_price || 0), 0),
+      lowStock: products.filter(p => isLowStock(p, selectedStore || null)).length,
+      outOfStock: products.filter(p => isOutOfStock(p, selectedStore || null)).length,
+    };
+  };
+
+  const summary = getSummary();
+
+  // ─── Export ────────────────────────────────────────────────────────────────
 
   const handleExport = () => {
     if (!reportData) return;
-    let csv = 'STOCK VALUATION REPORT\n';
-    csv += `As on: ${new Date().toLocaleDateString('en-GB')}\n\n`;
-    csv += 'S.No,Category,Item Name,Unit,Quantity,Cost Rate,Sale Rate,Stock Value\n';
-    let sno = 1;
-    const filteredCategories = selectedCategory
-      ? reportData.stockByCategory.filter(cat => cat.categoryId === parseInt(selectedCategory))
-      : reportData.stockByCategory;
-    filteredCategories.forEach(category => {
-      category.products.forEach(product => {
-        const stockValue = product.pro_stock_qnty * parseFloat(product.pro_cost_price || 0);
-        csv += `${sno++},${category.categoryName},${product.pro_title},${product.pro_unit},${product.pro_stock_qnty},${formatCurrency(product.pro_cost_price)},${formatCurrency(product.pro_sale_price)},${formatCurrency(stockValue)}\n`;
-      });
+    const products = getAllStockData();
+    let csv = 'STOCK REPORT\n';
+    csv += `Generated: ${new Date().toLocaleDateString('en-GB')}\n\n`;
+    csv += 'S.No,Category,Item Name,Unit,Total Qty,Cost Rate,Stock Value,Low Stock Threshold,Status\n';
+    products.forEach((p, i) => {
+      const qty = selectedStore ? getStoreQty(p, selectedStore) : getTotalQty(p);
+      const val = qty * parseFloat(p.pro_cost_price || 0);
+      const threshold = p.low_stock_quantity ?? 10;
+      const status = qty === 0 ? 'Out of Stock' : qty <= threshold ? 'Low Stock' : 'In Stock';
+      csv += `${i + 1},${p.category?.cat_name || ''},${p.pro_title},${p.pro_unit || ''},${qty},${formatCurrency(p.pro_cost_price)},${formatCurrency(val)},${threshold},${status}\n`;
     });
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `stock-valuation-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `stock-report-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
   };
 
-  const applyPriceAdjustment = async () => {
-    if (!selectedCategory) {
-      alert('Please select a category');
-      return;
-    }
+  // ─── Price adjustment ──────────────────────────────────────────────────────
 
+  const applyPriceAdjustment = async () => {
+    if (!selectedCategory) { alert('Please select a category'); return; }
     const purchaseVal = purchasePercentage !== '' ? parseFloat(purchasePercentage) : null;
     const saleVal = salePercentage !== '' ? parseFloat(salePercentage) : null;
-
-    if ((purchaseVal === null || isNaN(purchaseVal)) && (saleVal === null || isNaN(saleVal))) {
-      alert('Please enter at least one valid percentage (purchase or sale).');
-      return;
+    if ((purchaseVal == null || isNaN(purchaseVal)) && (saleVal == null || isNaN(saleVal))) {
+      alert('Please enter at least one valid percentage.'); return;
     }
-
-    if ((purchaseVal === 0 || purchaseVal === null || isNaN(purchaseVal)) && (saleVal === 0 || saleVal === null || isNaN(saleVal))) {
-      alert('Please enter a non-zero percentage for purchase or sale.');
-      return;
-    }
-
-    const confirmParts = [];
-    if (purchaseVal !== null && !isNaN(purchaseVal)) confirmParts.push(`purchase ${purchaseVal}%`);
-    if (saleVal !== null && !isNaN(saleVal)) confirmParts.push(`sale ${saleVal}%`);
-
-    if (!window.confirm(`Are you sure you want to apply ${confirmParts.join(' and ')} to all products in this category?`)) {
-      return;
-    }
-
+    if (!window.confirm(`Apply ${[purchaseVal != null ? `purchase ${purchaseVal}%` : '', saleVal != null ? `sale ${saleVal}%` : ''].filter(Boolean).join(' and ')} to category?`)) return;
     try {
       setAdjustmentLoading(true);
       const payload = { categoryId: parseInt(selectedCategory) };
-      if (purchaseVal !== null && !isNaN(purchaseVal)) payload.purchasePercentage = purchaseVal;
-      if (saleVal !== null && !isNaN(saleVal)) payload.salePercentage = saleVal;
-
-      const response = await fetch('/api/products/adjust-price', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        alert(`✅ Successfully updated ${data.updatedCount} products!`);
-        setShowAdjustmentModal(false);
-        setPurchasePercentage('');
-        setSalePercentage('');
-        await fetchReport(); // Refresh the data
-      } else {
-        alert(`Error: ${data.error || data.message || 'Failed to update prices'}`);
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      alert('Error updating prices');
-    } finally {
-      setAdjustmentLoading(false);
-    }
+      if (purchaseVal != null && !isNaN(purchaseVal)) payload.purchasePercentage = purchaseVal;
+      if (saleVal != null && !isNaN(saleVal)) payload.salePercentage = saleVal;
+      const res = await fetch('/api/products/adjust-price', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const data = await res.json();
+      if (res.ok) { alert(`✅ Updated ${data.updatedCount} products!`); setShowAdjustmentModal(false); setPurchasePercentage(''); setSalePercentage(''); await fetchReport(); }
+      else alert(`Error: ${data.error || 'Failed'}`);
+    } catch (e) { alert('Error updating prices'); }
+    finally { setAdjustmentLoading(false); }
   };
 
-  const getFilteredData = () => {
-    if (!reportData) return null;
+  // ─── Row background helper ─────────────────────────────────────────────────
 
-    let filteredProducts = reportData.products;
-    let filteredCategories = reportData.stockByCategory;
-
-    // Filter by category
-    if (selectedCategory) {
-      filteredProducts = filteredProducts.filter(p => p.cat_id === parseInt(selectedCategory));
-      filteredCategories = filteredCategories.filter(cat => cat.categoryId === parseInt(selectedCategory));
-    }
-
-    // Filter by store
-    if (selectedStore) {
-      filteredProducts = filteredProducts.filter(p =>
-        p.store_stocks?.some(ss => ss.store_id === parseInt(selectedStore))
-      );
-    }
-
-    // Helper function to get stock quantity for selected store or all stores
-    const getStockQuantity = (product) => {
-      if (selectedStore) {
-        // Get stock only from selected store
-        const storeStock = product.store_stocks?.find(ss => ss.store_id === parseInt(selectedStore));
-        return storeStock?.stock_quantity || 0;
-      } else {
-        // Get total stock from all stores
-        return product.store_stocks?.reduce((sum, ss) => sum + (ss.stock_quantity || 0), 0) || 0;
-      }
-    };
-
-    // Filter by stock status
-    if (selectedStockStatus) {
-      filteredProducts = filteredProducts.filter(p => {
-        const totalStock = getStockQuantity(p);
-        switch (selectedStockStatus) {
-          case 'IN_STOCK': return totalStock > 0;
-          case 'OUT_OF_STOCK': return totalStock === 0;
-          case 'LOW_STOCK': return totalStock > 0 && totalStock < 10;
-          case 'NEGATIVE': return totalStock < 0;
-          default: return true;
-        }
-      });
-    }
-
-    // Filter by value range
-    if (minStockValue || maxStockValue) {
-      filteredProducts = filteredProducts.filter(p => {
-        const totalStock = getStockQuantity(p);
-        const stockValue = totalStock * parseFloat(p.pro_cost_price || 0);
-        const min = parseFloat(minStockValue) || 0;
-        const max = parseFloat(maxStockValue) || Infinity;
-        return stockValue >= min && stockValue <= max;
-      });
-    }
-
-    // Filter by item name search query
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filteredProducts = filteredProducts.filter(p =>
-        p.pro_title?.toLowerCase().includes(query)
-      );
-    }
-
-    // Recalculate category totals
-    const recalculatedCategories = filteredCategories.map(category => {
-      const categoryProducts = filteredProducts.filter(p => p.cat_id === category.categoryId);
-      return {
-        ...category,
-        products: categoryProducts,
-        totalProducts: categoryProducts.length,
-        totalStock: categoryProducts.reduce((sum, p) => {
-          return sum + getStockQuantity(p);
-        }, 0),
-        totalValue: categoryProducts.reduce((sum, p) => {
-          const stockQty = getStockQuantity(p);
-          return sum + (stockQty * parseFloat(p.pro_cost_price || 0));
-        }, 0)
-      };
-    }).filter(cat => cat.products.length > 0);
-
-    const summary = {
-      totalProducts: filteredProducts.length,
-      totalCategories: recalculatedCategories.length,
-      totalStock: filteredProducts.reduce((sum, p) => {
-        return sum + getStockQuantity(p);
-      }, 0),
-      totalStockValue: filteredProducts.reduce((sum, p) => {
-        const stockQty = getStockQuantity(p);
-        return sum + (stockQty * parseFloat(p.pro_cost_price || 0));
-      }, 0),
-      lowStockItems: filteredProducts.filter(p => {
-        const totalStock = getStockQuantity(p);
-        return totalStock > 0 && totalStock < 10;
-      }).length,
-      outOfStockItems: filteredProducts.filter(p => {
-        const totalStock = getStockQuantity(p);
-        return totalStock === 0;
-      }).length
-    };
-
-    return {
-      ...reportData,
-      products: filteredProducts,
-      stockByCategory: recalculatedCategories,
-      summary
-    };
+  const rowBg = (product, storeId = null, idx = 0) => {
+    const qty = storeId ? getStoreQty(product, storeId) : getTotalQty(product);
+    const threshold = product.low_stock_quantity ?? 10;
+    if (qty < 0) return 'bg-red-100';
+    if (qty === 0) return 'bg-red-50';
+    if (qty <= threshold) return 'bg-amber-50';
+    return idx % 2 === 0 ? 'bg-white' : 'bg-slate-50';
   };
 
-  const filteredData = getFilteredData();
-
-  // Helper function to get stock quantity for display (same logic as getFilteredData)
-  const getDisplayStockQuantity = (product) => {
-    if (selectedStore) {
-      // Get stock only from selected store
-      const storeStock = product.store_stocks?.find(ss => ss.store_id === parseInt(selectedStore));
-      return storeStock?.stock_quantity || 0;
-    } else {
-      // Get total stock from all stores
-      return product.store_stocks?.reduce((sum, ss) => sum + (ss.stock_quantity || 0), 0) || 0;
-    }
+  const statusBadge = (product, storeId = null) => {
+    const qty = storeId ? getStoreQty(product, storeId) : getTotalQty(product);
+    const threshold = product.low_stock_quantity ?? 10;
+    if (qty < 0) return <span className="px-2 py-0.5 rounded text-xs font-bold bg-red-200 text-red-800">Negative</span>;
+    if (qty === 0) return <span className="px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-700">Out of Stock</span>;
+    if (qty <= threshold) return <span className="px-2 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-700">Low Stock</span>;
+    return <span className="px-2 py-0.5 rounded text-xs font-bold bg-green-100 text-green-700">In Stock</span>;
   };
 
-  // Helper function to get store breakdown text
-  const getStoreBreakdownText = (product) => {
-    if (selectedStore) {
-      // Show only selected store
-      const storeStock = product.store_stocks?.find(ss => ss.store_id === parseInt(selectedStore));
-      const storeName = storeStock?.store?.store_name || `Store ${selectedStore}`;
-      return `${storeName}: ${storeStock?.stock_quantity || 0}`;
-    } else {
-      // Show all stores
-      return product.store_stocks?.map(ss =>
-        `${ss.store?.store_name || `Store ${ss.store_id}`}: ${ss.stock_quantity}`
-      ).join(', ') || 'No stores';
-    }
+  // ─── Table: All Stock ──────────────────────────────────────────────────────
+
+  const renderAllStock = () => {
+    const products = getAllStockData();
+    return (
+      <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-slate-800 text-white">
+              <th className="px-3 py-3 text-left text-xs font-bold uppercase border-r border-slate-600 w-10">S#</th>
+              <th className="px-3 py-3 text-left text-xs font-bold uppercase border-r border-slate-600">Category</th>
+              <th className="px-3 py-3 text-left text-xs font-bold uppercase border-r border-slate-600">Item Name</th>
+              <th className="px-3 py-3 text-center text-xs font-bold uppercase border-r border-slate-600 w-14">Unit</th>
+              <th className="px-3 py-3 text-right text-xs font-bold uppercase border-r border-slate-600 w-24">Total Qty</th>
+              <th className="px-3 py-3 text-left text-xs font-bold uppercase border-r border-slate-600">Store Breakdown</th>
+              <th className="px-3 py-3 text-right text-xs font-bold uppercase border-r border-slate-600 w-28">Cost Rate</th>
+              <th className="px-3 py-3 text-right text-xs font-bold uppercase border-r border-slate-600 w-28">Stock Value</th>
+              <th className="px-3 py-3 text-center text-xs font-bold uppercase w-24">Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {products.length === 0 ? (
+              <tr><td colSpan={9} className="py-10 text-center text-slate-400">No products found</td></tr>
+            ) : products.map((p, i) => {
+              const qty = selectedStore ? getStoreQty(p, selectedStore) : getTotalQty(p);
+              const storeBreakdown = selectedStore
+                ? `${stores.find(s => s.storeid === parseInt(selectedStore))?.store_name || ''}: ${getStoreQty(p, selectedStore)}`
+                : (p.store_stocks?.map(ss => `${ss.store?.store_name || `Store ${ss.store_id}`}: ${ss.stock_quantity}`).join(' | ') || '—');
+              return (
+                <tr key={p.pro_id} className={`${rowBg(p, selectedStore || null, i)} hover:brightness-95 transition-all`}>
+                  <td className="px-3 py-2 text-slate-500 border-r border-slate-100 text-xs">{i + 1}</td>
+                  <td className="px-3 py-2 text-slate-600 border-r border-slate-100 text-xs">{p.category?.cat_name}</td>
+                  <td className="px-3 py-2 font-semibold text-slate-900 border-r border-slate-100">{p.pro_title}</td>
+                  <td className="px-3 py-2 text-center text-slate-600 border-r border-slate-100 text-xs">{p.pro_unit || '—'}</td>
+                  <td className={`px-3 py-2 text-right font-bold border-r border-slate-100 tabular-nums ${qty <= 0 ? 'text-red-600' : qty <= (p.low_stock_quantity ?? 10) ? 'text-amber-600' : 'text-slate-900'}`}>{formatNumber(qty)}</td>
+                  <td className="px-3 py-2 text-slate-500 text-xs border-r border-slate-100">{storeBreakdown}</td>
+                  <td className="px-3 py-2 text-right text-slate-700 border-r border-slate-100 tabular-nums">{formatCurrency(p.pro_cost_price)}</td>
+                  <td className="px-3 py-2 text-right font-semibold text-slate-900 border-r border-slate-100 tabular-nums">{formatCurrency(qty * parseFloat(p.pro_cost_price || 0))}</td>
+                  <td className="px-3 py-2 text-center">{statusBadge(p, selectedStore || null)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+          {products.length > 0 && (
+            <tfoot>
+              <tr className="bg-slate-800 text-white font-bold">
+                <td colSpan={4} className="px-3 py-3 text-right text-xs uppercase border-r border-slate-600">Grand Total</td>
+                <td className="px-3 py-3 text-right tabular-nums border-r border-slate-600">
+                  {formatNumber(products.reduce((s, p) => s + (selectedStore ? getStoreQty(p, selectedStore) : getTotalQty(p)), 0))}
+                </td>
+                <td className="px-3 py-3 border-r border-slate-600"></td>
+                <td className="px-3 py-3 border-r border-slate-600"></td>
+                <td className="px-3 py-3 text-right tabular-nums border-r border-slate-600">
+                  {formatCurrency(products.reduce((s, p) => {
+                    const q = selectedStore ? getStoreQty(p, selectedStore) : getTotalQty(p);
+                    return s + q * parseFloat(p.pro_cost_price || 0);
+                  }, 0))}
+                </td>
+                <td className="px-3 py-3"></td>
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      </div>
+    );
   };
+
+  // ─── Table: Store Wise ─────────────────────────────────────────────────────
+
+  const renderStoreWise = () => {
+    const groups = getStoreWiseData();
+    if (groups.length === 0) return <div className="py-16 text-center text-slate-400">No store stock data found</div>;
+    return (
+      <div className="space-y-6">
+        {groups.map(({ store, products, totalQty, totalValue }) => (
+          <div key={store.storeid} className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+            <div className="bg-indigo-700 text-white px-4 py-2.5 flex items-center justify-between">
+              <div className="flex items-center gap-2 font-bold text-base">
+                <Store className="w-4 h-4" />
+                {store.store_name}
+              </div>
+              <div className="flex gap-4 text-sm text-indigo-100">
+                <span>{products.length} items</span>
+                <span>Total Qty: <strong className="text-white">{formatNumber(totalQty)}</strong></span>
+                <span>Value: <strong className="text-white">Rs. {formatCurrency(totalValue)}</strong></span>
+              </div>
+            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-100 text-slate-700">
+                  <th className="px-3 py-2 text-left text-xs font-bold uppercase border-r border-slate-200 w-10">S#</th>
+                  <th className="px-3 py-2 text-left text-xs font-bold uppercase border-r border-slate-200">Category</th>
+                  <th className="px-3 py-2 text-left text-xs font-bold uppercase border-r border-slate-200">Item Name</th>
+                  <th className="px-3 py-2 text-center text-xs font-bold uppercase border-r border-slate-200 w-14">Unit</th>
+                  <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-slate-200 w-24">Qty (Store)</th>
+                  <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-slate-200 w-28">Cost Rate</th>
+                  <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-slate-200 w-28">Value</th>
+                  <th className="px-3 py-2 text-center text-xs font-bold uppercase w-24">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {products.map((p, i) => (
+                  <tr key={p.pro_id} className={`${rowBg(p, store.storeid, i)} hover:brightness-95`}>
+                    <td className="px-3 py-2 text-slate-400 border-r border-slate-100 text-xs">{i + 1}</td>
+                    <td className="px-3 py-2 text-slate-500 border-r border-slate-100 text-xs">{p.category?.cat_name}</td>
+                    <td className="px-3 py-2 font-semibold text-slate-900 border-r border-slate-100">{p.pro_title}</td>
+                    <td className="px-3 py-2 text-center text-slate-500 border-r border-slate-100 text-xs">{p.pro_unit || '—'}</td>
+                    <td className={`px-3 py-2 text-right font-bold border-r border-slate-100 tabular-nums ${p._storeQty <= (p.low_stock_quantity ?? 10) ? 'text-amber-600' : 'text-slate-900'}`}>{formatNumber(p._storeQty)}</td>
+                    <td className="px-3 py-2 text-right text-slate-700 border-r border-slate-100 tabular-nums">{formatCurrency(p.pro_cost_price)}</td>
+                    <td className="px-3 py-2 text-right font-semibold border-r border-slate-100 tabular-nums">{formatCurrency(p._storeQty * parseFloat(p.pro_cost_price || 0))}</td>
+                    <td className="px-3 py-2 text-center">{statusBadge(p, store.storeid)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-indigo-50 font-semibold text-indigo-900">
+                  <td colSpan={4} className="px-3 py-2 text-right text-xs uppercase border-r border-slate-200">Store Total</td>
+                  <td className="px-3 py-2 text-right tabular-nums border-r border-slate-200">{formatNumber(totalQty)}</td>
+                  <td className="px-3 py-2 border-r border-slate-200"></td>
+                  <td className="px-3 py-2 text-right tabular-nums border-r border-slate-200">{formatCurrency(totalValue)}</td>
+                  <td className="px-3 py-2"></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // ─── Table: Low Stock ──────────────────────────────────────────────────────
+
+  const renderLowStock = () => {
+    const products = getLowStockData();
+    return (
+      <div className="bg-white border border-amber-200 rounded-lg overflow-hidden">
+        <div className="bg-amber-600 text-white px-4 py-2.5 flex items-center gap-2 font-semibold">
+          <AlertTriangle className="w-4 h-4" />
+          Low Stock Items — {products.length} product{products.length !== 1 ? 's' : ''} need restocking
+        </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-amber-50 text-amber-900">
+              <th className="px-3 py-2 text-left text-xs font-bold uppercase border-r border-amber-200 w-10">S#</th>
+              <th className="px-3 py-2 text-left text-xs font-bold uppercase border-r border-amber-200">Category</th>
+              <th className="px-3 py-2 text-left text-xs font-bold uppercase border-r border-amber-200">Item Name</th>
+              <th className="px-3 py-2 text-center text-xs font-bold uppercase border-r border-amber-200 w-14">Unit</th>
+              <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-amber-200 w-24">Current Qty</th>
+              <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-amber-200 w-24">Threshold</th>
+              <th className="px-3 py-2 text-left text-xs font-bold uppercase border-r border-amber-200">Store Breakdown</th>
+              <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-amber-200 w-28">Cost Rate</th>
+              <th className="px-3 py-2 text-right text-xs font-bold uppercase w-28">Stock Value</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-amber-100">
+            {products.length === 0 ? (
+              <tr><td colSpan={9} className="py-10 text-center text-green-600 font-semibold">✅ No low stock items — all products are well stocked!</td></tr>
+            ) : products.map((p, i) => {
+              const qty = selectedStore ? getStoreQty(p, selectedStore) : getTotalQty(p);
+              const threshold = p.low_stock_quantity ?? 10;
+              const storeBreakdown = p.store_stocks?.map(ss => `${ss.store?.store_name || `S${ss.store_id}`}: ${ss.stock_quantity}`).join(' | ') || '—';
+              return (
+                <tr key={p.pro_id} className={`bg-amber-50 hover:bg-amber-100 transition-colors`}>
+                  <td className="px-3 py-2 text-amber-500 border-r border-amber-100 text-xs">{i + 1}</td>
+                  <td className="px-3 py-2 text-slate-600 border-r border-amber-100 text-xs">{p.category?.cat_name}</td>
+                  <td className="px-3 py-2 font-semibold text-slate-900 border-r border-amber-100">{p.pro_title}</td>
+                  <td className="px-3 py-2 text-center text-slate-500 border-r border-amber-100 text-xs">{p.pro_unit || '—'}</td>
+                  <td className="px-3 py-2 text-right font-bold text-amber-700 border-r border-amber-100 tabular-nums">{formatNumber(qty)}</td>
+                  <td className="px-3 py-2 text-right text-slate-500 border-r border-amber-100 tabular-nums">{formatNumber(threshold)}</td>
+                  <td className="px-3 py-2 text-slate-500 text-xs border-r border-amber-100">{storeBreakdown}</td>
+                  <td className="px-3 py-2 text-right text-slate-700 border-r border-amber-100 tabular-nums">{formatCurrency(p.pro_cost_price)}</td>
+                  <td className="px-3 py-2 text-right font-semibold text-slate-900 tabular-nums">{formatCurrency(qty * parseFloat(p.pro_cost_price || 0))}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+  // ─── Table: Low Stock Store Wise ───────────────────────────────────────────
+
+  const renderLowStockStoreWise = () => {
+    const groups = getLowStockStoreWiseData();
+    if (groups.length === 0) return (
+      <div className="py-16 text-center">
+        <div className="text-green-600 font-semibold text-lg">✅ No low stock items in any store</div>
+        <p className="text-slate-400 mt-1">All stores are well stocked</p>
+      </div>
+    );
+    return (
+      <div className="space-y-6">
+        {groups.map(({ store, products }) => (
+          <div key={store.storeid} className="bg-white border border-amber-300 rounded-lg overflow-hidden">
+            <div className="bg-amber-600 text-white px-4 py-2.5 flex items-center justify-between">
+              <div className="flex items-center gap-2 font-bold text-base">
+                <AlertTriangle className="w-4 h-4" />
+                {store.store_name} — Low Stock Alert
+              </div>
+              <span className="text-amber-100 text-sm">{products.length} item{products.length !== 1 ? 's' : ''} need restocking</span>
+            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-amber-50 text-amber-900">
+                  <th className="px-3 py-2 text-left text-xs font-bold uppercase border-r border-amber-200 w-10">S#</th>
+                  <th className="px-3 py-2 text-left text-xs font-bold uppercase border-r border-amber-200">Category</th>
+                  <th className="px-3 py-2 text-left text-xs font-bold uppercase border-r border-amber-200">Item Name</th>
+                  <th className="px-3 py-2 text-center text-xs font-bold uppercase border-r border-amber-200 w-14">Unit</th>
+                  <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-amber-200 w-28">Store Qty</th>
+                  <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-amber-200 w-24">Min Threshold</th>
+                  <th className="px-3 py-2 text-right text-xs font-bold uppercase w-28">Cost Rate</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-amber-100">
+                {products.map((p, i) => (
+                  <tr key={p.pro_id} className="bg-amber-50 hover:bg-amber-100">
+                    <td className="px-3 py-2 text-amber-400 border-r border-amber-100 text-xs">{i + 1}</td>
+                    <td className="px-3 py-2 text-slate-500 border-r border-amber-100 text-xs">{p.category?.cat_name}</td>
+                    <td className="px-3 py-2 font-semibold text-slate-900 border-r border-amber-100">{p.pro_title}</td>
+                    <td className="px-3 py-2 text-center text-slate-500 border-r border-amber-100 text-xs">{p.pro_unit || '—'}</td>
+                    <td className="px-3 py-2 text-right font-bold text-amber-700 border-r border-amber-100 tabular-nums">{formatNumber(p._storeQty)}</td>
+                    <td className="px-3 py-2 text-right text-slate-500 border-r border-amber-100 tabular-nums">{formatNumber(p.low_stock_quantity ?? 10)}</td>
+                    <td className="px-3 py-2 text-right text-slate-700 tabular-nums">{formatCurrency(p.pro_cost_price)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
     <DashboardLayout>
-      <div className="h-full flex flex-col bg-white print:bg-white overflow-hidden">
-        {/* Screen Header */}
+      <div className="h-full flex flex-col bg-white overflow-hidden">
+
+        {/* Header */}
         <div className="flex-shrink-0 bg-gradient-to-r from-purple-700 to-purple-900 text-white px-6 py-4 print:hidden">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
@@ -304,394 +483,173 @@ export default function StockReport() {
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <div className="flex items-center space-x-3">
-                <div className="p-2 bg-white/10 rounded-lg">
-                  <Package className="w-6 h-6" />
-                </div>
+                <div className="p-2 bg-white/10 rounded-lg"><Package className="w-6 h-6" /></div>
                 <div>
-                  <h1 className="text-xl font-bold tracking-wide">Stock Valuation Report</h1>
-                  <p className="text-purple-200 text-sm">Current inventory levels & valuation</p>
+                  <h1 className="text-xl font-bold tracking-wide">Stock Report</h1>
+                  <p className="text-purple-200 text-sm">All stock · Store wise · Low stock alerts</p>
                 </div>
               </div>
             </div>
-            {filteredData && (
-              <div className="flex items-center space-x-2">
-                <button onClick={handleExport} className="flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium transition-colors">
-                  <Download className="w-4 h-4 mr-2" /> Export CSV
+            <div className="flex items-center space-x-2">
+              <button onClick={handleExport} className="flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium transition-colors">
+                <Download className="w-4 h-4 mr-2" /> Export CSV
+              </button>
+              <button onClick={() => window.print()} className="flex items-center px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors">
+                <Printer className="w-4 h-4 mr-2" /> Print
+              </button>
+              {selectedCategory && (
+                <button onClick={() => setShowAdjustmentModal(true)} className="flex items-center px-4 py-2 bg-orange-600 hover:bg-orange-700 rounded-lg text-sm font-medium transition-colors">
+                  Adjust Prices
                 </button>
-                <button onClick={handlePrint} className="flex items-center px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors">
-                  <Printer className="w-4 h-4 mr-2" /> Print
-                </button>
-                {selectedCategory && (
-                  <button onClick={() => setShowAdjustmentModal(true)} className="flex items-center px-4 py-2 bg-orange-600 hover:bg-orange-700 rounded-lg text-sm font-medium transition-colors">
-                    <AlertTriangle className="w-4 h-4 mr-2" /> Adjust Prices
-                  </button>
-                )}
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Filters Bar */}
-        <div className="flex-shrink-0 bg-slate-50 border-b border-slate-200 px-6 py-3 print:hidden">
+        {/* Summary Cards */}
+        {summary && (
+          <div className="flex-shrink-0 grid grid-cols-2 md:grid-cols-5 gap-3 px-6 py-3 bg-slate-50 border-b border-slate-200 print:hidden">
+            <div className="bg-white border border-slate-200 rounded-lg p-3 text-center">
+              <p className="text-xs font-semibold text-slate-500 uppercase">Total Items</p>
+              <p className="text-2xl font-bold text-slate-800">{formatNumber(summary.total)}</p>
+            </div>
+            <div className="bg-white border border-blue-200 rounded-lg p-3 text-center">
+              <p className="text-xs font-semibold text-blue-600 uppercase">Total Qty</p>
+              <p className="text-2xl font-bold text-blue-800">{formatNumber(summary.totalQty)}</p>
+            </div>
+            <div className="bg-white border border-emerald-200 rounded-lg p-3 text-center">
+              <p className="text-xs font-semibold text-emerald-600 uppercase">Stock Value</p>
+              <p className="text-lg font-bold text-emerald-800">Rs. {formatCurrency(summary.totalValue)}</p>
+            </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center">
+              <p className="text-xs font-semibold text-amber-600 uppercase flex items-center justify-center gap-1"><AlertTriangle className="w-3 h-3" /> Low Stock</p>
+              <p className="text-2xl font-bold text-amber-700">{summary.lowStock}</p>
+            </div>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
+              <p className="text-xs font-semibold text-red-600 uppercase flex items-center justify-center gap-1"><XCircle className="w-3 h-3" /> Out of Stock</p>
+              <p className="text-2xl font-bold text-red-700">{summary.outOfStock}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Filters */}
+        <div className="flex-shrink-0 bg-white border-b border-slate-200 px-6 py-3 print:hidden">
           <div className="flex flex-wrap items-end gap-3">
-            <div className="flex-1 min-w-[200px] max-w-[250px]">
-              <label className="block text-xs font-semibold text-slate-600 mb-1 caps">CATEGORY</label>
-              <Autocomplete
-                size="small"
-                options={categories}
-                getOptionLabel={(option) => option.cat_name || ''}
+            <div className="flex-1 min-w-[180px] max-w-[220px]">
+              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase">Category</label>
+              <Autocomplete size="small" options={categories} getOptionLabel={(o) => o.cat_name || ''}
                 value={categories.find(c => c.cat_id === parseInt(selectedCategory)) || null}
-                onChange={(e, val) => setSelectedCategory(val ? val.cat_id.toString() : '')}
-                autoSelect={true}
-                autoHighlight={true}
-                openOnFocus={true}
-                selectOnFocus={true}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    placeholder="All Categories"
-                    onFocus={(e) => e.target.select()}
-                    sx={{
-                      '& .MuiOutlinedInput-root': { py: '2px', borderRadius: '8px', bgcolor: 'white' }
-                    }}
-                  />
-                )}
+                onChange={(_, v) => setSelectedCategory(v ? v.cat_id.toString() : '')}
+                autoHighlight openOnFocus
+                renderInput={(params) => <TextField {...params} placeholder="All Categories" sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px', bgcolor: 'white' } }} />}
               />
             </div>
-            <div className="flex-1 min-w-[200px] max-w-[250px]">
-              <label className="block text-xs font-semibold text-slate-600 mb-1 caps">STORE</label>
-              <Autocomplete
-                size="small"
-                options={stores}
-                getOptionLabel={(option) => option.store_name || ''}
+            <div className="flex-1 min-w-[180px] max-w-[220px]">
+              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase">Store</label>
+              <Autocomplete size="small" options={stores} getOptionLabel={(o) => o.store_name || ''}
                 value={stores.find(s => s.storeid === parseInt(selectedStore)) || null}
-                onChange={(e, val) => setSelectedStore(val ? val.storeid.toString() : '')}
-                autoSelect={true}
-                autoHighlight={true}
-                openOnFocus={true}
-                selectOnFocus={true}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    placeholder="All Stores"
-                    onFocus={(e) => e.target.select()}
-                    sx={{
-                      '& .MuiOutlinedInput-root': { py: '2px', borderRadius: '8px', bgcolor: 'white' }
-                    }}
-                  />
-                )}
+                onChange={(_, v) => setSelectedStore(v ? v.storeid.toString() : '')}
+                autoHighlight openOnFocus
+                renderInput={(params) => <TextField {...params} placeholder="All Stores" sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px', bgcolor: 'white' } }} />}
               />
             </div>
-            <div className="flex-1 min-w-[140px] max-w-[180px]">
-              <label className="block text-xs font-semibold text-slate-600 mb-1">STOCK STATUS</label>
-              <select value={selectedStockStatus} onChange={(e) => setSelectedStockStatus(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
-                <option value="">All Status</option>
-                <option value="IN_STOCK">In Stock</option>
-                <option value="OUT_OF_STOCK">Out of Stock</option>
-                <option value="LOW_STOCK">Low Stock (&lt;10)</option>
-                <option value="NEGATIVE">Negative Stock</option>
-              </select>
-            </div>
-            <div className="flex-1 min-w-[120px] max-w-[150px]">
-              <label className="block text-xs font-semibold text-slate-600 mb-1">MIN VALUE</label>
-              <input type="number" value={minStockValue} onChange={(e) => setMinStockValue(e.target.value)} placeholder="0"
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-purple-500 focus:border-purple-500" />
-            </div>
-            <div className="flex-1 min-w-[200px] max-w-[300px]">
-              <label className="block text-xs font-semibold text-slate-600 mb-1 caps">SEARCH ITEM</label>
-              <TextField
-                fullWidth
-                size="small"
-                placeholder="Search by item name..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Search className="w-4 h-4 text-slate-400" />
-                    </InputAdornment>
-                  ),
-                  sx: { borderRadius: '8px', bgcolor: 'white' }
-                }}
+            <div className="flex-1 min-w-[200px] max-w-[280px]">
+              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase">Search Item</label>
+              <TextField fullWidth size="small" placeholder="Search by item name..."
+                value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+                InputProps={{ startAdornment: <InputAdornment position="start"><Search className="w-4 h-4 text-slate-400" /></InputAdornment>, sx: { borderRadius: '8px', bgcolor: 'white' } }}
               />
             </div>
             <button onClick={fetchReport} disabled={loading}
-              className="flex items-center px-5 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-lg text-sm font-semibold transition-colors">
+              className="flex items-center px-5 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white rounded-lg text-sm font-semibold transition-colors">
               <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-              {loading ? 'Refreshing...' : 'Apply Filters'}
+              {loading ? 'Loading...' : 'Refresh'}
             </button>
           </div>
         </div>
 
-        {/* Report Content */}
-        {filteredData ? (
-          <div className="flex-1 overflow-auto p-4 print:p-0 print:overflow-visible">
-            <div className="max-w-[1400px] mx-auto">
-              {/* Print Header */}
-              <div className="hidden print:block border-b-2 border-black pb-4 mb-4">
-                <div className="text-center">
-                  <h1 className="text-2xl font-bold tracking-wider">ITTEFAQ IRON STORE</h1>
-                  <p className="text-sm text-gray-600">Parianwali, Pakistan | Tel: +92 346 7560306</p>
-                  <div className="mt-3 py-2 bg-black text-white">
-                    <h2 className="text-lg font-bold tracking-widest">STOCK VALUATION REPORT</h2>
-                  </div>
-                  <p className="mt-2 text-sm">
-                    <span className="font-semibold">As on:</span> {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                  </p>
-                </div>
-              </div>
+        {/* Tabs */}
+        <div className="flex-shrink-0 border-b border-slate-200 bg-white print:hidden">
+          <div className="flex">
+            {TABS.map(tab => {
+              const isActive = activeTab === tab.id;
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap
+                    ${isActive
+                      ? 'border-purple-600 text-purple-700 bg-purple-50'
+                      : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                    }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {tab.label}
+                  {tab.id === 'low-stock' && summary?.lowStock > 0 && (
+                    <span className="ml-1 bg-amber-500 text-white text-xs rounded-full px-1.5 py-0.5 font-bold">{summary.lowStock}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
-              {/* Summary Cards - Screen */}
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4 print:hidden">
-                <div className="bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 rounded-xl p-4">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Total Items</p>
-                  <p className="text-2xl font-bold text-slate-800 mt-1">{formatNumber(filteredData.summary.totalProducts)}</p>
+        {/* Content */}
+        {reportData ? (
+          <div className="flex-1 overflow-auto p-4">
+            <div className="max-w-[1500px] mx-auto">
+              {loading && (
+                <div className="flex items-center justify-center py-8 text-slate-500 text-sm gap-2">
+                  <RefreshCw className="w-4 h-4 animate-spin" /> Loading stock data...
                 </div>
-                <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-xl p-4">
-                  <p className="text-xs font-semibold text-purple-600 uppercase tracking-wide">Categories</p>
-                  <p className="text-2xl font-bold text-purple-800 mt-1">{filteredData.summary.totalCategories}</p>
-                </div>
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl p-4">
-                  <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Total Qty</p>
-                  <p className="text-2xl font-bold text-blue-800 mt-1">{formatNumber(filteredData.summary.totalStock)}</p>
-                </div>
-                <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-200 rounded-xl p-4">
-                  <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wide">Stock Value</p>
-                  <p className="text-xl font-bold text-emerald-800 mt-1">Rs. {formatCurrency(filteredData.summary.totalStockValue)}</p>
-                </div>
-                <div className="bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 rounded-xl p-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide">Low Stock</p>
-                    <AlertTriangle className="w-4 h-4 text-amber-500" />
-                  </div>
-                  <p className="text-2xl font-bold text-amber-800 mt-1">{filteredData.summary.lowStockItems}</p>
-                </div>
-                <div className="bg-gradient-to-br from-red-50 to-red-100 border border-red-200 rounded-xl p-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold text-red-600 uppercase tracking-wide">Out of Stock</p>
-                    <XCircle className="w-4 h-4 text-red-500" />
-                  </div>
-                  <p className="text-2xl font-bold text-red-800 mt-1">{filteredData.summary.outOfStockItems}</p>
-                </div>
-              </div>
-
-              {/* Print Summary */}
-              <div className="hidden print:block mb-4 border border-black">
-                <table className="w-full text-sm">
-                  <tbody>
-                    <tr className="border-b border-black">
-                      <td className="p-2 font-semibold border-r border-black">Total Items:</td>
-                      <td className="p-2 text-right border-r border-black">{formatNumber(filteredData.summary.totalProducts)}</td>
-                      <td className="p-2 font-semibold border-r border-black">Categories:</td>
-                      <td className="p-2 text-right border-r border-black">{filteredData.summary.totalCategories}</td>
-                      <td className="p-2 font-semibold border-r border-black">Total Qty:</td>
-                      <td className="p-2 text-right">{formatNumber(filteredData.summary.totalStock)}</td>
-                    </tr>
-                    <tr>
-                      <td className="p-2 font-semibold border-r border-black">Stock Value:</td>
-                      <td className="p-2 text-right border-r border-black font-bold">{formatCurrency(filteredData.summary.totalStockValue)}</td>
-                      <td className="p-2 font-semibold border-r border-black">Low Stock:</td>
-                      <td className="p-2 text-right border-r border-black">{filteredData.summary.lowStockItems}</td>
-                      <td className="p-2 font-semibold border-r border-black">Out of Stock:</td>
-                      <td className="p-2 text-right">{filteredData.summary.outOfStockItems}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Main Table */}
-              <div className="bg-white border border-slate-300 rounded-lg overflow-hidden print:border-black print:rounded-none">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-slate-800 text-white print:bg-gray-200 print:text-black">
-                      <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black w-12">S.No</th>
-                      <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Category</th>
-                      <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Item Name</th>
-                      <th className="px-3 py-3 text-center text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black w-16">Unit</th>
-                      <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black w-28">Total Qty</th>
-                      <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black w-32">Store Breakdown</th>
-                      <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black w-28">Cost Rate</th>
-                      <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider w-32">Stock Value</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 print:divide-black">
-                    {(() => {
-                      let sno = 1;
-                      return filteredData.stockByCategory.map(category => (
-                        category.products.map((product) => {
-                          // Use helper functions for consistent display
-                          const totalStock = getDisplayStockQuantity(product);
-                          const stockValue = totalStock * parseFloat(product.pro_cost_price || 0);
-                          const isOutOfStock = totalStock === 0;
-                          const isLowStock = totalStock > 0 && totalStock < 10;
-                          const isNegative = totalStock < 0;
-
-                          // Create store breakdown text
-                          const storeBreakdown = getStoreBreakdownText(product);
-
-                          return (
-                            <tr key={product.pro_id} className={`${sno % 2 === 0 ? 'bg-slate-50' : 'bg-white'} ${isNegative ? 'bg-red-100' : isOutOfStock ? 'bg-red-50' : isLowStock ? 'bg-amber-50' : ''} hover:bg-purple-50 print:bg-white transition-colors`}>
-                              <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200 print:border-black">{sno++}</td>
-                              <td className="px-3 py-2.5 text-slate-600 border-r border-slate-200 print:border-black">{category.categoryName}</td>
-                              <td className="px-3 py-2.5 text-slate-900 font-medium border-r border-slate-200 print:border-black">{product.pro_title}</td>
-                              <td className="px-3 py-2.5 text-center text-slate-600 border-r border-slate-200 print:border-black">{product.pro_unit}</td>
-                              <td className={`px-3 py-2.5 text-right font-semibold border-r border-slate-200 print:border-black tabular-nums ${isNegative ? 'text-red-700 font-bold' : isOutOfStock ? 'text-red-600' : isLowStock ? 'text-amber-600' : 'text-slate-900'} print:text-black`}>
-                                {formatNumber(totalStock)}
-                                {isNegative && <span className="ml-1 text-xs">(⚠️)</span>}
-                              </td>
-                              <td className="px-3 py-2.5 text-slate-600 text-xs border-r border-slate-200 print:border-black">
-                                {storeBreakdown}
-                              </td>
-                              <td className="px-3 py-2.5 text-right text-slate-900 border-r border-slate-200 print:border-black tabular-nums">{formatCurrency(product.pro_cost_price)}</td>
-                              <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${isNegative ? 'text-red-700' : 'text-slate-900'} print:text-black`}>{formatCurrency(stockValue)}</td>
-                            </tr>
-                          );
-                        })
-                      )).flat();
-                    })()}
-                    {filteredData.products.length === 0 && (
-                      <tr><td colSpan="8" className="px-6 py-12 text-center text-slate-500">No products found in selected category</td></tr>
-                    )}
-                  </tbody>
-                  <tfoot>
-                    <tr className="bg-slate-800 text-white font-bold print:bg-gray-200 print:text-black">
-                      <td colSpan="4" className="px-3 py-3 text-right uppercase text-xs tracking-wider border-r border-slate-600 print:border-black">Grand Total</td>
-                      <td className="px-3 py-3 text-right border-r border-slate-600 print:border-black tabular-nums">{formatNumber(filteredData.summary.totalStock)}</td>
-                      <td className="px-3 py-3 border-r border-slate-600 print:border-black"></td>
-                      <td className="px-3 py-3 border-r border-slate-600 print:border-black"></td>
-                      <td className="px-3 py-3 text-right tabular-nums">{formatCurrency(filteredData.summary.totalStockValue)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-
-              {/* Print Footer */}
-              <div className="hidden print:flex justify-between items-center mt-6 pt-4 border-t-2 border-black text-xs">
-                <span>Generated: {new Date().toLocaleString('en-GB')}</span>
-                <span className="font-semibold">Ittefaq Management System</span>
-                <span>Page 1 of 1</span>
-              </div>
+              )}
+              {!loading && (
+                <>
+                  {activeTab === 'all' && renderAllStock()}
+                  {activeTab === 'store-wise' && renderStoreWise()}
+                  {activeTab === 'low-stock' && renderLowStock()}
+                  {activeTab === 'low-stock-store' && renderLowStockStoreWise()}
+                </>
+              )}
             </div>
           </div>
         ) : (
-          <div className="flex-1 flex items-center justify-center print:hidden">
+          <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
-              <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Search className="w-10 h-10 text-slate-400" />
+              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <Package className="w-8 h-8 text-slate-400" />
               </div>
-              <h3 className="text-lg font-semibold text-slate-800">Loading Stock Data...</h3>
-              <p className="text-slate-500 mt-1">Please wait while we fetch inventory information</p>
+              <p className="text-slate-500 font-medium">Loading stock data...</p>
             </div>
           </div>
         )}
       </div>
 
-      {/* Price Adjustment Modal - Material-UI Dialog */}
-      <Dialog 
-        open={showAdjustmentModal} 
-        onClose={() => !adjustmentLoading && setShowAdjustmentModal(false)} 
-        maxWidth="sm" 
-        fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: '12px',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-            bgcolor: '#ffffff'
-          }
-        }}
-      >
-        <DialogTitle sx={{ fontWeight: 'bold', fontSize: '1.25rem', pb: 1, bgcolor: '#f5f3ff', borderBottom: '2px solid #e9d5ff' }}>
-          🔧 Adjust Prices for Category
+      {/* Price Adjustment Modal */}
+      <Dialog open={showAdjustmentModal} onClose={() => !adjustmentLoading && setShowAdjustmentModal(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: '12px' } }}>
+        <DialogTitle sx={{ fontWeight: 'bold', bgcolor: '#f5f3ff', borderBottom: '2px solid #e9d5ff' }}>
+          Adjust Prices — {categories.find(c => c.cat_id === parseInt(selectedCategory))?.cat_name}
         </DialogTitle>
-
         <DialogContent sx={{ pt: 3 }}>
           {adjustmentLoading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 3 }}>
-              <Alert severity="info" sx={{ width: '100%' }}>Processing adjustment...</Alert>
-            </Box>
+            <Alert severity="info">Processing adjustment...</Alert>
           ) : (
             <>
-              {/* Category Display */}
-              <Box sx={{ mb: 3, p: 2, bgcolor: '#f0f9ff', border: '1px solid #bfdbfe', borderRadius: '8px' }}>
-                <label style={{ display: 'block', fontWeight: 600, fontSize: '0.75rem', marginBottom: '0.5rem', color: '#0369a1', textTransform: 'uppercase' }}>
-                  Selected Category
-                </label>
-                <p style={{ margin: 0, fontWeight: 600, fontSize: '1rem', color: '#0c4a6e' }}>
-                  {categories.find(c => c.cat_id === parseInt(selectedCategory))?.cat_name || 'No category selected'}
-                </p>
-              </Box>
-
-              {/* Purchase & Sale percentage inputs */}
-              <Box sx={{ mb: 3 }}>
-                <label style={{ display: 'block', fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.75rem', color: '#374151' }}>
-                  ⚖️ Apply Percentages
-                </label>
-                <TextField
-                  fullWidth
-                  label="Purchase % (base → purchase)"
-                  type="number"
-                  inputProps={{ step: 0.1 }}
-                  value={purchasePercentage}
-                  onChange={(e) => setPurchasePercentage(e.target.value)}
-                  placeholder="e.g. 10 or -5"
-                  variant="outlined"
-                  size="small"
-                  sx={{ mb: 2, '& .MuiOutlinedInput-root': { fontSize: '1rem' } }}
-                />
-                <TextField
-                  fullWidth
-                  label="Sale % (base → sale price)"
-                  type="number"
-                  inputProps={{ step: 0.1 }}
-                  value={salePercentage}
-                  onChange={(e) => setSalePercentage(e.target.value)}
-                  placeholder="e.g. 15 or -8"
-                  variant="outlined"
-                  size="small"
-                  sx={{ '& .MuiOutlinedInput-root': { fontSize: '1rem' } }}
-                />
-              </Box>
-
-              {/* Info Alert with Formula */}
-              <Alert severity="info" sx={{ mb: 2, bgcolor: '#dbeafe', borderColor: '#93c5fd' }}>
-                <strong>📋 Adjustment Formulas:</strong><br/>
-                - New Purchase Rate (pro_crate) = Base Price × (1 + purchase% / 100)<br/>
-                - New Sale Price (pro_sale_price) = [if purchase% provided → New Purchase Rate, else Base Price] × (1 + sale% / 100)<br/>
-                <strong>Note:</strong> If you provide both purchase% and sale%, the <em>sale%</em> is applied to the updated purchase rate (i.e. sale price is calculated from the new purchase). Both <code>pro_crate</code> and <code>pro_sale_price</code> will be updated; <code>pro_cost_price</code> (internal cost) remains unchanged.<br/>
-                (You can enter positive or negative percentages; leave a field empty to skip it.)
+              <TextField fullWidth label="Purchase % (e.g. 10 or -5)" type="number" inputProps={{ step: 0.1 }}
+                value={purchasePercentage} onChange={(e) => setPurchasePercentage(e.target.value)} size="small" sx={{ mb: 2 }} />
+              <TextField fullWidth label="Sale % (e.g. 15 or -8)" type="number" inputProps={{ step: 0.1 }}
+                value={salePercentage} onChange={(e) => setSalePercentage(e.target.value)} size="small" sx={{ mb: 2 }} />
+              <Alert severity="info" sx={{ fontSize: '0.78rem' }}>
+                New Purchase Rate = Base × (1 + purchase%/100) &nbsp;|&nbsp; New Sale Price = Purchase × (1 + sale%/100)
               </Alert>
             </>
           )}
         </DialogContent>
-
-        <DialogActions sx={{ p: 2, gap: 1, borderTop: '1px solid #e5e7eb', bgcolor: '#f9fafb' }}>
-          <Button
-            onClick={() => {
-              setShowAdjustmentModal(false);
-              setPurchasePercentage('');
-              setSalePercentage('');
-            }}
-            disabled={adjustmentLoading}
-            variant="outlined"
-            sx={{ textTransform: 'none', fontSize: '0.95rem' }}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={applyPriceAdjustment}
-            disabled={adjustmentLoading || (purchasePercentage === '' && salePercentage === '')}
-            variant="contained"
-            sx={{ 
-              bgcolor: '#f97316', 
-              '&:hover': { bgcolor: '#ea580c' },
-              textTransform: 'none',
-              fontSize: '0.95rem',
-              fontWeight: 600,
-              px: 3
-            }}
-          >
-            {adjustmentLoading ? '⏳ Updating...' : '✅ Apply Adjustment'}
+        <DialogActions sx={{ p: 2, borderTop: '1px solid #e5e7eb' }}>
+          <Button onClick={() => { setShowAdjustmentModal(false); setPurchasePercentage(''); setSalePercentage(''); }} disabled={adjustmentLoading} variant="outlined">Cancel</Button>
+          <Button onClick={applyPriceAdjustment} disabled={adjustmentLoading || (purchasePercentage === '' && salePercentage === '')} variant="contained" sx={{ bgcolor: '#f97316', '&:hover': { bgcolor: '#ea580c' } }}>
+            {adjustmentLoading ? 'Updating...' : 'Apply'}
           </Button>
         </DialogActions>
       </Dialog>
