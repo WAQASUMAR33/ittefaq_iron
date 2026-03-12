@@ -101,6 +101,7 @@ export default function ProductsPage() {
     pro_baser_price: '',
     pro_crate: '',
     pro_stock_qnty: '',
+    low_stock_quantity: '',
     pro_unit: '',
     pro_packing: '',
     cat_id: '',
@@ -195,6 +196,7 @@ export default function ProductsPage() {
           pro_baser_price: '',
           pro_crate: '',
           pro_stock_qnty: '',
+          low_stock_quantity: '',
           pro_unit: '',
           pro_packing: '',
           cat_id: '',
@@ -235,6 +237,7 @@ export default function ProductsPage() {
       pro_baser_price: product.pro_baser_price || '',
       pro_crate: product.pro_crate || '',
       pro_stock_qnty: product.pro_stock_qnty || '',
+      low_stock_quantity: product.low_stock_quantity || '',
       pro_unit: product.pro_unit || '',
       pro_packing: product.pro_packing || '',
       cat_id: product.cat_id || '',
@@ -279,6 +282,7 @@ export default function ProductsPage() {
           pro_baser_price: '',
           pro_crate: '',
           pro_stock_qnty: '',
+          low_stock_quantity: '',
           pro_unit: '',
           pro_packing: '',
           cat_id: '',
@@ -618,7 +622,7 @@ export default function ProductsPage() {
   // Calculate stats
   const totalProducts = products.length;
   const totalValue = products.reduce((sum, product) => sum + (parseFloat(product.pro_cost_price) * parseFloat(product.pro_stock_qnty) || 0), 0);
-  const lowStockProducts = products.filter(product => product.pro_stock_qnty < 10).length;
+  const lowStockProducts = products.filter(product => parseFloat(product.pro_stock_qnty) < (product.low_stock_quantity ?? 10)).length;
   const outOfStockProducts = products.filter(product => product.pro_stock_qnty <= 0).length;
 
   // Clear filters
@@ -1657,6 +1661,34 @@ export default function ProductsPage() {
                         value={formData.pro_stock_qnty}
                         onChange={handleFormChange}
                         placeholder="0"
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 2,
+                            fontSize: '0.95rem',
+                            height: '48px',
+                            backgroundColor: 'white',
+                            '&:hover': {
+                              backgroundColor: '#f9fafb'
+                            }
+                          },
+                          '& .MuiInputLabel-root': {
+                            fontSize: '0.95rem',
+                            fontWeight: 500
+                          }
+                        }}
+                      />
+                    </Grid>
+
+                    {/* Low Stock Alert Quantity */}
+                    <Grid item xs={12} sm={6} md={4}>
+                      <TextField
+                        fullWidth
+                        label="Low Stock Alert Qty"
+                        name="low_stock_quantity"
+                        type="number"
+                        value={formData.low_stock_quantity}
+                        onChange={handleFormChange}
+                        placeholder="10"
                         sx={{
                           '& .MuiOutlinedInput-root': {
                             borderRadius: 2,

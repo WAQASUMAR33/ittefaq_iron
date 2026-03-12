@@ -82,7 +82,9 @@ import {
   FilterList as FilterListIcon,
   Clear as ClearIcon,
   Money as MoneyIcon,
-  MoreVert as MoreVertIcon
+  MoreVert as MoreVertIcon,
+  Folder as FolderIcon,
+  FolderOpen as FolderOpenIcon
 } from '@mui/icons-material';
 
 function PurchasesPageContent() {
@@ -281,11 +283,22 @@ function PurchasesPageContent() {
   const [customerCategoryFormData, setCustomerCategoryFormData] = useState({ cus_cat_title: '' });
   const [customerTypeFormData, setCustomerTypeFormData] = useState({ cus_type_title: '' });
   const [cityFormData, setCityFormData] = useState({ city_name: '' });
+  const [showAddProductPopup, setShowAddProductPopup] = useState(false);
+  const [addProductFormData, setAddProductFormData] = useState({ pro_title: '', pro_description: '', cat_id: '', sub_cat_id: '', pro_crate: '', pro_sale_price: '', pro_baser_price: '', pro_cost_price: '', pro_stock_qnty: '', pro_unit: '', pro_packing: '', low_stock_quantity: '10' });
+  const [productCatInput, setProductCatInput] = useState('');
+  const [productSubCatInput, setProductSubCatInput] = useState('');
+  const [showAddProductCategoryPopup, setShowAddProductCategoryPopup] = useState(false);
+  const [addProductCategoryName, setAddProductCategoryName] = useState('');
+  const [showAddProductSubCategoryPopup, setShowAddProductSubCategoryPopup] = useState(false);
+  const [addProductSubCategoryFormData, setAddProductSubCategoryFormData] = useState({ sub_cat_name: '', cat_id: '' });
 
   // Popup loading states
   const [isAddingCustomerCategory, setIsAddingCustomerCategory] = useState(false);
   const [isAddingCustomerType, setIsAddingCustomerType] = useState(false);
   const [isAddingCity, setIsAddingCity] = useState(false);
+  const [isAddingProduct, setIsAddingProduct] = useState(false);
+  const [isAddingProductCategory, setIsAddingProductCategory] = useState(false);
+  const [isAddingProductSubCategory, setIsAddingProductSubCategory] = useState(false);
 
   // Filter states
   const [searchTerm, setSearchTerm] = useState('');
@@ -1819,6 +1832,89 @@ function PurchasesPageContent() {
     }
   };
 
+  // Handle adding product quickly from purchase page
+  const handleAddProductQuick = async (e) => {
+    e?.preventDefault();
+    if (!addProductFormData.pro_title.trim()) { showSnackbar('Product title is required', 'error'); return; }
+    if (!addProductFormData.cat_id) { showSnackbar('Category is required', 'error'); return; }
+    if (!addProductFormData.sub_cat_id) { showSnackbar('Subcategory is required', 'error'); return; }
+    setIsAddingProduct(true);
+    try {
+      const response = await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(addProductFormData)
+      });
+      if (response.ok) {
+        const newProduct = await response.json();
+        setProducts(prev => [newProduct, ...prev]);
+        setShowAddProductPopup(false);
+        setAddProductFormData({ pro_title: '', pro_description: '', cat_id: '', sub_cat_id: '', pro_crate: '', pro_sale_price: '', pro_baser_price: '', pro_cost_price: '', pro_stock_qnty: '', pro_unit: '', pro_packing: '', low_stock_quantity: '10' });
+        setProductCatInput('');
+        setProductSubCatInput('');
+        showSnackbar('Product added successfully!', 'success');
+      } else {
+        const err = await response.json();
+        showSnackbar(err.error || 'Failed to add product', 'error');
+      }
+    } catch (error) {
+      showSnackbar('Error adding product', 'error');
+    } finally {
+      setIsAddingProduct(false);
+    }
+  };
+
+  // Handle adding product category quickly
+  const handleAddProductCategory = async (e) => {
+    e?.preventDefault();
+    if (!addProductCategoryName.trim()) { showSnackbar('Category name is required', 'error'); return; }
+    setIsAddingProductCategory(true);
+    try {
+      const response = await fetch('/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cat_name: addProductCategoryName.trim() })
+      });
+      if (response.ok) {
+        const newCat = await response.json();
+        setCategories(prev => [...prev, newCat]);
+        setShowAddProductCategoryPopup(false);
+        setAddProductCategoryName('');
+        showSnackbar('Product category added!', 'success');
+      } else {
+        const err = await response.json();
+        showSnackbar(err.error || 'Failed to add category', 'error');
+      }
+    } catch { showSnackbar('Error adding category', 'error'); }
+    finally { setIsAddingProductCategory(false); }
+  };
+
+  // Handle adding product subcategory quickly
+  const handleAddProductSubCategory = async (e) => {
+    e?.preventDefault();
+    if (!addProductSubCategoryFormData.sub_cat_name.trim()) { showSnackbar('Subcategory name is required', 'error'); return; }
+    if (!addProductSubCategoryFormData.cat_id) { showSnackbar('Please select a category', 'error'); return; }
+    setIsAddingProductSubCategory(true);
+    try {
+      const response = await fetch('/api/subcategories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(addProductSubCategoryFormData)
+      });
+      if (response.ok) {
+        const newSub = await response.json();
+        setSubcategories(prev => [...prev, newSub]);
+        setShowAddProductSubCategoryPopup(false);
+        setAddProductSubCategoryFormData({ sub_cat_name: '', cat_id: '' });
+        showSnackbar('Product subcategory added!', 'success');
+      } else {
+        const err = await response.json();
+        showSnackbar(err.error || 'Failed to add subcategory', 'error');
+      }
+    } catch { showSnackbar('Error adding subcategory', 'error'); }
+    finally { setIsAddingProductSubCategory(false); }
+  };
+
   // Handle adding customer type
   const handleAddCustomerType = async (e) => {
     e?.preventDefault();
@@ -2671,7 +2767,7 @@ function PurchasesPageContent() {
               </Typography>
               <Box sx={{ display: 'flex', gap: 2 }}>
                 {purchaseType === 'new' && (
-                  <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                     <Button
                       variant="contained"
                       startIcon={<AddIcon />}
@@ -2682,6 +2778,30 @@ function PurchasesPageContent() {
                       }}
                     >
                       + New Supplier
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      startIcon={<PackageIcon />}
+                      onClick={() => setShowAddProductPopup(true)}
+                      sx={{ borderColor: 'info.main', color: 'info.main', '&:hover': { borderColor: 'info.dark', backgroundColor: 'info.light', color: 'info.dark' } }}
+                    >
+                      Add Product
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      startIcon={<FolderIcon />}
+                      onClick={() => setShowAddProductCategoryPopup(true)}
+                      sx={{ borderColor: 'success.main', color: 'success.main', '&:hover': { borderColor: 'success.dark', backgroundColor: 'success.light', color: 'success.dark' } }}
+                    >
+                      Add Product Category
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      startIcon={<FolderOpenIcon />}
+                      onClick={() => setShowAddProductSubCategoryPopup(true)}
+                      sx={{ borderColor: 'secondary.main', color: 'secondary.main', '&:hover': { borderColor: 'secondary.dark', backgroundColor: 'secondary.light', color: 'secondary.dark' } }}
+                    >
+                      Add Product Sub Category
                     </Button>
                   </Box>
                 )}
@@ -4382,6 +4502,49 @@ function PurchasesPageContent() {
                 >
                   Add City
                 </Button>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<PackageIcon />}
+                  onClick={() => setShowAddProductPopup(true)}
+                  sx={{
+                    borderColor: 'info.main',
+                    color: 'info.main',
+                    '&:hover': {
+                      borderColor: 'info.dark',
+                      backgroundColor: 'info.light',
+                      color: 'info.dark'
+                    }
+                  }}
+                >
+                  Add Product
+                </Button>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<FolderIcon />}
+                  onClick={() => setShowAddProductCategoryPopup(true)}
+                  sx={{
+                    borderColor: '#16a34a',
+                    color: '#16a34a',
+                    '&:hover': { borderColor: '#15803d', backgroundColor: '#f0fdf4', color: '#15803d' }
+                  }}
+                >
+                  Add Product Category
+                </Button>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<FolderOpenIcon />}
+                  onClick={() => setShowAddProductSubCategoryPopup(true)}
+                  sx={{
+                    borderColor: '#7c3aed',
+                    color: '#7c3aed',
+                    '&:hover': { borderColor: '#6d28d9', backgroundColor: '#f5f3ff', color: '#6d28d9' }
+                  }}
+                >
+                  Add Product Sub Category
+                </Button>
               </Box>
             </Box>
 
@@ -5246,6 +5409,233 @@ function PurchasesPageContent() {
             }}
           >
             {isAddingCustomerCategory ? 'Adding...' : 'Add Category'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Add Product Popup */}
+      <Dialog open={showAddProductPopup} onClose={() => setShowAddProductPopup(false)} maxWidth="md" fullWidth
+        PaperProps={{ sx: { borderRadius: 3, background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.9) 100%)', backdropFilter: 'blur(20px)', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' } }}>
+        <DialogTitle sx={{ background: 'linear-gradient(45deg, #2196F3 30%, #9C27B0 90%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <Avatar sx={{ width: 48, height: 48, mr: 2, bgcolor: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)' }}>
+              <PackageIcon />
+            </Avatar>
+            <Box>
+              <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>Add New Product</Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>Create a new product in your inventory</Typography>
+            </Box>
+          </Box>
+          <IconButton onClick={() => setShowAddProductPopup(false)} sx={{ color: 'white', bgcolor: 'rgba(255,255,255,0.2)', '&:hover': { bgcolor: 'rgba(255,255,255,0.3)', transform: 'scale(1.1)' }, transition: 'all 0.2s ease-in-out' }}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ p: 0, bgcolor: '#f8fafc' }}>
+          <Box sx={{ p: 3, pb: 2, display: 'flex', gap: 2, flexWrap: 'wrap', borderBottom: '1px solid #e2e8f0', bgcolor: 'white' }}>
+            <Button variant="outlined" size="small" startIcon={<AddIcon />} onClick={() => setShowAddProductCategoryPopup(true)}
+              sx={{ borderColor: '#2196F3', color: '#2196F3', '&:hover': { borderColor: '#1976D2', backgroundColor: 'rgba(33,150,243,0.04)' } }}>
+              Add Category
+            </Button>
+            <Button variant="outlined" size="small" startIcon={<AddIcon />} onClick={() => setShowAddProductSubCategoryPopup(true)}
+              sx={{ borderColor: '#9C27B0', color: '#9C27B0', '&:hover': { borderColor: '#7B1FA2', backgroundColor: 'rgba(156,39,176,0.04)' } }}>
+              Add Subcategory
+            </Button>
+          </Box>
+          <Box sx={{ p: 3, maxHeight: '70vh', overflowY: 'auto' }}>
+            {/* Basic Information */}
+            <Box sx={{ mb: 4 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1e293b', mb: 2, pb: 1.5, borderBottom: '2px solid #2196F3', display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: '#2196F3' }} />
+                Basic Information
+              </Typography>
+              <Grid container spacing={2.5}>
+                <Grid item xs={12}>
+                  <TextField fullWidth required label="Product Title"
+                    value={addProductFormData.pro_title}
+                    onChange={(e) => setAddProductFormData(prev => ({ ...prev, pro_title: e.target.value }))}
+                    disabled={isAddingProduct} placeholder="Enter product title"
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, height: '48px', bgcolor: 'white' }, '& .MuiInputLabel-root': { fontWeight: 500 } }} />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField fullWidth multiline rows={3} label="Description"
+                    value={addProductFormData.pro_description}
+                    onChange={(e) => setAddProductFormData(prev => ({ ...prev, pro_description: e.target.value }))}
+                    disabled={isAddingProduct} placeholder="Enter product description"
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: 'white' }, '& .MuiInputLabel-root': { fontWeight: 500 } }} />
+                </Grid>
+              </Grid>
+            </Box>
+            {/* Category & Classification */}
+            <Box sx={{ mb: 4 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1e293b', mb: 2, pb: 1.5, borderBottom: '2px solid #9C27B0', display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: '#9C27B0' }} />
+                Category &amp; Classification
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                <Box sx={{ flex: '1 1 45%', minWidth: '280px' }}>
+                  <Autocomplete
+                    options={categories}
+                    getOptionLabel={(opt) => opt.cat_name || ''}
+                    value={categories.find(c => c.cat_id === addProductFormData.cat_id) || null}
+                    onChange={(_, v) => setAddProductFormData(prev => ({ ...prev, cat_id: v?.cat_id || '', sub_cat_id: '' }))}
+                    inputValue={productCatInput}
+                    onInputChange={(_, v) => setProductCatInput(v)}
+                    disabled={isAddingProduct}
+                    renderInput={(params) => <TextField {...params} label="Category" required placeholder="Select category" />}
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, height: '60px', bgcolor: 'white', px: 2 }, '& .MuiInputLabel-root': { fontWeight: 500 } }}
+                  />
+                </Box>
+                <Box sx={{ flex: '1 1 45%', minWidth: '280px' }}>
+                  <Autocomplete
+                    options={subcategories.filter(s => s.cat_id === addProductFormData.cat_id)}
+                    getOptionLabel={(opt) => opt.sub_cat_name || ''}
+                    value={subcategories.find(s => s.sub_cat_id === addProductFormData.sub_cat_id) || null}
+                    onChange={(_, v) => setAddProductFormData(prev => ({ ...prev, sub_cat_id: v?.sub_cat_id || '' }))}
+                    inputValue={productSubCatInput}
+                    onInputChange={(_, v) => setProductSubCatInput(v)}
+                    disabled={isAddingProduct || !addProductFormData.cat_id}
+                    renderInput={(params) => <TextField {...params} label="Subcategory" required placeholder="Select subcategory" disabled={!addProductFormData.cat_id} />}
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, height: '60px', bgcolor: 'white', px: 2 }, '& .MuiInputLabel-root': { fontWeight: 500 } }}
+                  />
+                </Box>
+              </Box>
+            </Box>
+            {/* Pricing Information */}
+            <Box sx={{ mb: 4 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1e293b', mb: 2, pb: 1.5, borderBottom: '2px solid #16a34a', display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: '#16a34a' }} />
+                Pricing Information
+              </Typography>
+              <Grid container spacing={2.5}>
+                {[
+                  { label: 'Purchase Cost', field: 'pro_crate' },
+                  { label: 'Sale Price', field: 'pro_sale_price' },
+                  { label: 'Base Price', field: 'pro_baser_price' },
+                  { label: 'Cost Price', field: 'pro_cost_price' },
+                ].map(({ label, field }) => (
+                  <Grid item xs={12} sm={6} md={3} key={field}>
+                    <TextField fullWidth label={label} type="number" inputProps={{ step: '0.01' }}
+                      value={addProductFormData[field]}
+                      onChange={(e) => setAddProductFormData(prev => ({ ...prev, [field]: e.target.value }))}
+                      disabled={isAddingProduct} placeholder="0.00"
+                      InputProps={{ startAdornment: <InputAdornment position="start" sx={{ fontWeight: 600 }}>Rs</InputAdornment> }}
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, height: '48px', bgcolor: 'white' }, '& .MuiInputLabel-root': { fontWeight: 500 } }} />
+                  </Grid>
+                ))}
+              </Grid>
+            </Box>
+            {/* Inventory Details */}
+            <Box>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1e293b', mb: 2, pb: 1.5, borderBottom: '2px solid #d97706', display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: '#d97706' }} />
+                Inventory Details
+              </Typography>
+              <Grid container spacing={2.5}>
+                {[
+                  { label: 'Stock Quantity', field: 'pro_stock_qnty', placeholder: '0', type: 'number' },
+                  { label: 'Low Stock Alert Qty', field: 'low_stock_quantity', placeholder: '10', type: 'number' },
+                  { label: 'Unit', field: 'pro_unit', placeholder: 'e.g., pieces, kg', type: 'text' },
+                ].map(({ label, field, placeholder, type }) => (
+                  <Grid item xs={12} sm={6} md={4} key={field}>
+                    <TextField fullWidth label={label} type={type}
+                      value={addProductFormData[field]}
+                      onChange={(e) => setAddProductFormData(prev => ({ ...prev, [field]: e.target.value }))}
+                      disabled={isAddingProduct} placeholder={placeholder}
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, height: '48px', bgcolor: 'white' }, '& .MuiInputLabel-root': { fontWeight: 500 } }} />
+                  </Grid>
+                ))}
+                <Grid item xs={12}>
+                  <TextField fullWidth label="Packing"
+                    value={addProductFormData.pro_packing}
+                    onChange={(e) => setAddProductFormData(prev => ({ ...prev, pro_packing: e.target.value }))}
+                    disabled={isAddingProduct} placeholder="Enter packing information"
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, minHeight: '48px', bgcolor: 'white' }, '& .MuiInputLabel-root': { fontWeight: 500 } }} />
+                </Grid>
+              </Grid>
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 3, gap: 2, borderTop: '1px solid #e2e8f0', bgcolor: 'white', justifyContent: 'flex-end' }}>
+          <Button onClick={() => setShowAddProductPopup(false)} variant="outlined"
+            sx={{ borderColor: '#cbd5e1', color: '#64748b', padding: '8px 24px', borderRadius: 1.5, textTransform: 'none', fontWeight: 600, '&:hover': { borderColor: '#94a3b8', backgroundColor: '#f1f5f9' } }}>
+            Cancel
+          </Button>
+          <Button variant="contained" onClick={handleAddProductQuick} disabled={isAddingProduct}
+            startIcon={isAddingProduct ? <CircularProgress size={20} /> : <SaveIcon />}
+            sx={{ background: 'linear-gradient(45deg, #2196f3, #9c27b0)', px: 4, py: 1, borderRadius: 1.5, textTransform: 'none', fontWeight: 600, boxShadow: 3, transition: 'all 0.2s ease-in-out', '&:hover': { background: 'linear-gradient(45deg, #1976d2, #7b1fa2)', boxShadow: 6, transform: 'translateY(-2px)' }, '&:disabled': { background: 'linear-gradient(45deg, #90caf9, #ce93d8)', color: 'rgba(255,255,255,0.7)' } }}>
+            {isAddingProduct ? 'Saving...' : 'Create Product'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Add Product Category Popup */}
+      <Dialog open={showAddProductCategoryPopup} onClose={() => setShowAddProductCategoryPopup(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ background: 'linear-gradient(45deg, #16a34a 30%, #15803d 90%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', mr: 2, width: 36, height: 36 }}><FolderIcon /></Avatar>
+            <Typography variant="h6" sx={{ fontWeight: 'bold' }}>Add Product Category</Typography>
+          </Box>
+          <IconButton onClick={() => setShowAddProductCategoryPopup(false)} sx={{ color: 'white' }}><CloseIcon /></IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ p: 3 }}>
+          <TextField
+            fullWidth required autoFocus
+            label="Category Name"
+            value={addProductCategoryName}
+            onChange={(e) => setAddProductCategoryName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleAddProductCategory(e)}
+            disabled={isAddingProductCategory}
+            placeholder="Enter category name"
+            sx={{ mt: 2 }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
+          <Button onClick={() => setShowAddProductCategoryPopup(false)} sx={{ textTransform: 'none' }}>Cancel</Button>
+          <Button variant="contained" onClick={handleAddProductCategory} disabled={isAddingProductCategory}
+            sx={{ background: 'linear-gradient(45deg, #16a34a 30%, #15803d 90%)', textTransform: 'none' }}>
+            {isAddingProductCategory ? 'Adding...' : 'Add Category'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Add Product Sub Category Popup */}
+      <Dialog open={showAddProductSubCategoryPopup} onClose={() => setShowAddProductSubCategoryPopup(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ background: 'linear-gradient(45deg, #7c3aed 30%, #6d28d9 90%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', mr: 2, width: 36, height: 36 }}><FolderOpenIcon /></Avatar>
+            <Typography variant="h6" sx={{ fontWeight: 'bold' }}>Add Product Sub Category</Typography>
+          </Box>
+          <IconButton onClick={() => setShowAddProductSubCategoryPopup(false)} sx={{ color: 'white' }}><CloseIcon /></IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ p: 3 }}>
+          <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <FormControl fullWidth required>
+              <InputLabel>Category</InputLabel>
+              <Select
+                value={addProductSubCategoryFormData.cat_id}
+                label="Category"
+                onChange={(e) => setAddProductSubCategoryFormData(prev => ({ ...prev, cat_id: e.target.value }))}
+                disabled={isAddingProductSubCategory}
+              >
+                {categories.map(c => <MenuItem key={c.cat_id} value={c.cat_id}>{c.cat_name}</MenuItem>)}
+              </Select>
+            </FormControl>
+            <TextField
+              fullWidth required
+              label="Sub Category Name"
+              value={addProductSubCategoryFormData.sub_cat_name}
+              onChange={(e) => setAddProductSubCategoryFormData(prev => ({ ...prev, sub_cat_name: e.target.value }))}
+              onKeyDown={(e) => e.key === 'Enter' && handleAddProductSubCategory(e)}
+              disabled={isAddingProductSubCategory}
+              placeholder="Enter subcategory name"
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
+          <Button onClick={() => setShowAddProductSubCategoryPopup(false)} sx={{ textTransform: 'none' }}>Cancel</Button>
+          <Button variant="contained" onClick={handleAddProductSubCategory} disabled={isAddingProductSubCategory}
+            sx={{ background: 'linear-gradient(45deg, #7c3aed 30%, #6d28d9 90%)', textTransform: 'none' }}>
+            {isAddingProductSubCategory ? 'Adding...' : 'Add Sub Category'}
           </Button>
         </DialogActions>
       </Dialog>

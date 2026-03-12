@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import {
   Box,
   Drawer,
@@ -15,10 +16,12 @@ import {
   Divider,
   Collapse,
   Tooltip,
+  InputBase,
   useTheme,
   useMediaQuery
 } from '@mui/material';
 import {
+  Search as SearchIcon,
   Dashboard as DashboardIcon,
   People as PeopleIcon,
   Inventory as InventoryIcon,
@@ -59,6 +62,8 @@ export default function Sidebar({
   handleLogout
 }) {
   const router = useRouter();
+  const [searchQuery, setSearchQuery] = useState('');
+
   const menuItems = [
     { id: 'dashboard', name: 'Dashboard', icon: DashboardIcon, category: 'main' },
     { id: 'orders', name: 'Orders', icon: DescriptionIcon, category: 'main' },
@@ -122,6 +127,11 @@ export default function Sidebar({
     { id: 'store-stock', name: 'Store Stock', icon: InventoryIcon, category: 'system', parent: 'System' },
     { id: 'stock-transfer', name: 'Stock Transfer', icon: SwapHorizIcon, category: 'system', parent: 'System' }
   ];
+
+  const isSearching = searchQuery.trim().length > 0;
+  const filteredItems = isSearching
+    ? menuItems.filter(item => item.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    : menuItems;
 
   const toggleDropdown = (category) => {
     setExpandedDropdowns(prev => ({
@@ -235,8 +245,9 @@ export default function Sidebar({
   const drawerWidth = 320;
 
   const renderMenuSection = (category, title, icon) => {
-    const items = menuItems.filter(item => item.category === category);
-    const isExpanded = expandedDropdowns[category];
+    const items = filteredItems.filter(item => item.category === category);
+    if (isSearching && items.length === 0) return null;
+    const isExpanded = isSearching ? true : expandedDropdowns[category];
 
     return (
       <Box key={category}>
@@ -340,10 +351,45 @@ export default function Sidebar({
         )}
       </Box>
 
+      {/* Search Bar */}
+      <Box sx={{ px: 2, py: 1.5, borderBottom: 1, borderColor: 'divider' }}>
+        <Box sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          px: 1.5,
+          py: 0.75,
+          borderRadius: 2,
+          border: 1,
+          borderColor: 'divider',
+          backgroundColor: 'action.hover',
+          '&:focus-within': {
+            borderColor: 'primary.main',
+            backgroundColor: 'background.paper',
+          }
+        }}>
+          <SearchIcon sx={{ color: 'text.secondary', fontSize: 18 }} />
+          <InputBase
+            placeholder="Search menu..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            fullWidth
+            sx={{ fontSize: 13 }}
+            inputProps={{ 'aria-label': 'search sidebar menu' }}
+          />
+          {searchQuery && (
+            <IconButton size="small" onClick={() => setSearchQuery('')} sx={{ p: 0.25 }}>
+              <CloseIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          )}
+        </Box>
+      </Box>
+
       {/* Navigation */}
       <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
         <List>
           {/* Dashboard */}
+          {(!isSearching || filteredItems.some(i => i.category === 'main')) && (
           <Box sx={{ mb: 2 }}>
             <Typography variant="overline" sx={{
               px: 2,
@@ -354,7 +400,7 @@ export default function Sidebar({
             }}>
               Overview
             </Typography>
-            {menuItems.filter(item => item.category === 'main').map((item) => (
+            {filteredItems.filter(item => item.category === 'main').map((item) => (
               <ListItemButton
                 key={item.id}
                 onClick={() => handleNavigation(item.id)}
@@ -381,6 +427,7 @@ export default function Sidebar({
               </ListItemButton>
             ))}
           </Box>
+          )}
 
           {/* Menu Sections */}
           {renderMenuSection('customer-management', 'Account Management', <PeopleIcon />)}
@@ -392,6 +439,7 @@ export default function Sidebar({
           {renderMenuSection('reports', 'Reports', <DashboardIcon />)}
 
           {/* System */}
+          {(!isSearching || filteredItems.some(i => i.category === 'system')) && (
           <Box sx={{ mb: 2 }}>
             <Typography variant="overline" sx={{
               px: 2,
@@ -402,7 +450,7 @@ export default function Sidebar({
             }}>
               System
             </Typography>
-            {menuItems.filter(item => item.category === 'system').map((item) => (
+            {filteredItems.filter(item => item.category === 'system').map((item) => (
               <ListItemButton
                 key={item.id}
                 onClick={() => handleNavigation(item.id)}
@@ -429,6 +477,16 @@ export default function Sidebar({
               </ListItemButton>
             ))}
           </Box>
+          )}
+
+          {/* No results */}
+          {isSearching && filteredItems.length === 0 && (
+            <Box sx={{ px: 2, py: 4, textAlign: 'center' }}>
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                No results for "{searchQuery}"
+              </Typography>
+            </Box>
+          )}
         </List>
       </Box>
 
