@@ -350,7 +350,9 @@ export default function ProductsPage() {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: value,
+      // When purchase cost changes, auto-sync cost price
+      ...(name === 'pro_crate' ? { pro_cost_price: value } : {})
     }));
   };
 

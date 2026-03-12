@@ -5519,21 +5519,38 @@ function PurchasesPageContent() {
                 Pricing Information
               </Typography>
               <Grid container spacing={2.5}>
-                {[
-                  { label: 'Purchase Cost', field: 'pro_crate' },
-                  { label: 'Sale Price', field: 'pro_sale_price' },
-                  { label: 'Base Price', field: 'pro_baser_price' },
-                  { label: 'Cost Price', field: 'pro_cost_price' },
-                ].map(({ label, field }) => (
-                  <Grid item xs={12} sm={6} md={3} key={field}>
-                    <TextField fullWidth label={label} type="number" inputProps={{ step: '0.01' }}
-                      value={addProductFormData[field]}
-                      onChange={(e) => setAddProductFormData(prev => ({ ...prev, [field]: e.target.value }))}
-                      disabled={isAddingProduct} placeholder="0.00"
-                      InputProps={{ startAdornment: <InputAdornment position="start" sx={{ fontWeight: 600 }}>Rs</InputAdornment> }}
-                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, height: '48px', bgcolor: 'white' }, '& .MuiInputLabel-root': { fontWeight: 500 } }} />
-                  </Grid>
-                ))}
+                <Grid item xs={12} sm={6} md={3}>
+                  <TextField fullWidth label="Purchase Cost" type="number" inputProps={{ step: '0.01' }}
+                    value={addProductFormData.pro_crate}
+                    onChange={(e) => setAddProductFormData(prev => ({ ...prev, pro_crate: e.target.value, pro_cost_price: e.target.value }))}
+                    disabled={isAddingProduct} placeholder="0.00"
+                    InputProps={{ startAdornment: <InputAdornment position="start" sx={{ fontWeight: 600 }}>Rs</InputAdornment> }}
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, height: '48px', bgcolor: 'white' }, '& .MuiInputLabel-root': { fontWeight: 500 } }} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <TextField fullWidth label="Sale Price" type="number" inputProps={{ step: '0.01' }}
+                    value={addProductFormData.pro_sale_price}
+                    onChange={(e) => setAddProductFormData(prev => ({ ...prev, pro_sale_price: e.target.value }))}
+                    disabled={isAddingProduct} placeholder="0.00"
+                    InputProps={{ startAdornment: <InputAdornment position="start" sx={{ fontWeight: 600 }}>Rs</InputAdornment> }}
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, height: '48px', bgcolor: 'white' }, '& .MuiInputLabel-root': { fontWeight: 500 } }} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <TextField fullWidth label="Base Price" type="number" inputProps={{ step: '0.01' }}
+                    value={addProductFormData.pro_baser_price}
+                    onChange={(e) => setAddProductFormData(prev => ({ ...prev, pro_baser_price: e.target.value }))}
+                    disabled={isAddingProduct} placeholder="0.00"
+                    InputProps={{ startAdornment: <InputAdornment position="start" sx={{ fontWeight: 600 }}>Rs</InputAdornment> }}
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, height: '48px', bgcolor: 'white' }, '& .MuiInputLabel-root': { fontWeight: 500 } }} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <TextField fullWidth label="Cost Price" type="number" inputProps={{ step: '0.01' }}
+                    value={addProductFormData.pro_cost_price}
+                    onChange={(e) => setAddProductFormData(prev => ({ ...prev, pro_cost_price: e.target.value }))}
+                    disabled={isAddingProduct} placeholder="0.00"
+                    InputProps={{ startAdornment: <InputAdornment position="start" sx={{ fontWeight: 600 }}>Rs</InputAdornment> }}
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, height: '48px', bgcolor: 'white' }, '& .MuiInputLabel-root': { fontWeight: 500 } }} />
+                </Grid>
               </Grid>
             </Box>
             {/* Inventory Details */}
