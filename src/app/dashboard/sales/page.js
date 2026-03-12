@@ -67,7 +67,9 @@ import {
   Info as InfoIcon,
   Save as SaveIcon,
   Folder as FolderIcon,
-  FolderOpen as FolderOpenIcon
+  FolderOpen as FolderOpenIcon,
+  ArrowUpward as ArrowUpIcon,
+  ArrowDownward as ArrowDownIcon
 } from '@mui/icons-material';
 
 function SalesPageContent() {
@@ -893,6 +895,16 @@ function SalesPageContent() {
   const handleRemoveProductFromTable = (productId) => {
     setProductTableData(prev => prev.filter(item => item.id !== productId));
     showSnackbar('Product removed from table', 'success');
+  };
+
+  const moveProductRow = (index, direction) => {
+    setProductTableData(prev => {
+      const next = [...prev];
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= next.length) return prev;
+      [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+      return next;
+    });
   };
 
   const calculateTotalAmount = () => {
@@ -3932,14 +3944,15 @@ function SalesPageContent() {
               <TableContainer component={Paper} sx={{ mb: 2, border: '1px solid #e9ecef' }}>
                 <Table size="small">
                   <TableHead>
-                    <TableRow sx={{ bgcolor: '#f8f9fa' }}>
-                      <TableCell sx={{ fontWeight: 'bold', py: 1 }}>S. No</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', py: 1 }}>Store</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', py: 1 }}>Product</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', py: 1 }}>Qty</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', py: 1 }}>Sale Price</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', py: 1 }}>Amount</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', py: 1 }}>Actions</TableCell>
+                    <TableRow sx={{ bgcolor: '#343a40' }}>
+                      <TableCell sx={{ fontWeight: 'bold', py: 1, color: 'white' }}>S. No</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', py: 1, color: 'white' }}>Store</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', py: 1, color: 'white' }}>Product</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', py: 1, color: 'white' }}>Qty</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', py: 1, color: 'white' }}>Sale Price</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', py: 1, color: 'white' }}>Amount</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', py: 1, color: 'white' }}>Move</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', py: 1, color: 'white' }}>Delete</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -3952,11 +3965,28 @@ function SalesPageContent() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      productTableData.map((product, index) => (
-                        <TableRow key={product.id} sx={{ '&:hover': { bgcolor: '#f8f9fa' } }}>
-                          <TableCell sx={{ py: 1 }}>{index + 1}</TableCell>
-                          <TableCell sx={{ py: 1 }}>{product.store_name}</TableCell>
-                          <TableCell sx={{ py: 1 }}>{product.pro_title}</TableCell>
+                      productTableData.map((product, index) => {
+                        const rowColors = [
+                          '#e8f4fd', // light blue
+                          '#e8f8f0', // light green
+                          '#f3e8fd', // light purple
+                          '#fef9e7', // light yellow
+                          '#fdecea', // light red
+                          '#e8f6fd', // light cyan
+                        ];
+                        const rowBg = rowColors[index % rowColors.length];
+                        return (
+                        <TableRow
+                          key={product.id}
+                          sx={{
+                            bgcolor: rowBg,
+                            '&:hover': { filter: 'brightness(0.96)' },
+                            transition: 'background-color 0.15s'
+                          }}
+                        >
+                          <TableCell sx={{ py: 1, fontWeight: 'bold', color: 'text.secondary', fontSize: '0.8rem' }}>{index + 1}</TableCell>
+                          <TableCell sx={{ py: 1, fontWeight: 600 }}>{product.store_name}</TableCell>
+                          <TableCell sx={{ py: 1, fontWeight: 700 }}>{product.pro_title}</TableCell>
                           <TableCell sx={{ py: 1 }}>
                             <TextField
                               size="small"
@@ -3982,13 +4012,11 @@ function SalesPageContent() {
                                 width: 80,
                                 '& .MuiInputBase-input': {
                                   padding: '4px 8px',
-                                  textAlign: 'center'
+                                  textAlign: 'center',
+                                  fontWeight: 'bold'
                                 }
                               }}
-                              inputProps={{
-                                min: 0.01,
-                                step: 'any'
-                              }}
+                              inputProps={{ min: 0.01, step: 'any' }}
                             />
                           </TableCell>
                           <TableCell sx={{ py: 1 }}>
@@ -4016,16 +4044,42 @@ function SalesPageContent() {
                                 width: 100,
                                 '& .MuiInputBase-input': {
                                   padding: '4px 8px',
-                                  textAlign: 'center'
+                                  textAlign: 'center',
+                                  fontWeight: 'bold'
                                 }
                               }}
-                              inputProps={{
-                                min: 0,
-                                step: 'any'
-                              }}
+                              inputProps={{ min: 0, step: 'any' }}
                             />
                           </TableCell>
-                          <TableCell sx={{ py: 1 }}>{parseFloat(product.amount || 0).toFixed(2)}</TableCell>
+                          <TableCell sx={{ py: 1, fontWeight: 'bold' }}>{parseFloat(product.amount || 0).toFixed(2)}</TableCell>
+                          <TableCell sx={{ py: 1 }}>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                              <Tooltip title="Move up">
+                                <span>
+                                  <IconButton
+                                    size="small"
+                                    disabled={index === 0}
+                                    onClick={() => moveProductRow(index, -1)}
+                                    sx={{ p: 0.25, color: 'primary.main', '&:disabled': { opacity: 0.3 } }}
+                                  >
+                                    <ArrowUpIcon sx={{ fontSize: 16 }} />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+                              <Tooltip title="Move down">
+                                <span>
+                                  <IconButton
+                                    size="small"
+                                    disabled={index === productTableData.length - 1}
+                                    onClick={() => moveProductRow(index, 1)}
+                                    sx={{ p: 0.25, color: 'primary.main', '&:disabled': { opacity: 0.3 } }}
+                                  >
+                                    <ArrowDownIcon sx={{ fontSize: 16 }} />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+                            </Box>
+                          </TableCell>
                           <TableCell sx={{ py: 1 }}>
                             <IconButton
                               size="small"
@@ -4036,17 +4090,17 @@ function SalesPageContent() {
                             </IconButton>
                           </TableCell>
                         </TableRow>
-                      ))
+                        );
+                      })
                     )}
                     {productTableData.length > 0 && (
-                      <TableRow sx={{ bgcolor: '#f8f9fa', borderTop: '2px solid #dee2e6' }}>
-                        <TableCell colSpan={5} sx={{ py: 2, fontWeight: 'bold', textAlign: 'right' }}>
+                      <TableRow sx={{ bgcolor: '#343a40', borderTop: '2px solid #dee2e6' }}>
+                        <TableCell colSpan={6} sx={{ py: 2, fontWeight: 'bold', textAlign: 'right', color: 'white' }}>
                           Total Amount:
                         </TableCell>
-                        <TableCell sx={{ py: 2, fontWeight: 'bold', fontSize: '1.1rem' }} key={`table-total-${calculateTotalAmount()}-${transportOptions.length}`}>
+                        <TableCell colSpan={2} sx={{ py: 2, fontWeight: 'bold', fontSize: '1.1rem', color: 'white' }} key={`table-total-${calculateTotalAmount()}-${transportOptions.length}`}>
                           {Number(calculateTotalAmount()).toFixed(2)}
                         </TableCell>
-                        <TableCell sx={{ py: 2 }}></TableCell>
                       </TableRow>
                     )}
                   </TableBody>
