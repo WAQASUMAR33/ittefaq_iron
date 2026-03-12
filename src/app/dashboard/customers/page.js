@@ -446,10 +446,15 @@ export default function CustomersPage() {
   // Filter customers based on search and filter criteria
   const filteredCustomers = customers
     .filter(customer => {
-      const matchesSearch = customer.cus_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        customer.cus_phone_no.includes(searchTerm) ||
-        customer.cus_address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        customer.cus_reference?.toLowerCase().includes(searchTerm.toLowerCase());
+      const q = searchTerm.toLowerCase();
+      const city = cities.find(c => c.city_id === customer.city_id);
+      const matchesSearch = !q ||
+        (customer.cus_name || '').toLowerCase().includes(q) ||
+        (customer.cus_phone_no || '').toLowerCase().includes(q) ||
+        (customer.cus_phone_no2 || '').toLowerCase().includes(q) ||
+        (customer.cus_address || '').toLowerCase().includes(q) ||
+        (customer.cus_reference || '').toLowerCase().includes(q) ||
+        (city?.city_name || '').toLowerCase().includes(q);
 
       const matchesType = typeFilter === 'all' || customer.cus_type === typeFilter;
       const matchesCategory = categoryFilter === 'all' || customer.customer_category?.cus_cat_title === categoryFilter;
@@ -616,7 +621,7 @@ export default function CustomersPage() {
                   <TextField
                     fullWidth
                     label="Search"
-                    placeholder="Search accounts..."
+                    placeholder="Search by name, phone, address, city, reference..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     InputProps={{

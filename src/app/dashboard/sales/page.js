@@ -3472,6 +3472,18 @@ function SalesPageContent() {
                         return category && category.cus_cat_title.toLowerCase().includes('customer');
                       })}
                       getOptionLabel={(option) => option.cus_name || ''}
+                      filterOptions={(options, { inputValue }) => {
+                        const q = inputValue.toLowerCase().trim();
+                        if (!q) return options;
+                        return options.filter(o =>
+                          (o.cus_name || '').toLowerCase().includes(q) ||
+                          (o.cus_phone_no || '').toLowerCase().includes(q) ||
+                          (o.cus_phone_no2 || '').toLowerCase().includes(q) ||
+                          (o.cus_address || '').toLowerCase().includes(q) ||
+                          (o.cus_reference || '').toLowerCase().includes(q) ||
+                          (o.city?.city_name || '').toLowerCase().includes(q)
+                        );
+                      }}
                       value={formSelectedCustomer}
                       onChange={(event, newValue) => {
                         setFormSelectedCustomer(newValue);
@@ -3499,10 +3511,23 @@ function SalesPageContent() {
                           }
                         }
                       }}
+                      renderOption={(props, option) => {
+                        const { key, ...optionProps } = props;
+                        return (
+                          <Box component="li" key={option.cus_id} {...optionProps}>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', py: 0.5 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{option.cus_name}</Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {[option.cus_phone_no, option.cus_address, option.city?.city_name, option.cus_reference].filter(Boolean).join(' • ')}
+                              </Typography>
+                            </Box>
+                          </Box>
+                        );
+                      }}
                       renderInput={(params) => (
                         <TextField
                           {...params}
-                          placeholder="Select customer"
+                          placeholder="Search by name, phone, address, city, reference"
                           onFocus={(e) => e.target.select()}
                           sx={{ bgcolor: 'white', minWidth: 250, '& .MuiInputBase-input': { fontWeight: formSelectedCustomer ? 'bold' : 'normal' } }}
                         />

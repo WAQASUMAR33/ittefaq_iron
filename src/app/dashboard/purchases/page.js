@@ -2994,7 +2994,19 @@ function PurchasesPageContent() {
                         }}
                         onClose={() => setCustomerDropdownOpen(false)}
                         options={suppliers}
-                        getOptionLabel={(option) => option.cus_name}
+                        getOptionLabel={(option) => option.cus_name || ''}
+                        filterOptions={(options, { inputValue }) => {
+                          const q = inputValue.toLowerCase().trim();
+                          if (!q) return options;
+                          return options.filter(o =>
+                            (o.cus_name || '').toLowerCase().includes(q) ||
+                            (o.cus_phone_no || '').toLowerCase().includes(q) ||
+                            (o.cus_phone_no2 || '').toLowerCase().includes(q) ||
+                            (o.cus_address || '').toLowerCase().includes(q) ||
+                            (o.cus_reference || '').toLowerCase().includes(q) ||
+                            (o.city?.city_name || '').toLowerCase().includes(q)
+                          );
+                        }}
                         value={formSelectedCustomer}
                         onChange={(event, newValue) => {
                           if (newValue) {
@@ -3038,7 +3050,7 @@ function PurchasesPageContent() {
                         renderInput={(params) => (
                           <TextField
                             {...params}
-                            placeholder="Select supplier..."
+                            placeholder="Search by name, phone, address, city, reference"
                             onFocus={(e) => e.target.select()}
                             sx={{
                               width: '100%',
@@ -3067,7 +3079,7 @@ function PurchasesPageContent() {
                                     {option.cus_name}
                                   </Typography>
                                   <Typography variant="caption" color="text.secondary">
-                                    {option.cus_phone_no} • Balance: {Number(option.cus_balance || 0)}
+                                    {[option.cus_phone_no, option.cus_address, option.city?.city_name, option.cus_reference].filter(Boolean).join(' • ')} • Balance: {Number(option.cus_balance || 0)}
                                   </Typography>
                                 </Box>
                               </Box>
