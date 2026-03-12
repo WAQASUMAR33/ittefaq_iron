@@ -289,6 +289,7 @@ function SalesPageContent() {
 
   // Customer creation popup state
   const [customerPopupOpen, setCustomerPopupOpen] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState(false);
   const [customerCategories, setCustomerCategories] = useState([]);
   const [cities, setCities] = useState([]);
 
@@ -1741,6 +1742,7 @@ function SalesPageContent() {
   const handleCloseCustomerPopup = () => {
     setCustomerPopupOpen(false);
     setCustomerTypeOpen(false);
+    setEditingCustomer(false);
     setNewCustomer({
       cus_name: '',
       cus_phone_no: '',
@@ -1756,6 +1758,28 @@ function SalesPageContent() {
       name_urdu: '',
       city_id: ''
     });
+  };
+
+  const handleOpenEditCustomer = () => {
+    if (!formSelectedCustomer) return;
+    setNewCustomer({
+      cus_name: formSelectedCustomer.cus_name || '',
+      cus_phone_no: formSelectedCustomer.cus_phone_no || '',
+      cus_phone_no2: formSelectedCustomer.cus_phone_no2 || '',
+      cus_address: formSelectedCustomer.cus_address || '',
+      cus_reference: formSelectedCustomer.cus_reference || '',
+      cus_account_info: formSelectedCustomer.cus_account_info || '',
+      other: formSelectedCustomer.other || '',
+      cus_category: formSelectedCustomer.cus_category || '',
+      cus_type: formSelectedCustomer.cus_type || '',
+      cus_balance: formSelectedCustomer.cus_balance || 0,
+      CNIC: formSelectedCustomer.CNIC || '',
+      NTN_NO: formSelectedCustomer.NTN_NO || '',
+      name_urdu: formSelectedCustomer.name_urdu || '',
+      city_id: formSelectedCustomer.city_id || ''
+    });
+    setEditingCustomer(true);
+    setCustomerPopupOpen(true);
   };
 
   // Handle adding product quickly from sale page
@@ -1877,43 +1901,43 @@ function SalesPageContent() {
       const customerData = {
         cus_name: newCustomer.cus_name.trim(),
         cus_phone_no: newCustomer.cus_phone_no.trim(),
-        cus_phone_no2: newCustomer.cus_phone_no2.trim(),
-        cus_address: newCustomer.cus_address.trim(),
-        cus_reference: newCustomer.cus_reference.trim(),
-        cus_account_info: newCustomer.cus_account_info.trim(),
-        other: newCustomer.other.trim(),
+        cus_phone_no2: (newCustomer.cus_phone_no2 || '').trim(),
+        cus_address: (newCustomer.cus_address || '').trim(),
+        cus_reference: (newCustomer.cus_reference || '').trim(),
+        cus_account_info: (newCustomer.cus_account_info || '').trim(),
+        other: (newCustomer.other || '').trim(),
         cus_category: newCustomer.cus_category,
         cus_type: newCustomer.cus_type,
         cus_balance: parseFloat(newCustomer.cus_balance) || 0,
-        CNIC: newCustomer.CNIC.trim(),
-        NTN_NO: newCustomer.NTN_NO.trim(),
-        name_urdu: newCustomer.name_urdu.trim(),
+        CNIC: (newCustomer.CNIC || '').trim(),
+        NTN_NO: (newCustomer.NTN_NO || '').trim(),
+        name_urdu: (newCustomer.name_urdu || '').trim(),
         city_id: newCustomer.city_id || null
       };
 
-      console.log('🔍 Creating customer with data:', customerData);
-      console.log('🔍 Available customers:', customers.length);
-      console.log('🔍 Available customer categories:', customerCategories.length);
-      console.log('🔍 Available customer types:', customerTypes.length);
+      if (editingCustomer) {
+        customerData.id = formSelectedCustomer.cus_id;
+      }
 
       const response = await fetch('/api/customers', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        method: editingCustomer ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(customerData),
       });
 
       if (response.ok) {
-        showSnackbar('Customer created successfully', 'success');
+        showSnackbar(editingCustomer ? 'Customer updated successfully' : 'Customer created successfully', 'success');
         handleCloseCustomerPopup();
-        // Refresh customers and transport accounts
         await fetchData();
+        // Update selected customer with new data if editing
+        if (editingCustomer) {
+          const updatedCustomers = await fetch('/api/customers').then(r => r.json());
+          const updated = (updatedCustomers.data || updatedCustomers).find(c => c.cus_id === formSelectedCustomer.cus_id);
+          if (updated) setFormSelectedCustomer(updated);
+        }
       } else {
         const errorData = await response.json();
-        console.error('❌ Customer creation error:', errorData);
-        console.error('❌ Response status:', response.status);
-        showSnackbar(errorData.error || errorData.message || 'Error creating customer', 'error');
+        showSnackbar(errorData.error || errorData.message || (editingCustomer ? 'Error updating customer' : 'Error creating customer'), 'error');
       }
     } catch (error) {
       console.error('Error creating customer:', error);
@@ -3459,6 +3483,25 @@ function SalesPageContent() {
                             }}
                           >
                             View Ledger
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<EditIcon />}
+                            onClick={handleOpenEditCustomer}
+                            sx={{
+                              py: 0.5,
+                              fontSize: '0.75rem',
+                              color: 'warning.main',
+                              borderColor: 'warning.main',
+                              '&:hover': {
+                                borderColor: 'warning.dark',
+                                bgcolor: 'warning.light',
+                                color: 'white'
+                              }
+                            }}
+                          >
+                            Edit
                           </Button>
                         </Stack>
                       )}
@@ -6530,10 +6573,10 @@ function SalesPageContent() {
             </Avatar>
             <Box>
               <Typography variant="h5" component="div" sx={{ fontWeight: 'bold' }}>
-                Add New Customer
+                {editingCustomer ? 'Edit Customer' : 'Add New Customer'}
               </Typography>
               <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                Create a new customer profile
+                {editingCustomer ? `Editing: ${formSelectedCustomer?.cus_name}` : 'Create a new customer profile'}
               </Typography>
             </Box>
           </Box>
@@ -7077,7 +7120,7 @@ function SalesPageContent() {
             variant="contained"
             sx={{ bgcolor: '#6f42c1', '&:hover': { bgcolor: '#5a2d91' } }}
           >
-            Create Customer
+            {editingCustomer ? 'Save Changes' : 'Create Customer'}
           </Button>
         </DialogActions>
       </Dialog>
