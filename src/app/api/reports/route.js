@@ -976,7 +976,11 @@ async function getProfitReport(startDate, endDate) {
       },
       sale_details: {
         include: {
-          product: true
+          product: {
+            include: {
+              category: true
+            }
+          }
         }
       }
     },
