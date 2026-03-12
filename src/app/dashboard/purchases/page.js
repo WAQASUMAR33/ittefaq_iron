@@ -457,6 +457,50 @@ function PurchasesPageContent() {
     purchase_details: []
   });
 
+  // ── Local-storage draft persistence ──────────────────────────────────────
+  const DRAFT_KEY = 'purchase_form_draft';
+  const [hasDraft, setHasDraft] = useState(false);
+
+  // Restore draft on first mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY);
+      if (saved) {
+        const draft = JSON.parse(saved);
+        if (draft.formData) setFormData(prev => ({ ...prev, ...draft.formData }));
+        if (draft.purchaseType) setPurchaseType(draft.purchaseType);
+        if (draft.formSelectedCustomer) setFormSelectedCustomer(draft.formSelectedCustomer);
+        if (draft.selectedBankAccount) setSelectedBankAccount(draft.selectedBankAccount);
+        if (draft.selectedCargoAccounts) setSelectedCargoAccounts(draft.selectedCargoAccounts);
+        if (draft.selectedPurchaseForReturn) setSelectedPurchaseForReturn(draft.selectedPurchaseForReturn);
+        if (draft.currentView) setCurrentView(draft.currentView);
+        setHasDraft(true);
+      }
+    } catch (e) {
+      console.warn('Failed to restore purchase draft:', e);
+    }
+  }, []);
+
+  // Auto-save draft whenever form state changes
+  useEffect(() => {
+    try {
+      const draft = {
+        formData,
+        purchaseType,
+        formSelectedCustomer,
+        selectedBankAccount,
+        selectedCargoAccounts,
+        selectedPurchaseForReturn,
+        currentView,
+      };
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      setHasDraft(true);
+    } catch (e) {
+      console.warn('Failed to save purchase draft:', e);
+    }
+  }, [formData, purchaseType, formSelectedCustomer, selectedBankAccount, selectedCargoAccounts, selectedPurchaseForReturn, currentView]);
+  // ─────────────────────────────────────────────────────────────────────────
+
   // Fetch data
   useEffect(() => {
     fetchData();
@@ -606,6 +650,8 @@ function PurchasesPageContent() {
     setProductFormData({ qnty: '1', unit_rate: '', crate: '' });
     setSelectedProduct(null);
     setCustomerSearchTerm('');
+    localStorage.removeItem(DRAFT_KEY);
+    setHasDraft(false);
     setSnackbar({ open: true, message: '📋 Form cleared - ready for new entry', severity: 'info' });
   };
 
@@ -2738,13 +2784,24 @@ function PurchasesPageContent() {
                 <ArrowLeftIcon />
               </button>
               <div>
-                <h2 className="text-2xl font-bold text-gray-900">
-                  {editingPurchase
-                    ? 'Edit Purchase'
-                    : purchaseType === 'return'
-                      ? 'Create Purchase Return'
-                      : 'Create New Purchase'}
-                </h2>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    {editingPurchase
+                      ? 'Edit Purchase'
+                      : purchaseType === 'return'
+                        ? 'Create Purchase Return'
+                        : 'Create New Purchase'}
+                  </h2>
+                  {hasDraft && !editingPurchase && (
+                    <Chip
+                      label="Draft Saved"
+                      size="small"
+                      color="warning"
+                      variant="outlined"
+                      sx={{ fontWeight: 600, fontSize: '0.72rem' }}
+                    />
+                  )}
+                </Box>
                 <p className="text-gray-600 mt-1">
                   {editingPurchase
                     ? 'Update purchase information'
@@ -4372,6 +4429,18 @@ function PurchasesPageContent() {
                 >
                   ✕ Cancel Current
                 </Button>
+                {!editingPurchase && (
+                  <Button
+                    type="button"
+                    onClick={clearFormState}
+                    variant="outlined"
+                    tabIndex={-1}
+                    color="warning"
+                    sx={{ px: 3, py: 1.5 }}
+                  >
+                    Clear Form
+                  </Button>
+                )}
                 <Button
                   type="button"
                   onClick={() => setCurrentView('list')}
