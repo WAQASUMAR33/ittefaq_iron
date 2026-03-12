@@ -12,9 +12,13 @@ import Header from './header';
 import Sidebar from './sidebar';
 import ClientOnly from './client-only';
 
+const COLLAPSED_WIDTH = 64;
+const EXPANDED_WIDTH = 320;
+
 export default function DashboardLayout({ children }) {
   const [user, setUser] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [expandedDropdowns, setExpandedDropdowns] = useState({
     'dashboard': false,
@@ -31,25 +35,18 @@ export default function DashboardLayout({ children }) {
   const router = useRouter();
 
   useEffect(() => {
-    // Set client-side flag
     setIsClient(true);
 
-    // Check if user is logged in
     const userData = localStorage.getItem('user');
-    console.log('Dashboard layout - userData from localStorage:', userData);
-
     if (!userData) {
-      console.log('No user data found, redirecting to login');
       router.push('/login');
       return;
     }
 
     try {
       const parsedUser = JSON.parse(userData);
-      console.log('Parsed user data:', parsedUser);
       setUser(parsedUser);
 
-      // Set initial active tab based on current route
       const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
       if (currentPath.startsWith('/dashboard/usermanagement')) {
         setActiveTab('usermanagement');
@@ -89,13 +86,11 @@ export default function DashboardLayout({ children }) {
         setActiveTab('dashboard');
       }
     } catch (error) {
-      console.error('Error parsing user data:', error);
       router.push('/login');
     }
   }, [router]);
 
   const handleLogout = () => {
-    // Clear all user-related data
     localStorage.removeItem('user');
     localStorage.removeItem('isAuthenticated');
     localStorage.removeItem('userRole');
@@ -106,18 +101,11 @@ export default function DashboardLayout({ children }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('lg'));
 
-  // Show loading state until client-side hydration is complete
+  const sidebarWidth = (!isMobile && collapsed) ? COLLAPSED_WIDTH : EXPANDED_WIDTH;
+
   if (!isClient || !user) {
     return (
-      <Box
-        sx={{
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          bgcolor: 'background.default'
-        }}
-      >
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default' }}>
         <CircularProgress size={80} />
       </Box>
     );
@@ -125,15 +113,7 @@ export default function DashboardLayout({ children }) {
 
   return (
     <ClientOnly fallback={
-      <Box
-        sx={{
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          bgcolor: 'background.default'
-        }}
-      >
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default' }}>
         <CircularProgress size={80} />
       </Box>
     }>
@@ -142,6 +122,8 @@ export default function DashboardLayout({ children }) {
         <Sidebar
           sidebarOpen={sidebarOpen}
           setSidebarOpen={setSidebarOpen}
+          collapsed={collapsed}
+          setCollapsed={setCollapsed}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           expandedDropdowns={expandedDropdowns}
@@ -155,7 +137,11 @@ export default function DashboardLayout({ children }) {
           component="main"
           sx={{
             flexGrow: 1,
-            width: { lg: `calc(100% - 320px)` },
+            width: { lg: `calc(100% - ${sidebarWidth}px)` },
+            transition: theme.transitions.create(['width', 'margin'], {
+              easing: theme.transitions.easing.sharp,
+              duration: theme.transitions.duration.enteringScreen,
+            }),
             bgcolor: 'background.default',
             minHeight: '100vh',
             display: 'flex',
