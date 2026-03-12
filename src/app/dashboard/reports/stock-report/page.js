@@ -13,7 +13,8 @@ const TABS = [
   { id: 'all', label: 'All Stock', icon: Package },
   { id: 'store-wise', label: 'Store Wise', icon: Store },
   { id: 'low-stock', label: 'Low Stock', icon: AlertTriangle },
-  { id: 'low-stock-store', label: 'Low Stock (Store Wise)', icon: BarChart2 },
+  { id: 'low-stock-category', label: 'Low Stock by Category', icon: BarChart2 },
+  { id: 'low-stock-store', label: 'Low Stock (Store Wise)', icon: Store },
 ];
 
 export default function StockReport() {
@@ -150,6 +151,23 @@ export default function StockReport() {
         .filter(p => p._storeQty > 0 && p._storeQty <= threshold(p));
       return { store, products: lowProducts };
     }).filter(g => g.products.length > 0);
+  };
+
+  const getLowStockByCategoryData = () => {
+    if (!reportData) return [];
+    const products = applyBaseFilters(reportData.products);
+    const grouped = {};
+    products.forEach(p => {
+      const qty = selectedStore ? getStoreQty(p, selectedStore) : getTotalQty(p);
+      const threshold = p.low_stock_quantity ?? 10;
+      if (qty > 0 && qty <= threshold) {
+        const catId = p.cat_id;
+        const catName = p.category?.cat_name || 'Uncategorized';
+        if (!grouped[catId]) grouped[catId] = { catId, catName, products: [] };
+        grouped[catId].products.push({ ...p, _qty: qty });
+      }
+    });
+    return Object.values(grouped).sort((a, b) => a.catName.localeCompare(b.catName));
   };
 
   // ─── Summary stats ─────────────────────────────────────────────────────────
@@ -469,6 +487,97 @@ export default function StockReport() {
     );
   };
 
+  // ─── Table: Low Stock by Category ─────────────────────────────────────────
+
+  const renderLowStockByCategory = () => {
+    const groups = getLowStockByCategoryData();
+    if (groups.length === 0) return (
+      <div className="py-16 text-center">
+        <div className="text-green-600 font-semibold text-lg">✅ No low stock items in any category</div>
+        <p className="text-slate-400 mt-1">All categories are well stocked</p>
+      </div>
+    );
+    const totalLow = groups.reduce((s, g) => s + g.products.length, 0);
+    return (
+      <div className="space-y-5">
+        {/* Overview banner */}
+        <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-center gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" />
+          <span className="text-amber-800 font-semibold">
+            {totalLow} product{totalLow !== 1 ? 's' : ''} across {groups.length} categor{groups.length !== 1 ? 'ies' : 'y'} need restocking
+          </span>
+        </div>
+
+        {groups.map(({ catId, catName, products }) => {
+          const catTotalQty = products.reduce((s, p) => s + p._qty, 0);
+          const catTotalValue = products.reduce((s, p) => s + p._qty * parseFloat(p.pro_cost_price || 0), 0);
+          return (
+            <div key={catId} className="bg-white border border-amber-200 rounded-lg overflow-hidden">
+              {/* Category header */}
+              <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-4 py-2.5 flex items-center justify-between">
+                <div className="flex items-center gap-2 font-bold text-base">
+                  <BarChart2 className="w-4 h-4" />
+                  {catName}
+                </div>
+                <div className="flex gap-4 text-sm text-amber-100">
+                  <span>{products.length} low-stock item{products.length !== 1 ? 's' : ''}</span>
+                  <span>Qty: <strong className="text-white">{formatNumber(catTotalQty)}</strong></span>
+                  <span>Value: <strong className="text-white">Rs. {formatCurrency(catTotalValue)}</strong></span>
+                </div>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-amber-50 text-amber-900">
+                    <th className="px-3 py-2 text-left text-xs font-bold uppercase border-r border-amber-200 w-10">S#</th>
+                    <th className="px-3 py-2 text-left text-xs font-bold uppercase border-r border-amber-200">Item Name</th>
+                    <th className="px-3 py-2 text-center text-xs font-bold uppercase border-r border-amber-200 w-14">Unit</th>
+                    <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-amber-200 w-28">Current Qty</th>
+                    <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-amber-200 w-28">Min Threshold</th>
+                    <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-amber-200 w-20">Shortage</th>
+                    <th className="px-3 py-2 text-left text-xs font-bold uppercase border-r border-amber-200">Store Breakdown</th>
+                    <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-amber-200 w-28">Cost Rate</th>
+                    <th className="px-3 py-2 text-right text-xs font-bold uppercase w-28">Value</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-amber-100">
+                  {products.map((p, i) => {
+                    const threshold = p.low_stock_quantity ?? 10;
+                    const shortage = threshold - p._qty;
+                    const storeBreakdown = p.store_stocks?.map(ss =>
+                      `${ss.store?.store_name || `S${ss.store_id}`}: ${ss.stock_quantity}`
+                    ).join(' | ') || '—';
+                    return (
+                      <tr key={p.pro_id} className="bg-amber-50 hover:bg-amber-100 transition-colors">
+                        <td className="px-3 py-2 text-amber-400 border-r border-amber-100 text-xs">{i + 1}</td>
+                        <td className="px-3 py-2 font-semibold text-slate-900 border-r border-amber-100">{p.pro_title}</td>
+                        <td className="px-3 py-2 text-center text-slate-500 border-r border-amber-100 text-xs">{p.pro_unit || '—'}</td>
+                        <td className="px-3 py-2 text-right font-bold text-amber-700 border-r border-amber-100 tabular-nums">{formatNumber(p._qty)}</td>
+                        <td className="px-3 py-2 text-right text-slate-500 border-r border-amber-100 tabular-nums">{formatNumber(threshold)}</td>
+                        <td className="px-3 py-2 text-right font-bold text-red-600 border-r border-amber-100 tabular-nums">{formatNumber(shortage)}</td>
+                        <td className="px-3 py-2 text-slate-500 text-xs border-r border-amber-100">{storeBreakdown}</td>
+                        <td className="px-3 py-2 text-right text-slate-700 border-r border-amber-100 tabular-nums">{formatCurrency(p.pro_cost_price)}</td>
+                        <td className="px-3 py-2 text-right font-semibold text-slate-900 tabular-nums">{formatCurrency(p._qty * parseFloat(p.pro_cost_price || 0))}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-amber-100 font-semibold text-amber-900">
+                    <td colSpan={3} className="px-3 py-2 text-right text-xs uppercase border-r border-amber-200">Category Total</td>
+                    <td className="px-3 py-2 text-right tabular-nums border-r border-amber-200">{formatNumber(catTotalQty)}</td>
+                    <td colSpan={3} className="px-3 py-2 border-r border-amber-200"></td>
+                    <td className="px-3 py-2 border-r border-amber-200"></td>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(catTotalValue)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -586,7 +695,7 @@ export default function StockReport() {
                 >
                   <Icon className="w-4 h-4" />
                   {tab.label}
-                  {tab.id === 'low-stock' && summary?.lowStock > 0 && (
+                  {(tab.id === 'low-stock' || tab.id === 'low-stock-category') && summary?.lowStock > 0 && (
                     <span className="ml-1 bg-amber-500 text-white text-xs rounded-full px-1.5 py-0.5 font-bold">{summary.lowStock}</span>
                   )}
                 </button>
@@ -609,6 +718,7 @@ export default function StockReport() {
                   {activeTab === 'all' && renderAllStock()}
                   {activeTab === 'store-wise' && renderStoreWise()}
                   {activeTab === 'low-stock' && renderLowStock()}
+                  {activeTab === 'low-stock-category' && renderLowStockByCategory()}
                   {activeTab === 'low-stock-store' && renderLowStockStoreWise()}
                 </>
               )}
