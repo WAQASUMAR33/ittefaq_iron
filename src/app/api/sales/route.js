@@ -674,7 +674,8 @@ export async function POST(request) {
     const result = await prisma.$transaction(async (tx) => {
       // Get customer's current balance
       const customer = await tx.customer.findUnique({
-        where: { cus_id }
+        where: { cus_id },
+        include: { city: true }
       });
 
       if (!customer) {
@@ -1344,7 +1345,7 @@ export async function POST(request) {
                     closing_balance: transportAccount.cus_balance + transportAmount,
                     bill_no: sale.sale_id.toString(),
                     trnx_type: 'CASH',
-                    details: `Transport Charges - ${bill_type || 'BILL'} - ${transport.description || 'Transport'}`,
+                    details: `Transport Charges - ${bill_type || 'BILL'} #${sale.sale_id} - ${transport.description || 'Transport'} - ${customer.cus_address || ''} ${customer.city?.city_name || ''}`.trim(),
                     payments: 0,
                     cash_payment: 0,
                     bank_payment: 0,
@@ -1363,7 +1364,7 @@ export async function POST(request) {
                       closing_balance: specialAccounts.sundryDebtors.cus_balance - transportAmount,
                       bill_no: sale.sale_id.toString(),
                       trnx_type: 'CASH',
-                      details: `Transport Charges - ${bill_type || 'BILL'} - Sundry Debtors`,
+                      details: `Transport Charges - ${bill_type || 'BILL'} #${sale.sale_id} - Sundry Debtors - ${customer.cus_address || ''} ${customer.city?.city_name || ''}`.trim(),
                       payments: 0,
                       cash_payment: 0,
                       bank_payment: 0,
@@ -1549,7 +1550,8 @@ export async function PUT(request) {
 
       // Get customer's current balance
       const customer = await tx.customer.findUnique({
-        where: { cus_id }
+        where: { cus_id },
+        include: { city: true }
       });
 
       if (!customer) {
@@ -1757,7 +1759,7 @@ export async function PUT(request) {
             closing_balance: loader.loader_balance + parseFloat(shipping_amount || 0),
             bill_no: sale.sale_id.toString(),
             trnx_type: 'CASH',
-            details: `Transporter Charges - ${bill_type || 'BILL'} - Transport Account (Debit)`,
+            details: `Transporter Charges - ${bill_type || 'BILL'} #${sale.sale_id} - Transport Account (Debit) - ${customer.cus_address || ''} ${customer.city?.city_name || ''}`.trim(),
             payments: 0,
             updated_by: validatedUpdatedBy
           });
@@ -1772,7 +1774,7 @@ export async function PUT(request) {
               closing_balance: specialAccounts.sundryDebtors.cus_balance - parseFloat(shipping_amount || 0),
               bill_no: sale.sale_id.toString(),
               trnx_type: 'CASH',
-              details: `Transporter Charges - ${bill_type || 'BILL'} - Sundry Debtors (Credit)`,
+              details: `Transporter Charges - ${bill_type || 'BILL'} #${sale.sale_id} - Sundry Debtors (Credit) - ${customer.cus_address || ''} ${customer.city?.city_name || ''}`.trim(),
               payments: 0,
               updated_by: validatedUpdatedBy
             });
