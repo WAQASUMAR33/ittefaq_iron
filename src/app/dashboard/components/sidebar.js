@@ -51,7 +51,8 @@ import {
   PieChart as PieChartIcon,
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
-  Menu as MenuIcon
+  Menu as MenuIcon,
+  ListAlt as ListAltIcon
 } from '@mui/icons-material';
 
 const COLLAPSED_WIDTH = 64;
@@ -74,7 +75,7 @@ export default function Sidebar({
 
   const menuItems = [
     { id: 'dashboard', name: 'Dashboard', icon: DashboardIcon, category: 'main' },
-    { id: 'orders', name: 'Orders', icon: DescriptionIcon, category: 'main' },
+    { id: 'orders', name: 'Order List', icon: ListAltIcon, category: 'main' },
     { id: 'new-sale', name: 'New Sale', icon: AddIcon, category: 'main' },
     { id: 'purchases', name: 'New Purchase', icon: ShoppingBagIcon, category: 'main' },
     { id: 'cash-report', name: 'Cash Report', icon: AttachMoneyIcon, category: 'main' },
@@ -97,6 +98,7 @@ export default function Sidebar({
     { id: 'day-end', name: 'Day End / Day Close', icon: CalendarIcon, category: 'financial', parent: 'Finance' },
 
     // Sales Operations
+    { id: 'orders', name: 'Order List', icon: ListAltIcon, category: 'sales-operations', parent: 'Sales' },
     { id: 'sales', name: 'Sales', icon: ShoppingCartIcon, category: 'sales-operations', parent: 'Sales' },
     { id: 'hold-bills', name: 'Hold Bills', icon: InventoryIcon, category: 'sales-operations', parent: 'Sales' },
     { id: 'sale-returns', name: 'Sale Returns', icon: CloseIcon, category: 'sales-operations', parent: 'Sales' },
@@ -606,7 +608,7 @@ export default function Sidebar({
       {/* User Profile */}
       <Box sx={{ p: isCollapsed ? 0.5 : 2, borderTop: 1, borderColor: 'divider' }}>
         {isCollapsed ? (
-          <Tooltip title={`${user?.email} (${user?.role}) — Logout`} placement="right" arrow>
+          <Tooltip title={`${user?.email} (${user?.role?.displayName || user?.role?.name || user?.role}) — Logout`} placement="right" arrow>
             <IconButton onClick={handleLogout} sx={{ width: '100%', borderRadius: 2, py: 1 }}>
               <LogoutIcon />
             </IconButton>
@@ -628,7 +630,7 @@ export default function Sidebar({
                 {user?.email}
               </Typography>
               <Typography variant="caption" sx={{ color: 'text.secondary', textTransform: 'uppercase' }}>
-                {user?.role}
+                {user?.role?.displayName || user?.role?.name || user?.role}
               </Typography>
             </Box>
             <Tooltip title="Logout">

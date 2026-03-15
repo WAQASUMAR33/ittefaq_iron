@@ -1,6 +1,7 @@
 import { Poppins } from "next/font/google";
 import "./globals.css";
 import CustomThemeProvider from "./providers/theme-provider";
+import { AppRouterCacheProvider } from "@mui/material-nextjs/v15-appRouter";
 
 const poppins = Poppins({
   variable: "--font-poppins",
@@ -22,9 +23,11 @@ export default function RootLayout({ children }) {
         className={`${poppins.variable} antialiased`}
         suppressHydrationWarning={true}
       >
-        <CustomThemeProvider>
-          {children}
-        </CustomThemeProvider>
+        <AppRouterCacheProvider>
+          <CustomThemeProvider>
+            {children}
+          </CustomThemeProvider>
+        </AppRouterCacheProvider>
       </body>
     </html>
   );

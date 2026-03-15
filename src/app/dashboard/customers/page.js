@@ -177,6 +177,7 @@ export default function CustomersPage() {
 
   const handleAddCustomer = async (e) => {
     e.preventDefault();
+
     setIsSubmitting(true);
 
     try {
@@ -208,6 +209,7 @@ export default function CustomersPage() {
           name_urdu: '',
           city_id: ''
         });
+        new BroadcastChannel('customers-sync').postMessage({ type: 'customer-added', customer: newCustomer });
         alert('Account added successfully!');
       } else {
         const error = await response.json();
@@ -244,6 +246,7 @@ export default function CustomersPage() {
 
   const handleUpdateCustomer = async (e) => {
     e.preventDefault();
+
     setIsSubmitting(true);
 
     try {
@@ -281,6 +284,7 @@ export default function CustomersPage() {
           name_urdu: '',
           city_id: ''
         });
+        new BroadcastChannel('customers-sync').postMessage({ type: 'customer-updated', customer: updatedCustomer });
         alert('Account updated successfully!');
       } else {
         const error = await response.json();

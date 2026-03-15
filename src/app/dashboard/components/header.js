@@ -70,7 +70,7 @@ export default function Header({ sidebarOpen, setSidebarOpen, activeTab, user })
                 {user?.full_name || user?.email || 'User'}
               </p>
               <p className="text-xs text-gray-500 capitalize">
-                {user?.role || 'Admin'}
+                {user?.role?.displayName || user?.role?.name || user?.role || 'Admin'}
               </p>
             </div>
             <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl flex items-center justify-center shadow-lg">

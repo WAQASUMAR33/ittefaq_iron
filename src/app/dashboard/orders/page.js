@@ -1058,6 +1058,24 @@ function OrdersPageContent() {
     fetchData();
   }, []);
 
+  // Re-fetch customers silently when another tab/page saves a customer
+  const refreshCustomers = async () => {
+    try {
+      const res = await fetch('/api/customers');
+      if (res.ok) {
+        const data = await res.json();
+        const arr = Array.isArray(data) ? data : (data.value || []);
+        setCustomers(arr);
+      }
+    } catch (_) {}
+  };
+
+  useEffect(() => {
+    const channel = new BroadcastChannel('customers-sync');
+    channel.onmessage = () => refreshCustomers();
+    return () => channel.close();
+  }, []);
+
   // Open create view preconfigured for Sale Return when flagged (from /dashboard/sale-returns)
   useEffect(() => {
     try {
@@ -1284,8 +1302,6 @@ function OrdersPageContent() {
       return;
     }
 
-    // Allow duplicate phone numbers — do not block creation by phone number.
-
     try {
       const customerData = {
         cus_name: newCustomer.cus_name.trim(),
@@ -1304,11 +1320,6 @@ function OrdersPageContent() {
         city_id: newCustomer.city_id || null
       };
 
-      console.log('🔍 Creating customer with data:', customerData);
-      console.log('🔍 Available customers:', customers.length);
-      console.log('🔍 Available customer categories:', customerCategories.length);
-      console.log('🔍 Available customer types:', customerTypes.length);
-
       const response = await fetch('/api/customers', {
         method: 'POST',
         headers: {
@@ -1318,14 +1329,17 @@ function OrdersPageContent() {
       });
 
       if (response.ok) {
+        const createdCustomer = await response.json();
         showSnackbar('Customer created successfully', 'success');
         handleCloseCustomerPopup();
-        // Refresh customers and transport accounts
+        // Refresh customers list
         await fetchData();
+        // Auto-select the newly created customer in the form
+        if (createdCustomer && createdCustomer.cus_id) {
+          setFormSelectedCustomer(createdCustomer);
+        }
       } else {
         const errorData = await response.json();
-        console.error('❌ Customer creation error:', errorData);
-        console.error('❌ Response status:', response.status);
         showSnackbar(errorData.error || errorData.message || 'Error creating customer', 'error');
       }
     } catch (error) {
@@ -3006,7 +3020,7 @@ function OrdersPageContent() {
                     />
                   </Box>
 
-                  {/* DELIVERY CHARGES (total including transport) */}
+                  {/* DELIVERY CHARGES */}
                   <Box sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Typography variant="body2" sx={{ fontWeight: 'medium', color: 'text.secondary', minWidth: '140px' }}>
                       DELIVERY CHARGES
@@ -3014,19 +3028,8 @@ function OrdersPageContent() {
                     <TextField
                       size="small"
                       type="number"
-                      value={(() => {
-                        const totalDelivery = (parseFloat(paymentData.deliveryCharges || 0) + calculateTransportTotal());
-                        if (totalDelivery === 0) return '';
-                        return totalDelivery.toFixed(2);
-                      })()
-                      }
-                      onChange={(e) => {
-                        // Calculate delivery charges by subtracting transport from total
-                        const totalValue = parseFloat(e.target.value) || 0;
-                        const transportTotal = calculateTransportTotal();
-                        const deliveryOnly = totalValue - transportTotal;
-                        handlePaymentDataChange('deliveryCharges', deliveryOnly >= 0 ? deliveryOnly : 0);
-                      }}
+                      value={paymentData.deliveryCharges === 0 ? '' : paymentData.deliveryCharges}
+                      onChange={(e) => handlePaymentDataChange('deliveryCharges', e.target.value)}
                       onFocus={(e) => e.target.select()}
                       inputProps={{ step: 'any' }}
                       sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px', fontWeight: 'bold' }, flex: 1 }}
@@ -3034,7 +3037,7 @@ function OrdersPageContent() {
                     />
                     {calculateTransportTotal() > 0 && (
                       <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
-                        (includes Transport: {calculateTransportTotal().toFixed(2)})
+                        (Transport: {calculateTransportTotal().toFixed(2)})
                       </Typography>
                     )}
                   </Box>
@@ -3363,7 +3366,7 @@ function OrdersPageContent() {
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رقم بل</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {parseFloat(currentBillData.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {(currentBillData.sale_details || []).reduce((sum, d) => sum + parseFloat(d.total_amount || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                           <TableRow>
@@ -3677,7 +3680,7 @@ function OrdersPageContent() {
                             <TableRow>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رقم بل</TableCell>
                               <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {parseFloat(currentBillData.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {(currentBillData.sale_details || []).reduce((sum, d) => sum + parseFloat(d.total_amount || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </TableCell>
                             </TableRow>
                             <TableRow>
@@ -5153,7 +5156,7 @@ function OrdersPageContent() {
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رقم بل</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {parseFloat(selectedBill.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {(selectedBill.sale_details || []).reduce((sum, d) => sum + parseFloat(d.total_amount || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                           <TableRow>
