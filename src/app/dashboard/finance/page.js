@@ -102,8 +102,8 @@ export default function FinancePage() {
     bill_no: '',
     trnx_type: 'CASH',
     details: '',
-    payments: '',
-    bank_title: ''
+    cash_amount: '',
+    bank_amount: '',
   });
 
   // Purchase viewer state (opened when clicking the eye / Bill)
@@ -147,6 +147,8 @@ export default function FinancePage() {
   const [cashAccounts, setCashAccounts] = useState([]);
   const [bankAccounts, setBankAccounts] = useState([]);
   const [paymentStatus, setPaymentStatus] = useState({ loading: false, error: null });
+  const [selectedLedgerBankAccount, setSelectedLedgerBankAccount] = useState(null);
+  const [isSubmittingLedger, setIsSubmittingLedger] = useState(false);
 
   // Fetch data
   useEffect(() => {
@@ -717,17 +719,34 @@ export default function FinancePage() {
         return;
       }
 
+      setIsSubmittingLedger(true);
+
       const url = editingLedger ? '/api/ledger' : '/api/ledger';
       const method = editingLedger ? 'PUT' : 'POST';
 
+      const cashAmt = parseFloat(formData.cash_amount || 0);
+      const bankAmt = parseFloat(formData.bank_amount || 0);
+      const discountAmt = parseFloat(formData.discount_amount || 0);
+      const totalPayments = cashAmt + bankAmt + discountAmt;
+      let trnx_type = 'CASH';
+      if (bankAmt > 0 && cashAmt <= 0) trnx_type = 'BANK_TRANSFER';
+      else if (bankAmt > 0 && cashAmt > 0) trnx_type = 'BANK_TRANSFER';
+
+      const discountNote = discountAmt > 0 ? ` | Discount: PKR ${discountAmt.toFixed(2)}` : '';
+      const submitData = {
+        cus_id: formData.cus_id,
+        debit_amount: formData.debit_amount,
+        credit_amount: formData.credit_amount,
+        bill_no: formData.bill_no,
+        trnx_type,
+        details: (formData.details || '') + discountNote,
+        payments: totalPayments,
+        bank_title: selectedLedgerBankAccount?.cus_name || '',
+      };
+
       const body = editingLedger
-        ? {
-          id: editingLedger.l_id,
-          ...formData
-        }
-        : {
-          ...formData
-        };
+        ? { id: editingLedger.l_id, ...submitData }
+        : { ...submitData };
 
       const response = await fetch(url, {
         method,
@@ -736,9 +755,19 @@ export default function FinancePage() {
       });
 
       if (response.ok) {
+        // Create discount expense if discount amount is entered
+        if (discountAmt > 0) {
+          const acct = customers.find(c => c.cus_id === formData.cus_id);
+          const acctName = acct?.cus_name || `Account #${formData.cus_id}`;
+          const billRef = formData.bill_no ? ` | Bill: ${formData.bill_no}` : '';
+          const description = `${acctName}${billRef}${formData.details ? ' | ' + formData.details : ''}`;
+          await createDiscountExpense(discountAmt, description);
+        }
+
         await fetchData();
         setShowLedgerForm(false);
         setEditingLedger(null);
+        setSelectedLedgerBankAccount(null);
         setFormData({
           cus_id: '',
           debit_amount: '',
@@ -746,17 +775,22 @@ export default function FinancePage() {
           bill_no: '',
           trnx_type: 'CASH',
           details: '',
-          payments: '',
-          bank_title: ''
+          cash_amount: '',
+          bank_amount: '',
+          discount_amount: '',
         });
       }
     } catch (error) {
       console.error('Error saving ledger entry:', error);
+    } finally {
+      setIsSubmittingLedger(false);
     }
   };
 
   const handleEdit = (entry) => {
     setEditingLedger(entry);
+    const cashAmt = entry.trnx_type === 'BANK_TRANSFER' ? '' : entry.payments?.toString() || '';
+    const bankAmt = entry.trnx_type === 'BANK_TRANSFER' ? entry.payments?.toString() || '' : '';
     setFormData({
       cus_id: entry.cus_id,
       debit_amount: entry.debit_amount.toString(),
@@ -764,9 +798,11 @@ export default function FinancePage() {
       bill_no: entry.bill_no || '',
       trnx_type: entry.trnx_type,
       details: entry.details || '',
-      payments: entry.payments.toString(),
-      bank_title: entry.bank_title || ''
+      cash_amount: cashAmt,
+      bank_amount: bankAmt,
+      discount_amount: '',
     });
+    setSelectedLedgerBankAccount(null);
     setCustomerSearchTerm(entry.customer?.cus_name || '');
     setShowLedgerForm(true);
   };
@@ -1936,6 +1972,7 @@ export default function FinancePage() {
         onClose={() => {
           setShowLedgerForm(false);
           setEditingLedger(null);
+          setSelectedLedgerBankAccount(null);
           setFormData({
             cus_id: '',
             debit_amount: '',
@@ -1943,40 +1980,51 @@ export default function FinancePage() {
             bill_no: '',
             trnx_type: 'CASH',
             details: '',
-            payments: '',
-            bank_title: ''
+            cash_amount: '',
+            bank_amount: '',
+            discount_amount: '',
           });
           setCustomerSearchTerm('');
         }}
-        maxWidth="sm"
+        maxWidth="md"
         fullWidth
         PaperProps={{
-          sx: { borderRadius: 2 }
+          sx: {
+            borderRadius: 3,
+            overflow: 'hidden',
+            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+          }
         }}
       >
-        <DialogTitle sx={{
-          bgcolor: '#3b82f6',
-          color: 'white',
-          fontWeight: 700,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          px: 3,
-          py: 2
-        }}>
-          <Typography variant="h6" sx={{ fontWeight: 800 }}>
-            {editingLedger ? 'EDIT LEDGER ENTRY' : 'NEW LEDGER ENTRY'}
-          </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {!editingLedger && (
-              <Typography variant="subtitle1" sx={{ fontWeight: 600, bgcolor: 'rgba(255,255,255,0.2)', px: 1.5, py: 0.5, borderRadius: 1 }}>
-                Serial: #{ledgerEntries.length + 1}
-              </Typography>
-            )}
+        {/* Header */}
+        <DialogTitle sx={{ p: 0 }}>
+          <Box sx={{
+            background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 50%, #06b6d4 100%)',
+            px: 3, py: 2.5,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{
+                width: 44, height: 44, borderRadius: 2,
+                bgcolor: 'rgba(255,255,255,0.2)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Receipt size={22} color="white" />
+              </Box>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 800, color: 'white', lineHeight: 1.2 }}>
+                  {editingLedger ? 'Edit Ledger Entry' : 'New Ledger Entry'}
+                </Typography>
+                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.75)' }}>
+                  {editingLedger ? `Editing entry #${editingLedger.l_id}` : `Serial #${ledgerEntries.length + 1}`}
+                </Typography>
+              </Box>
+            </Box>
             <IconButton
               onClick={() => {
                 setShowLedgerForm(false);
                 setEditingLedger(null);
+                setSelectedLedgerBankAccount(null);
                 setFormData({
                   cus_id: '',
                   debit_amount: '',
@@ -1984,212 +2032,372 @@ export default function FinancePage() {
                   bill_no: '',
                   trnx_type: 'CASH',
                   details: '',
-                  payments: '',
-                  bank_title: ''
+                  cash_amount: '',
+                  bank_amount: '',
                 });
                 setCustomerSearchTerm('');
               }}
-              size="small"
-              sx={{ color: 'white' }}
+              sx={{
+                color: 'white',
+                bgcolor: 'rgba(255,255,255,0.15)',
+                '&:hover': { bgcolor: 'rgba(255,255,255,0.25)' },
+              }}
             >
               <X size={20} />
             </IconButton>
           </Box>
         </DialogTitle>
 
-        <DialogContent sx={{ p: 4 }}>
-          <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
-            <Grid container spacing={3} alignItems="center">
+        <DialogContent sx={{ p: 0, bgcolor: '#f8fafc' }}>
+          <Box component="form" onSubmit={handleSubmit} sx={{ p: 3 }}>
 
-              {/* Account Selection */}
-              <Grid item xs={4}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Account *:</Typography>
-              </Grid>
-              <Grid item xs={8}>
-                <Autocomplete
-                  autoSelect={true}
-                  autoHighlight={true}
-                  openOnFocus={true}
-                  selectOnFocus={true}
-                  options={filteredCustomers}
-                  getOptionLabel={(option) => option.cus_name}
-                  value={formData.cus_id ? customers.find(c => c.cus_id === formData.cus_id) : null}
-                  onChange={(event, newValue) => {
-                    if (newValue) {
-                      setFormData(prev => ({ ...prev, cus_id: newValue.cus_id }));
-                      setCustomerSearchTerm(newValue.cus_name);
-                    } else {
-                      setFormData(prev => ({ ...prev, cus_id: '' }));
-                      setCustomerSearchTerm('');
-                    }
-                  }}
-                  inputValue={customerSearchTerm}
-                  onInputChange={(event, newInputValue) => setCustomerSearchTerm(newInputValue)}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      size="small"
-                      placeholder="Search accounts..."
-                      required
-                      InputProps={{
-                        ...params.InputProps,
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <Search size={16} />
-                          </InputAdornment>
-                        ),
-                      }}
-                    />
-                  )}
-                  renderOption={(props, option) => {
-                    const { key, ...optionProps } = props;
-                    return (
-                      <Box component="li" key={key} {...optionProps}>
-                        <Box>
-                          <Typography variant="body2" fontWeight={600}>{option.cus_name}</Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {option.cus_phone_no}
+            {/* Account */}
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, mb: 1, display: 'block' }}>
+                Account *
+              </Typography>
+              <Autocomplete
+                autoSelect={true}
+                autoHighlight={true}
+                openOnFocus={true}
+                selectOnFocus={true}
+                options={filteredCustomers}
+                getOptionLabel={(option) => option.cus_name}
+                value={formData.cus_id ? customers.find(c => c.cus_id === formData.cus_id) : null}
+                onChange={(event, newValue) => {
+                  if (newValue) {
+                    setFormData(prev => ({ ...prev, cus_id: newValue.cus_id }));
+                    setCustomerSearchTerm(newValue.cus_name);
+                  } else {
+                    setFormData(prev => ({ ...prev, cus_id: '' }));
+                    setCustomerSearchTerm('');
+                  }
+                }}
+                inputValue={customerSearchTerm}
+                onInputChange={(event, newInputValue) => setCustomerSearchTerm(newInputValue)}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    placeholder="Search and select account..."
+                    required
+                    sx={{ bgcolor: 'white', borderRadius: 2 }}
+                    InputProps={{
+                      ...params.InputProps,
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <Search size={16} color="#94a3b8" />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                )}
+                renderOption={(props, option) => {
+                  const { key, ...optionProps } = props;
+                  return (
+                    <Box component="li" key={key} {...optionProps}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.5 }}>
+                        <Box sx={{ width: 36, height: 36, borderRadius: '50%', bgcolor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <Typography variant="caption" sx={{ fontWeight: 800, color: '#3b82f6' }}>
+                            {option.cus_name?.[0]?.toUpperCase()}
                           </Typography>
                         </Box>
+                        <Box>
+                          <Typography variant="body2" fontWeight={700}>{option.cus_name}</Typography>
+                          <Typography variant="caption" color="text.secondary">{option.cus_phone_no}</Typography>
+                        </Box>
                       </Box>
-                    );
-                  }}
-                />
-              </Grid>
+                    </Box>
+                  );
+                }}
+              />
+              {/* Current balance badge */}
+              {formData.cus_id && (() => {
+                const acct = customers.find(c => c.cus_id === formData.cus_id);
+                if (!acct) return null;
+                const bal = parseFloat(acct.cus_balance || 0);
+                const isPositive = bal >= 0;
+                return (
+                  <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600 }}>Current Balance:</Typography>
+                    <Box sx={{
+                      display: 'inline-flex', alignItems: 'center', gap: 0.5,
+                      px: 1.5, py: 0.4, borderRadius: 5,
+                      bgcolor: isPositive ? '#f0fdf4' : '#fef2f2',
+                      border: `1px solid ${isPositive ? '#bbf7d0' : '#fecaca'}`,
+                    }}>
+                      <Typography variant="caption" sx={{ fontWeight: 800, color: isPositive ? '#16a34a' : '#dc2626' }}>
+                        PKR {Math.abs(bal).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: isPositive ? '#16a34a' : '#dc2626', fontWeight: 600 }}>
+                        {isPositive ? 'DR' : 'CR'}
+                      </Typography>
+                    </Box>
+                  </Box>
+                );
+              })()}
+            </Box>
 
-              {/* Debit Amount */}
-              <Grid item xs={4}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Debit Amount:</Typography>
-              </Grid>
-              <Grid item xs={8}>
+            {/* Debit / Credit / Bill Number — Row */}
+            <Grid container spacing={2} sx={{ mb: 3 }}>
+              <Grid item xs={12} sm={4}>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, mb: 1, display: 'block' }}>
+                  Debit Amount
+                </Typography>
                 <TextField
                   fullWidth
-                  size="small"
                   name="debit_amount"
                   type="number"
                   value={formData.debit_amount}
                   onChange={handleInputChange}
                   inputProps={{ step: 0.01, min: 0 }}
                   placeholder="0.00"
+                  sx={{ bgcolor: 'white', borderRadius: 2 }}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start"><Typography sx={{ color: '#94a3b8', fontWeight: 600, fontSize: 13 }}>PKR</Typography></InputAdornment>
+                  }}
                 />
               </Grid>
-
-              {/* Credit Amount */}
-              <Grid item xs={4}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Credit Amount:</Typography>
-              </Grid>
-              <Grid item xs={8}>
+              <Grid item xs={12} sm={4}>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, mb: 1, display: 'block' }}>
+                  Credit Amount
+                </Typography>
                 <TextField
                   fullWidth
-                  size="small"
                   name="credit_amount"
                   type="number"
                   value={formData.credit_amount}
                   onChange={handleInputChange}
                   inputProps={{ step: 0.01, min: 0 }}
                   placeholder="0.00"
+                  sx={{ bgcolor: 'white', borderRadius: 2 }}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start"><Typography sx={{ color: '#94a3b8', fontWeight: 600, fontSize: 13 }}>PKR</Typography></InputAdornment>
+                  }}
                 />
               </Grid>
-
-              {/* Transaction Type */}
-              <Grid item xs={4}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Transaction Type:</Typography>
-              </Grid>
-              <Grid item xs={8}>
-                <FormControl fullWidth size="small" required>
-                  <Select
-                    name="trnx_type"
-                    value={formData.trnx_type}
-                    onChange={handleInputChange}
-                    displayEmpty
-                  >
-                    <MenuItem value="CASH">Cash</MenuItem>
-                    <MenuItem value="CHEQUE">Cheque</MenuItem>
-                    <MenuItem value="BANK_TRANSFER">Bank Transfer</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-
-              {/* Bank Name (Conditional) */}
-              {formData.trnx_type === 'BANK_TRANSFER' && (
-                <>
-                  <Grid item xs={4}>
-                    <Typography sx={{ fontWeight: 600, color: '#475569' }}>Bank Name *:</Typography>
-                  </Grid>
-                  <Grid item xs={8}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      name="bank_title"
-                      value={formData.bank_title}
-                      onChange={handleInputChange}
-                      placeholder="e.g. HBL, UBL"
-                      required
-                    />
-                  </Grid>
-                </>
-              )}
-
-              {/* Bill Number */}
-              <Grid item xs={4}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Bill Number:</Typography>
-              </Grid>
-              <Grid item xs={8}>
+              <Grid item xs={12} sm={4}>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, mb: 1, display: 'block' }}>
+                  Bill Number
+                </Typography>
                 <TextField
                   fullWidth
-                  size="small"
                   name="bill_no"
                   value={formData.bill_no}
                   onChange={handleInputChange}
                   placeholder="Optional"
+                  sx={{ bgcolor: 'white', borderRadius: 2 }}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start"><Hash size={15} color="#94a3b8" /></InputAdornment>
+                  }}
                 />
               </Grid>
-
-              {/* Payments */}
-              <Grid item xs={4}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Payments:</Typography>
-              </Grid>
-              <Grid item xs={8}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  name="payments"
-                  type="number"
-                  value={formData.payments}
-                  onChange={handleInputChange}
-                  inputProps={{ step: 0.01, min: 0 }}
-                  placeholder="0.00"
-                />
-              </Grid>
-
-              {/* Details */}
-              <Grid item xs={4}>
-                <Typography sx={{ fontWeight: 600, color: '#475569' }}>Details:</Typography>
-              </Grid>
-              <Grid item xs={8}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  name="details"
-                  value={formData.details}
-                  onChange={handleInputChange}
-                  multiline
-                  rows={3}
-                  placeholder="Transaction details..."
-                />
-              </Grid>
-
             </Grid>
+
+            {/* Payment Section */}
+            <Box sx={{
+              border: '1.5px solid #e2e8f0',
+              borderRadius: 2,
+              overflow: 'hidden',
+              mb: 3,
+            }}>
+              <Box sx={{ bgcolor: '#f1f5f9', px: 2, py: 1.2, borderBottom: '1px solid #e2e8f0' }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                  Payment Breakdown
+                </Typography>
+              </Box>
+              <Box sx={{ p: 2, bgcolor: 'white' }}>
+                <Grid container spacing={2}>
+                  {/* Cash Payment */}
+                  <Grid item xs={12} sm={4}>
+                    <Box sx={{
+                      border: '1.5px solid #dcfce7',
+                      borderRadius: 2, p: 2,
+                      bgcolor: '#f0fdf4',
+                      height: '100%',
+                    }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                        <Box sx={{ width: 28, height: 28, borderRadius: 1, bgcolor: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Banknote size={15} color="white" />
+                        </Box>
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: '#15803d' }}>Cash Payment</Typography>
+                      </Box>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        name="cash_amount"
+                        type="number"
+                        value={formData.cash_amount}
+                        onChange={handleInputChange}
+                        inputProps={{ step: 0.01, min: 0 }}
+                        placeholder="0.00"
+                        sx={{ bgcolor: 'white', borderRadius: 1.5 }}
+                        InputProps={{
+                          startAdornment: <InputAdornment position="start"><Typography sx={{ color: '#94a3b8', fontWeight: 600, fontSize: 13 }}>PKR</Typography></InputAdornment>
+                        }}
+                      />
+                    </Box>
+                  </Grid>
+                  {/* Bank Payment */}
+                  <Grid item xs={12} sm={4}>
+                    <Box sx={{
+                      border: '1.5px solid #dbeafe',
+                      borderRadius: 2, p: 2,
+                      bgcolor: '#eff6ff',
+                      height: '100%',
+                    }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                        <Box sx={{ width: 28, height: 28, borderRadius: 1, bgcolor: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <CreditCard size={15} color="white" />
+                        </Box>
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: '#1d4ed8' }}>Bank Payment</Typography>
+                      </Box>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        name="bank_amount"
+                        type="number"
+                        value={formData.bank_amount}
+                        onChange={handleInputChange}
+                        inputProps={{ step: 0.01, min: 0 }}
+                        placeholder="0.00"
+                        sx={{ bgcolor: 'white', borderRadius: 1.5, mb: 1.5 }}
+                        InputProps={{
+                          startAdornment: <InputAdornment position="start"><Typography sx={{ color: '#94a3b8', fontWeight: 600, fontSize: 13 }}>PKR</Typography></InputAdornment>
+                        }}
+                      />
+                      <Autocomplete
+                        size="small"
+                        options={bankAccounts.length > 0 ? bankAccounts : []}
+                        getOptionLabel={(option) => option.cus_name || ''}
+                        value={selectedLedgerBankAccount}
+                        onChange={(event, newValue) => setSelectedLedgerBankAccount(newValue)}
+                        disabled={parseFloat(formData.bank_amount || 0) <= 0}
+                        filterOptions={(options, { inputValue }) =>
+                          options.filter(o => o.cus_name?.toLowerCase().includes(inputValue.toLowerCase()))
+                        }
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            placeholder={parseFloat(formData.bank_amount || 0) > 0 ? 'Select bank account' : 'Enter amount first'}
+                            sx={{
+                              bgcolor: parseFloat(formData.bank_amount || 0) > 0 ? 'white' : '#f1f5f9',
+                              borderRadius: 1.5,
+                              '& .MuiInputBase-input': { fontWeight: selectedLedgerBankAccount ? 700 : 400 },
+                            }}
+                          />
+                        )}
+                        renderOption={(props, option) => {
+                          const { key, ...optionProps } = props;
+                          return (
+                            <Box component="li" key={option.cus_id} {...optionProps}>
+                              <Box>
+                                <Typography variant="body2" fontWeight={700}>{option.cus_name}</Typography>
+                                <Typography variant="caption" color="text.secondary">{option.cus_phone_no}</Typography>
+                              </Box>
+                            </Box>
+                          );
+                        }}
+                      />
+                    </Box>
+                  </Grid>
+
+                  {/* Discount */}
+                  <Grid item xs={12} sm={4}>
+                    <Box sx={{
+                      border: '1.5px solid #fde68a',
+                      borderRadius: 2, p: 2,
+                      bgcolor: '#fffbeb',
+                      height: '100%',
+                    }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                        <Box sx={{ width: 28, height: 28, borderRadius: 1, bgcolor: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <DollarSign size={15} color="white" />
+                        </Box>
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: '#b45309' }}>Discount</Typography>
+                      </Box>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        name="discount_amount"
+                        type="number"
+                        value={formData.discount_amount}
+                        onChange={handleInputChange}
+                        inputProps={{ step: 0.01, min: 0 }}
+                        placeholder="0.00"
+                        sx={{ bgcolor: 'white', borderRadius: 1.5 }}
+                        InputProps={{
+                          startAdornment: <InputAdornment position="start"><Typography sx={{ color: '#94a3b8', fontWeight: 600, fontSize: 13 }}>PKR</Typography></InputAdornment>
+                        }}
+                      />
+                    </Box>
+                  </Grid>
+                </Grid>
+
+                {/* Total summary */}
+                {(parseFloat(formData.cash_amount || 0) > 0 || parseFloat(formData.bank_amount || 0) > 0 || parseFloat(formData.discount_amount || 0) > 0) && (
+                  <Box sx={{ mt: 2, pt: 2, borderTop: '1px dashed #e2e8f0' }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 2, mb: 1 }}>
+                      {parseFloat(formData.cash_amount || 0) > 0 && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <Typography variant="caption" sx={{ color: '#15803d', fontWeight: 600 }}>Cash:</Typography>
+                          <Typography variant="caption" sx={{ fontWeight: 700, color: '#15803d' }}>PKR {parseFloat(formData.cash_amount || 0).toLocaleString('en-PK', { minimumFractionDigits: 2 })}</Typography>
+                        </Box>
+                      )}
+                      {parseFloat(formData.bank_amount || 0) > 0 && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <Typography variant="caption" sx={{ color: '#1d4ed8', fontWeight: 600 }}>Bank:</Typography>
+                          <Typography variant="caption" sx={{ fontWeight: 700, color: '#1d4ed8' }}>PKR {parseFloat(formData.bank_amount || 0).toLocaleString('en-PK', { minimumFractionDigits: 2 })}</Typography>
+                        </Box>
+                      )}
+                      {parseFloat(formData.discount_amount || 0) > 0 && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <Typography variant="caption" sx={{ color: '#b45309', fontWeight: 600 }}>Discount:</Typography>
+                          <Typography variant="caption" sx={{ fontWeight: 700, color: '#b45309' }}>PKR {parseFloat(formData.discount_amount || 0).toLocaleString('en-PK', { minimumFractionDigits: 2 })}</Typography>
+                        </Box>
+                      )}
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" sx={{ color: '#64748b', fontWeight: 600 }}>Total:</Typography>
+                      <Typography variant="body1" sx={{ fontWeight: 800, color: '#1e40af' }}>
+                        PKR {(parseFloat(formData.cash_amount || 0) + parseFloat(formData.bank_amount || 0) + parseFloat(formData.discount_amount || 0)).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </Typography>
+                    </Box>
+                  </Box>
+                )}
+              </Box>
+            </Box>
+
+            {/* Details */}
+            <Box>
+              <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, mb: 1, display: 'block' }}>
+                Transaction Details
+              </Typography>
+              <TextField
+                fullWidth
+                name="details"
+                value={formData.details}
+                onChange={handleInputChange}
+                multiline
+                rows={3}
+                placeholder="Enter transaction details or notes..."
+                sx={{ bgcolor: 'white', borderRadius: 2 }}
+              />
+            </Box>
+
           </Box>
         </DialogContent>
 
-        <DialogActions sx={{ p: 3, borderTop: '1px solid #e2e8f0', bgcolor: '#f8fafc' }}>
+        <DialogActions sx={{ px: 3, py: 2.5, borderTop: '1px solid #e2e8f0', bgcolor: 'white', gap: 1.5 }}>
           <Button
             onClick={() => {
               setShowLedgerForm(false);
               setEditingLedger(null);
+              setSelectedLedgerBankAccount(null);
+              setFormData({ cus_id: '', debit_amount: '', credit_amount: '', bill_no: '', trnx_type: 'CASH', details: '', cash_amount: '', bank_amount: '', discount_amount: '' });
+              setCustomerSearchTerm('');
             }}
-            sx={{ color: '#64748b' }}
+            variant="outlined"
+            sx={{ borderColor: '#e2e8f0', color: '#64748b', '&:hover': { bgcolor: '#f8fafc', borderColor: '#cbd5e1' }, px: 3, borderRadius: 2 }}
           >
             Cancel
           </Button>
@@ -2197,14 +2405,23 @@ export default function FinancePage() {
             type="submit"
             variant="contained"
             onClick={handleSubmit}
+            disabled={isSubmittingLedger}
             sx={{
-              bgcolor: '#3b82f6',
-              '&:hover': { bgcolor: '#2563eb' },
-              px: 4,
-              fontWeight: 700
+              background: isSubmittingLedger ? undefined : 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+              '&:hover': { background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)' },
+              px: 4, fontWeight: 700, borderRadius: 2,
+              boxShadow: isSubmittingLedger ? 'none' : '0 4px 14px rgba(59,130,246,0.4)',
+              minWidth: 140,
             }}
           >
-            {editingLedger ? 'Update Entry' : 'Create Entry'}
+            {isSubmittingLedger ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <CircularProgress size={16} sx={{ color: 'inherit' }} />
+                {editingLedger ? 'Updating...' : 'Creating...'}
+              </Box>
+            ) : (
+              editingLedger ? 'Update Entry' : 'Create Entry'
+            )}
           </Button>
         </DialogActions>
       </Dialog>

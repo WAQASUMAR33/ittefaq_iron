@@ -380,7 +380,15 @@ export default function OrderReport() {
       <style jsx global>{`
         @media print {
           @page { size: A4 landscape; margin: 8mm; }
-          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .no-print { display: none !important; }
+          body { font-size: 10px !important; background: white !important; margin: 0 !important; padding: 0 !important; }
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          table { width: 100% !important; table-layout: fixed !important; border-collapse: collapse !important; font-size: 9px !important; }
+          th, td { padding: 4px 6px !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+          th { position: static !important; }
+          tr { page-break-inside: avoid !important; }
+          thead { display: table-header-group !important; }
+          tfoot { display: table-footer-group !important; }
         }
       `}</style>
     </DashboardLayout>

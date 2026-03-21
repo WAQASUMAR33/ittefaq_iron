@@ -134,46 +134,41 @@ export async function POST(request) {
       }
     }
 
-    // Create ledger entry in a transaction
-    const result = await prisma.$transaction(async (tx) => {
-      // Get customer's current balance
-      const customerData = await tx.customer.findUnique({
-        where: { cus_id: parseInt(cus_id) },
-        select: { cus_balance: true }
-      });
+    // Get customer's current balance
+    const customerData = await prisma.customer.findUnique({
+      where: { cus_id: parseInt(cus_id) },
+      select: { cus_balance: true }
+    });
 
-      if (!customerData) {
-        throw new Error('Customer data not found for balance calculation');
+    if (!customerData) {
+      return errorResponse('Customer data not found', 404);
+    }
+
+    const openingBalance = parseFloat(customerData.cus_balance || 0);
+    const debitNum = parseFloat(debit_amount || 0);
+    const creditNum = parseFloat(credit_amount || 0);
+    const closingBalance = openingBalance + debitNum - creditNum;
+
+    // Create the ledger entry
+    const result = await prisma.ledger.create({
+      data: {
+        cus_id: parseInt(cus_id),
+        opening_balance: openingBalance,
+        debit_amount: debitNum,
+        credit_amount: creditNum,
+        closing_balance: closingBalance,
+        bill_no: bill_no ? String(bill_no) : null,
+        trnx_type: trnx_type,
+        details: details || null,
+        payments: parseFloat(payments || 0),
+        updated_by: validUpdatedBy
       }
+    });
 
-      const openingBalance = parseFloat(customerData.cus_balance || 0);
-      const debitNum = parseFloat(debit_amount || 0);
-      const creditNum = parseFloat(credit_amount || 0);
-      const closingBalance = openingBalance + debitNum - creditNum;
-
-      // Create the ledger entry
-      const newLedger = await tx.ledger.create({
-        data: {
-          cus_id: parseInt(cus_id),
-          opening_balance: openingBalance,
-          debit_amount: debitNum,
-          credit_amount: creditNum,
-          closing_balance: closingBalance,
-          bill_no: bill_no ? String(bill_no) : null,
-          trnx_type: trnx_type,
-          details: details || null,
-          payments: parseFloat(payments || 0),
-          updated_by: validUpdatedBy
-        }
-      });
-
-      // Update customer balance
-      await tx.customer.update({
-        where: { cus_id: parseInt(cus_id) },
-        data: { cus_balance: closingBalance }
-      });
-
-      return newLedger;
+    // Update customer balance
+    await prisma.customer.update({
+      where: { cus_id: parseInt(cus_id) },
+      data: { cus_balance: closingBalance }
     });
 
     // Fetch the complete ledger entry with relations

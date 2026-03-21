@@ -967,109 +967,16 @@ export default function SalesByDateReport() {
 
       <style jsx global>{`
         @media print {
-          @page {
-            size: A4;
-            margin: 1cm;
-          }
-          
-          body {
-            print-color-adjust: exact;
-            -webkit-print-color-adjust: exact;
-          }
-          
-          /* Hide everything by default */
-          body * {
-            visibility: hidden;
-          }
-          
-          /* Show the printable report and all its children */
-          #printable-report,
-          #printable-report * {
-            visibility: visible !important;
-          }
-          
-          /* Position printable report at top */
-          #printable-report {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-          }
-          
-          /* Show only print content */
-          .print\\:block {
-            display: block !important;
-            visibility: visible !important;
-          }
-          
-          .print\\:block * {
-            visibility: visible !important;
-          }
-          
-          .print\\:table {
-            display: table !important;
-          }
-          
-          /* Hide non-print elements */
-          .print\\:hidden {
-            display: none !important;
-            visibility: hidden !important;
-          }
-          
-          /* Table styles for print */
-          table {
-            page-break-inside: auto;
-            border-collapse: collapse;
-            width: 100%;
-          }
-          
-          tr {
-            page-break-inside: avoid;
-            page-break-after: auto;
-          }
-          
-          thead {
-            display: table-header-group;
-          }
-          
-          tfoot {
-            display: table-footer-group;
-          }
-          
-          tbody {
-            display: table-row-group;
-          }
-          
-          /* Remove shadows and rounded corners for print */
-          .print\\:shadow-none {
-            box-shadow: none !important;
-          }
-          
-          .print\\:border {
-            border: 1px solid #e5e7eb !important;
-          }
-          
-          .print\\:border-gray-300 {
-            border-color: #d1d5db !important;
-          }
-          
-          /* Ensure backgrounds print */
-          .bg-gray-50,
-          .bg-blue-100,
-          .bg-green-100 {
-            print-color-adjust: exact;
-            -webkit-print-color-adjust: exact;
-          }
-          
-          /* Grid layout for print */
-          .print\\:grid {
-            display: grid !important;
-          }
-          
-          /* Remove flex on print */
-          .print\\:overflow-visible {
-            overflow: visible !important;
-          }
+          @page { size: A4 landscape; margin: 8mm; }
+          .no-print { display: none !important; }
+          body { font-size: 10px !important; background: white !important; margin: 0 !important; padding: 0 !important; }
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          table { width: 100% !important; table-layout: fixed !important; border-collapse: collapse !important; font-size: 9px !important; }
+          th, td { padding: 4px 6px !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+          th { position: static !important; }
+          tr { page-break-inside: avoid !important; }
+          thead { display: table-header-group !important; }
+          tfoot { display: table-footer-group !important; }
         }
       `}</style>
     </DashboardLayout>

@@ -69,6 +69,9 @@ export async function GET(request) {
       case 'customer-balance-report':
         return await getDetailedCustomerBalanceReport();
 
+      case 'item-sale-report':
+        return await getItemSaleReport(startDate, endDate);
+
       default:
         return NextResponse.json({ error: 'Invalid report type' }, { status: 400 });
     }
@@ -1266,4 +1269,50 @@ async function getRebateReport(supplierId, startDate, endDate) {
   };
 
   return NextResponse.json({ supplier, products, summary });
+}
+
+// Item Sale Report — flat list of sale_details with product, customer, sale info
+async function getItemSaleReport(startDate, endDate) {
+  const whereClause = {};
+  if (startDate && endDate) {
+    whereClause.sale = {
+      created_at: {
+        gte: new Date(startDate),
+        lte: new Date(endDate + 'T23:59:59.999Z')
+      }
+    };
+  }
+
+  const details = await prisma.saleDetail.findMany({
+    where: whereClause,
+    include: {
+      sale: {
+        include: {
+          customer: {
+            include: { customer_category: true }
+          }
+        }
+      },
+      product: {
+        include: {
+          category: true,
+          sub_category: true
+        }
+      },
+      store: true
+    },
+    orderBy: {
+      sale: { created_at: 'desc' }
+    }
+  });
+
+  const summary = {
+    totalItems: details.length,
+    totalQty: details.reduce((sum, d) => sum + parseFloat(d.qnty || 0), 0),
+    totalAmount: details.reduce((sum, d) => sum + parseFloat(d.total_amount || 0), 0),
+    totalDiscount: details.reduce((sum, d) => sum + parseFloat(d.discount || 0), 0),
+    netTotal: details.reduce((sum, d) => sum + parseFloat(d.net_total || 0), 0),
+  };
+
+  return NextResponse.json({ details, summary });
 }

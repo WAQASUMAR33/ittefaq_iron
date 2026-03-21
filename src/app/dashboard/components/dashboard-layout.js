@@ -112,25 +112,35 @@ export default function DashboardLayout({ children }) {
   }
 
   return (
+    <>
+    <style>{`
+      @media print {
+        .no-print { display: none !important; }
+        body { overflow: visible !important; background: white !important; }
+        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      }
+    `}</style>
     <ClientOnly fallback={
       <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default' }}>
         <CircularProgress size={80} />
       </Box>
     }>
       <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
-        {/* Sidebar */}
-        <Sidebar
-          sidebarOpen={sidebarOpen}
-          setSidebarOpen={setSidebarOpen}
-          collapsed={collapsed}
-          setCollapsed={setCollapsed}
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          expandedDropdowns={expandedDropdowns}
-          setExpandedDropdowns={setExpandedDropdowns}
-          user={user}
-          handleLogout={handleLogout}
-        />
+        {/* Sidebar — hidden when printing */}
+        <Box sx={{ '@media print': { display: 'none !important' } }}>
+          <Sidebar
+            sidebarOpen={sidebarOpen}
+            setSidebarOpen={setSidebarOpen}
+            collapsed={collapsed}
+            setCollapsed={setCollapsed}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            expandedDropdowns={expandedDropdowns}
+            setExpandedDropdowns={setExpandedDropdowns}
+            user={user}
+            handleLogout={handleLogout}
+          />
+        </Box>
 
         {/* Main Content */}
         <Box
@@ -145,16 +155,19 @@ export default function DashboardLayout({ children }) {
             bgcolor: 'background.default',
             minHeight: '100vh',
             display: 'flex',
-            flexDirection: 'column'
+            flexDirection: 'column',
+            '@media print': { width: '100% !important', marginLeft: '0 !important' },
           }}
         >
-          {/* Header */}
-          <Header
-            sidebarOpen={sidebarOpen}
-            setSidebarOpen={setSidebarOpen}
-            activeTab={activeTab}
-            user={user}
-          />
+          {/* Header — hidden when printing */}
+          <Box sx={{ '@media print': { display: 'none !important' } }}>
+            <Header
+              sidebarOpen={sidebarOpen}
+              setSidebarOpen={setSidebarOpen}
+              activeTab={activeTab}
+              user={user}
+            />
+          </Box>
 
           {/* Main Content Area */}
           <Box
@@ -163,7 +176,8 @@ export default function DashboardLayout({ children }) {
               flexGrow: 1,
               overflow: 'auto',
               bgcolor: 'background.default',
-              p: 1
+              p: 1,
+              '@media print': { padding: 0, overflow: 'visible' },
             }}
           >
             {children}
@@ -171,5 +185,6 @@ export default function DashboardLayout({ children }) {
         </Box>
       </Box>
     </ClientOnly>
+    </>
   );
 }

@@ -6705,57 +6705,6 @@ function SalesPageContent() {
                 >
                   Add City
                 </Button>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<PackageIcon />}
-                  onClick={() => setShowAddProductPopup(true)}
-                  sx={{
-                    borderColor: 'info.main',
-                    color: 'info.main',
-                    '&:hover': {
-                      borderColor: 'info.dark',
-                      backgroundColor: 'info.light',
-                      color: 'info.dark'
-                    }
-                  }}
-                >
-                  Add Product
-                </Button>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<FolderIcon />}
-                  onClick={() => setShowAddProductCategoryPopup(true)}
-                  sx={{
-                    borderColor: 'success.main',
-                    color: 'success.main',
-                    '&:hover': {
-                      borderColor: 'success.dark',
-                      backgroundColor: 'success.light',
-                      color: 'success.dark'
-                    }
-                  }}
-                >
-                  Add Product Category
-                </Button>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<FolderOpenIcon />}
-                  onClick={() => setShowAddProductSubCategoryPopup(true)}
-                  sx={{
-                    borderColor: 'secondary.main',
-                    color: 'secondary.main',
-                    '&:hover': {
-                      borderColor: 'secondary.dark',
-                      backgroundColor: 'secondary.light',
-                      color: 'secondary.dark'
-                    }
-                  }}
-                >
-                  Add Product Sub Category
-                </Button>
               </Box>
             </Box>
 

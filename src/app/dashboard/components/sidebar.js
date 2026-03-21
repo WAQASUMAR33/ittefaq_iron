@@ -128,6 +128,7 @@ export default function Sidebar({
     { id: 'order-report', name: 'Order Report', icon: DescriptionIcon, category: 'reports', parent: 'Reports' },
     { id: 'stock-report', name: 'Stock Report', icon: InventoryIcon, category: 'reports', parent: 'Reports' },
     { id: 'sale-report', name: 'Sale Report', icon: ShoppingCartIcon, category: 'reports', parent: 'Reports' },
+    { id: 'item-sale-report', name: 'Item Sale Report', icon: ShoppingCartIcon, category: 'reports', parent: 'Reports' },
     { id: 'profit-report', name: 'Profit Report', icon: TrendingUpIcon, category: 'reports', parent: 'Reports' },
     { id: 'purchase-report', name: 'Purchase Report', icon: ShoppingBagIcon, category: 'reports', parent: 'Reports' },
     { id: 'rebate-report', name: 'Rebate Report', icon: PieChartIcon, category: 'reports', parent: 'Reports' },
@@ -229,6 +230,8 @@ export default function Sidebar({
       router.push('/dashboard/reports/stock-report');
     } else if (itemId === 'sale-report') {
       router.push('/dashboard/reports/sale-report');
+    } else if (itemId === 'item-sale-report') {
+      router.push('/dashboard/reports/item-sale-report');
     } else if (itemId === 'profit-report') {
       router.push('/dashboard/reports/profit-report');
     } else if (itemId === 'purchase-report') {

@@ -580,13 +580,16 @@ export default function CustomerBalanceReport() {
 
             <style jsx global>{`
         @media print {
-          body * { visibility: hidden; }
-          .print-table, .print-table * { visibility: visible !important; }
-          .print-table { position: absolute; left: 0; top: 0; width: 100%; border: none !important; box-shadow: none !important; }
-          .MuiTableHead-root { display: table-header-group !important; }
-          .MuiTableRow-root { page-break-inside: avoid !important; }
-          .print\\:hidden { display: none !important; }
-          @page { margin: 1cm; size: landscape; }
+          @page { size: A4 landscape; margin: 8mm; }
+          .no-print { display: none !important; }
+          body { font-size: 10px !important; background: white !important; margin: 0 !important; padding: 0 !important; }
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          table { width: 100% !important; table-layout: fixed !important; border-collapse: collapse !important; font-size: 9px !important; }
+          th, td { padding: 4px 6px !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+          th { position: static !important; }
+          tr { page-break-inside: avoid !important; }
+          thead { display: table-header-group !important; }
+          tfoot { display: table-footer-group !important; }
         }
       `}</style>
         </DashboardLayout>

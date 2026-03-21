@@ -4587,49 +4587,6 @@ function PurchasesPageContent() {
                 >
                   Add City
                 </Button>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<PackageIcon />}
-                  onClick={() => setShowAddProductPopup(true)}
-                  sx={{
-                    borderColor: 'info.main',
-                    color: 'info.main',
-                    '&:hover': {
-                      borderColor: 'info.dark',
-                      backgroundColor: 'info.light',
-                      color: 'info.dark'
-                    }
-                  }}
-                >
-                  Add Product
-                </Button>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<FolderIcon />}
-                  onClick={() => setShowAddProductCategoryPopup(true)}
-                  sx={{
-                    borderColor: '#16a34a',
-                    color: '#16a34a',
-                    '&:hover': { borderColor: '#15803d', backgroundColor: '#f0fdf4', color: '#15803d' }
-                  }}
-                >
-                  Add Product Category
-                </Button>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<FolderOpenIcon />}
-                  onClick={() => setShowAddProductSubCategoryPopup(true)}
-                  sx={{
-                    borderColor: '#7c3aed',
-                    color: '#7c3aed',
-                    '&:hover': { borderColor: '#6d28d9', backgroundColor: '#f5f3ff', color: '#6d28d9' }
-                  }}
-                >
-                  Add Product Sub Category
-                </Button>
               </Box>
             </Box>
 
