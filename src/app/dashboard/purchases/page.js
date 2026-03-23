@@ -802,20 +802,27 @@ function PurchasesPageContent() {
     }
   }, [stores, formData.store_id]);
 
-  // Recompute product cost_rate from original_cost_rate + (labourPerUnit) + (incityPerUnit)
-  const recomputeDistributedCosts = (purchaseDetails, { includeLabour = formData.include_labour, labourAmount = formData.labour_amount, includeIncity = formData.include_incity, incityAmount = (parseFloat(formData.incity_own_labour || 0) + parseFloat(formData.incity_own_delivery || 0)), includeCargo = formData.include_cargo_in_costprice, outLabour = formData.out_labour_amount, outDelivery = formData.out_delivery_amount } = {}) => {
+  // Recompute product cost_rate from original_cost_rate + (labourPerUnit) + (incityPerUnit) + (cargoPerUnit)
+  // All values must be passed explicitly — no formData closure reads to avoid stale state bugs
+  const recomputeDistributedCosts = (purchaseDetails, {
+    includeLabour = false,
+    labourAmount = 0,
+    includeIncity = false,
+    incityAmount = 0,
+    includeCargo = false,
+    outLabour = 0,
+    outDelivery = 0
+  } = {}) => {
     if (!purchaseDetails || purchaseDetails.length === 0) return purchaseDetails;
 
     const totalQuantity = purchaseDetails.reduce((sum, d) => sum + parseFloat(d.qnty || 0), 0);
-    const unloadingAmountNum = parseFloat(formData.unloading_amount || 0);
-    const transportAmountNum = parseFloat(formData.transport_amount || 0);
-    const fareAmountNum = parseFloat(formData.fare_amount || 0);
 
     const outLabourNum = parseFloat(outLabour || 0);
     const outDeliveryNum = parseFloat(outDelivery || 0);
     const cargoTotal = includeCargo ? (outLabourNum + outDeliveryNum) : 0;
 
-    const labourTotal = includeLabour ? (parseFloat(labourAmount || 0) + unloadingAmountNum + transportAmountNum + fareAmountNum) : 0;
+    // Labour distribution: ONLY the labour_amount field — transport/delivery/fare are separate expenses
+    const labourTotal = includeLabour ? parseFloat(labourAmount || 0) : 0;
     const incityTotal = includeIncity ? parseFloat(incityAmount || 0) : 0;
 
     const labourPerUnit = totalQuantity > 0 ? labourTotal / totalQuantity : 0;
@@ -826,36 +833,48 @@ function PurchasesPageContent() {
     if (!includeLabour && !includeIncity && !includeCargo) {
       return purchaseDetails.map(detail => ({
         ...detail,
-        cost_rate: detail.original_cost_rate ?? detail.cost_rate ?? detail.unit_rate ?? 0,
+        cost_rate: detail.original_cost_rate ?? detail.cost_rate ?? detail.crate ?? detail.unit_rate ?? 0,
         total_amount: Number((parseFloat(detail.crate || detail.unit_rate || 0) * parseFloat(detail.qnty || 0)).toFixed(2))
       }));
     }
 
     return purchaseDetails.map(detail => {
-      const base = parseFloat(detail.original_cost_rate ?? detail.cost_rate ?? detail.unit_rate ?? 0);
+      const base = parseFloat(detail.original_cost_rate ?? detail.cost_rate ?? detail.crate ?? detail.unit_rate ?? 0);
       const newCost = Number((base + labourPerUnit + incityPerUnit + cargoPerUnit).toFixed(2));
       return {
         ...detail,
         cost_rate: newCost,
-        original_cost_rate: detail.original_cost_rate ?? detail.cost_rate ?? detail.unit_rate ?? 0,
+        original_cost_rate: detail.original_cost_rate ?? detail.cost_rate ?? detail.crate ?? detail.unit_rate ?? 0,
         total_amount: Number((parseFloat(detail.crate || detail.unit_rate || 0) * parseFloat(detail.qnty || 0)).toFixed(2))
       };
     });
   };
 
+  // Helper: build distribution params from a formData snapshot (prev or current)
+  const getDistributionParams = (fd, overrides = {}) => ({
+    includeLabour: fd.include_labour,
+    labourAmount: fd.labour_amount,
+    includeIncity: fd.include_incity,
+    incityAmount: parseFloat(fd.incity_own_labour || 0) + parseFloat(fd.incity_own_delivery || 0),
+    includeCargo: fd.include_cargo_in_costprice,
+    outLabour: fd.out_labour_amount,
+    outDelivery: fd.out_delivery_amount,
+    ...overrides
+  });
+
   // Function to handle labour charges distribution (now independent)
-  const handleLabourDistribution = (includeLabour, labourAmount, purchaseDetails) => {
-    return recomputeDistributedCosts(purchaseDetails, { includeLabour, labourAmount, includeIncity: formData.include_incity });
+  const handleLabourDistribution = (includeLabour, labourAmount, purchaseDetails, fd = formData) => {
+    return recomputeDistributedCosts(purchaseDetails, getDistributionParams(fd, { includeLabour, labourAmount }));
   };
 
   // Function to handle Incity charges distribution (independent)
-  const handleIncityDistribution = (includeIncity, incityAmount, purchaseDetails) => {
-    return recomputeDistributedCosts(purchaseDetails, { includeIncity, incityAmount, includeLabour: formData.include_labour });
+  const handleIncityDistribution = (includeIncity, incityAmount, purchaseDetails, fd = formData) => {
+    return recomputeDistributedCosts(purchaseDetails, getDistributionParams(fd, { includeIncity, incityAmount }));
   };
 
   // Function to handle Cargo charges distribution (independent)
-  const handleCargoDistribution = (includeCargo, outLabour, outDelivery, purchaseDetails) => {
-    return recomputeDistributedCosts(purchaseDetails, { includeCargo, outLabour, outDelivery, includeLabour: formData.include_labour, includeIncity: formData.include_incity });
+  const handleCargoDistribution = (includeCargo, outLabour, outDelivery, purchaseDetails, fd = formData) => {
+    return recomputeDistributedCosts(purchaseDetails, getDistributionParams(fd, { includeCargo, outLabour, outDelivery }));
   };
 
   // Close dropdown when clicking outside
@@ -1115,7 +1134,8 @@ function PurchasesPageContent() {
       const finalPurchaseDetails = handleLabourDistribution(
         prev.include_labour,
         prev.labour_amount,
-        updatedPurchaseDetails
+        updatedPurchaseDetails,
+        prev
       );
 
       return {
@@ -1243,6 +1263,13 @@ function PurchasesPageContent() {
     // const outDelivery = parseFloat(formData.out_delivery_amount || 0); // external — excluded
 
     return Number((totalAmount + unloadingAmount + transportAmount + labourAmount - discount).toFixed(2));
+  };
+
+  // Format amount: show decimals only when non-zero (e.g. 143575.00 → "143,575", 12.99 → "12.99")
+  const fmtAmt = (val) => {
+    const n = parseFloat(val || 0);
+    if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
   // Invoice helpers: compute display net and remaining due consistently (uses display_net_total when present)
@@ -3387,6 +3414,10 @@ function PurchasesPageContent() {
                         )}
                         renderOption={(props, option) => {
                           const { key, ...optionProps } = props;
+                          const storeStockEntry = formData.store_id
+                            ? option.store_stocks?.find(s => s.store_id === parseInt(formData.store_id))
+                            : null;
+                          const stockQty = storeStockEntry ? parseFloat(storeStockEntry.stock_quantity) : null;
                           return (
                             <Box component="li" key={option.pro_id} {...optionProps}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
@@ -3404,12 +3435,22 @@ function PurchasesPageContent() {
                                     {option.category?.cat_name} • {option.sub_category?.sub_cat_name}
                                   </Typography>
                                 </Box>
-                                <Chip
-                                  label={`PKR ${parseFloat(option.pro_cost_price || 0).toLocaleString('en-PK', { minimumFractionDigits: 2 })}`}
-                                  size="small"
-                                  color="primary"
-                                  variant="outlined"
-                                />
+                                <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                                  {stockQty !== null && (
+                                    <Chip
+                                      label={`Stock: ${stockQty.toLocaleString()}`}
+                                      size="small"
+                                      color={stockQty <= 0 ? 'error' : stockQty <= (option.low_stock_quantity || 10) ? 'warning' : 'success'}
+                                      variant="outlined"
+                                    />
+                                  )}
+                                  <Chip
+                                    label={`PKR ${parseFloat(option.pro_cost_price || 0).toLocaleString('en-PK', { minimumFractionDigits: 2 })}`}
+                                    size="small"
+                                    color="primary"
+                                    variant="outlined"
+                                  />
+                                </Box>
                               </Box>
                             </Box>
                           );
@@ -3475,6 +3516,28 @@ function PurchasesPageContent() {
                       />
                     </Box>
                   </Grid>
+
+                  {/* Available Stock Display */}
+                  {selectedProduct && formData.store_id && (() => {
+                    const storeStock = selectedProduct.store_stocks?.find(s => s.store_id === parseInt(formData.store_id));
+                    const qty = storeStock ? parseFloat(storeStock.stock_quantity) : 0;
+                    return (
+                      <Grid item xs={12} md={2}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                            AVAILABLE STOCK
+                          </Typography>
+                          <Chip
+                            label={`${qty.toLocaleString()} ${selectedProduct.pro_unit || ''}`}
+                            color={qty <= 0 ? 'error' : qty <= (selectedProduct.low_stock_quantity || 10) ? 'warning' : 'success'}
+                            variant="outlined"
+                            size="small"
+                            sx={{ fontWeight: 'bold', fontSize: 13, height: 38, borderRadius: 1 }}
+                          />
+                        </Box>
+                      </Grid>
+                    );
+                  })()}
 
                   <Grid item xs={12} md={3}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -4032,7 +4095,7 @@ function PurchasesPageContent() {
                                   const newInclude = e.target.checked;
                                   setFormData(prev => {
                                     const incityAmount = parseFloat(prev.incity_own_labour || 0) + parseFloat(prev.incity_own_delivery || 0);
-                                    const updatedDetails = handleIncityDistribution(newInclude, incityAmount, prev.purchase_details);
+                                    const updatedDetails = handleIncityDistribution(newInclude, incityAmount, prev.purchase_details, prev);
                                     return { ...prev, include_incity: newInclude, purchase_details: updatedDetails };
                                   });
                                 }}
@@ -4050,7 +4113,7 @@ function PurchasesPageContent() {
                                 const newVal = e.target.value;
                                 setFormData(prev => {
                                   const incityAmount = parseFloat(newVal || 0) + parseFloat(prev.incity_own_delivery || 0);
-                                  const updatedDetails = handleIncityDistribution(prev.include_incity, incityAmount, prev.purchase_details);
+                                  const updatedDetails = handleIncityDistribution(prev.include_incity, incityAmount, prev.purchase_details, prev);
                                   return { ...prev, incity_own_labour: newVal, purchase_details: updatedDetails };
                                 });
                               }}
@@ -4066,7 +4129,7 @@ function PurchasesPageContent() {
                                 const newVal = e.target.value;
                                 setFormData(prev => {
                                   const incityAmount = parseFloat(prev.incity_own_labour || 0) + parseFloat(newVal || 0);
-                                  const updatedDetails = handleIncityDistribution(prev.include_incity, incityAmount, prev.purchase_details);
+                                  const updatedDetails = handleIncityDistribution(prev.include_incity, incityAmount, prev.purchase_details, prev);
                                   return { ...prev, incity_own_delivery: newVal, purchase_details: updatedDetails };
                                 });
                               }}
@@ -4187,7 +4250,7 @@ function PurchasesPageContent() {
                                   onChange={(e) => {
                                     const newVal = e.target.value;
                                     setFormData(prev => {
-                                      const updatedDetails = handleCargoDistribution(prev.include_cargo_in_costprice, newVal, prev.out_delivery_amount, prev.purchase_details);
+                                      const updatedDetails = handleCargoDistribution(prev.include_cargo_in_costprice, newVal, prev.out_delivery_amount, prev.purchase_details, prev);
                                       return { ...prev, out_labour_amount: newVal, purchase_details: updatedDetails };
                                     });
                                   }}
@@ -4203,7 +4266,7 @@ function PurchasesPageContent() {
                                   onChange={(e) => {
                                     const newVal = e.target.value;
                                     setFormData(prev => {
-                                      const updatedDetails = handleCargoDistribution(prev.include_cargo_in_costprice, prev.out_labour_amount, newVal, prev.purchase_details);
+                                      const updatedDetails = handleCargoDistribution(prev.include_cargo_in_costprice, prev.out_labour_amount, newVal, prev.purchase_details, prev);
                                       return { ...prev, out_delivery_amount: newVal, purchase_details: updatedDetails };
                                     });
                                   }}
@@ -4226,7 +4289,7 @@ function PurchasesPageContent() {
                                   onChange={(e) => {
                                     const newInclude = e.target.checked;
                                     setFormData(prev => {
-                                      const updatedDetails = handleCargoDistribution(newInclude, prev.out_labour_amount, prev.out_delivery_amount, prev.purchase_details);
+                                      const updatedDetails = handleCargoDistribution(newInclude, prev.out_labour_amount, prev.out_delivery_amount, prev.purchase_details, prev);
                                       return { ...prev, include_cargo_in_costprice: newInclude, purchase_details: updatedDetails };
                                     });
                                   }}
@@ -4271,12 +4334,9 @@ function PurchasesPageContent() {
                         onChange={(e) => {
                           const newTransport = e.target.value;
                           setFormData(prev => {
-                            const updatedDetails = handleLabourDistribution(
-                              prev.include_labour,
-                              prev.labour_amount,
-                              prev.purchase_details
-                            );
-                            return { ...prev, transport_amount: newTransport, purchase_details: updatedDetails };
+                            // transport_amount is a separate expense; labour distribution only uses labour_amount
+                            // no cost_rate recalculation needed here
+                            return { ...prev, transport_amount: newTransport };
                           });
                         }}
                         onFocus={(e) => e.target.select()}
@@ -4302,7 +4362,8 @@ function PurchasesPageContent() {
                             const updatedDetails = handleLabourDistribution(
                               prev.include_labour,
                               newLabourAmount,
-                              prev.purchase_details
+                              prev.purchase_details,
+                              prev
                             );
                             return {
                               ...prev,
@@ -4331,7 +4392,8 @@ function PurchasesPageContent() {
                             const updatedDetails = handleLabourDistribution(
                               newIncludeLabour,
                               prev.labour_amount,
-                              prev.purchase_details
+                              prev.purchase_details,
+                              prev
                             );
                             console.log('🔧 Updated details:', updatedDetails);
                             return {
@@ -5205,8 +5267,8 @@ function PurchasesPageContent() {
                               <TableCell sx={{ px: 1 }}>{index + 1}</TableCell>
                               <TableCell sx={{ px: 1 }}>{detail.product?.pro_title || detail.pro_title || 'N/A'}</TableCell>
                               <TableCell sx={{ px: 1 }} align="right">{detail.qnty || 0}</TableCell>
-                              <TableCell sx={{ px: 1 }} align="right">{Number(detail.crate || detail.unit_rate || detail.rate || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
-                              <TableCell sx={{ px: 1 }} align="right">{Number(detail.total_amount || detail.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{fmtAmt(detail.crate || detail.unit_rate || detail.rate || 0)}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{fmtAmt(detail.total_amount || detail.amount || 0)}</TableCell>
                             </TableRow>
                           ))}
 
@@ -5246,21 +5308,21 @@ function PurchasesPageContent() {
                                 <TableRow>
                                   <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Previous Balance</TableCell>
                                   <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                    {previousBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {fmtAmt(previousBalance)}
                                   </TableCell>
                                 </TableRow>
 
                                 <TableRow>
                                   <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Current Balance</TableCell>
                                   <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                    {(invoiceNet - payment).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {fmtAmt(invoiceNet - payment)}
                                   </TableCell>
                                 </TableRow>
 
                                 <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                                   <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Total Balance</TableCell>
                                   <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                    {(previousBalance + invoiceNet - payment).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {fmtAmt(previousBalance + invoiceNet - payment)}
                                   </TableCell>
                                 </TableRow>
                               </>
@@ -5277,43 +5339,43 @@ function PurchasesPageContent() {
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Goods Total</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {parseFloat(viewingPurchase.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {fmtAmt(viewingPurchase.total_amount || 0)}
                             </TableCell>
                           </TableRow>
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Labour</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {parseFloat(viewingPurchase.labour_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {fmtAmt(viewingPurchase.labour_amount || 0)}
                             </TableCell>
                           </TableRow>
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Transport</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {parseFloat(viewingPurchase.transport_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {fmtAmt(viewingPurchase.transport_amount || 0)}
                             </TableCell>
                           </TableRow>
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Out Labour</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {parseFloat(viewingPurchase.out_labour_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {fmtAmt(viewingPurchase.out_labour_amount || 0)}
                             </TableCell>
                           </TableRow>
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Out Delivery</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {parseFloat(viewingPurchase.out_delivery_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {fmtAmt(viewingPurchase.out_delivery_amount || 0)}
                             </TableCell>
                           </TableRow>
                           <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Invoice Total</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {(viewingPurchase.display_net_total || parseFloat(viewingPurchase.total_amount || 0) + parseFloat(viewingPurchase.unloading_amount || 0) + parseFloat(viewingPurchase.transport_amount || 0) + parseFloat(viewingPurchase.labour_amount || 0) + parseFloat(viewingPurchase.fare_amount || 0) - parseFloat(viewingPurchase.discount || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {fmtAmt(viewingPurchase.display_net_total || parseFloat(viewingPurchase.total_amount || 0) + parseFloat(viewingPurchase.unloading_amount || 0) + parseFloat(viewingPurchase.transport_amount || 0) + parseFloat(viewingPurchase.labour_amount || 0) + parseFloat(viewingPurchase.fare_amount || 0) - parseFloat(viewingPurchase.discount || 0))}
                             </TableCell>
                           </TableRow>
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Cash Payment</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem', fontWeight: 'bold' }}>
-                              {parseFloat(viewingPurchase.cash_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {fmtAmt(viewingPurchase.cash_payment || 0)}
                             </TableCell>
                           </TableRow>
                           <TableRow>
@@ -5321,19 +5383,19 @@ function PurchasesPageContent() {
                               {viewingPurchase.bank_payment > 0 ? (viewingPurchase.bank_title || 'Bank Payment') : 'Bank Payment'}
                             </TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem', fontWeight: 'bold' }}>
-                              {parseFloat(viewingPurchase.bank_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {fmtAmt(viewingPurchase.bank_payment || 0)}
                             </TableCell>
                           </TableRow>
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Total Payment</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {parseFloat(viewingPurchase.payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {fmtAmt(viewingPurchase.payment || 0)}
                             </TableCell>
                           </TableRow>
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Balance Due</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {((viewingPurchase.display_net_total || parseFloat(viewingPurchase.total_amount || 0) + parseFloat(viewingPurchase.unloading_amount || 0) + parseFloat(viewingPurchase.transport_amount || 0) + parseFloat(viewingPurchase.labour_amount || 0) + parseFloat(viewingPurchase.fare_amount || 0) - parseFloat(viewingPurchase.discount || 0)) - parseFloat(viewingPurchase.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {fmtAmt((viewingPurchase.display_net_total || parseFloat(viewingPurchase.total_amount || 0) + parseFloat(viewingPurchase.unloading_amount || 0) + parseFloat(viewingPurchase.transport_amount || 0) + parseFloat(viewingPurchase.labour_amount || 0) + parseFloat(viewingPurchase.fare_amount || 0) - parseFloat(viewingPurchase.discount || 0)) - parseFloat(viewingPurchase.payment || 0))}
                             </TableCell>
                           </TableRow>
                         </TableBody>
@@ -5967,8 +6029,8 @@ function PurchasesPageContent() {
                               <TableCell sx={{ px: 1 }}>{index + 1}</TableCell>
                               <TableCell sx={{ px: 1 }}>{detail.product?.pro_title || detail.pro_title || 'N/A'}</TableCell>
                               <TableCell sx={{ px: 1 }} align="right">{detail.qnty || 0}</TableCell>
-                              <TableCell sx={{ px: 1 }} align="right">{Number(detail.crate || detail.unit_rate || detail.rate || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
-                              <TableCell sx={{ px: 1 }} align="right">{Number(detail.total_amount || detail.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{fmtAmt(detail.crate || detail.unit_rate || detail.rate || 0)}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{fmtAmt(detail.total_amount || detail.amount || 0)}</TableCell>
                             </TableRow>
                           ))}
 
@@ -6002,19 +6064,19 @@ function PurchasesPageContent() {
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Previous Balance</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                              {parseFloat(currentBillData.customer?.cus_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {fmtAmt(currentBillData.customer?.cus_balance || 0)}
                             </TableCell>
                           </TableRow>
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Current Due</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                              {getInvoiceRemainingDue(currentBillData).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {fmtAmt(getInvoiceRemainingDue(currentBillData))}
                             </TableCell>
                           </TableRow>
                           <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Total Due</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                              {(parseFloat(currentBillData.customer?.cus_balance || 0) + (parseFloat(currentBillData.display_net_total || (parseFloat(currentBillData.total_amount || 0) + parseFloat(currentBillData.unloading_amount || 0) + parseFloat(currentBillData.transport_amount || 0) + parseFloat(currentBillData.labour_amount || 0) + parseFloat(currentBillData.fare_amount || 0) - parseFloat(currentBillData.discount || 0))) - parseFloat(currentBillData.payment || 0))).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {fmtAmt(parseFloat(currentBillData.customer?.cus_balance || 0) + (parseFloat(currentBillData.display_net_total || (parseFloat(currentBillData.total_amount || 0) + parseFloat(currentBillData.unloading_amount || 0) + parseFloat(currentBillData.transport_amount || 0) + parseFloat(currentBillData.labour_amount || 0) + parseFloat(currentBillData.fare_amount || 0) - parseFloat(currentBillData.discount || 0))) - parseFloat(currentBillData.payment || 0)))}
                             </TableCell>
                           </TableRow>
                         </TableBody>
@@ -6037,7 +6099,7 @@ function PurchasesPageContent() {
                               <TableRow>
                                 <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Out Labour</TableCell>
                                 <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                  {parseFloat(currentBillData.out_labour_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  {fmtAmt(currentBillData.out_labour_amount || 0)}
                                 </TableCell>
                               </TableRow>
                             )}
@@ -6045,14 +6107,14 @@ function PurchasesPageContent() {
                               <TableRow>
                                 <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Out Delivery</TableCell>
                                 <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                  {parseFloat(currentBillData.out_delivery_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  {fmtAmt(currentBillData.out_delivery_amount || 0)}
                                 </TableCell>
                               </TableRow>
                             )}
                             <TableRow sx={{ bgcolor: '#e3f2fd' }}>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Total Outer Charges</TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {(parseFloat(currentBillData.out_labour_amount || 0) + parseFloat(currentBillData.out_delivery_amount || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {fmtAmt(parseFloat(currentBillData.out_labour_amount || 0) + parseFloat(currentBillData.out_delivery_amount || 0))}
                               </TableCell>
                             </TableRow>
                           </TableBody>
@@ -6076,7 +6138,7 @@ function PurchasesPageContent() {
                               <TableRow>
                                 <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Incity Labour</TableCell>
                                 <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                  {parseFloat(currentBillData.incity_own_labour || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  {fmtAmt(currentBillData.incity_own_labour || 0)}
                                 </TableCell>
                               </TableRow>
                             )}
@@ -6084,14 +6146,14 @@ function PurchasesPageContent() {
                               <TableRow>
                                 <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Incity Delivery</TableCell>
                                 <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                  {parseFloat(currentBillData.incity_own_delivery || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  {fmtAmt(currentBillData.incity_own_delivery || 0)}
                                 </TableCell>
                               </TableRow>
                             )}
                             <TableRow sx={{ bgcolor: '#fff3e0' }}>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Total Incity Charges</TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {(parseFloat(currentBillData.incity_own_labour || 0) + parseFloat(currentBillData.incity_own_delivery || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {fmtAmt(parseFloat(currentBillData.incity_own_labour || 0) + parseFloat(currentBillData.incity_own_delivery || 0))}
                               </TableCell>
                             </TableRow>
                           </TableBody>
@@ -6116,40 +6178,40 @@ function PurchasesPageContent() {
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>Bill Amount</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {parseFloat(currentBillData.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {fmtAmt(currentBillData.total_amount || 0)}
                             </TableCell>
                           </TableRow>
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>Labour</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {parseFloat(currentBillData.labour_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {fmtAmt(currentBillData.labour_amount || 0)}
                             </TableCell>
                           </TableRow>
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>Transport</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {parseFloat(currentBillData.transport_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {fmtAmt(currentBillData.transport_amount || 0)}
                             </TableCell>
                           </TableRow>
                           {parseFloat(currentBillData.discount || 0) > 0 && (
                             <TableRow>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>Discount</TableCell>
                               <TableCell align="right" sx={{ px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                -{parseFloat(currentBillData.discount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                -{fmtAmt(currentBillData.discount || 0)}
                               </TableCell>
                             </TableRow>
                           )}
                           <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>Total Amount</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {getInvoiceNet(currentBillData).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {fmtAmt(getInvoiceNet(currentBillData))}
                             </TableCell>
                           </TableRow>
                           {/* Always show cash payment */}
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>Cash</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {parseFloat(currentBillData.cash_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {fmtAmt(currentBillData.cash_payment || 0)}
                             </TableCell>
                           </TableRow>
                           {/* Always show bank payment row */}
@@ -6158,20 +6220,20 @@ function PurchasesPageContent() {
                               {`Bank Payment${currentBillData?.bank_title ? ' (' + currentBillData.bank_title + ')' : ''}`}
                             </TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {parseFloat(currentBillData.bank_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {fmtAmt(currentBillData.bank_payment || 0)}
                             </TableCell>
                           </TableRow>
                           {/* Remove payment breakdown summary */}
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>Total Received</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {parseFloat(currentBillData.payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {fmtAmt(currentBillData.payment || 0)}
                             </TableCell>
                           </TableRow>
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>Remaining Due</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {getInvoiceRemainingDue(currentBillData).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {fmtAmt(getInvoiceRemainingDue(currentBillData))}
                             </TableCell>
                           </TableRow>
                         </TableBody>

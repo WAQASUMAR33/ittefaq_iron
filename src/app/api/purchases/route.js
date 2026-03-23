@@ -420,16 +420,14 @@ export async function POST(request) {
         await tx.purchaseDetail.createMany({
           data: detailsData
         });
-        // Update store stock for each product
-        if (store_id) {
-          const storeStockUpdatePromises = detailsData.map(async detail => {
-            // For NEW PURCHASE: increment stock (items added)
-            // For PURCHASE RETURN: decrement stock (items removed)
-            const stockOperation = isReturn ? 'decrement' : 'increment';
-            await updateStoreStock(store_id, detail.pro_id, detail.qnty, stockOperation, updated_by, tx);
-          });
-          await Promise.all(storeStockUpdatePromises);
-        }
+        // Update store stock for each product using per-detail store_id (fallback to purchase-level store_id)
+        const storeStockUpdatePromises = purchase_details.map(async (detail, index) => {
+          const detailStoreId = detail.store_id || store_id;
+          if (!detailStoreId) return;
+          const stockOperation = isReturn ? 'decrement' : 'increment';
+          await updateStoreStock(detailStoreId, detailsData[index].pro_id, detailsData[index].qnty, stockOperation, updated_by, tx);
+        });
+        await Promise.all(storeStockUpdatePromises);
       }
 
       // Create comprehensive ledger entries for purchase (similar to sales)
@@ -1230,13 +1228,13 @@ export async function PUT(request) {
 
         await tx.purchaseDetail.createMany({ data: detailsData });
 
-        // Update store stock for each product
-        if (store_id) {
-          const storeStockUpdatePromises = detailsData.map(async detail => {
-            await updateStoreStock(store_id, detail.pro_id, detail.qnty, 'increment', updated_by, tx);
-          });
-          await Promise.all(storeStockUpdatePromises);
-        }
+        // Update store stock for each product using per-detail store_id (fallback to purchase-level store_id)
+        const storeStockUpdatePromises = purchase_details.map(async (detail, index) => {
+          const detailStoreId = detail.store_id || store_id;
+          if (!detailStoreId) return;
+          await updateStoreStock(detailStoreId, detailsData[index].pro_id, detailsData[index].qnty, 'increment', updated_by, tx);
+        });
+        await Promise.all(storeStockUpdatePromises);
       }
 
       // Create comprehensive ledger entries (similar to POST method)

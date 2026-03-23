@@ -81,6 +81,12 @@ export async function GET(request) {
               email: true,
               role: true
             }
+          },
+          store_stocks: {
+            select: {
+              store_id: true,
+              stock_quantity: true
+            }
           }
         },
         orderBy: { created_at: 'desc' },

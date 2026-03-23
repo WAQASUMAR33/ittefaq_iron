@@ -69,15 +69,22 @@ export async function getOrCreateStoreStock(storeId, productId, updatedBy = null
     if (!storeStock) {
       if (useDelegate) {
         try {
-          storeStock = await prisma.storeStock.create({
-            data: {
+          storeStock = await prisma.storeStock.upsert({
+            where: {
+              store_id_pro_id: {
+                store_id: storeIdInt,
+                pro_id: productIdInt
+              }
+            },
+            create: {
               store_id: storeIdInt,
               pro_id: productIdInt,
               stock_quantity: 0,
               min_stock: 0,
               max_stock: 1000,
               updated_by: updatedBy
-            }
+            },
+            update: {}
           });
         } catch (e) {
           if (e.code === 'P2021') {
@@ -89,7 +96,7 @@ export async function getOrCreateStoreStock(storeId, productId, updatedBy = null
       }
 
       if (!storeStock) {
-        await prisma.$executeRaw`INSERT INTO store_stocks (store_id, pro_id, stock_quantity, min_stock, max_stock, updated_by) VALUES (${storeIdInt}, ${productIdInt}, 0.00, 0.00, 1000.00, ${updatedBy})`;
+        await prisma.$executeRaw`INSERT INTO store_stocks (store_id, pro_id, stock_quantity, min_stock, max_stock, updated_by) VALUES (${storeIdInt}, ${productIdInt}, 0.00, 0.00, 1000.00, ${updatedBy}) ON DUPLICATE KEY UPDATE store_stock_id = store_stock_id`;
         const rows2 = await prisma.$queryRaw`SELECT * FROM store_stocks WHERE store_id = ${storeIdInt} AND pro_id = ${productIdInt} LIMIT 1`;
         storeStock = Array.isArray(rows2) && rows2.length > 0 ? rows2[0] : null;
       }
