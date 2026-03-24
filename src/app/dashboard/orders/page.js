@@ -44,11 +44,6 @@ import {
 
 import {
 
-const fmtAmt = (val) => {
-  const n = parseFloat(val || 0);
-  if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-  return fmtAmt(n);
-};
   Add as AddIcon,
   Search as SearchIcon,
   Edit as EditIcon,
@@ -73,6 +68,12 @@ const fmtAmt = (val) => {
   ArrowForward as ArrowForwardIcon,
   Cancel as CancelIcon
 } from '@mui/icons-material';
+
+const fmtAmt = (val) => {
+  const n = parseFloat(val || 0);
+  if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
 
 function OrdersPageContent() {
   const searchParams = useSearchParams();
@@ -2040,10 +2041,6 @@ function OrdersPageContent() {
     }
   }, [customers]);
 
-
-
-
-
   // Calculate stats
   const totalSales = sales.length;
   const totalSalesValue = sales.reduce((sum, sale) => sum + parseFloat(sale.total_amount || 0), 0);
@@ -2368,7 +2365,6 @@ function OrdersPageContent() {
             </Box>
           </Box>
 
-
           {/* Main Form */}
           <Card>
             <CardContent sx={{ p: 2 }}>
@@ -2489,7 +2485,6 @@ function OrdersPageContent() {
                   </Box>
                 </Grid>
               </Grid>
-
 
               {/* Product Selection Row */}
               <Grid container spacing={2} sx={{ mb: 2 }}>
@@ -3098,7 +3093,6 @@ function OrdersPageContent() {
                   </Box>
                 </Box>
               </Box>
-
 
               {/* Action Buttons */}
               <Box sx={{ mt: 4, display: 'flex', gap: 2 }}>

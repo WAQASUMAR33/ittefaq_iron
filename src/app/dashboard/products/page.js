@@ -45,11 +45,6 @@ import {
 // Material Icons
 import {
 
-const fmtAmt = (val) => {
-  const n = parseFloat(val || 0);
-  if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-  return fmtAmt(n);
-};
   Add as AddIcon,
   Search as SearchIcon,
   Edit as EditIcon,
@@ -71,6 +66,12 @@ const fmtAmt = (val) => {
   Visibility as EyeIcon,
   BarChart as BarChartIcon
 } from '@mui/icons-material';
+
+const fmtAmt = (val) => {
+  const n = parseFloat(val || 0);
+  if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
 
 export default function ProductsPage() {
   // State management
