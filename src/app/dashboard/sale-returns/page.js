@@ -39,11 +39,6 @@ import {
 
 import {
 
-const fmtAmt = (val) => {
-  const n = parseFloat(val || 0);
-  if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-  return fmtAmt(n);
-};
   Add as AddIcon,
   Search as SearchIcon,
   Edit as EditIcon,
@@ -67,6 +62,12 @@ const fmtAmt = (val) => {
   CloudUpload as UploadIcon,
   Warning as WarningIcon
 } from '@mui/icons-material';
+
+const fmtAmt = (val) => {
+  const n = parseFloat(val || 0);
+  if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
 
 // Premium Theme Patterns
 const STYLES = {

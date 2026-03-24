@@ -4,11 +4,6 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
 
-const fmtAmt = (val) => {
-  const n = parseFloat(val || 0);
-  if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-  return fmtAmt(n);
-};
   DollarSign,
   ShoppingCart,
   Users,
@@ -29,6 +24,12 @@ const fmtAmt = (val) => {
   BookOpen,
   Clock
 } from 'lucide-react';
+
+const fmtAmt = (val) => {
+  const n = parseFloat(val || 0);
+  if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
 
 export default function DashboardContent({ activeTab }) {
   const router = useRouter();
