@@ -652,13 +652,14 @@ function OrdersPageContent() {
     setFormSelectedProduct(selectedProduct);
 
     if (selectedProduct) {
+      const saleRate = parseFloat(selectedProduct.pro_sale_price) || parseFloat(selectedProduct.pro_baser_price) || 0;
       // Update product form data with selected product details
       setProductFormData(prev => ({
         ...prev,
-        quantity: '', // Set quantity to empty
-        rate: parseFloat(selectedProduct.pro_baser_price) || '', // Use base price as rate
+        quantity: 1, // Default quantity to 1
+        rate: saleRate,
         stock: 0, // always derive from store-wise stock when available
-        amount: 0 // Calculate amount (rate * quantity)
+        amount: saleRate // Calculate amount (rate * 1)
       }));
 
       // If a store is selected, fetch store-wise stock
