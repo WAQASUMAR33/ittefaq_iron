@@ -903,14 +903,15 @@ export async function POST(request) {
         console.log(`Expected Final Balance: ${runningBalance + parseFloat(total_amount) - (parseFloat(cash_payment || 0) + parseFloat(bank_payment || 0) + parseFloat(advance_payment || 0))}`);
         console.log(`${'='.repeat(60)}\n`);
 
-        // For loaded orders, SKIP creating the bill entry (it already exists from the order)
-        if (!actualIsLoadedOrder) {
+        // For loaded orders, SKIP the bill entry (already created when order was made)
+        // For ORDER type, SKIP the debit entry — goods not yet dispatched, only advance payment matters
+        if (!actualIsLoadedOrder && !isOrder) {
           // Bill debit amount is the final amount (discount already applied)
           const debitAmount = parseFloat(total_amount);
 
           if (debitAmount > 0) {
             // Build details showing discount information
-            let billDetails = `${isOrder ? 'Order' : 'Sale Bill'} - ${bill_type || 'BILL'} - Customer Account (Debit)`;
+            let billDetails = `Sale Bill - ${bill_type || 'BILL'} - Customer Account (Debit)`;
             if (parseFloat(discount || 0) > 0) {
               billDetails += ` [Discount Applied: ${parseFloat(discount || 0)}]`;
             }
@@ -926,11 +927,13 @@ export async function POST(request) {
               payments: 0,
               updated_by: validatedUpdatedBy
             });
-            console.log(`📝 ${isOrder ? 'Order' : 'Bill'} Entry Created: Opening=${billEntry.opening_balance}, Debit=${billEntry.debit_amount}, Closing=${billEntry.closing_balance}`);
+            console.log(`📝 Bill Entry Created: Opening=${billEntry.opening_balance}, Debit=${billEntry.debit_amount}, Closing=${billEntry.closing_balance}`);
             console.log(`   Details: ${billDetails}`);
             ledgerEntries.push(billEntry);
             runningBalance = billEntry.closing_balance;  // Update running balance
           }
+        } else if (isOrder) {
+          console.log(`⏭️ SKIPPED: Debit entry for ORDER — only advance payment ledger will be created`);
         } else {
           console.log(`⏭️ SKIPPED: Bill entry creation for loaded order (already exists from original order)`);
         }
