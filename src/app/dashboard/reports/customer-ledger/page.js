@@ -14,6 +14,12 @@ import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
 import { Autocomplete, TextField, InputAdornment } from '@mui/material';
 
+const fmtAmt = (val) => {
+  const n = parseFloat(val || 0);
+  if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return fmtAmt(n);
+};
+
 export default function CustomerLedgerReport() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -107,14 +113,14 @@ export default function CustomerLedgerReport() {
     csv += 'Date,Type,Bill No,Details,Debit,Credit,Balance,Payments\n';
 
     reportData.ledgerEntries.forEach(entry => {
-      csv += `${new Date(entry.created_at).toLocaleDateString()},${entry.trnx_type},${entry.bill_no || ''},${entry.details || ''},${parseFloat(entry.debit_amount).toFixed(2)},${parseFloat(entry.credit_amount).toFixed(2)},${parseFloat(entry.closing_balance).toFixed(2)},${parseFloat(entry.payments).toFixed(2)}\n`;
+      csv += `${new Date(entry.created_at).toLocaleDateString()},${entry.trnx_type},${entry.bill_no || ''},${entry.details || ''},${fmtAmt(entry.debit_amount)},${fmtAmt(entry.credit_amount)},${fmtAmt(entry.closing_balance)},${fmtAmt(entry.payments)}\n`;
     });
 
     csv += '\n';
-    csv += `Opening Balance:,,,${reportData.summary.openingBalance.toFixed(2)}\n`;
-    csv += `Total Debit:,,,${reportData.summary.totalDebit.toFixed(2)}\n`;
-    csv += `Total Credit:,,,${reportData.summary.totalCredit.toFixed(2)}\n`;
-    csv += `Closing Balance:,,,${reportData.summary.closingBalance.toFixed(2)}\n`;
+    csv += `Opening Balance:,,,${fmtAmt(reportData.summary.openingBalance)}\n`;
+    csv += `Total Debit:,,,${fmtAmt(reportData.summary.totalDebit)}\n`;
+    csv += `Total Credit:,,,${fmtAmt(reportData.summary.totalCredit)}\n`;
+    csv += `Closing Balance:,,,${fmtAmt(reportData.summary.closingBalance)}\n`;
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
@@ -336,7 +342,7 @@ export default function CustomerLedgerReport() {
                                     <div>
                                       Bill: {entry.bill_no}{' '}
                                       {((entry.trnx_type === 'PURCHASE' && parseFloat(entry.debit_amount || 0) > 0) || (/incity \(own\) - (labour|delivery)/i).test(entry.details || '')) ? (
-                                        <span className="text-xs text-blue-600 font-bold">— {parseFloat(entry.debit_amount).toFixed(2)}</span>
+                                        <span className="text-xs text-blue-600 font-bold">— {fmtAmt(entry.debit_amount)}</span>
                                       ) : null}
                                     </div>
                                   ) : ''
@@ -345,16 +351,16 @@ export default function CustomerLedgerReport() {
                             );
                           })() }
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600">
-                            {parseFloat(entry.debit_amount).toFixed(2)}
+                            {fmtAmt(entry.debit_amount)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600">
-                            {parseFloat(entry.credit_amount).toFixed(2)}
+                            {fmtAmt(entry.credit_amount)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-gray-900">
-                            {parseFloat(entry.closing_balance).toFixed(2)}
+                            {fmtAmt(entry.closing_balance)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-blue-600">
-                            {parseFloat(entry.payments).toFixed(2)}
+                            {fmtAmt(entry.payments)}
                           </td>
                         </tr>
                       ))}
@@ -363,13 +369,13 @@ export default function CustomerLedgerReport() {
                       <tr>
                         <td colSpan="4" className="px-6 py-4 text-right text-sm text-gray-900">Opening Balance:</td>
                         <td colSpan="4" className="px-6 py-4 text-right text-sm text-gray-900">
-                          {reportData.summary.openingBalance.toFixed(2)}
+                          {fmtAmt(reportData.summary.openingBalance)}
                         </td>
                       </tr>
                       <tr>
                         <td colSpan="4" className="px-6 py-4 text-right text-sm text-gray-900">Total Debit:</td>
                         <td className="px-6 py-4 text-right text-sm text-green-600">
-                          {reportData.summary.totalDebit.toFixed(2)}
+                          {fmtAmt(reportData.summary.totalDebit)}
                         </td>
                         <td colSpan="3"></td>
                       </tr>
@@ -377,14 +383,14 @@ export default function CustomerLedgerReport() {
                         <td colSpan="4" className="px-6 py-4 text-right text-sm text-gray-900">Total Credit:</td>
                         <td colSpan="1"></td>
                         <td className="px-6 py-4 text-right text-sm text-red-600">
-                          {reportData.summary.totalCredit.toFixed(2)}
+                          {fmtAmt(reportData.summary.totalCredit)}
                         </td>
                         <td colSpan="2"></td>
                       </tr>
                       <tr className="border-t-2 border-gray-300">
                         <td colSpan="4" className="px-6 py-4 text-right text-sm text-gray-900">Closing Balance:</td>
                         <td colSpan="4" className="px-6 py-4 text-right text-sm font-bold text-gray-900">
-                          {reportData.summary.closingBalance.toFixed(2)}
+                          {fmtAmt(reportData.summary.closingBalance)}
                         </td>
                       </tr>
                     </tfoot>

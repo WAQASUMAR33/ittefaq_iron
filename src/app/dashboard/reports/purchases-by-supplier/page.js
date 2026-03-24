@@ -10,6 +10,12 @@ import {
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
 
+const fmtAmt = (val) => {
+  const n = parseFloat(val || 0);
+  if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return fmtAmt(n);
+};
+
 export default function PurchasesBySupplierReport() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -71,11 +77,11 @@ export default function PurchasesBySupplierReport() {
     csv += 'Supplier,Purchases Count,Total Amount,Unloading,Fare,Discount,Net Total,Payments\n';
     
     reportData.supplierPurchases.forEach(sp => {
-      csv += `${sp.supplier?.cus_name || 'N/A'},${sp.purchasesCount},${sp.totalAmount.toFixed(2)},${sp.totalUnloading.toFixed(2)},${sp.totalFare.toFixed(2)},${sp.totalDiscount.toFixed(2)},${sp.netTotal.toFixed(2)},${sp.totalPayment.toFixed(2)}\n`;
+      csv += `${sp.supplier?.cus_name || 'N/A'},${sp.purchasesCount},${fmtAmt(sp.totalAmount)},${fmtAmt(sp.totalUnloading)},${fmtAmt(sp.totalFare)},${fmtAmt(sp.totalDiscount)},${fmtAmt(sp.netTotal)},${fmtAmt(sp.totalPayment)}\n`;
     });
 
     csv += '\n';
-    csv += `TOTAL,${reportData.summary.totalPurchases},${reportData.summary.totalAmount.toFixed(2)},${reportData.summary.totalUnloading.toFixed(2)},${reportData.summary.totalFare.toFixed(2)},${reportData.summary.totalDiscount.toFixed(2)},${reportData.summary.netTotal.toFixed(2)},${reportData.summary.totalPayment.toFixed(2)}\n`;
+    csv += `TOTAL,${reportData.summary.totalPurchases},${fmtAmt(reportData.summary.totalAmount)},${fmtAmt(reportData.summary.totalUnloading)},${fmtAmt(reportData.summary.totalFare)},${fmtAmt(reportData.summary.totalDiscount)},${fmtAmt(reportData.summary.netTotal)},${fmtAmt(reportData.summary.totalPayment)}\n`;
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
@@ -216,22 +222,22 @@ export default function PurchasesBySupplierReport() {
                             {sp.purchasesCount}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                            {sp.totalAmount.toFixed(2)}
+                            {fmtAmt(sp.totalAmount)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-blue-600">
-                            {sp.totalUnloading.toFixed(2)}
+                            {fmtAmt(sp.totalUnloading)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-purple-600">
-                            {sp.totalFare.toFixed(2)}
+                            {fmtAmt(sp.totalFare)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600">
-                            {sp.totalDiscount.toFixed(2)}
+                            {fmtAmt(sp.totalDiscount)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-green-600">
-                            {sp.netTotal.toFixed(2)}
+                            {fmtAmt(sp.netTotal)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                            {sp.totalPayment.toFixed(2)}
+                            {fmtAmt(sp.totalPayment)}
                           </td>
                         </tr>
                       ))}
@@ -243,22 +249,22 @@ export default function PurchasesBySupplierReport() {
                           {reportData.summary.totalPurchases}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                          {reportData.summary.totalAmount.toFixed(2)}
+                          {fmtAmt(reportData.summary.totalAmount)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-blue-600">
-                          {reportData.summary.totalUnloading.toFixed(2)}
+                          {fmtAmt(reportData.summary.totalUnloading)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-purple-600">
-                          {reportData.summary.totalFare.toFixed(2)}
+                          {fmtAmt(reportData.summary.totalFare)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600">
-                          {reportData.summary.totalDiscount.toFixed(2)}
+                          {fmtAmt(reportData.summary.totalDiscount)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600">
-                          {reportData.summary.netTotal.toFixed(2)}
+                          {fmtAmt(reportData.summary.netTotal)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                          {reportData.summary.totalPayment.toFixed(2)}
+                          {fmtAmt(reportData.summary.totalPayment)}
                         </td>
                       </tr>
                     </tfoot>

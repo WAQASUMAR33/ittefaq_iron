@@ -3,6 +3,12 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
+
+const fmtAmt = (val) => {
+  const n = parseFloat(val || 0);
+  if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return fmtAmt(n);
+};
   DollarSign,
   ShoppingCart,
   Users,
@@ -80,7 +86,7 @@ export default function DashboardContent({ activeTab }) {
             id: `sale-${sale.sale_id}`,
             action: `Sale #${sale.sale_id}`,
             customer: sale.customer?.cus_name || 'Customer',
-            amount: parseFloat(sale.total_amount).toFixed(2),
+            amount: fmtAmt(sale.total_amount),
             time: new Date(sale.created_at).toLocaleDateString(),
             status: 'success'
           });
@@ -93,7 +99,7 @@ export default function DashboardContent({ activeTab }) {
             id: `purchase-${purchase.pur_id}`,
             action: `Purchase #${purchase.pur_id}`,
             customer: purchase.customer?.cus_name || 'Supplier',
-            amount: parseFloat(purchase.total_amount).toFixed(2),
+            amount: fmtAmt(purchase.total_amount),
             time: new Date(purchase.created_at).toLocaleDateString(),
             status: 'info'
           });
@@ -177,10 +183,7 @@ export default function DashboardContent({ activeTab }) {
   // Format number with commas
   const formatNumber = (num) => {
     if (!num && num !== 0) return '0';
-    return parseFloat(num).toLocaleString('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
+    return fmtAmt(num);
   };
 
   const kpiData = analyticsData ? [

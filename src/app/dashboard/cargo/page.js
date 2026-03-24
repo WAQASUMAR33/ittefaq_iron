@@ -4,6 +4,12 @@ import { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Check, X, Truck, Search, Calendar, DollarSign, Receipt } from 'lucide-react';
 import DashboardLayout from '../components/dashboard-layout';
 
+const fmtAmt = (val) => {
+  const n = parseFloat(val || 0);
+  if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return fmtAmt(n);
+};
+
 export default function CargoPage() {
   const [cargo, setCargo] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -410,17 +416,17 @@ export default function CargoPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="text-sm font-medium text-gray-900">
-                          {parseFloat(item.total_cargo_fare).toFixed(2)}
+                          {fmtAmt(item.total_cargo_fare)}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="text-sm font-medium text-red-600">
-                          {calculateTotalExpenses(item).toFixed(2)}
+                          {calculateTotalExpensesfmtAmt(item)}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`text-sm font-medium ${calculateNetAmount(item) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {calculateNetAmount(item).toFixed(2)}
+                          {calculateNetAmountfmtAmt(item)}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

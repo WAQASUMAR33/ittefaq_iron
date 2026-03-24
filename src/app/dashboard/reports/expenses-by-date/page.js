@@ -11,6 +11,12 @@ import {
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
 
+const fmtAmt = (val) => {
+  const n = parseFloat(val || 0);
+  if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return fmtAmt(n);
+};
+
 export default function ExpensesByDateReport() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -72,12 +78,12 @@ export default function ExpensesByDateReport() {
     csv += 'Date,Expense Type,Title,Details,Amount,Created By\n';
     
     reportData.expenses.forEach(expense => {
-      csv += `${new Date(expense.created_at).toLocaleDateString()},${expense.expense_title?.title || 'N/A'},${expense.exp_title},${expense.exp_detail || ''},${parseFloat(expense.exp_amount).toFixed(2)},${expense.updated_by_user?.full_name || 'N/A'}\n`;
+      csv += `${new Date(expense.created_at).toLocaleDateString()},${expense.expense_title?.title || 'N/A'},${expense.exp_title},${expense.exp_detail || ''},${fmtAmt(expense.exp_amount)},${expense.updated_by_user?.full_name || 'N/A'}\n`;
     });
 
     csv += '\n';
     csv += `TOTAL EXPENSES:,,,${reportData.summary.totalExpenses}\n`;
-    csv += `TOTAL AMOUNT:,,,${reportData.summary.totalAmount.toFixed(2)}\n`;
+    csv += `TOTAL AMOUNT:,,,${fmtAmt(reportData.summary.totalAmount)}\n`;
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
@@ -221,7 +227,7 @@ export default function ExpensesByDateReport() {
                             {expense.exp_detail || 'N/A'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-red-600">
-                            {parseFloat(expense.exp_amount).toFixed(2)}
+                            {fmtAmt(expense.exp_amount)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {expense.updated_by_user?.full_name || 'N/A'}
@@ -233,7 +239,7 @@ export default function ExpensesByDateReport() {
                       <tr>
                         <td colSpan="4" className="px-6 py-4 text-right text-sm text-gray-900">TOTAL:</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600">
-                          {reportData.summary.totalAmount.toFixed(2)}
+                          {fmtAmt(reportData.summary.totalAmount)}
                         </td>
                         <td></td>
                       </tr>

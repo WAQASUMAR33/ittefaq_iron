@@ -12,6 +12,12 @@ import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Box, Typogra
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
 
+const fmtAmt = (val) => {
+  const n = parseFloat(val || 0);
+  if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return fmtAmt(n);
+};
+
 export default function PurchasesByDateReport() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -72,11 +78,11 @@ export default function PurchasesByDateReport() {
     csv += 'Purchase ID,Date,Supplier,Items,Amount,Discount,Net Total,Payment,Type\n';
     
     reportData.purchases.forEach(purchase => {
-      csv += `${purchase.pur_id},${new Date(purchase.created_at).toLocaleDateString()},${purchase.customer?.cus_name || 'N/A'},${purchase.purchase_details?.length || 0},${parseFloat(purchase.total_amount).toFixed(2)},${parseFloat(purchase.discount).toFixed(2)},${parseFloat(purchase.net_total).toFixed(2)},${parseFloat(purchase.payment).toFixed(2)},${purchase.bill_type || purchase.type || 'PURCHASE'}\n`;
+      csv += `${purchase.pur_id},${new Date(purchase.created_at).toLocaleDateString()},${purchase.customer?.cus_name || 'N/A'},${purchase.purchase_details?.length || 0},${fmtAmt(purchase.total_amount)},${fmtAmt(purchase.discount)},${fmtAmt(purchase.net_total)},${fmtAmt(purchase.payment)},${purchase.bill_type || purchase.type || 'PURCHASE'}\n`;
     });
 
     csv += '\n';
-    csv += `TOTAL,,,${reportData.summary.totalPurchases},${reportData.summary.totalAmount.toFixed(2)},${reportData.summary.totalDiscount.toFixed(2)},${reportData.summary.netTotal.toFixed(2)},${reportData.summary.totalPayment.toFixed(2)}\n`;
+    csv += `TOTAL,,,${reportData.summary.totalPurchases},${fmtAmt(reportData.summary.totalAmount)},${fmtAmt(reportData.summary.totalDiscount)},${fmtAmt(reportData.summary.netTotal)},${fmtAmt(reportData.summary.totalPayment)}\n`;
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
@@ -121,7 +127,7 @@ export default function PurchasesByDateReport() {
   // Helpers for inline fixed summary and keyboard navigation (mirrors Sales UX)
   const formatCurrency = (v) => {
     const n = Number(v) || 0;
-    return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return fmtAmt(n);
   };
 
   const ensureVisibleInContainer = (el, align = 'auto') => {
@@ -339,8 +345,8 @@ export default function PurchasesByDateReport() {
         <td style="padding:6px;border:1px solid #ddd">${i + 1}</td>
         <td style="padding:6px;border:1px solid #ddd">${d.product?.pro_title || d.product_name || 'Item'}</td>
         <td style="padding:6px;border:1px solid #ddd;text-align:right">${d.qnty || 0}</td>
-        <td style="padding:6px;border:1px solid #ddd;text-align:right">${(parseFloat(d.unit_rate) || 0).toFixed(2)}</td>
-        <td style="padding:6px;border:1px solid #ddd;text-align:right">${(parseFloat(d.total_amount) || 0).toFixed(2)}</td>
+        <td style="padding:6px;border:1px solid #ddd;text-align:right">${fmtAmt(parseFloat(d.unit_rate) || 0)}</td>
+        <td style="padding:6px;border:1px solid #ddd;text-align:right">${fmtAmt(parseFloat(d.total_amount) || 0)}</td>
       </tr>`).join('');
 
     const subtotal = parseFloat(purchase.total_amount || 0) || 0;
@@ -403,20 +409,20 @@ export default function PurchasesByDateReport() {
             </tbody>
           </table>
 
-          <div style="margin-top:8px;text-align:right;font-weight:bold">Total Qty: ${totalQty.toFixed(2)}</div>
+          <div style="margin-top:8px;text-align:right;font-weight:bold">Total Qty: ${fmtAmt(totalQty)}</div>
 
           <div class="totals">
             <table style="width:100%">
-              <tr><td style="border:1px solid #ddd;padding:6px">Subtotal</td><td style="border:1px solid #ddd;padding:6px" class="right">${subtotal.toFixed(2)}</td></tr>
+              <tr><td style="border:1px solid #ddd;padding:6px">Subtotal</td><td style="border:1px solid #ddd;padding:6px" class="right">${fmtAmt(subtotal)}</td></tr>
               <!-- Unloading & Fare removed per request -->
-              <tr><td style="border:1px solid #ddd;padding:6px">Discount</td><td style="border:1px solid #ddd;padding:6px" class="right">${discount.toFixed(2)}</td></tr>
-              <tr><td style="border:1px solid #ddd;padding:6px">Previous Balance</td><td style="border:1px solid #ddd;padding:6px" class="right">${prevBal.toFixed(2)}</td></tr>
-              <tr style="background:#f5f5f5"><th style="padding:6px">Grand Total</th><th style="padding:6px" class="right">${netTotal.toFixed(2)}</th></tr>
-              <tr><td style="border:1px solid #ddd;padding:6px">Cash</td><td style="border:1px solid #ddd;padding:6px" class="right">${(parseFloat(purchase.cash_payment || 0) || 0).toFixed(2)}</td></tr>
-              ${ (parseFloat(purchase.bank_payment || 0) || 0) > 0 ? `<tr><td style="border:1px solid #ddd;padding:6px">${purchase.bank_title || 'Bank'}</td><td style="border:1px solid #ddd;padding:6px" class="right">${(parseFloat(purchase.bank_payment || 0) || 0).toFixed(2)}</td></tr>` : '' }
-              ${ (parseFloat(purchase.advance_payment || 0) || 0) > 0 ? `<tr><td style="border:1px solid #ddd;padding:6px">Advance</td><td style="border:1px solid #ddd;padding:6px" class="right">${(parseFloat(purchase.advance_payment || 0) || 0).toFixed(2)}</td></tr>` : '' }
-              <tr style="background:#f5f5f5"><th style="padding:6px">Total Paid</th><th style="padding:6px" class="right">${paid.toFixed(2)}</th></tr>
-              <tr style="background:#d0d0d0"><th style="padding:6px">Balance</th><th style="padding:6px" class="right">${(subtotal - paid).toFixed(2)}</th></tr>
+              <tr><td style="border:1px solid #ddd;padding:6px">Discount</td><td style="border:1px solid #ddd;padding:6px" class="right">${fmtAmt(discount)}</td></tr>
+              <tr><td style="border:1px solid #ddd;padding:6px">Previous Balance</td><td style="border:1px solid #ddd;padding:6px" class="right">${fmtAmt(prevBal)}</td></tr>
+              <tr style="background:#f5f5f5"><th style="padding:6px">Grand Total</th><th style="padding:6px" class="right">${fmtAmt(netTotal)}</th></tr>
+              <tr><td style="border:1px solid #ddd;padding:6px">Cash</td><td style="border:1px solid #ddd;padding:6px" class="right">${fmtAmt(parseFloat(purchase.cash_payment || 0) || 0)}</td></tr>
+              ${ (parseFloat(purchase.bank_payment || 0) || 0) > 0 ? `<tr><td style="border:1px solid #ddd;padding:6px">${purchase.bank_title || 'Bank'}</td><td style="border:1px solid #ddd;padding:6px" class="right">${fmtAmt(parseFloat(purchase.bank_payment || 0) || 0)}</td></tr>` : '' }
+              ${ (parseFloat(purchase.advance_payment || 0) || 0) > 0 ? `<tr><td style="border:1px solid #ddd;padding:6px">Advance</td><td style="border:1px solid #ddd;padding:6px" class="right">${fmtAmt(parseFloat(purchase.advance_payment || 0) || 0)}</td></tr>` : '' }
+              <tr style="background:#f5f5f5"><th style="padding:6px">Total Paid</th><th style="padding:6px" class="right">${fmtAmt(paid)}</th></tr>
+              <tr style="background:#d0d0d0"><th style="padding:6px">Balance</th><th style="padding:6px" class="right">${fmtAmt(subtotal - paid)}</th></tr>
             </table>
           </div>
 
@@ -593,8 +599,8 @@ export default function PurchasesByDateReport() {
                                   <MuiTableCell>{i + 1}</MuiTableCell>
                                   <MuiTableCell>{d.product?.pro_title || d.product_name || 'N/A'}</MuiTableCell>
                                   <MuiTableCell align="right">{d.qnty || 0}</MuiTableCell>
-                                  <MuiTableCell align="right">{parseFloat(d.crate || d.unit_rate || 0).toFixed(2)}</MuiTableCell>
-                                  <MuiTableCell align="right">{parseFloat(d.total_amount || 0).toFixed(2)}</MuiTableCell>
+                                  <MuiTableCell align="right">{fmtAmt(d.crate || d.unit_rate)}</MuiTableCell>
+                                  <MuiTableCell align="right">{fmtAmt(d.total_amount)}</MuiTableCell>
                                 </MuiTableRow>
                               ))}
                               <MuiTableRow sx={{ bgcolor: '#fafafa' }}>
@@ -627,7 +633,7 @@ export default function PurchasesByDateReport() {
                                   <MuiTableRow>
                                     <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</MuiTableCell>
                                     <MuiTableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                      {(selectedTotals?.prevBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      {fmtAmt(selectedTotals?.prevBalance || 0)}
                                     </MuiTableCell>
                                   </MuiTableRow>
 
@@ -648,7 +654,7 @@ export default function PurchasesByDateReport() {
                                   <MuiTableRow>
                                     <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>رقم بل</MuiTableCell>
                                     <MuiTableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                      {(selectedTotals?.subtotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      {fmtAmt(selectedTotals?.subtotal || 0)}
                                     </MuiTableCell>
                                   </MuiTableRow>
 
@@ -663,21 +669,21 @@ export default function PurchasesByDateReport() {
                                   <MuiTableRow>
                                     <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>رعایت</MuiTableCell>
                                     <MuiTableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                      {(selectedTotals?.discount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      {fmtAmt(selectedTotals?.discount || 0)}
                                     </MuiTableCell>
                                   </MuiTableRow>
 
                                   <MuiTableRow sx={{ bgcolor: '#f5f5f5' }}>
                                     <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل رقم</MuiTableCell>
                                     <MuiTableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                      {(selectedTotals?.netTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      {fmtAmt(selectedTotals?.netTotal || 0)}
                                     </MuiTableCell>
                                   </MuiTableRow>
 
                                   <MuiTableRow>
                                     <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>نقد كيش</MuiTableCell>
                                     <MuiTableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                      {(selectedTotals?.cash || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      {fmtAmt(selectedTotals?.cash || 0)}
                                     </MuiTableCell>
                                   </MuiTableRow>
 
@@ -685,7 +691,7 @@ export default function PurchasesByDateReport() {
                                     <MuiTableRow>
                                       <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>{selectedPurchase.bank_title || 'بینک'}</MuiTableCell>
                                       <MuiTableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                        {(selectedTotals?.bank || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        {fmtAmt(selectedTotals?.bank || 0)}
                                       </MuiTableCell>
                                     </MuiTableRow>
                                   )}
@@ -694,7 +700,7 @@ export default function PurchasesByDateReport() {
                                     <MuiTableRow>
                                       <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>پیشگی ادائیگی</MuiTableCell>
                                       <MuiTableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                        {(selectedTotals?.advance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        {fmtAmt(selectedTotals?.advance || 0)}
                                       </MuiTableCell>
                                     </MuiTableRow>
                                   )}
@@ -702,14 +708,14 @@ export default function PurchasesByDateReport() {
                                   <MuiTableRow sx={{ bgcolor: '#f5f5f5' }}>
                                     <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل رقم وصول</MuiTableCell>
                                     <MuiTableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                      {(selectedTotals?.paid || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      {fmtAmt(selectedTotals?.paid || 0)}
                                     </MuiTableCell>
                                   </MuiTableRow>
 
                                   <MuiTableRow sx={{ bgcolor: '#d0d0d0' }}>
                                     <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>بقايا رقم</MuiTableCell>
                                     <MuiTableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                      {(selectedTotals?.due || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      {fmtAmt(selectedTotals?.due || 0)}
                                     </MuiTableCell>
                                   </MuiTableRow>
 
@@ -767,7 +773,7 @@ export default function PurchasesByDateReport() {
                             <div className="flex items-center gap-3">
                               <div className="bg-green-50 border border-green-100 text-green-800 px-3 py-2 rounded-lg shadow-sm text-center min-w-[76px]">
                                 <div className="text-xs text-gray-500">Total Qty</div>
-                                <div className="text-base md:text-lg font-extrabold">{(selectedTotals?.totalQty || 0).toFixed(2)}</div>
+                                <div className="text-base md:text-lg font-extrabold">{fmtAmt(selectedTotals?.totalQty || 0)}</div>
                               </div>
                               <div className="bg-green-100 border border-green-200 text-green-900 px-3 py-2 rounded-lg shadow-sm text-center min-w-[120px]">
                                 <div className="text-xs text-gray-500">Total Amount</div>
@@ -792,8 +798,8 @@ export default function PurchasesByDateReport() {
                                 <tr key={i} className={`${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
                                   <td className="px-3 py-2 text-sm text-gray-700">{i + 1}</td>
                                   <td className="px-3 py-2 text-sm text-gray-800" style={{maxWidth:360, whiteSpace:'normal', wordBreak:'break-word', overflowWrap: 'anywhere'}}>{d.product?.pro_title || d.product_name || '-'}</td>
-                                  <td className="px-3 py-2 text-sm text-right font-semibold">{(parseFloat(d.qnty || 0) || 0).toFixed(2)}</td>
-                                  <td className="px-3 py-2 text-sm text-right">{(parseFloat(d.total_amount || d.amount || 0) || 0).toFixed(2)}</td>
+                                  <td className="px-3 py-2 text-sm text-right font-semibold">{fmtAmt(parseFloat(d.qnty || 0) || 0)}</td>
+                                  <td className="px-3 py-2 text-sm text-right">{fmtAmt(parseFloat(d.total_amount || d.amount || 0) || 0)}</td>
                                 </tr>
                               ))}
 
@@ -801,8 +807,8 @@ export default function PurchasesByDateReport() {
                               {((selectedPurchase.purchase_details || []).length > 0) && (
                                 <tr className="bg-green-50 border-t border-green-100">
                                   <td colSpan={2} className="px-3 py-3 text-sm font-semibold text-green-800">TOTAL</td>
-                                  <td className="px-3 py-3 text-sm text-right font-extrabold text-green-800 text-lg">{(selectedTotals?.totalQty || 0).toFixed(2)}</td>
-                                  <td className="px-3 py-3 text-sm text-right font-extrabold text-green-800 text-lg">Rs. {(selectedTotals?.subtotal || 0).toFixed(2)}</td>
+                                  <td className="px-3 py-3 text-sm text-right font-extrabold text-green-800 text-lg">{fmtAmt(selectedTotals?.totalQty || 0)}</td>
+                                  <td className="px-3 py-3 text-sm text-right font-extrabold text-green-800 text-lg">Rs. {fmtAmt(selectedTotals?.subtotal || 0)}</td>
                                 </tr>
                               )}
 
@@ -878,16 +884,16 @@ export default function PurchasesByDateReport() {
                       <tr>
                         <td colSpan="4" className="px-6 py-4 text-right text-sm text-gray-900">TOTAL:</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                          {reportData.summary.totalAmount.toFixed(2)}
+                          {fmtAmt(reportData.summary.totalAmount)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600">
-                          {reportData.summary.totalDiscount.toFixed(2)}
+                          {fmtAmt(reportData.summary.totalDiscount)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600">
-                          {reportData.summary.netTotal.toFixed(2)}
+                          {fmtAmt(reportData.summary.netTotal)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                          {reportData.summary.totalPayment.toFixed(2)}
+                          {fmtAmt(reportData.summary.totalPayment)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-center"></td>
                       </tr>

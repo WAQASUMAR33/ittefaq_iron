@@ -14,6 +14,12 @@ import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
 import { Autocomplete, TextField, InputAdornment } from '@mui/material';
 
+const fmtAmt = (val) => {
+  const n = parseFloat(val || 0);
+  if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return fmtAmt(n);
+};
+
 export default function SupplierLedgerReport() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -107,14 +113,14 @@ export default function SupplierLedgerReport() {
     csv += 'Date,Type,Bill No,Details,Debit,Credit,Balance,Payments,Cash,Bank\n';
 
     reportData.ledgerEntries.forEach(entry => {
-      csv += `${new Date(entry.created_at).toLocaleDateString()},${entry.trnx_type},${entry.bill_no || ''},${entry.details || ''},${parseFloat(entry.debit_amount).toFixed(2)},${parseFloat(entry.credit_amount).toFixed(2)},${parseFloat(entry.closing_balance).toFixed(2)},${parseFloat(entry.payments).toFixed(2)},${parseFloat(entry.cash_payment || 0).toFixed(2)},${parseFloat(entry.bank_payment || 0).toFixed(2)}\n`;
+      csv += `${new Date(entry.created_at).toLocaleDateString()},${entry.trnx_type},${entry.bill_no || ''},${entry.details || ''},${fmtAmt(entry.debit_amount)},${fmtAmt(entry.credit_amount)},${fmtAmt(entry.closing_balance)},${fmtAmt(entry.payments)},${fmtAmt(entry.cash_payment)},${fmtAmt(entry.bank_payment)}\n`;
     });
 
     csv += '\n';
-    csv += `Opening Balance:,,,${reportData.summary.openingBalance.toFixed(2)}\n`;
-    csv += `Total Debit:,,,${reportData.summary.totalDebit.toFixed(2)}\n`;
-    csv += `Total Credit:,,,${reportData.summary.totalCredit.toFixed(2)}\n`;
-    csv += `Closing Balance:,,,${reportData.summary.closingBalance.toFixed(2)}\n`;
+    csv += `Opening Balance:,,,${fmtAmt(reportData.summary.openingBalance)}\n`;
+    csv += `Total Debit:,,,${fmtAmt(reportData.summary.totalDebit)}\n`;
+    csv += `Total Credit:,,,${fmtAmt(reportData.summary.totalCredit)}\n`;
+    csv += `Closing Balance:,,,${fmtAmt(reportData.summary.closingBalance)}\n`;
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
@@ -250,19 +256,19 @@ export default function SupplierLedgerReport() {
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
                   <div className="text-sm font-medium text-blue-600 mb-1">Opening Balance</div>
-                  <div className="text-2xl font-bold text-blue-900">{reportData.summary.openingBalance.toFixed(2)}</div>
+                  <div className="text-2xl font-bold text-blue-900">{fmtAmt(reportData.summary.openingBalance)}</div>
                 </div>
                 <div className="bg-red-50 rounded-lg p-4 border border-red-200">
                   <div className="text-sm font-medium text-red-600 mb-1">Total Debit (Purchase)</div>
-                  <div className="text-2xl font-bold text-red-900">{reportData.summary.totalDebit.toFixed(2)}</div>
+                  <div className="text-2xl font-bold text-red-900">{fmtAmt(reportData.summary.totalDebit)}</div>
                 </div>
                 <div className="bg-green-50 rounded-lg p-4 border border-green-200">
                   <div className="text-sm font-medium text-green-600 mb-1">Total Credit (Payment)</div>
-                  <div className="text-2xl font-bold text-green-900">{reportData.summary.totalCredit.toFixed(2)}</div>
+                  <div className="text-2xl font-bold text-green-900">{fmtAmt(reportData.summary.totalCredit)}</div>
                 </div>
                 <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
                   <div className="text-sm font-medium text-amber-600 mb-1">Closing Balance</div>
-                  <div className="text-2xl font-bold text-amber-900">{reportData.summary.closingBalance.toFixed(2)}</div>
+                  <div className="text-2xl font-bold text-amber-900">{fmtAmt(reportData.summary.closingBalance)}</div>
                 </div>
               </div>
             </div>
@@ -317,7 +323,7 @@ export default function SupplierLedgerReport() {
                                         (entry.trnx_type === 'PURCHASE' && parseFloat(entry.debit_amount || 0) > 0) ||
                                         (/incity \(own\) - (labour|delivery)/i).test(entry.details || '')
                                       ) ? (
-                                        <span className="text-blue-600 font-bold">— {parseFloat(entry.debit_amount).toFixed(2)}</span>
+                                        <span className="text-blue-600 font-bold">— {fmtAmt(entry.debit_amount)}</span>
                                       ) : null}
                                     </div>
                                   ) : ''
@@ -326,15 +332,15 @@ export default function SupplierLedgerReport() {
                             );
                           })()}
 
-                          <td className="px-6 py-3 text-right font-medium">{parseFloat(entry.debit_amount).toFixed(2)}</td>
-                          <td className="px-6 py-3 text-right font-medium">{parseFloat(entry.credit_amount).toFixed(2)}</td>
+                          <td className="px-6 py-3 text-right font-medium">{fmtAmt(entry.debit_amount)}</td>
+                          <td className="px-6 py-3 text-right font-medium">{fmtAmt(entry.credit_amount)}</td>
                           <td className="px-6 py-3 text-right text-blue-600 font-medium">
-                            {entry.cash_payment > 0 ? parseFloat(entry.cash_payment).toFixed(2) : '-'}
+                            {entry.cash_payment > 0 ? fmtAmt(entry.cash_payment) : '-'}
                           </td>
                           <td className="px-6 py-3 text-right text-purple-600 font-medium">
-                            {entry.bank_payment > 0 ? parseFloat(entry.bank_payment).toFixed(2) : '-'}
+                            {entry.bank_payment > 0 ? fmtAmt(entry.bank_payment) : '-'}
                           </td>
-                          <td className="px-6 py-3 text-right font-bold text-gray-900">{parseFloat(entry.closing_balance).toFixed(2)}</td>
+                          <td className="px-6 py-3 text-right font-bold text-gray-900">{fmtAmt(entry.closing_balance)}</td>
                         </tr>
                       ))}
                     </tbody>

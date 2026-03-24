@@ -42,6 +42,12 @@ import {
 } from '@mui/material';
 
 import {
+
+const fmtAmt = (val) => {
+  const n = parseFloat(val || 0);
+  if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return fmtAmt(n);
+};
   Add as AddIcon,
   Search as SearchIcon,
   Edit as EditIcon,
@@ -1106,7 +1112,7 @@ function QuotationsPageContent() {
                           py: 0.5,
                           borderRadius: 1
                         }}>
-                          Balance: {formSelectedCustomer.cus_balance ? parseFloat(formSelectedCustomer.cus_balance).toFixed(2) : '0.00'}
+                          Balance: {formSelectedCustomer.cus_balance ? fmtAmt(formSelectedCustomer.cus_balance) : '0.00'}
                         </Typography>
                       )}
                     </Box>
@@ -1305,8 +1311,8 @@ function QuotationsPageContent() {
                       <TableRow key={row.id} sx={{ '&:hover': { bgcolor: '#f8f9fa' } }}>
                         <TableCell>{row.pro_title}</TableCell>
                         <TableCell align="right">{row.quantity}</TableCell>
-                        <TableCell align="right">{row.rate.toFixed(2)}</TableCell>
-                        <TableCell align="right">{row.amount.toFixed(2)}</TableCell>
+                        <TableCell align="right">{fmtAmt(row.rate)}</TableCell>
+                        <TableCell align="right">{fmtAmt(row.amount)}</TableCell>
                         <TableCell align="center">
                           <IconButton size="small" color="error" onClick={() => handleRemoveProductFromTable(row.id)}>
                             <DeleteIcon fontSize="small" />
@@ -1454,7 +1460,7 @@ function QuotationsPageContent() {
                   <TableCell>{new Date(sale.created_at).toLocaleDateString()}</TableCell>
                   <TableCell>{sale.sale_id}</TableCell>
                   <TableCell>{sale.customer?.cus_name}</TableCell>
-                  <TableCell align="right">{parseFloat(sale.total_amount).toFixed(2)}</TableCell>
+                  <TableCell align="right">{fmtAmt(sale.total_amount)}</TableCell>
                   <TableCell align="center">
                     <Stack direction="row" spacing={1} justifyContent="center">
                       <Tooltip title="Create Bill">
@@ -1578,7 +1584,7 @@ function QuotationsPageContent() {
                   <Typography variant="body2"><strong>Customer:</strong> {currentBillData.customer?.cus_name}</Typography>
                 </Grid>
                 <Grid item xs={6} sx={{ textAlign: 'right' }}>
-                  <Typography variant="body2"><strong>Total Amount:</strong> {parseFloat(currentBillData.total_amount).toFixed(2)}</Typography>
+                  <Typography variant="body2"><strong>Total Amount:</strong> {fmtAmt(currentBillData.total_amount)}</Typography>
                 </Grid>
               </Grid>
               <TableContainer sx={{ mt: 2 }}>
@@ -1596,8 +1602,8 @@ function QuotationsPageContent() {
                       <TableRow key={index}>
                         <TableCell>{detail.product?.pro_title || 'Item'}</TableCell>
                         <TableCell align="right">{detail.qnty}</TableCell>
-                        <TableCell align="right">{parseFloat(detail.unit_rate).toFixed(2)}</TableCell>
-                        <TableCell align="right">{parseFloat(detail.total_amount).toFixed(2)}</TableCell>
+                        <TableCell align="right">{fmtAmt(detail.unit_rate)}</TableCell>
+                        <TableCell align="right">{fmtAmt(detail.total_amount)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

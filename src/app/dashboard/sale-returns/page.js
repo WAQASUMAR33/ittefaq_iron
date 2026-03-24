@@ -38,6 +38,12 @@ import {
 } from '@mui/material';
 
 import {
+
+const fmtAmt = (val) => {
+  const n = parseFloat(val || 0);
+  if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return fmtAmt(n);
+};
   Add as AddIcon,
   Search as SearchIcon,
   Edit as EditIcon,
@@ -1225,7 +1231,7 @@ export default function SaleReturnsPage() {
                                   <Box>
                                     <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>Loader Balance Adjustment</Typography>
                                     <Typography variant="body2">
-                                      Processing this return will <strong>deduct PKR {parseFloat(formData.shipping_amount).toFixed(2)}</strong> from <strong>{affectedLoader.loader_name}</strong>'s current balance (PKR {parseFloat(affectedLoader.loader_balance).toLocaleString()}).
+                                      Processing this return will <strong>deduct PKR {fmtAmt(formData.shipping_amount)}</strong> from <strong>{affectedLoader.loader_name}</strong>'s current balance (PKR {parseFloat(affectedLoader.loader_balance).toLocaleString()}).
                                     </Typography>
                                   </Box>
                                   <Chip label="Automatic Deduction" size="small" color="warning" sx={{ fontWeight: 'bold' }} />
@@ -1373,7 +1379,7 @@ export default function SaleReturnsPage() {
                                     </Typography>
                                   </TableCell>
                                   <TableCell align="right">
-                                    <Typography variant="body2" sx={{ fontWeight: '600' }}>{parseFloat(detail.unit_rate).toFixed(2)}</Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: '600' }}>{fmtAmt(detail.unit_rate)}</Typography>
                                   </TableCell>
                                   <TableCell align="center">
                                     <TextField
@@ -1393,7 +1399,7 @@ export default function SaleReturnsPage() {
                                     />
                                   </TableCell>
                                   <TableCell align="right">
-                                    <Typography variant="body2" sx={{ fontWeight: '800', color: 'primary.main' }}>{parseFloat(detail.return_amount).toFixed(2)}</Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: '800', color: 'primary.main' }}>{fmtAmt(detail.return_amount)}</Typography>
                                   </TableCell>
                                   <TableCell align="center">
                                     <IconButton size="small" color="error" onClick={() => removeReturnDetail(index)} sx={{ bgcolor: 'error.50' }}>
@@ -1466,11 +1472,11 @@ export default function SaleReturnsPage() {
                             <Stack spacing={2}>
                               <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                                 <Typography color="text.secondary">Return Subtotal</Typography>
-                                <Typography sx={{ fontWeight: '700' }}>PKR {parseFloat(formData.total_return_amount).toFixed(2)}</Typography>
+                                <Typography sx={{ fontWeight: '700' }}>PKR {fmtAmt(formData.total_return_amount)}</Typography>
                               </Box>
                               <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                                 <Typography color="text.secondary">Loader Deduction</Typography>
-                                <Typography sx={{ fontWeight: '700', color: 'secondary.main' }}>- PKR {parseFloat(formData.shipping_amount).toFixed(2)}</Typography>
+                                <Typography sx={{ fontWeight: '700', color: 'secondary.main' }}>- PKR {fmtAmt(formData.shipping_amount)}</Typography>
                               </Box>
                               <Divider />
                               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

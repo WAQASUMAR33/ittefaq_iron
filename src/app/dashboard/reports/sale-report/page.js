@@ -6,6 +6,12 @@ import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Box, Typogra
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
 
+const fmtAmt = (val) => {
+  const n = parseFloat(val || 0);
+  if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return fmtAmt(n);
+};
+
 export default function SaleReport() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -225,8 +231,8 @@ export default function SaleReport() {
         <td style="padding:6px;border:1px solid #ddd">${i + 1}</td>
         <td style="padding:6px;border:1px solid #ddd">${d.product?.pro_title || d.product_name || 'Item'}</td>
         <td style="padding:6px;border:1px solid #ddd;text-align:right">${d.qnty || 0}</td>
-        <td style="padding:6px;border:1px solid #ddd;text-align:right">${(parseFloat(d.unit_rate) || 0).toFixed(2)}</td>
-        <td style="padding:6px;border:1px solid #ddd;text-align:right">${(parseFloat(d.total_amount) || 0).toFixed(2)}</td>
+        <td style="padding:6px;border:1px solid #ddd;text-align:right">${fmtAmt(parseFloat(d.unit_rate) || 0)}</td>
+        <td style="padding:6px;border:1px solid #ddd;text-align:right">${fmtAmt(parseFloat(d.total_amount) || 0)}</td>
       </tr>`).join('');
 
     const subtotal = parseFloat(sale.total_amount || 0) || 0;
@@ -289,21 +295,21 @@ export default function SaleReport() {
             </tbody>
           </table>
 
-          <div style="margin-top:8px;text-align:right;font-weight:bold">Total Qty: ${totalQty.toFixed(2)}</div>
+          <div style="margin-top:8px;text-align:right;font-weight:bold">Total Qty: ${fmtAmt(totalQty)}</div>
 
           <div class="totals">
             <table style="width:100%">
-              <tr><td style="border:1px solid #ddd;padding:6px">Subtotal</td><td style="border:1px solid #ddd;padding:6px" class="right">${subtotal.toFixed(2)}</td></tr>
-              <tr><td style="border:1px solid #ddd;padding:6px">Labour</td><td style="border:1px solid #ddd;padding:6px" class="right">${labour.toFixed(2)}</td></tr>
-              <tr><td style="border:1px solid #ddd;padding:6px">Shipping</td><td style="border:1px solid #ddd;padding:6px" class="right">${shipping.toFixed(2)}</td></tr>
-              <tr><td style="border:1px solid #ddd;padding:6px">Discount</td><td style="border:1px solid #ddd;padding:6px" class="right">${discount.toFixed(2)}</td></tr>
-              <tr><td style="border:1px solid #ddd;padding:6px">Previous Balance</td><td style="border:1px solid #ddd;padding:6px" class="right">${prevBal.toFixed(2)}</td></tr>
-              <tr style="background:#f5f5f5"><th style="padding:6px">Grand Total</th><th style="padding:6px" class="right">${netTotal.toFixed(2)}</th></tr>
-              <tr><td style="border:1px solid #ddd;padding:6px">Cash</td><td style="border:1px solid #ddd;padding:6px" class="right">${(parseFloat(sale.cash_payment || 0) || 0).toFixed(2)}</td></tr>
-              ${ (parseFloat(sale.bank_payment || 0) || 0) > 0 ? `<tr><td style="border:1px solid #ddd;padding:6px">${sale.bank_title || 'Bank'}</td><td style="border:1px solid #ddd;padding:6px" class="right">${(parseFloat(sale.bank_payment || 0) || 0).toFixed(2)}</td></tr>` : '' }
-              ${ (parseFloat(sale.advance_payment || 0) || 0) > 0 ? `<tr><td style="border:1px solid #ddd;padding:6px">Advance</td><td style="border:1px solid #ddd;padding:6px" class="right">${(parseFloat(sale.advance_payment || 0) || 0).toFixed(2)}</td></tr>` : '' }
-              <tr style="background:#f5f5f5"><th style="padding:6px">Total Paid</th><th style="padding:6px" class="right">${paid.toFixed(2)}</th></tr>
-              <tr style="background:#d0d0d0"><th style="padding:6px">Balance</th><th style="padding:6px" class="right">${(netTotal - paid).toFixed(2)}</th></tr>
+              <tr><td style="border:1px solid #ddd;padding:6px">Subtotal</td><td style="border:1px solid #ddd;padding:6px" class="right">${fmtAmt(subtotal)}</td></tr>
+              <tr><td style="border:1px solid #ddd;padding:6px">Labour</td><td style="border:1px solid #ddd;padding:6px" class="right">${fmtAmt(labour)}</td></tr>
+              <tr><td style="border:1px solid #ddd;padding:6px">Shipping</td><td style="border:1px solid #ddd;padding:6px" class="right">${fmtAmt(shipping)}</td></tr>
+              <tr><td style="border:1px solid #ddd;padding:6px">Discount</td><td style="border:1px solid #ddd;padding:6px" class="right">${fmtAmt(discount)}</td></tr>
+              <tr><td style="border:1px solid #ddd;padding:6px">Previous Balance</td><td style="border:1px solid #ddd;padding:6px" class="right">${fmtAmt(prevBal)}</td></tr>
+              <tr style="background:#f5f5f5"><th style="padding:6px">Grand Total</th><th style="padding:6px" class="right">${fmtAmt(netTotal)}</th></tr>
+              <tr><td style="border:1px solid #ddd;padding:6px">Cash</td><td style="border:1px solid #ddd;padding:6px" class="right">${fmtAmt(parseFloat(sale.cash_payment || 0) || 0)}</td></tr>
+              ${ (parseFloat(sale.bank_payment || 0) || 0) > 0 ? `<tr><td style="border:1px solid #ddd;padding:6px">${sale.bank_title || 'Bank'}</td><td style="border:1px solid #ddd;padding:6px" class="right">${fmtAmt(parseFloat(sale.bank_payment || 0) || 0)}</td></tr>` : '' }
+              ${ (parseFloat(sale.advance_payment || 0) || 0) > 0 ? `<tr><td style="border:1px solid #ddd;padding:6px">Advance</td><td style="border:1px solid #ddd;padding:6px" class="right">${fmtAmt(parseFloat(sale.advance_payment || 0) || 0)}</td></tr>` : '' }
+              <tr style="background:#f5f5f5"><th style="padding:6px">Total Paid</th><th style="padding:6px" class="right">${fmtAmt(paid)}</th></tr>
+              <tr style="background:#d0d0d0"><th style="padding:6px">Balance</th><th style="padding:6px" class="right">${fmtAmt(netTotal - paid)}</th></tr>
             </table>
           </div>
 
@@ -500,7 +506,7 @@ export default function SaleReport() {
                               <tr key={i} className={`${i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
                                 <td className="px-2 py-1">{i + 1}</td>
                                 <td className="px-2 py-1">{d.product?.pro_title || d.product_name || '-'}</td>
-                                <td className="px-2 py-1 text-right">{(parseFloat(d.qnty || 0) || 0).toFixed(2)}</td>
+                                <td className="px-2 py-1 text-right">{fmtAmt(parseFloat(d.qnty || 0) || 0)}</td>
                               </tr>
                             ))}
                             {(((selectedSale.sale_details || selectedSale.details || selectedSale.items || selectedSale.sale_items) || []).length === 0) && (
@@ -567,7 +573,7 @@ export default function SaleReport() {
                           <tr key={i} className={`${i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
                             <td className="px-3 py-2">{i + 1}</td>
                             <td className="px-3 py-2">{d.product?.pro_title || d.product_name || '-'}</td>
-                            <td className="px-3 py-2 text-right tabular-nums">{(parseFloat(d.qnty || 0) || 0).toFixed(2)}</td>
+                            <td className="px-3 py-2 text-right tabular-nums">{fmtAmt(parseFloat(d.qnty || 0) || 0)}</td>
                           </tr>
                         ))}
                         {(selectedSale.sale_details || []).length === 0 && (

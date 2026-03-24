@@ -27,6 +27,12 @@ import {
 } from 'lucide-react';
 import DashboardLayout from '../components/dashboard-layout';
 
+const fmtAmt = (val) => {
+  const n = parseFloat(val || 0);
+  if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return fmtAmt(n);
+};
+
 export default function ExpensesPage() {
   // State management
   const [expenses, setExpenses] = useState([]);
@@ -803,7 +809,7 @@ export default function ExpensesPage() {
                 {paymentDialog.expense?.exp_title}
               </p>
               <p className="text-lg font-semibold text-red-600 mt-2">
-                Amount: {parseFloat(paymentDialog.expense?.exp_amount || 0).toFixed(2)}
+                Amount: {fmtAmt(paymentDialog.expense?.exp_amount)}
               </p>
             </div>
 

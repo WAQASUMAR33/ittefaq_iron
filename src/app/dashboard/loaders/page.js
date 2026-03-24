@@ -4,6 +4,12 @@ import { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Check, X, Truck, User, Phone, Calendar, Loader2, CreditCard, Hash } from 'lucide-react';
 import DashboardLayout from '../components/dashboard-layout';
 
+const fmtAmt = (val) => {
+  const n = parseFloat(val || 0);
+  if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return fmtAmt(n);
+};
+
 export default function LoadersPage() {
   const [loaders, setLoaders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -390,7 +396,7 @@ export default function LoadersPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`text-sm font-medium ${getBalanceColor(loader.loader_balance)}`}>
-                        {parseFloat(loader.loader_balance).toFixed(2)}
+                        {fmtAmt(loader.loader_balance)}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

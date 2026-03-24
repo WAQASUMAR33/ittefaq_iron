@@ -10,6 +10,12 @@ import {
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
 
+const fmtAmt = (val) => {
+  const n = parseFloat(val || 0);
+  if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return fmtAmt(n);
+};
+
 export default function CustomersBalanceReport() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -55,11 +61,11 @@ export default function CustomersBalanceReport() {
     reportData.customers.forEach(customer => {
       const balance = parseFloat(customer.cus_balance);
       const status = balance > 0 ? 'Receivable' : balance < 0 ? 'Payable' : 'Zero';
-      csv += `${customer.cus_name},${customer.cus_phone_no || ''},${customer.city?.city_name || ''},${customer.customer_category?.cus_cat_title || ''},${customer.customer_type?.cus_type_title || ''},${balance.toFixed(2)},${status}\n`;
+      csv += `${customer.cus_name},${customer.cus_phone_no || ''},${customer.city?.city_name || ''},${customer.customer_category?.cus_cat_title || ''},${customer.customer_type?.cus_type_title || ''},${fmtAmt(balance)},${status}\n`;
     });
 
     csv += '\n';
-    csv += `TOTAL,,,,,${reportData.summary.totalBalance.toFixed(2)},\n`;
+    csv += `TOTAL,,,,,${fmtAmt(reportData.summary.totalBalance)},\n`;
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
@@ -175,7 +181,7 @@ export default function CustomersBalanceReport() {
                               {customer.customer_type?.cus_type_title || 'N/A'}
                             </td>
                             <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-semibold ${statusColor}`}>
-                              {balance.toFixed(2)}
+                              {fmtAmt(balance)}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
                               <span className={`px-2 py-1 text-xs rounded-full ${
@@ -194,7 +200,7 @@ export default function CustomersBalanceReport() {
                       <tr>
                         <td colSpan="5" className="px-6 py-4 text-right text-sm text-gray-900">TOTAL:</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                          {reportData.summary.totalBalance.toFixed(2)}
+                          {fmtAmt(reportData.summary.totalBalance)}
                         </td>
                         <td></td>
                       </tr>

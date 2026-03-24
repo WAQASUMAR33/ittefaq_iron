@@ -24,6 +24,12 @@ import {
 } from 'lucide-react';
 import DashboardLayout from '../components/dashboard-layout';
 
+const fmtAmt = (val) => {
+  const n = parseFloat(val || 0);
+  if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return fmtAmt(n);
+};
+
 export default function HoldBillsPage() {
   // State management
   const [holdBills, setHoldBills] = useState([]);
@@ -403,10 +409,10 @@ export default function HoldBillsPage() {
 
                         {/* Amount */}
                         <div className="col-span-2">
-                          <div className="text-sm font-semibold text-orange-600">{parseFloat(holdBill.total_amount).toFixed(2)}</div>
+                          <div className="text-sm font-semibold text-orange-600">{fmtAmt(holdBill.total_amount)}</div>
                           <div className="text-xs text-gray-500">
                             Items: {holdBill.hold_bill_details?.length || 0} | 
-                            Discount: {parseFloat(holdBill.discount).toFixed(2)}
+                            Discount: {fmtAmt(holdBill.discount)}
                           </div>
                         </div>
 
@@ -482,10 +488,10 @@ export default function HoldBillsPage() {
                           {/* Amount */}
                           <div className="flex items-center justify-between">
                             <div>
-                              <div className="text-sm font-semibold text-orange-600">{parseFloat(holdBill.total_amount).toFixed(2)}</div>
+                              <div className="text-sm font-semibold text-orange-600">{fmtAmt(holdBill.total_amount)}</div>
                               <div className="text-xs text-gray-500">
                                 Items: {holdBill.hold_bill_details?.length || 0} | 
-                                Discount: {parseFloat(holdBill.discount).toFixed(2)}
+                                Discount: {fmtAmt(holdBill.discount)}
                               </div>
                             </div>
                             <div className="text-right">

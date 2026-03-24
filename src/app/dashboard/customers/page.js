@@ -71,6 +71,12 @@ import { Plus, Edit, Trash2, Check, X, Phone, Mail, MapPin, User, Building, Cred
 import { Fragment } from 'react';
 import DashboardLayout from '../components/dashboard-layout';
 
+const fmtAmt = (val) => {
+  const n = parseFloat(val || 0);
+  if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return fmtAmt(n);
+};
+
 export default function CustomersPage() {
   const [customers, setCustomers] = useState([]);
   const [customerCategories, setCustomerCategories] = useState([]);
@@ -996,7 +1002,7 @@ export default function CustomersPage() {
                               getBalanceColor(customer.cus_balance).includes('red') ? 'error.main' : 'text.secondary'
                           }}
                         >
-                          {parseFloat(customer.cus_balance).toFixed(2)}
+                          {fmtAmt(customer.cus_balance)}
                         </Typography>
                       </TableCell>
                       <TableCell>

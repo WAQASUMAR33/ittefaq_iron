@@ -3,6 +3,12 @@
 import { X, Plus, CreditCard, Search } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
+const fmtAmt = (val) => {
+  const n = parseFloat(val || 0);
+  if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return fmtAmt(n);
+};
+
 export default function SplitPaymentModal({
   isOpen,
   onClose,
@@ -130,7 +136,7 @@ export default function SplitPaymentModal({
 
     const total = calculateTotal();
     if (Math.abs(total - netTotal) > 0.01) {
-      alert(`Split payment total (${total.toFixed(2)}) must equal the net total (${netTotal.toFixed(2)})`);
+      alert(`Split payment total (${fmtAmt(total)}) must equal the net total (${fmtAmt(netTotal)})`);
       return;
     }
 
@@ -163,7 +169,7 @@ export default function SplitPaymentModal({
             <div className="flex justify-between items-center">
               <div>
                 <p className="text-sm text-gray-600">Net Total Amount</p>
-                <p className="text-2xl font-bold text-blue-600">{netTotal.toFixed(2)}</p>
+                <p className="text-2xl font-bold text-blue-600">{fmtAmt(netTotal)}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-600">Split Total</p>
@@ -174,7 +180,7 @@ export default function SplitPaymentModal({
               <div>
                 <p className="text-sm text-gray-600">Difference</p>
                 <p className={`text-2xl font-bold ${Math.abs(calculateTotal() - netTotal) < 0.01 ? 'text-green-600' : 'text-red-600'}`}>
-                  {(calculateTotal() - netTotal).toFixed(2)}
+                  {fmtAmt(calculateTotal() - netTotal)}
                 </p>
               </div>
             </div>

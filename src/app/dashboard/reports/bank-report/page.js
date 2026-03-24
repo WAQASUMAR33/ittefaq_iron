@@ -6,6 +6,12 @@ import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
 import { Autocomplete, TextField, InputAdornment } from '@mui/material';
 
+const fmtAmt = (val) => {
+  const n = parseFloat(val || 0);
+  if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return fmtAmt(n);
+};
+
 export default function BankReport() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -329,7 +335,7 @@ export default function BankReport() {
                                   <div>
                                     Bill: {entry.bill_no}{' '}
                                     {((entry.trnx_type === 'PURCHASE' && parseFloat(entry.debit_amount || 0) > 0) || (/incity \(own\) - (labour|delivery)/i).test(entry.details || '')) ? (
-                                      <div className="text-xs text-blue-600 font-bold">— {parseFloat(entry.debit_amount).toFixed(2)}</div>
+                                      <div className="text-xs text-blue-600 font-bold">— {fmtAmt(entry.debit_amount)}</div>
                                     ) : null}
                                   </div>
                                 ) : ('')

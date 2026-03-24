@@ -15,6 +15,12 @@ import {
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
 
+const fmtAmt = (val) => {
+  const n = parseFloat(val || 0);
+  if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return fmtAmt(n);
+};
+
 export default function RebateReport() {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
@@ -89,7 +95,7 @@ export default function RebateReport() {
 
         const totalQty = reportData.summary.totalQuantity;
         const rate = parseFloat(rebateRate) || 0;
-        const totalAmount = Number((totalQty * rate).toFixed(2));
+        const totalAmount = Number(fmtAmt(totalQty * rate));
 
         if (totalAmount <= 0) {
             alert('Please enter a valid rate');
@@ -106,7 +112,7 @@ export default function RebateReport() {
                 credit_amount: totalAmount,
                 debit_amount: 0,
                 trnx_type: 'CASH', // User requested cash column
-                details: `Rebate From: ${startDate} To: ${endDate} | Qty: ${totalQty.toFixed(2)} | Rate: ${rate.toFixed(2)}`,
+                details: `Rebate From: ${startDate} To: ${endDate} | Qty: ${fmtAmt(totalQty)} | Rate: ${fmtAmt(rate)}`,
                 updated_by: user?.user_id ? parseInt(user.user_id) : (user?.id ? parseInt(user.id) : null)
             };
 
@@ -146,11 +152,11 @@ export default function RebateReport() {
         csv += 'Product,Purchases,Unit,Total Quantity,Total Amount,Avg Rate\\n';
 
         reportData.products.forEach(p => {
-            csv += `"${p.pro_title}",${p.purchase_count},${p.unit},${p.total_quantity.toFixed(2)},${p.total_amount.toFixed(2)},${p.avg_rate.toFixed(2)}\\n`;
+            csv += `"${p.pro_title}",${p.purchase_count},${p.unit},${fmtAmt(p.total_quantity)},${fmtAmt(p.total_amount)},${fmtAmt(p.avg_rate)}\\n`;
         });
 
         csv += '\\n';
-        csv += `TOTAL,,${reportData.summary.productCount} Products,${reportData.summary.totalQuantity.toFixed(2)},${reportData.summary.totalAmount.toFixed(2)},\\n`;
+        csv += `TOTAL,,${reportData.summary.productCount} Products,${fmtAmt(reportData.summary.totalQuantity)},${fmtAmt(reportData.summary.totalAmount)},\\n`;
 
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const url = window.URL.createObjectURL(blob);
@@ -299,16 +305,16 @@ export default function RebateReport() {
                                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{p.pro_title}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-600">{p.unit}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-600">{p.purchase_count}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-blue-600">{p.total_quantity.toFixed(2)}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-blue-600">{fmtAmt(p.total_quantity)}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{p.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">{p.avg_rate.toFixed(2)}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">{fmtAmt(p.avg_rate)}</td>
                                         </tr>
                                     ))}
                                 </tbody>
                                 <tfoot className="bg-gray-50 border-t-2 border-gray-200">
                                     <tr className="font-bold">
                                         <td colSpan={3} className="px-6 py-4 text-right text-sm text-gray-900 uppercase">Grand Total:</td>
-                                        <td className="px-6 py-4 text-right text-sm text-blue-700 underline decoration-double">{reportData.summary.totalQuantity.toFixed(2)}</td>
+                                        <td className="px-6 py-4 text-right text-sm text-blue-700 underline decoration-double">{fmtAmt(reportData.summary.totalQuantity)}</td>
                                         <td className="px-6 py-4 text-right text-sm text-gray-900">{reportData.summary.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                                         <td></td>
                                     </tr>
@@ -322,7 +328,7 @@ export default function RebateReport() {
                                 Showing summary for {reportData.summary.productCount} products across {reportData.summary.purchaseCount} purchases.
                             </div>
                             <div className="text-xl font-bold text-blue-900">
-                                Total Quantity: {reportData.summary.totalQuantity.toFixed(2)}
+                                Total Quantity: {fmtAmt(reportData.summary.totalQuantity)}
                             </div>
                         </div>
                     </>
@@ -356,7 +362,7 @@ export default function RebateReport() {
                                     <div>
                                         <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Total Quantity (Aggregated)</label>
                                         <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-blue-900 font-bold text-lg shadow-inner">
-                                            {reportData.summary.totalQuantity.toFixed(2)}
+                                            {fmtAmt(reportData.summary.totalQuantity)}
                                         </div>
                                     </div>
 

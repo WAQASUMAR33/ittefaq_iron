@@ -44,6 +44,12 @@ import {
 
 // Material Icons
 import {
+
+const fmtAmt = (val) => {
+  const n = parseFloat(val || 0);
+  if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return fmtAmt(n);
+};
   Add as AddIcon,
   Search as SearchIcon,
   Edit as EditIcon,
@@ -1127,7 +1133,7 @@ export default function ProductsPage() {
                       {/* CRate */}
                       <TableCell>
                         <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                          {parseFloat(product.pro_crate || 0).toFixed(2)}
+                          {fmtAmt(product.pro_crate)}
                         </Typography>
                       </TableCell>
 
@@ -1141,14 +1147,14 @@ export default function ProductsPage() {
                       {/* Sale Rate */}
                       <TableCell>
                         <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                          {parseFloat(product.pro_sale_price || 0).toFixed(2)}
+                          {fmtAmt(product.pro_sale_price)}
                         </Typography>
                       </TableCell>
 
                       {/* Base Rate */}
                       <TableCell>
                         <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                          {parseFloat(product.pro_baser_price || 0).toFixed(2)}
+                          {fmtAmt(product.pro_baser_price)}
                         </Typography>
                       </TableCell>
                       <TableCell align="center">

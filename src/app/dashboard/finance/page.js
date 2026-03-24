@@ -25,6 +25,12 @@ import DashboardLayout from '../components/dashboard-layout';
 
 // Material-UI imports
 import {
+
+const fmtAmt = (val) => {
+  const n = parseFloat(val || 0);
+  if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return fmtAmt(n);
+};
   Box,
   Container,
   Typography,
@@ -732,7 +738,7 @@ export default function FinancePage() {
       if (bankAmt > 0 && cashAmt <= 0) trnx_type = 'BANK_TRANSFER';
       else if (bankAmt > 0 && cashAmt > 0) trnx_type = 'BANK_TRANSFER';
 
-      const discountNote = discountAmt > 0 ? ` | Discount: PKR ${discountAmt.toFixed(2)}` : '';
+      const discountNote = discountAmt > 0 ? ` | Discount: PKR ${fmtAmt(discountAmt)}` : '';
       const submitData = {
         cus_id: formData.cus_id,
         debit_amount: formData.debit_amount,
@@ -3087,8 +3093,8 @@ export default function FinancePage() {
                               <TableCell sx={{ px: 1 }}>{index + 1}</TableCell>
                               <TableCell sx={{ px: 1 }}>{detail.product?.pro_title || detail.pro_title || 'N/A'}</TableCell>
                               <TableCell sx={{ px: 1 }} align="right">{detail.qnty || 0}</TableCell>
-                              <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.unit_rate || detail.rate || 0).toFixed(2)}</TableCell>
-                              <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.total_amount || detail.amount || 0).toFixed(2)}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{fmtAmt(detail.unit_rate || detail.rate)}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{fmtAmt(detail.total_amount || detail.amount)}</TableCell>
                             </TableRow>
                           ))}
 
@@ -3123,17 +3129,17 @@ export default function FinancePage() {
                               <>
                                 <TableRow>
                                   <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Previous Balance</TableCell>
-                                  <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>{previousBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                                  <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>{fmtAmt(previousBalance)}</TableCell>
                                 </TableRow>
 
                                 <TableRow>
                                   <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Current Balance</TableCell>
-                                  <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>{(invoiceNet - payment).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                                  <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>{fmtAmt(invoiceNet - payment)}</TableCell>
                                 </TableRow>
 
                                 <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                                   <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Total Balance</TableCell>
-                                  <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>{(previousBalance + invoiceNet - payment).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                                  <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>{fmtAmt(previousBalance + invoiceNet - payment)}</TableCell>
                                 </TableRow>
                               </>
                             );
@@ -3149,35 +3155,35 @@ export default function FinancePage() {
                         <TableBody>
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Goods Total</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{parseFloat(viewingPurchase.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(viewingPurchase.total_amount)}</TableCell>
                           </TableRow>
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Labour</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{parseFloat(viewingPurchase.labour_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(viewingPurchase.labour_amount)}</TableCell>
                           </TableRow>
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Transport</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{parseFloat(viewingPurchase.transport_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(viewingPurchase.transport_amount)}</TableCell>
                           </TableRow>
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Out Labour</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{parseFloat(viewingPurchase.out_labour_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(viewingPurchase.out_labour_amount)}</TableCell>
                           </TableRow>
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Out Delivery</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{parseFloat(viewingPurchase.out_delivery_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(viewingPurchase.out_delivery_amount)}</TableCell>
                           </TableRow>
                           <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Invoice Total</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{(viewingPurchase.display_net_total || parseFloat(viewingPurchase.total_amount || 0) + parseFloat(viewingPurchase.unloading_amount || 0) + parseFloat(viewingPurchase.transport_amount || 0) + parseFloat(viewingPurchase.labour_amount || 0) + parseFloat(viewingPurchase.fare_amount || 0) - parseFloat(viewingPurchase.discount || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(viewingPurchase.display_net_total || parseFloat(viewingPurchase.total_amount || 0) + parseFloat(viewingPurchase.unloading_amount || 0) + parseFloat(viewingPurchase.transport_amount || 0) + parseFloat(viewingPurchase.labour_amount || 0) + parseFloat(viewingPurchase.fare_amount || 0) - parseFloat(viewingPurchase.discount || 0))}</TableCell>
                           </TableRow>
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{viewingPurchase.bank_payment > 0 ? (viewingPurchase.bank_title || 'Bank Payment') : 'Bank Payment'}</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem', fontWeight: 'bold' }}>{parseFloat(viewingPurchase.bank_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem', fontWeight: 'bold' }}>{fmtAmt(viewingPurchase.bank_payment)}</TableCell>
                           </TableRow>
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Total Payment</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{parseFloat(viewingPurchase.payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(viewingPurchase.payment)}</TableCell>
                           </TableRow>
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Balance Due</TableCell>
