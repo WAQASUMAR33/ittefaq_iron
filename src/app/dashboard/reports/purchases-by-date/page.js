@@ -593,7 +593,7 @@ export default function PurchasesByDateReport() {
                                   <MuiTableCell>{i + 1}</MuiTableCell>
                                   <MuiTableCell>{d.product?.pro_title || d.product_name || 'N/A'}</MuiTableCell>
                                   <MuiTableCell align="right">{d.qnty || 0}</MuiTableCell>
-                                  <MuiTableCell align="right">{parseFloat(d.unit_rate || 0).toFixed(2)}</MuiTableCell>
+                                  <MuiTableCell align="right">{parseFloat(d.crate || d.unit_rate || 0).toFixed(2)}</MuiTableCell>
                                   <MuiTableCell align="right">{parseFloat(d.total_amount || 0).toFixed(2)}</MuiTableCell>
                                 </MuiTableRow>
                               ))}

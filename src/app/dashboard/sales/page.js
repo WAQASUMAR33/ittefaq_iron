@@ -907,6 +907,13 @@ function SalesPageContent() {
     });
   };
 
+  // Smart amount formatter: hide .00 for whole numbers
+  const fmtAmt = (val) => {
+    const n = parseFloat(val || 0);
+    if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
   const calculateTotalAmount = () => {
     const total = productTableData.reduce((total, product) => total + (parseFloat(product.amount) || 0), 0);
     return Number(total.toFixed(2));
@@ -4432,7 +4439,7 @@ function SalesPageContent() {
                       value={(() => {
                         const totalDelivery = (parseFloat(paymentData.deliveryCharges || 0) + calculateTransportTotal());
                         if (totalDelivery === 0) return '';
-                        return totalDelivery.toFixed(2);
+                        return totalDelivery % 1 === 0 ? String(totalDelivery) : totalDelivery.toFixed(2);
                       })()}
                       onChange={(e) => {
                         // Calculate delivery charges by subtracting transport from total
@@ -4867,9 +4874,9 @@ function SalesPageContent() {
                             <TableRow key={detail.sale_detail_id || index}>
                               <TableCell sx={{ px: 1 }}>{index + 1}</TableCell>
                               <TableCell sx={{ px: 1 }}>{detail.product?.pro_title || 'N/A'}</TableCell>
-                              <TableCell sx={{ px: 1 }} align="right">{Number(detail.qnty || 0).toFixed(2)}</TableCell>
-                              <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.unit_rate || 0).toFixed(2)}</TableCell>
-                              <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.total_amount || 0).toFixed(2)}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{fmtAmt(detail.qnty)}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{fmtAmt(detail.unit_rate)}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{fmtAmt(detail.total_amount)}</TableCell>
                             </TableRow>
                           ))
                         ) : (
@@ -4892,19 +4899,19 @@ function SalesPageContent() {
                             <TableRow>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
                               <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                {parseFloat(currentBillData.customer?.cus_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {fmtAmt(currentBillData.customer?.cus_balance)}
                               </TableCell>
                             </TableRow>
                             <TableRow>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</TableCell>
                               <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {fmtAmt(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0))}
                               </TableCell>
                             </TableRow>
                             <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                {(parseFloat(currentBillData.customer?.cus_balance || 0) + parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {fmtAmt(parseFloat(currentBillData.customer?.cus_balance || 0) + parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0))}
                               </TableCell>
                             </TableRow>
                           </TableBody>
@@ -4925,38 +4932,38 @@ function SalesPageContent() {
                             <TableRow>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رقم بل</TableCell>
                               <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {parseFloat(currentBillData.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {fmtAmt(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.labour_charges || currentBillData.labour || 0) - parseFloat(currentBillData.shipping_amount || 0) + parseFloat(currentBillData.discount || 0))}
                               </TableCell>
                             </TableRow>
                             <TableRow>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>مزدوری</TableCell>
                               <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {parseFloat(currentBillData.labour_charges || currentBillData.labour || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {fmtAmt(currentBillData.labour_charges || currentBillData.labour)}
                               </TableCell>
                             </TableRow>
                             <TableRow>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>کرایہ</TableCell>
                               <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {parseFloat(currentBillData.shipping_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {fmtAmt(currentBillData.shipping_amount)}
                               </TableCell>
                             </TableRow>
                             <TableRow>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رعایت</TableCell>
                               <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {parseFloat(currentBillData.discount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {fmtAmt(currentBillData.discount)}
                               </TableCell>
                             </TableRow>
                             <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم</TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {parseFloat(currentBillData.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {fmtAmt(currentBillData.total_amount)}
                               </TableCell>
                             </TableRow>
                             {/* Always show cash payment */}
                             <TableRow>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>نقد كيش</TableCell>
                               <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {parseFloat(currentBillData.cash_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {fmtAmt(currentBillData.cash_payment)}
                               </TableCell>
                             </TableRow>
                             {/* Show bank payment with account name if bank payment exists */}
@@ -4966,7 +4973,7 @@ function SalesPageContent() {
                                   {currentBillData.bank_title || 'بینک'}
                                 </TableCell>
                                 <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                  {parseFloat(currentBillData.bank_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  {fmtAmt(currentBillData.bank_payment)}
                                 </TableCell>
                               </TableRow>
                             )}
@@ -4977,20 +4984,20 @@ function SalesPageContent() {
                                   پیشگی ادائیگی
                                 </TableCell>
                                 <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                  {parseFloat(currentBillData.advance_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  {fmtAmt(currentBillData.advance_payment)}
                                 </TableCell>
                               </TableRow>
                             )}
                             <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم وصول</TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {parseFloat(currentBillData.payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {fmtAmt(currentBillData.payment)}
                               </TableCell>
                             </TableRow>
                             <TableRow sx={{ bgcolor: '#d0d0d0' }}>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>بقايا رقم</TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {fmtAmt(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0))}
                               </TableCell>
                             </TableRow>
                           </TableBody>
@@ -5022,9 +5029,9 @@ function SalesPageContent() {
                       <Box key={d.sale_detail_id || i} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                         <Box sx={{ pr: 1, flex: 1 }}>
                           <Typography sx={{ fontSize: '10px' }}>{d.product?.pro_title || 'Item'}</Typography>
-                          <Typography sx={{ fontSize: '9px', color: 'text.secondary' }}>Qty: {d.qnty} x {parseFloat(d.unit_rate || 0).toFixed(2)}</Typography>
+                          <Typography sx={{ fontSize: '9px', color: 'text.secondary' }}>Qty: {fmtAmt(d.qnty)} x {fmtAmt(d.unit_rate)}</Typography>
                         </Box>
-                        <Typography sx={{ fontSize: '10px', minWidth: '35mm', textAlign: 'right' }}>{parseFloat(d.total_amount || 0).toFixed(2)}</Typography>
+                        <Typography sx={{ fontSize: '10px', minWidth: '35mm', textAlign: 'right' }}>{fmtAmt(d.total_amount)}</Typography>
                       </Box>
                     ))
                   ) : (
@@ -5034,44 +5041,44 @@ function SalesPageContent() {
                 <Box sx={{ pt: 1 }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Typography sx={{ fontSize: '10px' }}>Subtotal</Typography>
-                    <Typography sx={{ fontSize: '10px' }}>{parseFloat(currentBillData.total_amount || 0).toFixed(2)}</Typography>
+                    <Typography sx={{ fontSize: '10px' }}>{fmtAmt(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.labour_charges || currentBillData.labour || 0) - parseFloat(currentBillData.shipping_amount || 0) + parseFloat(currentBillData.discount || 0))}</Typography>
                   </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Typography sx={{ fontSize: '10px' }}>Discount</Typography>
-                    <Typography sx={{ fontSize: '10px' }}>{parseFloat(currentBillData.discount || 0).toFixed(2)}</Typography>
+                    <Typography sx={{ fontSize: '10px' }}>{fmtAmt(currentBillData.discount)}</Typography>
                   </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Typography sx={{ fontSize: '10px' }}>Shipping</Typography>
-                    <Typography sx={{ fontSize: '10px' }}>{parseFloat(currentBillData.shipping_amount || 0).toFixed(2)}</Typography>
+                    <Typography sx={{ fontSize: '10px' }}>{fmtAmt(currentBillData.shipping_amount)}</Typography>
                   </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', borderTop: '1px dashed #000', mt: 0.5, pt: 0.5 }}>
                     <Typography sx={{ fontSize: '11px' }}>Grand Total</Typography>
                     <Typography sx={{ fontSize: '11px' }}>
-                      {parseFloat(currentBillData.total_amount || 0).toFixed(2)}
+                      {fmtAmt(currentBillData.total_amount)}
                     </Typography>
                   </Box>
                   {/* Cash Payment */}
                   {parseFloat(currentBillData.cash_payment || 0) > 0 && (
                     <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                       <Typography sx={{ fontSize: '10px' }}>Cash Payment</Typography>
-                      <Typography sx={{ fontSize: '10px' }}>{parseFloat(currentBillData.cash_payment || 0).toFixed(2)}</Typography>
+                      <Typography sx={{ fontSize: '10px' }}>{fmtAmt(currentBillData.cash_payment)}</Typography>
                     </Box>
                   )}
                   {/* Bank Payment */}
                   {parseFloat(currentBillData.bank_payment || 0) > 0 && (
                     <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                       <Typography sx={{ fontSize: '10px' }}>Bank Payment ({currentBillData.bank_title || 'Bank'})</Typography>
-                      <Typography sx={{ fontSize: '10px' }}>{parseFloat(currentBillData.bank_payment || 0).toFixed(2)}</Typography>
+                      <Typography sx={{ fontSize: '10px' }}>{fmtAmt(currentBillData.bank_payment)}</Typography>
                     </Box>
                   )}
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
                     <Typography sx={{ fontSize: '10px' }}>Total Paid</Typography>
-                    <Typography sx={{ fontSize: '10px' }}>{parseFloat(currentBillData.payment || 0).toFixed(2)}</Typography>
+                    <Typography sx={{ fontSize: '10px' }}>{fmtAmt(currentBillData.payment)}</Typography>
                   </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Typography sx={{ fontSize: '10px' }}>Balance</Typography>
                     <Typography sx={{ fontSize: '10px' }}>
-                      {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toFixed(2)}
+                      {fmtAmt(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0))}
                     </Typography>
                   </Box>
                 </Box>
@@ -5194,9 +5201,9 @@ function SalesPageContent() {
                             <TableRow key={detail.sale_detail_id || index}>
                               <TableCell sx={{ px: 1 }}>{index + 1}</TableCell>
                               <TableCell sx={{ px: 1 }}>{detail.product?.pro_title || 'N/A'}</TableCell>
-                              <TableCell sx={{ px: 1 }} align="right">{detail.qnty || 0}</TableCell>
-                              <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.unit_rate || 0).toFixed(2)}</TableCell>
-                              <TableCell sx={{ px: 1 }} align="right">{parseFloat(detail.total_amount || 0).toFixed(2)}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{fmtAmt(detail.qnty)}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{fmtAmt(detail.unit_rate)}</TableCell>
+                              <TableCell sx={{ px: 1 }} align="right">{fmtAmt(detail.total_amount)}</TableCell>
                             </TableRow>
                           ))
                         ) : (
@@ -5221,37 +5228,37 @@ function SalesPageContent() {
                                 <TableRow>
                                   <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>منسوخ کردہ رقم</TableCell>
                                   <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                    {parseFloat(currentBillData.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {fmtAmt(currentBillData.total_amount)}
                                   </TableCell>
                                 </TableRow>
                                 <TableRow>
                                   <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>رعایت</TableCell>
                                   <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                    -{parseFloat(currentBillData.discount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    -{fmtAmt(currentBillData.discount)}
                                   </TableCell>
                                 </TableRow>
                                 <TableRow>
                                   <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>مزدوری</TableCell>
                                   <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                    {parseFloat(currentBillData.labour_charges || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {fmtAmt(currentBillData.labour_charges)}
                                   </TableCell>
                                 </TableRow>
                                 <TableRow>
                                   <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>کرایہ</TableCell>
                                   <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                    {parseFloat(currentBillData.shipping_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {fmtAmt(currentBillData.shipping_amount)}
                                   </TableCell>
                                 </TableRow>
                                 <TableRow sx={{ bgcolor: '#e8f5e9' }}>
                                   <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>کل منسوخی</TableCell>
                                   <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', color: '#2e7d32' }}>
-                                    {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.discount || 0) + parseFloat(currentBillData.labour_charges || 0) + parseFloat(currentBillData.shipping_amount || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {fmtAmt(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.discount || 0) + parseFloat(currentBillData.labour_charges || 0) + parseFloat(currentBillData.shipping_amount || 0))}
                                   </TableCell>
                                 </TableRow>
                                 <TableRow sx={{ bgcolor: '#ffe0b2' }}>
                                   <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>کل واپسی</TableCell>
                                   <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', color: '#e65100', fontSize: '1rem' }}>
-                                    {parseFloat(currentBillData.payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {fmtAmt(currentBillData.payment)}
                                   </TableCell>
                                 </TableRow>
                               </>
@@ -5260,19 +5267,19 @@ function SalesPageContent() {
                                 <TableRow>
                                   <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
                                   <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                    {parseFloat(currentBillData.customer?.cus_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {fmtAmt(currentBillData.customer?.cus_balance)}
                                   </TableCell>
                                 </TableRow>
                                 <TableRow>
                                   <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</TableCell>
                                   <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                    {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {fmtAmt(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0))}
                                   </TableCell>
                                 </TableRow>
                                 <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                                   <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</TableCell>
                                   <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                    {(parseFloat(currentBillData.customer?.cus_balance || 0) + parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {fmtAmt(parseFloat(currentBillData.customer?.cus_balance || 0) + parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0))}
                                   </TableCell>
                                 </TableRow>
                               </>
@@ -5295,38 +5302,38 @@ function SalesPageContent() {
                             <TableRow>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رقم بل</TableCell>
                               <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {parseFloat(currentBillData.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {fmtAmt(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.labour_charges || currentBillData.labour || 0) - parseFloat(currentBillData.shipping_amount || 0) + parseFloat(currentBillData.discount || 0))}
                               </TableCell>
                             </TableRow>
                             <TableRow>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>مزدوری</TableCell>
                               <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {parseFloat(currentBillData.labour_charges || currentBillData.labour || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {fmtAmt(currentBillData.labour_charges || currentBillData.labour)}
                               </TableCell>
                             </TableRow>
                             <TableRow>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>کرایہ</TableCell>
                               <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {parseFloat(currentBillData.shipping_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {fmtAmt(currentBillData.shipping_amount)}
                               </TableCell>
                             </TableRow>
                             <TableRow>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رعایت</TableCell>
                               <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {parseFloat(currentBillData.discount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {fmtAmt(currentBillData.discount)}
                               </TableCell>
                             </TableRow>
                             <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم</TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {parseFloat(currentBillData.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {fmtAmt(currentBillData.total_amount)}
                               </TableCell>
                             </TableRow>
                             {/* Always show cash payment */}
                             <TableRow>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>نقد كيش</TableCell>
                               <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {parseFloat(currentBillData.cash_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {fmtAmt(currentBillData.cash_payment)}
                               </TableCell>
                             </TableRow>
                             {/* Show bank payment with account name if bank payment exists */}
@@ -5336,7 +5343,7 @@ function SalesPageContent() {
                                   {currentBillData.bank_title || 'بینک'}
                                 </TableCell>
                                 <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                  {parseFloat(currentBillData.bank_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  {fmtAmt(currentBillData.bank_payment)}
                                 </TableCell>
                               </TableRow>
                             )}
@@ -5347,20 +5354,20 @@ function SalesPageContent() {
                                   پیشگی ادائیگی
                                 </TableCell>
                                 <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                  {parseFloat(currentBillData.advance_payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  {fmtAmt(currentBillData.advance_payment)}
                                 </TableCell>
                               </TableRow>
                             )}
                             <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم وصول</TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {parseFloat(currentBillData.payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {fmtAmt(currentBillData.payment)}
                               </TableCell>
                             </TableRow>
                             <TableRow sx={{ bgcolor: '#d0d0d0' }}>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>بقايا رقم</TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {fmtAmt(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0))}
                               </TableCell>
                             </TableRow>
                           </TableBody>
@@ -7293,14 +7300,14 @@ function SalesPageContent() {
                                 <TableRow>
                                   <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
                                   <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                    {prevBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {fmtAmt(prevBalance)}
                                   </TableCell>
                                 </TableRow>
                               )}
                               <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                                 <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</TableCell>
                                 <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                  {totalBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  {fmtAmt(totalBalance)}
                                 </TableCell>
                               </TableRow>
                             </TableBody>
@@ -7325,25 +7332,25 @@ function SalesPageContent() {
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رقم بل</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {parseFloat(selectedBill.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {fmtAmt(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.labour_charges || 0) - parseFloat(selectedBill.shipping_amount || 0) + parseFloat(selectedBill.discount || 0))}
                             </TableCell>
                           </TableRow>
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>مزدوری</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {parseFloat(selectedBill.labour_charges || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {fmtAmt(selectedBill.labour_charges)}
                             </TableCell>
                           </TableRow>
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>کرایہ</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {parseFloat(selectedBill.shipping_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {fmtAmt(selectedBill.shipping_amount)}
                             </TableCell>
                           </TableRow>
                           <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {parseFloat(selectedBill.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {fmtAmt(selectedBill.total_amount)}
                             </TableCell>
                           </TableRow>
                           {/* Show payment details - use cash_payment and bank_payment fields */}
@@ -7397,7 +7404,7 @@ function SalesPageContent() {
                                     نقد كيش
                                   </TableCell>
                                   <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                    {cashAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {fmtAmt(cashAmount)}
                                   </TableCell>
                                 </TableRow>
 
@@ -7408,7 +7415,7 @@ function SalesPageContent() {
                                       {bankName}
                                     </TableCell>
                                     <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                      {bankAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      {fmtAmt(bankAmount)}
                                     </TableCell>
                                   </TableRow>
                                 )}
@@ -7420,7 +7427,7 @@ function SalesPageContent() {
                                       پیشگی ادائیگی
                                     </TableCell>
                                     <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                      {advanceAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      {fmtAmt(advanceAmount)}
                                     </TableCell>
                                   </TableRow>
                                 )}
@@ -7430,13 +7437,13 @@ function SalesPageContent() {
                           <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم وصول</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {parseFloat(selectedBill.payment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {fmtAmt(selectedBill.payment)}
                             </TableCell>
                           </TableRow>
                           <TableRow sx={{ bgcolor: '#d0d0d0' }}>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>بقايا رقم</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.payment || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {fmtAmt(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.payment || 0))}
                             </TableCell>
                           </TableRow>
                         </TableBody>
