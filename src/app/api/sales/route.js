@@ -1951,6 +1951,27 @@ export async function PUT(request) {
   }
 }
 
+// PATCH - Update sale status only (lightweight, no finance/stock recalculation)
+export async function PATCH(request) {
+  try {
+    const body = await request.json();
+    const { id, bill_type } = body;
+
+    if (!id) return NextResponse.json({ error: 'Sale ID is required' }, { status: 400 });
+    if (!bill_type) return NextResponse.json({ error: 'bill_type is required' }, { status: 400 });
+
+    const updated = await prisma.sale.update({
+      where: { sale_id: parseInt(id) },
+      data: { bill_type }
+    });
+
+    return NextResponse.json({ success: true, sale_id: updated.sale_id, bill_type: updated.bill_type });
+  } catch (err) {
+    console.error('❌ Error updating sale status:', err);
+    return NextResponse.json({ error: 'Failed to update sale status' }, { status: 500 });
+  }
+}
+
 // DELETE - Delete sale
 export async function DELETE(request) {
   try {

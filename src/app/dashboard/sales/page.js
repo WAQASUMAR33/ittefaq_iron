@@ -284,6 +284,7 @@ function SalesPageContent() {
   const [loadOrderDialogOpen, setLoadOrderDialogOpen] = useState(false);
   const [orderSearchTerm, setOrderSearchTerm] = useState('');
   const [isSearchingOrder, setIsSearchingOrder] = useState(false);
+  const [loadedOrderId, setLoadedOrderId] = useState(null); // Track the order being converted to bill
 
   // Load Quotation state
   const [loadQuotationDialogOpen, setLoadQuotationDialogOpen] = useState(false);
@@ -1069,6 +1070,7 @@ function SalesPageContent() {
         isLoadedOrder: true // Flag to indicate this is a loaded order
       }));
 
+      setLoadedOrderId(fullOrder.sale_id); // Remember which order is being converted
       setLoadOrderDialogOpen(false);
       showSnackbar(`Order loaded. Advance: ${alreadyPaid.toFixed(2)}. Add items to bill.`, 'info');
 
@@ -1394,6 +1396,20 @@ function SalesPageContent() {
       if (response.ok) {
         const result = await response.json();
         showSnackbar('Bill saved successfully!', 'success');
+
+        // If this bill was converted from an order, mark the order as DISPATCHED
+        if (loadedOrderId) {
+          try {
+            await fetch('/api/sales', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: loadedOrderId, bill_type: 'DISPATCHED' })
+            });
+            setLoadedOrderId(null);
+          } catch (e) {
+            console.error('Failed to update order status to DISPATCHED:', e);
+          }
+        }
 
         // Store bill data for printing
         const billDataForPrint = {
@@ -4676,6 +4692,7 @@ function SalesPageContent() {
                       isLoadedOrder: false
                     });
                     setTransportOptions([]);
+                    setLoadedOrderId(null);
                   }}
                 >
                   New
