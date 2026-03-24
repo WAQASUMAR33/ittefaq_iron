@@ -735,7 +735,7 @@ function OrdersPageContent() {
   const handleQuantityChange = (newQuantity) => {
     const quantity = parseFloat(newQuantity) || 0;
     const rate = productFormData.rate;
-    const amount = Number(fmtAmt(quantity * rate));
+    const amount = quantity * rate;
 
     setProductFormData(prev => ({
       ...prev,
@@ -748,7 +748,7 @@ function OrdersPageContent() {
   const handleRateChange = (newRate) => {
     const rate = parseFloat(newRate) || 0;
     const quantity = productFormData.quantity;
-    const amount = Number(fmtAmt(quantity * rate));
+    const amount = quantity * rate;
 
     setProductFormData(prev => ({
       ...prev,
@@ -820,15 +820,14 @@ function OrdersPageContent() {
 
   const calculateTotalAmount = () => {
     const total = productTableData.reduce((total, product) => total + (parseFloat(product.amount) || 0), 0);
-    return Number(fmtAmt(total));
+    return total;
   };
 
   // Calculate subtotal (products + transport)
   const calculateSubtotal = () => {
     const productTotal = calculateTotalAmount();
     const transportTotal = calculateTransportTotal();
-    const subtotal = productTotal + transportTotal;
-    return Number(fmtAmt(subtotal));
+    return productTotal + transportTotal;
   };
 
   // Calculate grand total (products + labour + delivery (including transport) - discount)
@@ -839,14 +838,14 @@ function OrdersPageContent() {
     const transportTotal = calculateTransportTotal();
     const totalDelivery = deliveryCharges + transportTotal; // Transport added to delivery
     const discount = parseFloat(paymentData.discount) || 0;
-    return Number(fmtAmt(productTotal + labour + totalDelivery - discount));
+    return productTotal + labour + totalDelivery - discount;
   };
 
   // Calculate balance (grand total - total cash received)
   const calculateBalance = () => {
     const grandTotal = calculateGrandTotal();
     const totalCashReceived = parseFloat(paymentData.totalCashReceived) || 0;
-    return Number(fmtAmt(grandTotal - totalCashReceived));
+    return grandTotal - totalCashReceived;
   };
 
   // Handle payment data changes
@@ -1638,7 +1637,7 @@ function OrdersPageContent() {
       updated[index] = {
         ...updated[index],
         qnty: parseInt(newQty) || 0,
-        total_amount: fmtAmt(parseFloat(updated[index].unit_rate || 0) * parseInt(newQty || 0))
+        total_amount: parseFloat(updated[index].unit_rate || 0) * parseInt(newQty || 0)
       };
       return { ...prev, return_details: updated };
     });
@@ -2756,7 +2755,7 @@ function OrdersPageContent() {
                                       ? {
                                         ...p,
                                         quantity: newQuantity,
-                                        amount: Number(fmtAmt(newQuantity * p.rate))
+                                        amount: newQuantity * p.rate
                                       }
                                       : p
                                   );
@@ -2789,7 +2788,7 @@ function OrdersPageContent() {
                                       ? {
                                         ...p,
                                         rate: newRate,
-                                        amount: Number(fmtAmt(p.quantity * newRate))
+                                        amount: p.quantity * newRate
                                       }
                                       : p
                                   );
