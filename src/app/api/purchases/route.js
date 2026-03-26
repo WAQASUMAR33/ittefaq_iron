@@ -198,10 +198,22 @@ export async function POST(request) {
       cargo_account_ids = null,
       purchase_type = 'new',
       return_for_purchase_id = null,
-      purchase_details = []
+      purchase_details = [],
+      bank_account_id = null
     } = body;
 
+    // Ensure bank_account_id is always a proper integer (or null)
+    const bankAccountIdInt = bank_account_id ? parseInt(bank_account_id) : null;
+
     let { credit_account_id } = body;
+    const creditAccountIdInt = credit_account_id ? parseInt(credit_account_id) : null;
+
+    console.log('🏦 PURCHASE POST - Payment fields received:', {
+      cash_payment, bank_payment,
+      bank_account_id, bankAccountIdInt,
+      credit_account_id, creditAccountIdInt,
+      payment_type
+    });
 
     // Helper function to safely parse numbers and avoid NaN
     const safeParseFloat = (value, defaultValue = 0) => {
@@ -471,52 +483,42 @@ export async function POST(request) {
         console.log(`   Note: OUT charges will NOT be credited to the supplier; they are posted to Labour/Cargo and offset against Cash/Bank.`);
       }
 
-      // 2. Consolidated Payment Entry - Cash + Bank Payment to Supplier (similar to sales page)
-      const cashPaymentForSupplier = isReturn ? 0 : cashPaymentAmount;
-      const bankPaymentForSupplier = isReturn ? 0 : bankPaymentAmount;
-      const totalPaymentToSupplier = cashPaymentForSupplier + bankPaymentForSupplier;
+      // 2. Single combined payment entry to Supplier (cash + bank together)
+      const totalPaymentForSupplier = isReturn ? 0 : (cashPaymentAmount + bankPaymentAmount);
 
-      if (totalPaymentToSupplier > 0 && cus_id) {
+      if (totalPaymentForSupplier > 0) {
         const supplierData = await tx.customer.findUnique({
           where: { cus_id: cus_id },
           select: { cus_name: true }
         });
 
-        console.log(`💳 CREATING CONSOLIDATED PAYMENT ENTRY: Total=${totalPaymentToSupplier}`);
-        console.log(`   Breakdown: Cash=${cashPaymentForSupplier}, Bank=${bankPaymentForSupplier}`);
-        console.log(`   Opening Balance: ${runningSupplierBalance}`);
-
-        // Build payment details with breakdown
-        let paymentDetails = `Payment for Invoice to ${supplierData?.cus_name || 'Supplier'} (includes labour & delivery)`;
-        const breakdown = [];
-        if (cashPaymentForSupplier > 0) breakdown.push(`Cash: ${cashPaymentForSupplier.toFixed(2)}`);
-        if (bankPaymentForSupplier > 0) breakdown.push(`Bank: ${bankPaymentForSupplier.toFixed(2)}`);
-        if (breakdown.length > 0) {
-          paymentDetails += ` | Split: [${breakdown.join(', ')}]`;
+        // Build payment description showing cash and bank breakdown
+        let paymentParts = [];
+        if (cashPaymentAmount > 0) paymentParts.push(`Cash: ${cashPaymentAmount}`);
+        if (bankPaymentAmount > 0) {
+          const bankNameForDesc = bankAccountIdInt
+            ? (await tx.customer.findUnique({ where: { cus_id: bankAccountIdInt }, select: { cus_name: true } }))?.cus_name
+            : null;
+          paymentParts.push(`Bank (${bankNameForDesc || 'Bank Account'}): ${bankPaymentAmount}`);
         }
-        if (cashPaymentForSupplier > 0 && bankPaymentForSupplier > 0) {
-          paymentDetails += ` | {cash_amount: ${cashPaymentForSupplier}, bank_amount: ${bankPaymentForSupplier}}`;
-        }
+        const paymentDesc = paymentParts.length > 0 ? ` [${paymentParts.join(', ')}]` : '';
 
-        const supplierPaymentEntry = createLedgerEntry({
+        const paymentEntry = createLedgerEntry({
           cus_id: cus_id,
           opening_balance: runningSupplierBalance,
           debit_amount: 0,
-          credit_amount: totalPaymentToSupplier,  // Credit reduces supplier balance owed
+          credit_amount: totalPaymentForSupplier,
           bill_no: newPurchase.pur_id.toString(),
-          trnx_type: totalPaymentToSupplier > 0 && bankPaymentForSupplier > 0 && cashPaymentForSupplier === 0 ? 'BANK_TRANSFER' : 'CASH',
-          details: paymentDetails,
-          payments: totalPaymentToSupplier,
-          cash_payment: cashPaymentForSupplier,  // Add cash breakdown
-          bank_payment: bankPaymentForSupplier,  // Add bank breakdown
+          trnx_type: 'PURCHASE',
+          details: `Payment to ${supplierData?.cus_name || 'Supplier'} - Supplier Account (Credit)${paymentDesc}`,
+          payments: totalPaymentForSupplier,
+          cash_payment: cashPaymentAmount,
+          bank_payment: bankPaymentAmount,
           updated_by: updated_by ? parseInt(updated_by) : null
         });
-
-        ledgerEntries.push(supplierPaymentEntry);
-        runningSupplierBalance = supplierPaymentEntry.closing_balance;
-
-        console.log(`💳 Supplier Payment Entry Created: Opening=${supplierPaymentEntry.opening_balance}, Credit=${supplierPaymentEntry.credit_amount}, Closing=${supplierPaymentEntry.closing_balance}`);
-        console.log(`   Note: Payment applies to full invoice (products + labour + delivery). No separate expense will be created for labour/delivery.`);
+        ledgerEntries.push(paymentEntry);
+        runningSupplierBalance = paymentEntry.closing_balance;
+        console.log(`💳 Payment Entry: Opening=${paymentEntry.opening_balance}, Credit=${paymentEntry.credit_amount}, Closing=${paymentEntry.closing_balance}`);
       }
 
       // 3. Bank Account - CREDIT (when bank payment is made)
@@ -526,22 +528,34 @@ export async function POST(request) {
       if (parseFloat(bank_payment || 0) > 0) {
         let bankAccountToUse = null;
 
-        console.log(`🏦 DEBUG: Looking for bank account with ID: ${body.bank_account_id}`);
+        console.log(`🏦 DEBUG: bank_account_id=${bankAccountIdInt}, credit_account_id=${creditAccountIdInt}, cash=${cashPaymentAmount}, bank=${bankPaymentAmount}`);
 
-        // If a specific bank account ID is provided, use it
-        if (body.bank_account_id) {
+        // Primary: use bank_account_id if provided
+        if (bankAccountIdInt) {
           const specificBank = await tx.customer.findUnique({
-            where: { cus_id: body.bank_account_id }
+            where: { cus_id: bankAccountIdInt }
           });
-
           if (specificBank) {
             bankAccountToUse = specificBank;
-            console.log(`🏦 Using specific bank: ${specificBank.cus_name} (ID: ${specificBank.cus_id})`);
+            console.log(`🏦 Found via bank_account_id: ${specificBank.cus_name} (ID: ${specificBank.cus_id})`);
           } else {
-            console.log(`⚠️ Bank account ID ${body.bank_account_id} not found`);
+            console.log(`⚠️ bank_account_id ${bankAccountIdInt} not found in customers`);
           }
-        } else {
-          console.log(`⚠️ No bank_account_id provided in request body`);
+        }
+
+        // Fallback: for pure bank payment (no cash), credit_account_id IS the bank account
+        if (!bankAccountToUse && cashPaymentAmount === 0 && creditAccountIdInt) {
+          const fallbackBank = await tx.customer.findUnique({
+            where: { cus_id: creditAccountIdInt }
+          });
+          if (fallbackBank) {
+            bankAccountToUse = fallbackBank;
+            console.log(`🏦 Fallback via credit_account_id: ${fallbackBank.cus_name} (ID: ${fallbackBank.cus_id})`);
+          }
+        }
+
+        if (!bankAccountToUse) {
+          console.log(`⚠️ No bank account resolved. bank_account_id=${bankAccountIdInt}, credit_account_id=${creditAccountIdInt}`);
         }
 
         if (bankAccountToUse) {
@@ -573,22 +587,22 @@ export async function POST(request) {
       }
 
       // 4. Cash Account Entry (if cash payment exists)
-      if (cashPaymentAmount > 0 && credit_account_id) {
+      if (cashPaymentAmount > 0 && creditAccountIdInt) {
         const cashAccountData = await tx.customer.findUnique({
-          where: { cus_id: credit_account_id },
+          where: { cus_id: creditAccountIdInt },
           select: { cus_balance: true, cus_name: true }
         });
         const cashCurrentBalance = parseFloat(cashAccountData?.cus_balance || 0);
 
         console.log(`💵 CASH PAYMENT DETECTED: ${cashPaymentAmount}`);
-        console.log(`💵 Cash Account Before: ID=${credit_account_id}, Name=${cashAccountData?.cus_name}, Balance=${cashCurrentBalance}`);
+        console.log(`💵 Cash Account Before: ID=${creditAccountIdInt}, Name=${cashAccountData?.cus_name}, Balance=${cashCurrentBalance}`);
 
         // NEW PURCHASE: Credit Cash Account (reduces asset - money paid out)
         // PURCHASE RETURN: Debit Cash Account (increases asset - money received back)
         const supplierForPaymentCash = await tx.customer.findUnique({ where: { cus_id }, select: { cus_name: true } });
 
         const cashEntry = createLedgerEntry({
-          cus_id: credit_account_id,
+          cus_id: creditAccountIdInt,
           opening_balance: cashCurrentBalance,
           debit_amount: isReturn ? cashPaymentAmount : 0,    // Debit on return
           credit_amount: isReturn ? 0 : cashPaymentAmount,   // Credit on purchase
@@ -775,11 +789,11 @@ export async function POST(request) {
           ledgerEntries.push(labourPaymentEntry);
 
           // 3) Create corresponding Cash/Bank account entry (credit the cash/bank account to show outflow)
-          if (incityLabourCash > 0 && credit_account_id) {
-            const cashAccountData = await tx.customer.findUnique({ where: { cus_id: credit_account_id }, select: { cus_balance: true, cus_name: true } });
+          if (incityLabourCash > 0 && creditAccountIdInt) {
+            const cashAccountData = await tx.customer.findUnique({ where: { cus_id: creditAccountIdInt }, select: { cus_balance: true, cus_name: true } });
             if (cashAccountData) {
               const cashLabourEntry = createLedgerEntry({
-                cus_id: credit_account_id,
+                cus_id: creditAccountIdInt,
                 opening_balance: parseFloat(cashAccountData?.cus_balance || 0),
                 debit_amount: 0,
                 credit_amount: incityLabourCash,
@@ -796,11 +810,12 @@ export async function POST(request) {
             } else {
               console.log('⚠️ Incity labour cash payment requested but cash account not found');
             }
-          } else if (incityLabourBank > 0 && body.bank_account_id) {
-            const bankAcc = await tx.customer.findUnique({ where: { cus_id: body.bank_account_id }, select: { cus_balance: true, cus_name: true } });
+          } else if (incityLabourBank > 0 && (bankAccountIdInt || creditAccountIdInt)) {
+            const resolvedBankId = bankAccountIdInt || creditAccountIdInt;
+            const bankAcc = await tx.customer.findUnique({ where: { cus_id: resolvedBankId }, select: { cus_balance: true, cus_name: true } });
             if (bankAcc) {
               const bankLabourEntry = createLedgerEntry({
-                cus_id: body.bank_account_id,
+                cus_id: resolvedBankId,
                 opening_balance: parseFloat(bankAcc?.cus_balance || 0),
                 debit_amount: 0,
                 credit_amount: incityLabourBank,
@@ -880,11 +895,11 @@ export async function POST(request) {
           ledgerEntries.push(deliveryPaymentEntry);
 
           // 3) Create corresponding Cash/Bank account entry (credit the cash/bank account to show outflow)
-          if (incityDeliveryCash > 0 && credit_account_id) {
-            const cashAccountData = await tx.customer.findUnique({ where: { cus_id: credit_account_id }, select: { cus_balance: true, cus_name: true } });
+          if (incityDeliveryCash > 0 && creditAccountIdInt) {
+            const cashAccountData = await tx.customer.findUnique({ where: { cus_id: creditAccountIdInt }, select: { cus_balance: true, cus_name: true } });
             if (cashAccountData) {
               const cashDeliveryEntry = createLedgerEntry({
-                cus_id: credit_account_id,
+                cus_id: creditAccountIdInt,
                 opening_balance: parseFloat(cashAccountData?.cus_balance || 0),
                 debit_amount: 0,
                 credit_amount: incityDeliveryCash,
@@ -901,11 +916,12 @@ export async function POST(request) {
             } else {
               console.log('⚠️ Incity delivery cash payment requested but cash account not found');
             }
-          } else if (incityDeliveryBank > 0 && body.bank_account_id) {
-            const bankAcc = await tx.customer.findUnique({ where: { cus_id: body.bank_account_id }, select: { cus_balance: true, cus_name: true } });
+          } else if (incityDeliveryBank > 0 && (bankAccountIdInt || creditAccountIdInt)) {
+            const resolvedBankId = bankAccountIdInt || creditAccountIdInt;
+            const bankAcc = await tx.customer.findUnique({ where: { cus_id: resolvedBankId }, select: { cus_balance: true, cus_name: true } });
             if (bankAcc) {
               const bankDeliveryEntry = createLedgerEntry({
-                cus_id: body.bank_account_id,
+                cus_id: resolvedBankId,
                 opening_balance: parseFloat(bankAcc?.cus_balance || 0),
                 debit_amount: 0,
                 credit_amount: incityDeliveryBank,
@@ -974,12 +990,12 @@ export async function POST(request) {
       }
 
       // Update cash account balance (use the latest ledger entry for the account)
-      if (credit_account_id) {
-        const cashLedgerEntries = ledgerEntries.filter(e => e.cus_id === credit_account_id);
+      if (creditAccountIdInt) {
+        const cashLedgerEntries = ledgerEntries.filter(e => e.cus_id === creditAccountIdInt);
         if (cashLedgerEntries.length > 0) {
           const lastCashEntry = cashLedgerEntries[cashLedgerEntries.length - 1];
-          await tx.customer.update({ where: { cus_id: credit_account_id }, data: { cus_balance: lastCashEntry.closing_balance } });
-          console.log(`💵 CASH ACCOUNT BALANCE UPDATED: ${credit_account_id} balance set to ${lastCashEntry.closing_balance}`);
+          await tx.customer.update({ where: { cus_id: creditAccountIdInt }, data: { cus_balance: lastCashEntry.closing_balance } });
+          console.log(`💵 CASH ACCOUNT BALANCE UPDATED: ${creditAccountIdInt} balance set to ${lastCashEntry.closing_balance}`);
         }
       }
 
@@ -1548,11 +1564,11 @@ export async function PUT(request) {
             } else {
               console.log('⚠️ Incity labour cash payment requested but cash account not found (PUT)');
             }
-          } else if (incityLabourBankPUT > 0 && body.bank_account_id) {
-            const bankAccPUT = await tx.customer.findUnique({ where: { cus_id: body.bank_account_id }, select: { cus_balance: true, cus_name: true } });
+          } else if (incityLabourBankPUT > 0 && bankAccountIdInt) {
+            const bankAccPUT = await tx.customer.findUnique({ where: { cus_id: bankAccountIdInt }, select: { cus_balance: true, cus_name: true } });
             if (bankAccPUT) {
               const bankLabourEntryPUT = createLedgerEntry({
-                cus_id: body.bank_account_id,
+                cus_id: bankAccountIdInt,
                 opening_balance: parseFloat(bankAccPUT?.cus_balance || 0),
                 debit_amount: 0,
                 credit_amount: incityLabourBankPUT,
@@ -1650,11 +1666,11 @@ export async function PUT(request) {
             } else {
               console.log('⚠️ Incity delivery cash payment requested but cash account not found (PUT)');
             }
-          } else if (incityDeliveryBankPUT > 0 && body.bank_account_id) {
-            const bankAccPUT = await tx.customer.findUnique({ where: { cus_id: body.bank_account_id }, select: { cus_balance: true, cus_name: true } });
+          } else if (incityDeliveryBankPUT > 0 && bankAccountIdInt) {
+            const bankAccPUT = await tx.customer.findUnique({ where: { cus_id: bankAccountIdInt }, select: { cus_balance: true, cus_name: true } });
             if (bankAccPUT) {
               const bankDeliveryEntryPUT = createLedgerEntry({
-                cus_id: body.bank_account_id,
+                cus_id: bankAccountIdInt,
                 opening_balance: parseFloat(bankAccPUT?.cus_balance || 0),
                 debit_amount: 0,
                 credit_amount: incityDeliveryBankPUT,

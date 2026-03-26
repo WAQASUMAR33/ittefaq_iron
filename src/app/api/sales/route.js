@@ -922,7 +922,7 @@ export async function POST(request) {
               debit_amount: debitAmount,
               credit_amount: 0,
               bill_no: sale.sale_id.toString(),
-              trnx_type: 'CASH',
+              trnx_type: 'SALE',
               details: billDetails,
               payments: 0,
               updated_by: validatedUpdatedBy
@@ -938,67 +938,42 @@ export async function POST(request) {
           console.log(`⏭️ SKIPPED: Bill entry creation for loaded order (already exists from original order)`);
         }
 
-        // 2. Consolidated Customer Payment Entry - Credit Customer Account (cash + bank + advance payment)
-        // For split payments (cash + bank), create ONE entry with split info in details
+        // 2. Single combined payment entry to Customer Account (cash + bank + advance together)
         // IMPORTANT: For loaded orders, advance payment was already recorded when order was created
-        // Only record NEW payments made during conversion, not the existing advance payment
         const cashAmount = parseFloat(cash_payment || 0);
         const bankAmount = parseFloat(bank_payment || 0);
         const advancePaymentAmount = parseFloat(advance_payment || 0);
+        const totalPaymentForCustomer = cashAmount + bankAmount + (!actualIsLoadedOrder ? advancePaymentAmount : 0);
 
-        // For loaded orders, don't include advance payment in the payment entry (it was already recorded)
-        const newPaymentReceived = actualIsLoadedOrder ?
-          (cashAmount + bankAmount) : // Only new cash/bank payments
-          (cashAmount + bankAmount + advancePaymentAmount); // Include advance for new sales
+        if (actualIsLoadedOrder && advancePaymentAmount > 0) {
+          console.log(`\n💳 SKIPPING ADVANCE PAYMENT ENTRY: Loaded order with advance payment ${advancePaymentAmount} (already recorded in original order)`);
+        }
 
-        if (newPaymentReceived > 0) {
-          console.log(`\n💳 CREATING ${actualIsLoadedOrder ? 'NEW PAYMENT' : 'CONSOLIDATED PAYMENT'} ENTRY: Total=${newPaymentReceived}`);
-          console.log(`   Breakdown: Cash=${cashAmount}, Bank=${bankAmount}${actualIsLoadedOrder ? ', Advance=ALREADY_RECORDED' : `, Advance=${advancePaymentAmount}`}`);
-          console.log(`   Opening Balance: ${runningBalance}`);
-
-          // Build details with split information
-          let paymentDetails = `Payment Received - ${bill_type || 'BILL'} - Customer Account (Credit)`;
-
-          // Add split payment breakdown to details as JSON-like info
-          if (cashAmount > 0 || bankAmount > 0) {
-            const breakdown = [];
-            if (cashAmount > 0) breakdown.push(`Cash: ${cashAmount.toFixed(2)}`);
-            if (bankAmount > 0) breakdown.push(`Bank: ${bankAmount.toFixed(2)}`);
-            if (!actualIsLoadedOrder && advancePaymentAmount > 0) breakdown.push(`Advance: ${advancePaymentAmount.toFixed(2)}`);
-            paymentDetails += ` | Split: [${breakdown.join(', ')}]`;
-          }
-
-          // Store split amounts in a JSON-like format for frontend parsing
-          if (cashAmount > 0 && bankAmount > 0) {
-            paymentDetails += ` | {cash_amount: ${cashAmount}, bank_amount: ${bankAmount}}`;
-          }
-
-          // Determine trnx_type: Use CASH for payment entries (default), or BANK_TRANSFER if only bank payment
-          let paymentTrnxType = 'CASH';  // Default to CASH
-          if (newPaymentReceived > 0 && bankAmount > 0 && cashAmount === 0 && (!actualIsLoadedOrder || advancePaymentAmount === 0)) {
-            // Only bank payment, no cash (and no advance for loaded orders)
-            paymentTrnxType = 'BANK_TRANSFER';
-          }
+        // For ORDER type: skip customer account entry — only cash/bank account entries are created
+        if (totalPaymentForCustomer > 0 && !isOrder) {
+          // Build payment description showing cash and bank breakdown
+          const salePaymentParts = [];
+          if (cashAmount > 0) salePaymentParts.push(`Cash: ${cashAmount}`);
+          if (bankAmount > 0) salePaymentParts.push(`Bank (${bank_title || 'Bank Account'}): ${bankAmount}`);
+          if (!actualIsLoadedOrder && advancePaymentAmount > 0) salePaymentParts.push(`Advance: ${advancePaymentAmount}`);
+          const salePaymentDesc = salePaymentParts.length > 0 ? ` [${salePaymentParts.join(', ')}]` : '';
 
           const paymentEntry = createLedgerEntry({
             cus_id,
             opening_balance: runningBalance,
             debit_amount: 0,
-            credit_amount: newPaymentReceived,
+            credit_amount: totalPaymentForCustomer,
             bill_no: sale.sale_id.toString(),
-            trnx_type: paymentTrnxType,  // Use valid enum value
-            details: paymentDetails,
-            payments: newPaymentReceived,
-            cash_payment: cashAmount,  // Add cash breakdown
-            bank_payment: bankAmount,  // Add bank breakdown
+            trnx_type: 'SALE',
+            details: `Payment Received - ${bill_type || 'BILL'} - Customer Account (Credit)${salePaymentDesc}`,
+            payments: totalPaymentForCustomer,
+            cash_payment: cashAmount,
+            bank_payment: bankAmount,
             updated_by: validatedUpdatedBy
           });
-          console.log(`💳 ${actualIsLoadedOrder ? 'New Payment' : 'Consolidated Payment'} Entry Created: Opening=${paymentEntry.opening_balance}, Credit=${paymentEntry.credit_amount}, Closing=${paymentEntry.closing_balance}`);
-          console.log(`   Type: ${paymentEntry.trnx_type}, Details: ${paymentEntry.details}`);
+          console.log(`💳 Payment Entry: Opening=${paymentEntry.opening_balance}, Credit=${paymentEntry.credit_amount}, Closing=${paymentEntry.closing_balance}`);
           ledgerEntries.push(paymentEntry);
           runningBalance = paymentEntry.closing_balance;
-        } else if (actualIsLoadedOrder && advancePaymentAmount > 0) {
-          console.log(`\n💳 SKIPPING PAYMENT ENTRY: Loaded order with advance payment ${advancePaymentAmount} (already recorded in original order)`);
         }
 
         // 3. Bank Account - DEBIT (when bank payment is received)
@@ -1044,7 +1019,7 @@ export async function POST(request) {
               credit_amount: 0,
               bill_no: sale.sale_id.toString(),
               trnx_type: 'BANK_TRANSFER',
-              details: `Payment Received - ${bill_type || 'BILL'} - BANK Account: ${bankAccountToUse.cus_name} (Debit)`,
+              details: `Payment Received - ${bill_type || 'BILL'} - ${customer?.cus_name || 'Customer'} - BANK Account: ${bankAccountToUse.cus_name} (Debit)`,
               payments: Number(parseFloat(bank_payment).toFixed(2)),
               cash_payment: 0,
               bank_payment: Number(parseFloat(bank_payment).toFixed(2)),  // Mark as bank payment
@@ -1069,7 +1044,7 @@ export async function POST(request) {
             credit_amount: 0,
             bill_no: sale.sale_id.toString(),
             trnx_type: 'CASH',
-            details: `Payment Received - ${bill_type || 'BILL'} - CASH Account (Debit)`,
+            details: `Payment Received - ${bill_type || 'BILL'} - ${customer?.cus_name || 'Customer'} - CASH Account (Debit)`,
             payments: Number(parseFloat(cash_payment).toFixed(2)),
             cash_payment: Number(parseFloat(cash_payment).toFixed(2)),  // Mark as cash payment
             bank_payment: 0,
@@ -1180,7 +1155,8 @@ export async function POST(request) {
 
           // Update customer balance to match the LAST customer ledger entry's closing balance
           // Find the LAST entry where cus_id matches the customer being invoiced
-          const customerLedgerEntries = ledgerEntries.filter(e => e.cus_id === cus_id);
+          // For ORDER type: do not update customer balance (no debit/credit recorded against customer)
+          const customerLedgerEntries = !isOrder ? ledgerEntries.filter(e => e.cus_id === cus_id) : [];
           if (customerLedgerEntries.length > 0) {
             const lastCustomerEntry = customerLedgerEntries[customerLedgerEntries.length - 1];
             const ledgerClosingBalance = parseFloat(lastCustomerEntry.closing_balance);

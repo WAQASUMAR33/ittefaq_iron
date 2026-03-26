@@ -3372,8 +3372,8 @@ function PurchasesPageContent() {
                   SELECT PRODUCT
                 </Typography>
 
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={9}>
+                <Grid container spacing={1} sx={{ flexWrap: 'nowrap', alignItems: 'flex-end' }}>
+                  <Grid item sx={{ flex: '0 0 300px', minWidth: 0 }}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                         PRODUCT
@@ -3413,7 +3413,7 @@ function PurchasesPageContent() {
                             {...params}
                             placeholder="Select product..."
                             onFocus={(e) => e.target.select()}
-                            sx={{ width: '100%', minWidth: 300 }}
+                            sx={{ width: '100%', minWidth: 0 }}
                           />
                         )}
                         renderOption={(props, option) => {
@@ -3460,12 +3460,12 @@ function PurchasesPageContent() {
                           );
                         }}
                         disablePortal={false}
-                        sx={{ width: '100%', minWidth: 300, flex: 1 }}
+                        sx={{ width: '100%', minWidth: 0 }}
                       />
                     </Box>
                   </Grid>
 
-                  <Grid item xs={12} md={3}>
+                  <Grid item sx={{ flex: '0 0 100px', minWidth: 0 }}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                         STORE
@@ -3508,7 +3508,7 @@ function PurchasesPageContent() {
                             onFocus={(e) => e.target.select()}
                             sx={{
                               width: '100%',
-                              minWidth: 200,
+                              minWidth: 0,
                               '& .MuiInputBase-input': {
                                 fontWeight: formData.store_id ? 'bold' : 'normal',
                                 color: formData.store_id ? 'primary.main' : 'text.primary'
@@ -3516,7 +3516,7 @@ function PurchasesPageContent() {
                             }}
                           />
                         )}
-                        sx={{ width: '100%', minWidth: 300 }}
+                        sx={{ width: '100%', minWidth: 0 }}
                       />
                     </Box>
                   </Grid>
@@ -3526,10 +3526,10 @@ function PurchasesPageContent() {
                     const storeStock = selectedProduct.store_stocks?.find(s => s.store_id === parseInt(formData.store_id));
                     const qty = storeStock ? parseFloat(storeStock.stock_quantity) : 0;
                     return (
-                      <Grid item xs={12} md={2}>
+                      <Grid item sx={{ flex: '0 0 100px', minWidth: 0 }}>
                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                           <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                            AVAILABLE STOCK
+                            STOCK
                           </Typography>
                           <Chip
                             label={`${qty.toLocaleString()} ${selectedProduct.pro_unit || ''}`}
@@ -3543,7 +3543,7 @@ function PurchasesPageContent() {
                     );
                   })()}
 
-                  <Grid item xs={12} md={3}>
+                  <Grid item sx={{ flex: '0 0 80px', minWidth: 0 }}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                         QTY
@@ -3580,12 +3580,12 @@ function PurchasesPageContent() {
                           }
                         }}
                         inputProps={{ min: 0, step: "any" }}
-                        sx={{ width: 80, minWidth: 80 }}
+                        sx={{ width: '100%', minWidth: 0 }}
                       />
                     </Box>
                   </Grid>
 
-                  <Grid item xs={12} md={1.5}>
+                  <Grid item sx={{ flex: '1 1 90px', minWidth: 0 }}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                         PURCHASE RATE
@@ -3618,12 +3618,12 @@ function PurchasesPageContent() {
                           }
                         }}
                         inputProps={{ min: 0, step: "any" }}
-                        sx={{ width: 100, minWidth: 100 }}
+                        sx={{ width: '100%', minWidth: 0 }}
                       />
                     </Box>
                   </Grid>
 
-                  <Grid item xs={12} md={1.5}>
+                  <Grid item sx={{ flex: '1 1 90px', minWidth: 0 }}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                         COST RATE
@@ -3670,12 +3670,12 @@ function PurchasesPageContent() {
                           }
                         }}
                         inputProps={{ min: 0, step: "any" }}
-                        sx={{ width: 80, minWidth: 80 }}
+                        sx={{ width: '100%', minWidth: 0 }}
                       />
                     </Box>
                   </Grid>
 
-                  <Grid item xs={12} md={1.5}>
+                  <Grid item sx={{ flex: '1 1 90px', minWidth: 0 }}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                         SALE RATE
@@ -3701,14 +3701,14 @@ function PurchasesPageContent() {
                           }
                         }}
                         inputProps={{ min: 0, step: "any" }}
-                        sx={{ width: 80, minWidth: 80 }}
+                        sx={{ width: '100%', minWidth: 0 }}
                       />
                     </Box>
                   </Grid>
 
 
 
-                  <Grid item xs={12} md={1.5}>
+                  <Grid item sx={{ flex: '1 1 90px', minWidth: 0 }}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                         AMOUNT
@@ -3717,12 +3717,12 @@ function PurchasesPageContent() {
                         size="small"
                         value={parseFloat(productFormData.qnty || 0) * parseFloat(productFormData.crate || productFormData.unit_rate || 0)}
                         InputProps={{ readOnly: true }}
-                        sx={{ width: '100%', minWidth: 150 }}
+                        sx={{ width: '100%', minWidth: 0 }}
                       />
                     </Box>
                   </Grid>
 
-                  <Grid item xs={12} md={1.5}>
+                  <Grid item sx={{ flex: '0 0 auto' }}>
                     <Button
                       variant="contained"
                       id="add-product-btn"
@@ -5216,11 +5216,11 @@ function PurchasesPageContent() {
                   <Table size="small">
                     <TableHead>
                       <TableRow sx={{ bgcolor: '#9e9e9e' }}>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }}>S#</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }}>Product Name</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Qty</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Rate</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Amount</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1, border: '1px solid #bbb' }}>S#</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1, border: '1px solid #bbb' }}>Product Name</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1, border: '1px solid #bbb' }} align="right">Qty</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1, border: '1px solid #bbb' }} align="right">Rate</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1, border: '1px solid #bbb' }} align="right">Amount</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -5228,21 +5228,21 @@ function PurchasesPageContent() {
                         <>
                           {viewingPurchase.purchase_details.map((detail, index) => (
                             <TableRow key={detail.pur_detail_id || index}>
-                              <TableCell sx={{ px: 1 }}>{index + 1}</TableCell>
-                              <TableCell sx={{ px: 1 }}>{detail.product?.pro_title || detail.pro_title || 'N/A'}</TableCell>
-                              <TableCell sx={{ px: 1 }} align="right">{detail.qnty || 0}</TableCell>
-                              <TableCell sx={{ px: 1 }} align="right">{fmtAmt(detail.crate || detail.unit_rate || detail.rate || 0)}</TableCell>
-                              <TableCell sx={{ px: 1 }} align="right">{fmtAmt(detail.total_amount || detail.amount || 0)}</TableCell>
+                              <TableCell sx={{ px: 1, border: '1px solid #ddd' }}>{index + 1}</TableCell>
+                              <TableCell sx={{ px: 1, border: '1px solid #ddd' }}>{detail.product?.pro_title || detail.pro_title || 'N/A'}</TableCell>
+                              <TableCell sx={{ px: 1, border: '1px solid #ddd' }} align="right">{detail.qnty || 0}</TableCell>
+                              <TableCell sx={{ px: 1, border: '1px solid #ddd' }} align="right">{fmtAmt(detail.crate || detail.unit_rate || detail.rate || 0)}</TableCell>
+                              <TableCell sx={{ px: 1, border: '1px solid #ddd' }} align="right">{fmtAmt(detail.total_amount || detail.amount || 0)}</TableCell>
                             </TableRow>
                           ))}
 
                           {/* Invoice totals row */}
                           <TableRow sx={{ bgcolor: 'grey.50' }}>
-                            <TableCell sx={{ px: 1 }} />
-                            <TableCell sx={{ px: 1, fontWeight: 'bold' }}>Total</TableCell>
-                            <TableCell sx={{ px: 1, fontWeight: 'bold' }} align="right">{(viewingPurchase.purchase_details || []).reduce((s, d) => s + parseFloat(d.qnty || 0), 0)}</TableCell>
-                            <TableCell sx={{ px: 1 }} align="right" />
-                            <TableCell sx={{ px: 1, fontWeight: 'bold' }} align="right">{((viewingPurchase.purchase_details || []).reduce((s, d) => s + parseFloat(d.total_amount || d.amount || 0), 0)).toLocaleString('en-US', { minimumFractionDigits: 2 })}</TableCell>
+                            <TableCell sx={{ px: 1, border: '1px solid #ddd' }} />
+                            <TableCell sx={{ px: 1, fontWeight: 'bold', border: '1px solid #ddd' }}>Total</TableCell>
+                            <TableCell sx={{ px: 1, fontWeight: 'bold', border: '1px solid #ddd' }} align="right">{(viewingPurchase.purchase_details || []).reduce((s, d) => s + parseFloat(d.qnty || 0), 0)}</TableCell>
+                            <TableCell sx={{ px: 1, border: '1px solid #ddd' }} align="right" />
+                            <TableCell sx={{ px: 1, fontWeight: 'bold', border: '1px solid #ddd' }} align="right">{((viewingPurchase.purchase_details || []).reduce((s, d) => s + parseFloat(d.total_amount || d.amount || 0), 0)).toLocaleString('en-US', { minimumFractionDigits: 2 })}</TableCell>
                           </TableRow>
                         </>
                       ) : (
@@ -5978,11 +5978,11 @@ function PurchasesPageContent() {
                   <Table size="small">
                     <TableHead>
                       <TableRow sx={{ bgcolor: '#9e9e9e' }}>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }}>S#</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }}>Product Name</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Qty</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Rate</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Amount</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1, border: '1px solid #bbb' }}>S#</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1, border: '1px solid #bbb' }}>Product Name</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1, border: '1px solid #bbb' }} align="right">Qty</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1, border: '1px solid #bbb' }} align="right">Rate</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1, border: '1px solid #bbb' }} align="right">Amount</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -5990,21 +5990,21 @@ function PurchasesPageContent() {
                         <>
                           {currentBillData.purchase_details.map((detail, index) => (
                             <TableRow key={detail.pur_detail_id || index}>
-                              <TableCell sx={{ px: 1 }}>{index + 1}</TableCell>
-                              <TableCell sx={{ px: 1 }}>{detail.product?.pro_title || detail.pro_title || 'N/A'}</TableCell>
-                              <TableCell sx={{ px: 1 }} align="right">{detail.qnty || 0}</TableCell>
-                              <TableCell sx={{ px: 1 }} align="right">{fmtAmt(detail.crate || detail.unit_rate || detail.rate || 0)}</TableCell>
-                              <TableCell sx={{ px: 1 }} align="right">{fmtAmt(detail.total_amount || detail.amount || 0)}</TableCell>
+                              <TableCell sx={{ px: 1, border: '1px solid #ddd' }}>{index + 1}</TableCell>
+                              <TableCell sx={{ px: 1, border: '1px solid #ddd' }}>{detail.product?.pro_title || detail.pro_title || 'N/A'}</TableCell>
+                              <TableCell sx={{ px: 1, border: '1px solid #ddd' }} align="right">{detail.qnty || 0}</TableCell>
+                              <TableCell sx={{ px: 1, border: '1px solid #ddd' }} align="right">{fmtAmt(detail.crate || detail.unit_rate || detail.rate || 0)}</TableCell>
+                              <TableCell sx={{ px: 1, border: '1px solid #ddd' }} align="right">{fmtAmt(detail.total_amount || detail.amount || 0)}</TableCell>
                             </TableRow>
                           ))}
 
                           {/* PRINTABLE: Totals row under product list */}
                           <TableRow sx={{ bgcolor: 'grey.50' }}>
-                            <TableCell sx={{ px: 1 }} />
-                            <TableCell sx={{ px: 1, fontWeight: 'bold' }}>Total</TableCell>
-                            <TableCell sx={{ px: 1, fontWeight: 'bold' }} align="right">{(currentBillData.purchase_details || []).reduce((s, d) => s + parseFloat(d.qnty || 0), 0)}</TableCell>
-                            <TableCell sx={{ px: 1 }} align="right" />
-                            <TableCell sx={{ px: 1, fontWeight: 'bold' }} align="right">{(currentBillData.purchase_details || []).reduce((s, d) => s + parseFloat(d.total_amount || d.amount || 0), 0)}</TableCell>
+                            <TableCell sx={{ px: 1, border: '1px solid #ddd' }} />
+                            <TableCell sx={{ px: 1, fontWeight: 'bold', border: '1px solid #ddd' }}>Total</TableCell>
+                            <TableCell sx={{ px: 1, fontWeight: 'bold', border: '1px solid #ddd' }} align="right">{(currentBillData.purchase_details || []).reduce((s, d) => s + parseFloat(d.qnty || 0), 0)}</TableCell>
+                            <TableCell sx={{ px: 1, border: '1px solid #ddd' }} align="right" />
+                            <TableCell sx={{ px: 1, fontWeight: 'bold', border: '1px solid #ddd' }} align="right">{(currentBillData.purchase_details || []).reduce((s, d) => s + parseFloat(d.total_amount || d.amount || 0), 0)}</TableCell>
                           </TableRow>
                         </>
                       ) : (

@@ -16,8 +16,9 @@ export default function CashReport() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [reportData, setReportData] = useState(null);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const today = new Date().toISOString().split('T')[0];
+  const [startDate, setStartDate] = useState(today);
+  const [endDate, setEndDate] = useState(today);
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [accounts, setAccounts] = useState([]);
@@ -26,15 +27,7 @@ export default function CashReport() {
   const [selectedStore, setSelectedStore] = useState('');
   const [selectedPaymentType, setSelectedPaymentType] = useState('');
 
-  // Set default dates on mount
-  useEffect(() => {
-    const today = new Date().toISOString().split('T')[0];
-    const yearAgo = new Date(2000, 0, 1).toISOString().split('T')[0]; // From year 2000
-    setStartDate(yearAgo);
-    setEndDate(today);
-  }, []);
-
-  // Auto-fetch report when dates are set
+// Auto-fetch report when dates are set
   useEffect(() => {
     if (startDate && endDate) {
       fetchReport();
