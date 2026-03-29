@@ -2,19 +2,6 @@ import { NextResponse } from 'next/server';
 import twilio from 'twilio';
 import { v2 as cloudinary } from 'cloudinary';
 
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key:    process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
-
-const client = twilio(
-  process.env.TWILIO_ACCOUNT_SID,
-  process.env.TWILIO_AUTH_TOKEN
-);
-
-const FROM = process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+14155238886';
-
 function formatPhone(phone) {
   if (!phone) return null;
   let digits = phone.replace(/\D/g, '');
@@ -25,6 +12,20 @@ function formatPhone(phone) {
 
 export async function POST(request) {
   let cloudinaryPublicId = null;
+
+  // Initialize clients inside the handler so env vars are available at runtime
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key:    process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  });
+
+  const client = twilio(
+    process.env.TWILIO_ACCOUNT_SID,
+    process.env.TWILIO_AUTH_TOKEN
+  );
+
+  const FROM = process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+14155238886';
 
   try {
     const body = await request.json();
