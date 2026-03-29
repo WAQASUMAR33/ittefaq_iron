@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import twilio from 'twilio';
-import fs from 'fs';
-import path from 'path';
+import { v2 as cloudinary } from 'cloudinary';
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key:    process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 const client = twilio(
   process.env.TWILIO_ACCOUNT_SID,
@@ -9,7 +14,6 @@ const client = twilio(
 );
 
 const FROM = process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+14155238886';
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
 function formatPhone(phone) {
   if (!phone) return null;
@@ -20,7 +24,7 @@ function formatPhone(phone) {
 }
 
 export async function POST(request) {
-  let tempFilePath = null;
+  let cloudinaryPublicId = null;
 
   try {
     const body = await request.json();
@@ -37,19 +41,22 @@ export async function POST(request) {
       return NextResponse.json({ error: 'No valid phone number found' }, { status: 400 });
     }
 
-    // Save base64 image to public/temp/
-    const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
-    const fileName = `receipt-${Date.now()}.png`;
-    const tempDir = path.join(process.cwd(), 'public', 'temp');
-    tempFilePath = path.join(tempDir, fileName);
+    // Upload base64 image to Cloudinary
+    const uploadResult = await cloudinary.uploader.upload(imageBase64, {
+      folder: 'ittefaq-receipts',
+      public_id: `receipt-${bill?.sale_id || Date.now()}`,
+      overwrite: true,
+      resource_type: 'image',
+    });
 
-    fs.writeFileSync(tempFilePath, Buffer.from(base64Data, 'base64'));
+    cloudinaryPublicId = uploadResult.public_id;
+    const mediaUrl = uploadResult.secure_url;
 
-    const mediaUrl = `${APP_URL}/temp/${fileName}`;
+    // Send via Twilio
     const isReturn = bill?.is_return || bill?.bill_type === 'SALE_RETURN';
     const caption = isReturn
-      ? `🔄 Sale Return Invoice #${bill?.sale_id} - ${bill?.customer?.cus_name || ''}`
-      : `🧾 Sale Invoice #${bill?.sale_id} - ${bill?.customer?.cus_name || ''}`;
+      ? `🔄 Sale Return #${bill?.sale_id} - ${bill?.customer?.cus_name || ''}`
+      : `🧾 Invoice #${bill?.sale_id} - ${bill?.customer?.cus_name || ''}`;
 
     const result = await client.messages.create({
       from: FROM,
@@ -58,16 +65,14 @@ export async function POST(request) {
       mediaUrl: [mediaUrl]
     });
 
-    // Delete temp file after 60 seconds (enough time for Twilio to fetch it)
-    setTimeout(() => {
+    // Delete from Cloudinary after 5 minutes
+    setTimeout(async () => {
       try {
-        if (tempFilePath && fs.existsSync(tempFilePath)) {
-          fs.unlinkSync(tempFilePath);
-        }
+        await cloudinary.uploader.destroy(cloudinaryPublicId);
       } catch (e) {
-        console.error('Failed to delete temp file:', e.message);
+        console.error('Cloudinary cleanup error:', e.message);
       }
-    }, 60000);
+    }, 5 * 60 * 1000);
 
     return NextResponse.json({
       success: true,
@@ -77,13 +82,6 @@ export async function POST(request) {
     });
 
   } catch (error) {
-    // Clean up temp file on error
-    try {
-      if (tempFilePath && fs.existsSync(tempFilePath)) {
-        fs.unlinkSync(tempFilePath);
-      }
-    } catch (e) {}
-
     console.error('❌ WhatsApp send error:', error);
     return NextResponse.json({
       error: error.message || 'Failed to send WhatsApp message'
