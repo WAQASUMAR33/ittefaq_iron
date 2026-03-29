@@ -3930,9 +3930,14 @@ function PurchasesPageContent() {
                     {/* Split Payment Section */}
                     <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
                       <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                          CASH PAYMENT
-                        </Typography>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                          <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                            CASH PAYMENT
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                            Bal: {fmtAmt(customers.find(c => c.cus_name === 'Cash Account')?.cus_balance ?? 0)}
+                          </Typography>
+                        </Box>
                         <TextField
                           size="small"
                           type="number"
@@ -3973,9 +3978,16 @@ function PurchasesPageContent() {
                         />
                       </Box>
                       <Box sx={{ flex: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                          BANK ACCOUNT
-                        </Typography>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                          <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                            BANK ACCOUNT
+                          </Typography>
+                          {selectedBankAccount && (
+                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                              Bal: {fmtAmt(selectedBankAccount.cus_balance ?? 0)}
+                            </Typography>
+                          )}
+                        </Box>
                         <Autocomplete
                           size="small"
                           autoSelect={true}

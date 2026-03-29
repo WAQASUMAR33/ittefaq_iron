@@ -340,6 +340,7 @@ function SalesPageContent() {
   const [currentDraftId, setCurrentDraftId] = useState(null);
   const [draftSearchTerm, setDraftSearchTerm] = useState('');
   const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
 
   // Additional filter states
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -707,7 +708,7 @@ function SalesPageContent() {
 
     window.addEventListener('keydown', handleScreenNavigation);
     return () => window.removeEventListener('keydown', handleScreenNavigation);
-  }, [handleForwardNavigation, goToPreviousScreen, cancelCurrentScreen]);
+  }, [handleForwardNavigation, goToPreviousScreen, cancelCurrentScreen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle product selection
   const handleProductSelect = (selectedProduct) => {
@@ -2139,6 +2140,48 @@ function SalesPageContent() {
   };
 
   // Save current form as draft
+  const handleSendWhatsApp = async (bill, customPhone) => {
+    try {
+      setIsSendingWhatsApp(true);
+
+      // Capture the receipt preview div as an image
+      const html2canvas = (await import('html2canvas')).default;
+      const receiptEl = document.getElementById('receipt-preview');
+      if (!receiptEl) {
+        showSnackbar('❌ Receipt preview not found', 'error');
+        return;
+      }
+
+      const canvas = await html2canvas(receiptEl, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false
+      });
+      const imageBase64 = canvas.toDataURL('image/png');
+
+      const response = await fetch('/api/whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64,
+          bill,
+          phone: customPhone || bill?.customer?.cus_phone_no
+        })
+      });
+      const result = await response.json();
+      if (response.ok) {
+        showSnackbar(`✅ WhatsApp receipt sent to ${bill?.customer?.cus_phone_no}`, 'success');
+      } else {
+        showSnackbar(`❌ WhatsApp failed: ${result.error}`, 'error');
+      }
+    } catch (err) {
+      showSnackbar(`❌ WhatsApp error: ${err.message}`, 'error');
+    } finally {
+      setIsSendingWhatsApp(false);
+    }
+  };
+
   const handleSaveDraft = async () => {
     try {
       if (!formSelectedStore) {
@@ -2202,6 +2245,18 @@ function SalesPageContent() {
       setIsSavingDraft(false);
     }
   };
+
+  // F9 = Hold bill
+  useEffect(() => {
+    const handleF9 = (e) => {
+      if (e.key === 'F9') {
+        e.preventDefault();
+        handleSaveDraft().then(() => clearFormState());
+      }
+    };
+    window.addEventListener('keydown', handleF9);
+    return () => window.removeEventListener('keydown', handleF9);
+  }, [handleSaveDraft, clearFormState]);
 
   // Load draft into form
   const handleLoadDraft = async (draft) => {
@@ -4222,9 +4277,14 @@ function SalesPageContent() {
                   <Grid container spacing={1} sx={{ mb: 2 }}>
                     <Grid item xs={3}>
                       <Box>
-                        <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
-                          CASH
-                        </Typography>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: 1 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 'medium', color: 'text.secondary' }}>
+                            CASH
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                            Bal: {fmtAmt(customers.find(c => c.cus_name === 'Cash Account')?.cus_balance ?? 0)}
+                          </Typography>
+                        </Box>
                         <TextField
                           fullWidth
                           size="small"
@@ -4272,9 +4332,16 @@ function SalesPageContent() {
                     </Grid>
                     <Grid item xs={3}>
                       <Box>
-                        <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
-                          BANK ACCOUNT
-                        </Typography>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: 1 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 'medium', color: 'text.secondary' }}>
+                            BANK ACCOUNT
+                          </Typography>
+                          {paymentData.bankAccountId && (
+                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                              Bal: {fmtAmt(bankAccounts.find(a => a.cus_id === paymentData.bankAccountId)?.cus_balance ?? 0)}
+                            </Typography>
+                          )}
+                        </Box>
                         <Autocomplete
                           size="small"
                           options={bankAccounts || []}
@@ -4767,6 +4834,40 @@ function SalesPageContent() {
                   title="Return to sales list (current screen saved)"
                 >
                   ← Back to List
+                </Button>
+                <Button
+                  variant="contained"
+                  tabIndex={-1}
+                  sx={{
+                    bgcolor: '#fd7e14',
+                    color: 'white',
+                    borderRadius: 2,
+                    fontWeight: 600,
+                    '&:hover': { bgcolor: '#e8690a' }
+                  }}
+                  onClick={async () => {
+                    await handleSaveDraft();
+                    clearFormState();
+                  }}
+                  disabled={isSavingDraft || productTableData.length === 0}
+                  title="Hold bill (F9)"
+                >
+                  {isSavingDraft ? <CircularProgress size={16} sx={{ mr: 1, color: 'white' }} /> : '⏸'} Hold
+                </Button>
+                <Button
+                  variant="outlined"
+                  tabIndex={-1}
+                  sx={{
+                    borderColor: '#fd7e14',
+                    color: '#fd7e14',
+                    borderRadius: 2,
+                    fontWeight: 600,
+                    '&:hover': { bgcolor: '#fff3e0', borderColor: '#e8690a' }
+                  }}
+                  onClick={() => { fetchDrafts(); setDraftModalOpen(true); }}
+                  title="View held bills"
+                >
+                  📋 Held Bills {drafts.length > 0 && `(${drafts.length})`}
                 </Button>
                 <Button
                   variant="contained"
@@ -5315,77 +5416,143 @@ function SalesPageContent() {
                       <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%', maxWidth: '100%' }}>
                         <Table size="small">
                           <TableBody>
-                            <TableRow>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رقم بل</TableCell>
-                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {fmtAmt(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.labour_charges || currentBillData.labour || 0) - parseFloat(currentBillData.shipping_amount || 0) + parseFloat(currentBillData.discount || 0))}
-                              </TableCell>
-                            </TableRow>
-                            <TableRow>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>مزدوری</TableCell>
-                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {fmtAmt(currentBillData.labour_charges || currentBillData.labour)}
-                              </TableCell>
-                            </TableRow>
-                            <TableRow>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>کرایہ</TableCell>
-                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {fmtAmt(currentBillData.shipping_amount)}
-                              </TableCell>
-                            </TableRow>
-                            <TableRow>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رعایت</TableCell>
-                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {fmtAmt(currentBillData.discount)}
-                              </TableCell>
-                            </TableRow>
-                            <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم</TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {fmtAmt(currentBillData.total_amount)}
-                              </TableCell>
-                            </TableRow>
-                            {/* Always show cash payment */}
-                            <TableRow>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>نقد كيش</TableCell>
-                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {fmtAmt(currentBillData.cash_payment)}
-                              </TableCell>
-                            </TableRow>
-                            {/* Show bank payment with account name if bank payment exists */}
-                            {currentBillData.bank_payment > 0 && (
-                              <TableRow>
-                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                  {currentBillData.bank_title || 'بینک'}
-                                </TableCell>
-                                <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                  {fmtAmt(currentBillData.bank_payment)}
-                                </TableCell>
-                              </TableRow>
+                            {currentBillData?.is_return ? (
+                              // ── SALE RETURN right panel ──
+                              (() => {
+                                const billAmt = parseFloat(currentBillData.total_amount || 0)
+                                  - parseFloat(currentBillData.labour_charges || 0)
+                                  - parseFloat(currentBillData.shipping_amount || 0)
+                                  + parseFloat(currentBillData.discount || 0);
+                                const labour = parseFloat(currentBillData.labour_charges || 0);
+                                const delivery = parseFloat(currentBillData.shipping_amount || 0);
+                                const discount = parseFloat(currentBillData.discount || 0);
+                                const grandTotal = parseFloat(currentBillData.total_amount || 0);
+                                const cash = parseFloat(currentBillData.cash_payment || 0);
+                                const bank = parseFloat(currentBillData.bank_payment || 0);
+                                const totalReceived = parseFloat(currentBillData.payment || 0);
+                                const remaining = grandTotal - totalReceived;
+                                return (
+                                  <>
+                                    <TableRow>
+                                      <TableCell sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Bill Amount</TableCell>
+                                      <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(billAmt)}</TableCell>
+                                    </TableRow>
+                                    {labour > 0 && (
+                                      <TableRow>
+                                        <TableCell sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Labour</TableCell>
+                                        <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(labour)}</TableCell>
+                                      </TableRow>
+                                    )}
+                                    {delivery > 0 && (
+                                      <TableRow>
+                                        <TableCell sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Delivery Charges</TableCell>
+                                        <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(delivery)}</TableCell>
+                                      </TableRow>
+                                    )}
+                                    {discount > 0 && (
+                                      <TableRow>
+                                        <TableCell sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Discount</TableCell>
+                                        <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>-{fmtAmt(discount)}</TableCell>
+                                      </TableRow>
+                                    )}
+                                    <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                                      <TableCell sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Total Return Amount</TableCell>
+                                      <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(grandTotal)}</TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                      <TableCell sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Cash</TableCell>
+                                      <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(cash)}</TableCell>
+                                    </TableRow>
+                                    {bank > 0 && (
+                                      <TableRow>
+                                        <TableCell sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{currentBillData.bank_title || 'Bank Payment'}</TableCell>
+                                        <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(bank)}</TableCell>
+                                      </TableRow>
+                                    )}
+                                    <TableRow sx={{ bgcolor: '#e8f5e9' }}>
+                                      <TableCell sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Total Received</TableCell>
+                                      <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem', color: '#2e7d32' }}>{fmtAmt(totalReceived)}</TableCell>
+                                    </TableRow>
+                                    <TableRow sx={{ bgcolor: remaining > 0 ? '#ffe0b2' : '#e8f5e9' }}>
+                                      <TableCell sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Remaining Due</TableCell>
+                                      <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem', color: remaining > 0 ? '#e65100' : '#2e7d32' }}>{fmtAmt(remaining)}</TableCell>
+                                    </TableRow>
+                                  </>
+                                );
+                              })()
+                            ) : (
+                              // ── REGULAR SALE right panel ──
+                              <>
+                                <TableRow>
+                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رقم بل</TableCell>
+                                  <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                    {fmtAmt(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.labour_charges || currentBillData.labour || 0) - parseFloat(currentBillData.shipping_amount || 0) + parseFloat(currentBillData.discount || 0))}
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>مزدوری</TableCell>
+                                  <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                    {fmtAmt(currentBillData.labour_charges || currentBillData.labour)}
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>کرایہ</TableCell>
+                                  <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                    {fmtAmt(currentBillData.shipping_amount)}
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رعایت</TableCell>
+                                  <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                    {fmtAmt(currentBillData.discount)}
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم</TableCell>
+                                  <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                    {fmtAmt(currentBillData.total_amount)}
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>نقد كيش</TableCell>
+                                  <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                    {fmtAmt(currentBillData.cash_payment)}
+                                  </TableCell>
+                                </TableRow>
+                                {currentBillData.bank_payment > 0 && (
+                                  <TableRow>
+                                    <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                      {currentBillData.bank_title || 'بینک'}
+                                    </TableCell>
+                                    <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                      {fmtAmt(currentBillData.bank_payment)}
+                                    </TableCell>
+                                  </TableRow>
+                                )}
+                                {currentBillData.advance_payment > 0 && (
+                                  <TableRow>
+                                    <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                      پیشگی ادائیگی
+                                    </TableCell>
+                                    <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                      {fmtAmt(currentBillData.advance_payment)}
+                                    </TableCell>
+                                  </TableRow>
+                                )}
+                                <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم وصول</TableCell>
+                                  <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                    {fmtAmt(currentBillData.payment)}
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow sx={{ bgcolor: '#d0d0d0' }}>
+                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>بقايا رقم</TableCell>
+                                  <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                    {fmtAmt(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0))}
+                                  </TableCell>
+                                </TableRow>
+                              </>
                             )}
-                            {/* Show advance payment if advance payment exists */}
-                            {currentBillData.advance_payment > 0 && (
-                              <TableRow>
-                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                  پیشگی ادائیگی
-                                </TableCell>
-                                <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                  {fmtAmt(currentBillData.advance_payment)}
-                                </TableCell>
-                              </TableRow>
-                            )}
-                            <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم وصول</TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {fmtAmt(currentBillData.payment)}
-                              </TableCell>
-                            </TableRow>
-                            <TableRow sx={{ bgcolor: '#d0d0d0' }}>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>بقايا رقم</TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {fmtAmt(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0))}
-                              </TableCell>
-                            </TableRow>
                           </TableBody>
                         </Table>
                       </TableContainer>
@@ -5402,6 +5569,21 @@ function SalesPageContent() {
               sx={{ minWidth: 100 }}
             >
               Close
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={isSendingWhatsApp ? <CircularProgress size={16} sx={{ color: 'white' }} /> : null}
+              sx={{
+                minWidth: 150,
+                bgcolor: '#25D366',
+                '&:hover': { bgcolor: '#1ebe5d' },
+                color: 'white'
+              }}
+              onClick={() => handleSendWhatsApp(currentBillData)}
+              disabled={isSendingWhatsApp || !currentBillData?.customer?.cus_phone_no}
+              title={!currentBillData?.customer?.cus_phone_no ? 'No phone number on file' : 'Send receipt via WhatsApp'}
+            >
+              {isSendingWhatsApp ? 'Sending...' : '📲 WhatsApp'}
             </Button>
             <Button
               variant="contained"
