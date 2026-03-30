@@ -209,7 +209,7 @@ export async function POST(request) {
     } = body;
 
     // Validate required fields
-    if (!cus_id || !total_amount || !payment || !return_details || return_details.length === 0) {
+    if (!cus_id || !total_amount || payment === undefined || payment === null || !return_details || return_details.length === 0) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 

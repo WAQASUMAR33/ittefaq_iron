@@ -244,13 +244,11 @@ export async function POST(request) {
       const ledgerEntries = [];
 
       // Main account ledger entry
-      let mainDebitAmount = 0;
+      // Both RECEIVE and PAY debit the customer account:
+      //   RECEIVE = customer pays us → their debt decreases (balance increases, less negative)
+      //   PAY     = we pay customer advance/refund → their balance increases (towards positive)
+      let mainDebitAmount = parseFloat(total_amount);
       let mainCreditAmount = 0;
-      if (payment_type === 'RECEIVE') {
-        mainCreditAmount = parseFloat(total_amount); // Customer is credited for full amount including discount
-      } else { // PAY
-        mainCreditAmount = parseFloat(total_amount); // Supplier is credited for total amount (discount shown but balance reduced by full amount)
-      }
 
       const mainAccountEntry = createLedgerEntry({
         cus_id: parseInt(account_id),
@@ -345,11 +343,7 @@ export async function POST(request) {
       });
 
       let newBalance = parseFloat(currentCustomer.cus_balance || 0);
-      if (payment_type === 'RECEIVE') {
-        newBalance -= parseFloat(total_amount); // Customer pays full amount including discount
-      } else {
-        newBalance -= parseFloat(total_amount); // You pay supplier total amount (discount is shown but balance reduced by full amount)
-      }
+      newBalance += parseFloat(total_amount); // Both RECEIVE and PAY increase balance (reduce debt or add advance)
 
       await tx.customer.update({
         where: { cus_id: parseInt(account_id) },

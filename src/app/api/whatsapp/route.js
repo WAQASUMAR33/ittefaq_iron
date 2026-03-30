@@ -26,6 +26,8 @@ export async function POST(request) {
   );
 
   const FROM = process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+14155238886';
+  console.log('🔍 FROM:', FROM);
+  console.log('🔍 SID starts with AC:', process.env.TWILIO_ACCOUNT_SID?.startsWith('AC'));
 
   try {
     const body = await request.json();
