@@ -141,20 +141,29 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
-    // Get current balances for all affected accounts (BEFORE transaction)
+    // Get current balances and categories for all affected accounts (BEFORE transaction)
     const affectedAccountIds = [parseInt(account_id)];
     if (cash_account_id) affectedAccountIds.push(parseInt(cash_account_id));
     if (bank_account_id) affectedAccountIds.push(parseInt(bank_account_id));
 
     const accountBalances = await prisma.customer.findMany({
       where: { cus_id: { in: affectedAccountIds } },
-      select: { cus_id: true, cus_balance: true }
+      select: { cus_id: true, cus_balance: true, cus_category: true }
     });
 
     const balanceMap = {};
+    const categoryMap = {};
     accountBalances.forEach(acc => {
       balanceMap[acc.cus_id] = parseFloat(acc.cus_balance || 0);
+      categoryMap[acc.cus_id] = acc.cus_category;
     });
+
+    // Bank (23) and Cash (24) are asset accounts — direction is opposite to customer/supplier
+    // PAY from bank = money OUT → CREDIT → balance decreases
+    // RECEIVE into bank = money IN → DEBIT → balance increases
+    // Customer/Supplier: always DEBIT → balance increases (debt reduces for both PAY and RECEIVE)
+    const BANK_CASH_CATEGORIES = [23, 24];
+    const mainAccountIsBankOrCash = BANK_CASH_CATEGORIES.includes(categoryMap[parseInt(account_id)]);
 
     // Use transaction to ensure data consistency
     const result = await prisma.$transaction(
@@ -243,12 +252,20 @@ export async function POST(request) {
         }
       const ledgerEntries = [];
 
-      // Main account ledger entry
-      // Both RECEIVE and PAY debit the customer account:
-      //   RECEIVE = customer pays us → their debt decreases (balance increases, less negative)
-      //   PAY     = we pay customer advance/refund → their balance increases (towards positive)
-      let mainDebitAmount = parseFloat(total_amount);
+      // Main account ledger entry direction depends on account type:
+      // Bank/Cash account: PAY → CREDIT (money out, balance decreases); RECEIVE → DEBIT (money in, increases)
+      // Customer/Supplier: always DEBIT (balance increases = debt reduces, regardless of PAY or RECEIVE)
+      let mainDebitAmount = 0;
       let mainCreditAmount = 0;
+      if (mainAccountIsBankOrCash) {
+        if (payment_type === 'RECEIVE') {
+          mainDebitAmount = parseFloat(total_amount);
+        } else {
+          mainCreditAmount = parseFloat(total_amount);
+        }
+      } else {
+        mainDebitAmount = parseFloat(total_amount);
+      }
 
       const mainAccountEntry = createLedgerEntry({
         cus_id: parseInt(account_id),
@@ -276,10 +293,22 @@ export async function POST(request) {
       if (cash_account_id && parseFloat(cash_amount) > 0) {
         let cashDebitAmount = 0;
         let cashCreditAmount = 0;
-        if (payment_type === 'RECEIVE') {
-          cashDebitAmount = parseFloat(cash_amount); // Cash increases when received
-        } else { // PAY
-          cashCreditAmount = parseFloat(cash_amount); // Cash decreases when paid out
+        if (mainAccountIsBankOrCash) {
+          // account_id is a bank — cash_account is the counter-party
+          // PAY from bank → cash destination receives → DEBIT cash
+          // RECEIVE into bank → cash source sends → CREDIT cash
+          if (payment_type === 'RECEIVE') {
+            cashCreditAmount = parseFloat(cash_amount);
+          } else {
+            cashDebitAmount = parseFloat(cash_amount);
+          }
+        } else {
+          // account_id is customer/supplier — cash is OUR account
+          if (payment_type === 'RECEIVE') {
+            cashDebitAmount = parseFloat(cash_amount); // Cash increases when received
+          } else {
+            cashCreditAmount = parseFloat(cash_amount); // Cash decreases when paid out
+          }
         }
 
         const cashAccountEntry = createLedgerEntry({
@@ -307,10 +336,22 @@ export async function POST(request) {
       if (bank_account_id && parseFloat(bank_amount) > 0) {
         let bankDebitAmount = 0;
         let bankCreditAmount = 0;
-        if (payment_type === 'RECEIVE') {
-          bankDebitAmount = parseFloat(bank_amount); // Bank increases when received
-        } else { // PAY
-          bankCreditAmount = parseFloat(bank_amount); // Bank decreases when paid out
+        if (mainAccountIsBankOrCash) {
+          // account_id is a bank — bank_account_id is the counter-party
+          // PAY from bank → bank destination receives → DEBIT bank_account
+          // RECEIVE into bank → bank source sends → CREDIT bank_account
+          if (payment_type === 'RECEIVE') {
+            bankCreditAmount = parseFloat(bank_amount);
+          } else {
+            bankDebitAmount = parseFloat(bank_amount);
+          }
+        } else {
+          // account_id is customer/supplier — bank_account_id is OUR bank
+          if (payment_type === 'RECEIVE') {
+            bankDebitAmount = parseFloat(bank_amount); // Our bank increases when received
+          } else {
+            bankCreditAmount = parseFloat(bank_amount); // Our bank decreases when paid out
+          }
         }
 
         const bankAccountEntry = createLedgerEntry({
@@ -336,19 +377,39 @@ export async function POST(request) {
         data: ledgerEntries
       });
 
-      // Update customer balance AFTER ledger entries are created
-      const currentCustomer = await tx.customer.findUnique({
-        where: { cus_id: parseInt(account_id) },
-        select: { cus_balance: true }
-      });
+      // Update cus_balance for all affected accounts using ledger closing balances
+      const balanceUpdates = [];
 
-      let newBalance = parseFloat(currentCustomer.cus_balance || 0);
-      newBalance += parseFloat(total_amount); // Both RECEIVE and PAY increase balance (reduce debt or add advance)
-
-      await tx.customer.update({
+      // Main account balance
+      const mainClosing = mainAccountEntry.closing_balance;
+      balanceUpdates.push(tx.customer.update({
         where: { cus_id: parseInt(account_id) },
-        data: { cus_balance: newBalance }
-      });
+        data: { cus_balance: mainClosing }
+      }));
+
+      // Cash account balance (if used)
+      if (cash_account_id && parseFloat(cash_amount) > 0) {
+        const cashEntry = ledgerEntries.find(e => e.cus_id === parseInt(cash_account_id));
+        if (cashEntry) {
+          balanceUpdates.push(tx.customer.update({
+            where: { cus_id: parseInt(cash_account_id) },
+            data: { cus_balance: cashEntry.closing_balance }
+          }));
+        }
+      }
+
+      // Bank account balance (if used)
+      if (bank_account_id && parseFloat(bank_amount) > 0) {
+        const bankEntry = ledgerEntries.find(e => e.cus_id === parseInt(bank_account_id));
+        if (bankEntry) {
+          balanceUpdates.push(tx.customer.update({
+            where: { cus_id: parseInt(bank_account_id) },
+            data: { cus_balance: bankEntry.closing_balance }
+          }));
+        }
+      }
+
+      await Promise.all(balanceUpdates);
 
       return payment;
     }, { timeout: 15000 });

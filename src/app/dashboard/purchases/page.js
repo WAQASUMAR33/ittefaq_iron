@@ -1881,6 +1881,36 @@ function PurchasesPageContent() {
     setViewingPurchase(null);
   };
 
+  const handlePrintViewReceipt = (mode = 'A4') => {
+    try {
+      const isThermal = mode === 'THERMAL';
+      const className = isThermal ? 'print-thermal-view' : 'print-a4-view';
+      const containerId = isThermal ? 'printable-invoice-thermal-view' : 'printable-invoice-a4-view';
+      const printableContainer = document.getElementById(containerId);
+      if (!printableContainer) return;
+      const preview = document.getElementById('purchase-invoice');
+      if (preview) printableContainer.innerHTML = preview.innerHTML;
+      printableContainer.style.position = 'fixed';
+      printableContainer.style.left = '0'; printableContainer.style.top = '0';
+      printableContainer.style.display = 'block'; printableContainer.style.zIndex = '9999';
+      printableContainer.style.backgroundColor = 'white';
+      const styleId = 'dynamic-print-style-view';
+      let styleEl = document.getElementById(styleId);
+      if (!styleEl) { styleEl = document.createElement('style'); styleEl.id = styleId; document.head.appendChild(styleEl); }
+      styleEl.textContent = isThermal ? `@media print { @page { size: 80mm auto; margin: 5mm; } }` : `@media print { @page { size: A4; margin: 0.5cm 1cm; } }`;
+      document.body.classList.add(className);
+      setTimeout(() => {
+        window.print();
+        setTimeout(() => {
+          printableContainer.style.position = ''; printableContainer.style.left = ''; printableContainer.style.top = '';
+          printableContainer.style.display = 'none'; printableContainer.style.zIndex = ''; printableContainer.style.backgroundColor = '';
+          document.body.classList.remove('print-thermal-view'); document.body.classList.remove('print-a4-view');
+          if (styleEl) styleEl.remove();
+        }, 100);
+      }, 100);
+    } catch (e) { console.error(e); window.print(); }
+  };
+
   // Handle adding customer category
   const handleAddCustomerCategory = async (e) => {
     e?.preventDefault();
@@ -5111,26 +5141,8 @@ function PurchasesPageContent() {
       </Dialog>
 
       {/* View Purchase Details Dialog */}
-      <Dialog
-        open={viewDialogOpen}
-        onClose={handleCloseViewDialog}
-        maxWidth="md"
-        fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: 2,
-            boxShadow: 3
-          }
-        }}
-      >
-        <DialogTitle sx={{
-          bgcolor: 'primary.main',
-          color: 'white',
-          fontWeight: 'bold',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 2
-        }}>
+      <Dialog open={viewDialogOpen} onClose={handleCloseViewDialog} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: 2, boxShadow: 3 } }}>
+        <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 2 }}>
           <ReceiptIcon />
           Purchase Receipt - #{viewingPurchase?.sequentialId || viewingPurchase?.pur_id}
         </DialogTitle>
@@ -5140,32 +5152,17 @@ function PurchasesPageContent() {
             <Box id="purchase-invoice" sx={{ width: '100%', bgcolor: 'white', p: 3, mt: 2 }}>
               {/* Company Header */}
               <Box sx={{ textAlign: 'center', py: 2, borderBottom: '2px solid #000' }}>
-                <Typography variant="h5" sx={{
-                  fontWeight: 'bold',
-                  mb: 1,
-                  fontFamily: 'Arial, sans-serif',
-                  direction: 'rtl'
-                }}>
+                <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1, fontFamily: 'Arial, sans-serif', direction: 'rtl' }}>
                   اتفاق آئرن اینڈ سیمنٹ سٹور
                 </Typography>
-                <Typography variant="body2" sx={{
-                  mb: 1,
-                  direction: 'rtl'
-                }}>
+                <Typography variant="body2" sx={{ mb: 1, direction: 'rtl' }}>
                   گجرات سرگودھا روڈ، پاہڑیانوالی
                 </Typography>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 1 }}>
                   <PhoneIcon sx={{ color: '#25D366', fontSize: '1rem' }} />
-                  <Typography variant="body2">
-                    Ph:- 0346-7560306, 0300-7560306
-                  </Typography>
+                  <Typography variant="body2">Ph:- 0346-7560306, 0300-7560306</Typography>
                 </Box>
-                <Typography variant="h6" sx={{
-                  fontWeight: 'bold',
-                  textTransform: 'uppercase',
-                  letterSpacing: 1,
-                  mt: 1
-                }}>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, mt: 1 }}>
                   PURCHASE INVOICE
                 </Typography>
               </Box>
@@ -5173,56 +5170,19 @@ function PurchasesPageContent() {
               {/* Customer and Invoice Details */}
               <Box sx={{ px: 3, py: 2, borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between' }}>
                 <Box sx={{ flex: '0 0 50%' }}>
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    Supplier Name: <strong>{viewingPurchase.customer?.cus_name || 'N/A'}</strong>
-                  </Typography>
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    Phone No: <strong>{viewingPurchase.customer?.cus_phone_no || 'N/A'}</strong>
-                  </Typography>
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    Address: <strong>{viewingPurchase.customer?.cus_address || 'N/A'}</strong>
-                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>Customer Name: <strong>{viewingPurchase.customer?.cus_name || 'N/A'}</strong></Typography>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>Phone No: <strong>{viewingPurchase.customer?.cus_phone_no || 'N/A'}</strong></Typography>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>Address: <strong>{viewingPurchase.customer?.cus_address || 'N/A'}</strong></Typography>
                 </Box>
                 <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right', flex: '0 0 50%' }}>
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    Invoice No: <strong>#{viewingPurchase.pur_id}</strong>
-                  </Typography>
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    Time: <strong>{new Date(viewingPurchase.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
-                  </Typography>
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    Date: <strong>{new Date(viewingPurchase.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
-                  </Typography>
-                  {viewingPurchase.vehicle_no && (
-                    <Typography variant="body2">
-                      Vehicle No: <strong>{viewingPurchase.vehicle_no}</strong>
-                    </Typography>
-                  )}
-                  {viewingPurchase.cargo_account && (
-                    <Typography variant="body2">
-                      Cargo Account: <strong>{viewingPurchase.cargo_account?.cus_name || 'N/A'}</strong>
-                    </Typography>
-                  )}
-
-                  {viewingPurchase.cargo_account_ids && (
-                    <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                      {(() => {
-                        try {
-                          const ids = Array.isArray(viewingPurchase.cargo_account_ids) ? viewingPurchase.cargo_account_ids : JSON.parse(viewingPurchase.cargo_account_ids || '[]');
-                          return ids.map(id => {
-                            const c = customers.find(cc => cc.cus_id === parseInt(id));
-                            return <Chip key={id} label={c ? c.cus_name : String(id)} size="small" sx={{ bgcolor: 'error.main', color: 'white', borderRadius: '16px' }} />;
-                          });
-                        } catch (err) {
-                          return null;
-                        }
-                      })()}
-                    </Box>
-                  )}
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>Invoice No: <strong>#{viewingPurchase.pur_id}</strong></Typography>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>Time: <strong>{new Date(viewingPurchase.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong></Typography>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>Date: <strong>{new Date(viewingPurchase.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong></Typography>
+                  <Typography variant="body2">Bill Type: <strong>{viewingPurchase.bill_type || 'PURCHASE'}</strong></Typography>
                 </Box>
               </Box>
 
-              {/* Product Table */}
+              {/* Product Table and Payment Summary */}
               <Box sx={{ px: 3, py: 2 }}>
                 <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
                   <Table size="small">
@@ -5247,132 +5207,148 @@ function PurchasesPageContent() {
                               <TableCell sx={{ px: 1, border: '1px solid #ddd' }} align="right">{fmtAmt(detail.total_amount || detail.amount || 0)}</TableCell>
                             </TableRow>
                           ))}
-
-                          {/* Invoice totals row */}
                           <TableRow sx={{ bgcolor: 'grey.50' }}>
                             <TableCell sx={{ px: 1, border: '1px solid #ddd' }} />
                             <TableCell sx={{ px: 1, fontWeight: 'bold', border: '1px solid #ddd' }}>Total</TableCell>
                             <TableCell sx={{ px: 1, fontWeight: 'bold', border: '1px solid #ddd' }} align="right">{(viewingPurchase.purchase_details || []).reduce((s, d) => s + parseFloat(d.qnty || 0), 0)}</TableCell>
                             <TableCell sx={{ px: 1, border: '1px solid #ddd' }} align="right" />
-                            <TableCell sx={{ px: 1, fontWeight: 'bold', border: '1px solid #ddd' }} align="right">{((viewingPurchase.purchase_details || []).reduce((s, d) => s + parseFloat(d.total_amount || d.amount || 0), 0)).toLocaleString('en-US', { minimumFractionDigits: 2 })}</TableCell>
+                            <TableCell sx={{ px: 1, fontWeight: 'bold', border: '1px solid #ddd' }} align="right">{(viewingPurchase.purchase_details || []).reduce((s, d) => s + parseFloat(d.total_amount || d.amount || 0), 0)}</TableCell>
                           </TableRow>
                         </>
                       ) : (
-                        <TableRow>
-                          <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
-                            No items found
-                          </TableCell>
-                        </TableRow>
+                        <TableRow><TableCell colSpan={5} align="center" sx={{ py: 4 }}>No items found</TableCell></TableRow>
                       )}
                     </TableBody>
                   </Table>
                 </TableContainer>
 
-                {/* Payment Summary */}
                 <Box sx={{ mt: 2, width: '100%', display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-                  <Box sx={{ flex: '0 0 48%' }}>
-                    <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, border: '1px solid #000', width: '100%' }}>
+                  <Box sx={{ flex: '0 0 48%', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {/* Previous Balance / Current Due / Total Due */}
+                    <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%' }}>
                       <Table size="small">
                         <TableBody>
-                          {(() => {
-                            const previousBalance = parseFloat((viewingPurchase.previous_customer_balance ?? viewingPurchase.customer?.cus_balance) || 0);
-                            const invoiceNet = getInvoiceNet(viewingPurchase);
-                            const payment = parseFloat(viewingPurchase.payment || 0);
-
-                            return (
-                              <>
-                                <TableRow>
-                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Previous Balance</TableCell>
-                                  <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                    {fmtAmt(previousBalance)}
-                                  </TableCell>
-                                </TableRow>
-
-                                <TableRow>
-                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Current Balance</TableCell>
-                                  <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                    {fmtAmt(invoiceNet - payment)}
-                                  </TableCell>
-                                </TableRow>
-
-                                <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Total Balance</TableCell>
-                                  <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                    {fmtAmt(previousBalance + invoiceNet - payment)}
-                                  </TableCell>
-                                </TableRow>
-                              </>
-                            );
-                          })()}
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>Previous Balance</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>{fmtAmt(viewingPurchase.previous_customer_balance ?? viewingPurchase.customer?.cus_balance ?? 0)}</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>Current Due</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>{fmtAmt(getInvoiceRemainingDue(viewingPurchase))}</TableCell>
+                          </TableRow>
+                          <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                            <TableCell sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>Total Due</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>{fmtAmt(parseFloat(viewingPurchase.previous_customer_balance ?? viewingPurchase.customer?.cus_balance ?? 0) + getInvoiceRemainingDue(viewingPurchase))}</TableCell>
+                          </TableRow>
                         </TableBody>
                       </Table>
                     </TableContainer>
+
+                    {/* Outer Cargo Charges - conditional */}
+                    {(parseFloat(viewingPurchase.out_labour_amount || 0) > 0 || parseFloat(viewingPurchase.out_delivery_amount || 0) > 0) && (
+                      <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%' }}>
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow sx={{ bgcolor: '#e3f2fd' }}>
+                              <TableCell colSpan={2} sx={{ fontWeight: 'bold', textAlign: 'center', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem', color: '#1976d2' }}>Outer Cargo Charges</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {parseFloat(viewingPurchase.out_labour_amount || 0) > 0 && (
+                              <TableRow>
+                                <TableCell sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Out Labour</TableCell>
+                                <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(viewingPurchase.out_labour_amount)}</TableCell>
+                              </TableRow>
+                            )}
+                            {parseFloat(viewingPurchase.out_delivery_amount || 0) > 0 && (
+                              <TableRow>
+                                <TableCell sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Out Delivery</TableCell>
+                                <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(viewingPurchase.out_delivery_amount)}</TableCell>
+                              </TableRow>
+                            )}
+                            <TableRow sx={{ bgcolor: '#e3f2fd' }}>
+                              <TableCell sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Total Outer Charges</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(parseFloat(viewingPurchase.out_labour_amount || 0) + parseFloat(viewingPurchase.out_delivery_amount || 0))}</TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    )}
+
+                    {/* Incity Charges - conditional */}
+                    {(parseFloat(viewingPurchase.incity_own_labour || 0) > 0 || parseFloat(viewingPurchase.incity_own_delivery || 0) > 0) && (
+                      <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%' }}>
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow sx={{ bgcolor: '#fff3e0' }}>
+                              <TableCell colSpan={2} sx={{ fontWeight: 'bold', textAlign: 'center', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem', color: '#e65100' }}>Incity Charges</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {parseFloat(viewingPurchase.incity_own_labour || 0) > 0 && (
+                              <TableRow>
+                                <TableCell sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Incity Labour</TableCell>
+                                <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(viewingPurchase.incity_own_labour)}</TableCell>
+                              </TableRow>
+                            )}
+                            {parseFloat(viewingPurchase.incity_own_delivery || 0) > 0 && (
+                              <TableRow>
+                                <TableCell sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Incity Delivery</TableCell>
+                                <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(viewingPurchase.incity_own_delivery)}</TableCell>
+                              </TableRow>
+                            )}
+                            <TableRow sx={{ bgcolor: '#fff3e0' }}>
+                              <TableCell sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Total Incity Charges</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(parseFloat(viewingPurchase.incity_own_labour || 0) + parseFloat(viewingPurchase.incity_own_delivery || 0))}</TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    )}
                   </Box>
-                  <Box sx={{ flex: '0 0 48%', display: 'flex', justifyContent: 'flex-end' }}>
-                    <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%', maxWidth: '100%' }}>
+
+                  <Box sx={{ flex: '0 0 48%' }}>
+                    {/* Bill Amount / Charges / Payment */}
+                    <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%' }}>
                       <Table size="small">
                         <TableBody>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Goods Total</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {fmtAmt(viewingPurchase.total_amount || 0)}
-                            </TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>Bill Amount</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(viewingPurchase.total_amount || 0)}</TableCell>
                           </TableRow>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Labour</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {fmtAmt(viewingPurchase.labour_amount || 0)}
-                            </TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>Labour</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(viewingPurchase.labour_amount || 0)}</TableCell>
                           </TableRow>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Transport</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {fmtAmt(viewingPurchase.transport_amount || 0)}
-                            </TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>Transport</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(viewingPurchase.transport_amount || 0)}</TableCell>
                           </TableRow>
-                          <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Out Labour</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {fmtAmt(viewingPurchase.out_labour_amount || 0)}
-                            </TableCell>
-                          </TableRow>
-                          <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Out Delivery</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {fmtAmt(viewingPurchase.out_delivery_amount || 0)}
-                            </TableCell>
-                          </TableRow>
+                          {parseFloat(viewingPurchase.discount || 0) > 0 && (
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 'bold', px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>Discount</TableCell>
+                              <TableCell align="right" sx={{ px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>-{fmtAmt(viewingPurchase.discount || 0)}</TableCell>
+                            </TableRow>
+                          )}
                           <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Invoice Total</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {fmtAmt(viewingPurchase.display_net_total || parseFloat(viewingPurchase.total_amount || 0) + parseFloat(viewingPurchase.unloading_amount || 0) + parseFloat(viewingPurchase.transport_amount || 0) + parseFloat(viewingPurchase.labour_amount || 0) + parseFloat(viewingPurchase.fare_amount || 0) - parseFloat(viewingPurchase.discount || 0))}
-                            </TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>Total Amount</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(getInvoiceNet(viewingPurchase))}</TableCell>
                           </TableRow>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Cash Payment</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem', fontWeight: 'bold' }}>
-                              {fmtAmt(viewingPurchase.cash_payment || 0)}
-                            </TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>Cash</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(viewingPurchase.cash_payment || 0)}</TableCell>
                           </TableRow>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {viewingPurchase.bank_payment > 0 ? (viewingPurchase.bank_title || 'Bank Payment') : 'Bank Payment'}
-                            </TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem', fontWeight: 'bold' }}>
-                              {fmtAmt(viewingPurchase.bank_payment || 0)}
-                            </TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>{`Bank Payment${viewingPurchase?.bank_title ? ' (' + viewingPurchase.bank_title + ')' : ''}`}</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(viewingPurchase.bank_payment || 0)}</TableCell>
                           </TableRow>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Total Payment</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {fmtAmt(viewingPurchase.payment || 0)}
-                            </TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>Total Received</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(viewingPurchase.payment || 0)}</TableCell>
                           </TableRow>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>Balance Due</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {fmtAmt((viewingPurchase.display_net_total || parseFloat(viewingPurchase.total_amount || 0) + parseFloat(viewingPurchase.unloading_amount || 0) + parseFloat(viewingPurchase.transport_amount || 0) + parseFloat(viewingPurchase.labour_amount || 0) + parseFloat(viewingPurchase.fare_amount || 0) - parseFloat(viewingPurchase.discount || 0)) - parseFloat(viewingPurchase.payment || 0))}
-                            </TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>Remaining Due</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 1, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(getInvoiceRemainingDue(viewingPurchase))}</TableCell>
                           </TableRow>
                         </TableBody>
                       </Table>
@@ -5383,22 +5359,23 @@ function PurchasesPageContent() {
             </Box>
           )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseViewDialog} variant="outlined">
-            Close
-          </Button>
-          {viewingPurchase && (
-            <Button
-              onClick={() => {
-                handleCloseViewDialog();
-                handleEdit(viewingPurchase);
-              }}
-              variant="contained"
-              startIcon={<EditIcon />}
-            >
-              Edit Purchase
-            </Button>
-          )}
+
+        <Box id="printable-invoice-a4-view" sx={{ width: '100%', bgcolor: 'white', display: 'none' }} />
+        <Box id="printable-invoice-thermal-view" sx={{ width: '80mm', bgcolor: 'white', display: 'none', mx: 'auto', p: 1 }} />
+        <style>{`
+          @media print {
+            body.print-a4-view *, body.print-thermal-view * { visibility: hidden !important; }
+            body.print-a4-view #printable-invoice-a4-view, body.print-a4-view #printable-invoice-a4-view * { visibility: visible !important; }
+            body.print-thermal-view #printable-invoice-thermal-view, body.print-thermal-view #printable-invoice-thermal-view * { visibility: visible !important; }
+            body.print-a4-view #printable-invoice-a4-view { display: block !important; width: 100% !important; }
+            body.print-thermal-view #printable-invoice-thermal-view { display: block !important; width: 80mm !important; }
+          }
+        `}</style>
+
+        <DialogActions sx={{ p: 2, borderTop: 1, borderColor: 'divider', bgcolor: '#f5f5f5' }}>
+          <Button onClick={handleCloseViewDialog} sx={{ textTransform: 'none' }}>Close</Button>
+          <Button startIcon={<PrintIcon />} onClick={() => handlePrintViewReceipt('A4')} sx={{ textTransform: 'none' }}>Print A4</Button>
+          <Button startIcon={<PrintIcon />} onClick={() => handlePrintViewReceipt('THERMAL')} sx={{ textTransform: 'none' }}>Print Thermal</Button>
         </DialogActions>
       </Dialog>
 

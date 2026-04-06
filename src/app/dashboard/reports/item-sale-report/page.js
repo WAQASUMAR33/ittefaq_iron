@@ -1,207 +1,164 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { ArrowLeft, Download, Printer, Search, Package, ChevronUp, ChevronDown } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
 
 export default function ItemSaleReport() {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [details, setDetails] = useState([]);
-  const [summary, setSummary] = useState(null);
 
-  // Filters
+  const [products, setProducts] = useState([]);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [searchText, setSearchText] = useState('');
+  const [details, setDetails] = useState([]);
+  const [openingStock, setOpeningStock] = useState(0);
+  const [loading, setLoading] = useState(false);
+
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [searchProduct, setSearchProduct] = useState('');
-  const [searchCustomer, setSearchCustomer] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [categories, setCategories] = useState([]);
 
-  // Grouping
-  const [groupBy, setGroupBy] = useState('none'); // 'none' | 'product' | 'customer' | 'category'
+  // Bill viewer modal
+  const [billModal, setBillModal] = useState(false);
+  const [billData, setBillData] = useState(null);
+  const [billLoading, setBillLoading] = useState(false);
 
-  // Sorting
-  const [sortBy, setSortBy] = useState('date');
-  const [sortDir, setSortDir] = useState('desc');
+  useEffect(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
+    setStartDate(`${y}-${m}-01`);
+    setEndDate(`${y}-${m}-${String(lastDay).padStart(2, '0')}`);
+    fetchProducts();
+  }, []);
 
-  const toggleSort = (col) => {
-    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-    else { setSortBy(col); setSortDir('desc'); }
+  const fetchProducts = async () => {
+    try {
+      const res = await fetch('/api/reports?type=item-sale-report');
+      const data = await res.json();
+      if (res.ok) setProducts(data.products || []);
+    } catch (e) { console.error(e); }
   };
 
-  useEffect(() => {
-    const today = new Date().toISOString().split('T')[0];
-    const from2000 = new Date(2000, 0, 1).toISOString().split('T')[0];
-    setStartDate(from2000);
-    setEndDate(today);
-  }, []);
-
-  useEffect(() => {
-    if (startDate && endDate) fetchReport();
-  }, [startDate, endDate]);
-
-  useEffect(() => {
-    fetch('/api/categories')
-      .then(r => r.json())
-      .then(d => { if (Array.isArray(d)) setCategories(d); })
-      .catch(() => {});
-  }, []);
-
-  const fetchReport = async () => {
-    if (!startDate || !endDate) return;
+  const fetchDetails = async (proId, sd, ed) => {
+    if (!proId) return;
     try {
       setLoading(true);
-      const res = await fetch(`/api/reports?type=item-sale-report&startDate=${startDate}&endDate=${endDate}`);
+      const res = await fetch(`/api/reports?type=item-sale-report&proId=${proId}&startDate=${sd}&endDate=${ed}`);
       const data = await res.json();
       if (res.ok) {
         setDetails(data.details || []);
-        setSummary(data.summary || null);
+        setOpeningStock(data.openingStock ?? 0);
       }
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
 
-  const fmt = (n) => (parseFloat(n) || 0).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const fmtQty = (n) => (parseFloat(n) || 0).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+  const handleProductSelect = (p) => {
+    setSelectedProduct(p);
+    fetchDetails(p.pro_id, startDate, endDate);
+  };
+
+  const handleApply = () => {
+    if (selectedProduct) fetchDetails(selectedProduct.pro_id, startDate, endDate);
+  };
+
+  // Open bill modal
+  const openBill = async (row) => {
+    if (!row.refId) return;
+    setBillModal(true);
+    setBillData(null);
+    setBillLoading(true);
+    try {
+      let url = '';
+      if (row.type === 'SALE') url = `/api/sales?id=${row.refId}`;
+      else if (row.type === 'SALE_RETURN') url = `/api/sale-returns?id=${row.refId}`;
+      else if (row.type === 'PURCHASE') url = `/api/purchases?id=${row.refId}`;
+      else if (row.type === 'PURCHASE_RETURN') {
+        // Some purchase returns are stored in the purchases table (subType flag)
+        if (row.subType === 'PURCHASE_RETURN_AS_PURCHASE') url = `/api/purchases?id=${row.refId}`;
+        else url = `/api/purchase-returns?id=${row.refId}`;
+      }
+      const res = await fetch(url);
+      const data = await res.json();
+      if (res.ok) setBillData({ ...data, _type: row.type, _subType: row.subType || null });
+    } catch (e) { console.error(e); }
+    finally { setBillLoading(false); }
+  };
+
   const fmtDate = (d) => {
     if (!d) return '-';
-    try { return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
+    try { return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-'); }
     catch { return '-'; }
   };
 
-  // Client-side filtering
-  const filtered = useMemo(() => {
-    let rows = details;
-    if (searchProduct) rows = rows.filter(d => d.product?.pro_title?.toLowerCase().includes(searchProduct.toLowerCase()));
-    if (searchCustomer) rows = rows.filter(d => d.sale?.customer?.cus_name?.toLowerCase().includes(searchCustomer.toLowerCase()));
-    if (selectedCategory) rows = rows.filter(d => String(d.product?.cat_id) === String(selectedCategory));
-    return rows;
-  }, [details, searchProduct, searchCustomer, selectedCategory]);
-
-  // Sorting
-  const sorted = useMemo(() => {
-    const copy = [...filtered];
-    const dir = sortDir === 'asc' ? 1 : -1;
-    copy.sort((a, b) => {
-      switch (sortBy) {
-        case 'date': return dir * (new Date(a.sale?.created_at) - new Date(b.sale?.created_at));
-        case 'invoice': return dir * ((a.sale?.sale_id || 0) - (b.sale?.sale_id || 0));
-        case 'product': return dir * ((a.product?.pro_title || '').localeCompare(b.product?.pro_title || ''));
-        case 'customer': return dir * ((a.sale?.customer?.cus_name || '').localeCompare(b.sale?.customer?.cus_name || ''));
-        case 'category': return dir * ((a.product?.category?.cat_name || '').localeCompare(b.product?.category?.cat_name || ''));
-        case 'qty': return dir * (parseFloat(a.qnty || 0) - parseFloat(b.qnty || 0));
-        case 'rate': return dir * (parseFloat(a.unit_rate || 0) - parseFloat(b.unit_rate || 0));
-        case 'amount': return dir * (parseFloat(a.total_amount || 0) - parseFloat(b.total_amount || 0));
-        case 'discount': return dir * (parseFloat(a.discount || 0) - parseFloat(b.discount || 0));
-        case 'net': return dir * (parseFloat(a.net_total || 0) - parseFloat(b.net_total || 0));
-        default: return 0;
-      }
-    });
-    return copy;
-  }, [filtered, sortBy, sortDir]);
-
-  // Grouped view
-  const grouped = useMemo(() => {
-    if (groupBy === 'none') return null;
-    const map = {};
-    sorted.forEach(d => {
-      let key, label;
-      if (groupBy === 'product') { key = d.product?.pro_id || 'unknown'; label = d.product?.pro_title || 'Unknown Product'; }
-      else if (groupBy === 'customer') { key = d.sale?.customer?.cus_id || 'unknown'; label = d.sale?.customer?.cus_name || 'Unknown Customer'; }
-      else if (groupBy === 'category') { key = d.product?.cat_id || 'unknown'; label = d.product?.category?.cat_name || 'Uncategorized'; }
-      if (!map[key]) map[key] = { label, rows: [], totalQty: 0, totalAmount: 0, totalDiscount: 0, netTotal: 0 };
-      map[key].rows.push(d);
-      map[key].totalQty += parseFloat(d.qnty || 0);
-      map[key].totalAmount += parseFloat(d.total_amount || 0);
-      map[key].totalDiscount += parseFloat(d.discount || 0);
-      map[key].netTotal += parseFloat(d.net_total || 0);
-    });
-    return Object.values(map).sort((a, b) => a.label.localeCompare(b.label));
-  }, [sorted, groupBy]);
-
-  // Live summary for filtered data
-  const filteredSummary = useMemo(() => ({
-    totalItems: filtered.length,
-    totalQty: filtered.reduce((s, d) => s + parseFloat(d.qnty || 0), 0),
-    totalAmount: filtered.reduce((s, d) => s + parseFloat(d.total_amount || 0), 0),
-    totalDiscount: filtered.reduce((s, d) => s + parseFloat(d.discount || 0), 0),
-    netTotal: filtered.reduce((s, d) => s + parseFloat(d.net_total || 0), 0),
-  }), [filtered]);
-
-  const exportCSV = () => {
-    const headers = ['S.No', 'Date', 'Invoice No', 'Customer', 'Product', 'Category', 'Sub Category', 'Qty', 'Unit', 'Unit Rate', 'Total Amount', 'Discount', 'Net Total'];
-    const rows = sorted.map((d, i) => [
-      i + 1,
-      fmtDate(d.sale?.created_at),
-      d.sale?.sale_id || '',
-      d.sale?.customer?.cus_name || '',
-      d.product?.pro_title || '',
-      d.product?.category?.cat_name || '',
-      d.product?.sub_category?.sub_cat_name || '',
-      fmtQty(d.qnty),
-      d.unit || '',
-      fmt(d.unit_rate),
-      fmt(d.total_amount),
-      fmt(d.discount),
-      fmt(d.net_total),
-    ]);
-    const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `item-sale-report-${startDate}-to-${endDate}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const fmtQty = (n) => {
+    const v = parseFloat(n);
+    return isNaN(v) ? '-' : v.toFixed(2);
   };
 
-  const SortIcon = ({ col }) => {
-    if (sortBy !== col) return <span style={{ opacity: 0.3, fontSize: 10 }}>↕</span>;
-    return sortDir === 'asc' ? <ChevronUp size={13} /> : <ChevronDown size={13} />;
+  const fmtAmt = (n) => {
+    const v = parseFloat(n);
+    return isNaN(v) || v === 0 ? '-' : v.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
-  const Th = ({ col, children, right }) => (
-    <th
-      onClick={() => toggleSort(col)}
-      style={{
-        padding: '10px 12px', textAlign: right ? 'right' : 'left',
-        cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap',
-        background: '#1e293b', color: '#94a3b8', fontWeight: 600, fontSize: 12,
-        borderBottom: '1px solid #334155', position: 'sticky', top: 0, zIndex: 1,
-      }}
-    >
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-        {children} <SortIcon col={col} />
-      </span>
-    </th>
-  );
+  const fmtAmtAlways = (n) => {
+    const v = parseFloat(n) || 0;
+    return v.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
 
-  const DetailRow = ({ d, idx }) => (
-    <tr style={{ background: idx % 2 === 0 ? '#fff' : '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-      <td style={{ padding: '8px 12px', color: '#94a3b8', fontSize: 12 }}>{idx + 1}</td>
-      <td style={{ padding: '8px 12px', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtDate(d.sale?.created_at)}</td>
-      <td style={{ padding: '8px 12px', fontSize: 13 }}>
-        <span style={{ background: '#eff6ff', color: '#1d4ed8', borderRadius: 4, padding: '2px 7px', fontWeight: 700, fontSize: 12 }}>
-          #{d.sale?.sale_id}
-        </span>
-      </td>
-      <td style={{ padding: '8px 12px', fontSize: 13, fontWeight: 600 }}>{d.sale?.customer?.cus_name || '-'}</td>
-      <td style={{ padding: '8px 12px', fontSize: 13, fontWeight: 600, color: '#0f172a' }}>{d.product?.pro_title || '-'}</td>
-      <td style={{ padding: '8px 12px', fontSize: 12, color: '#64748b' }}>{d.product?.category?.cat_name || '-'}</td>
-      <td style={{ padding: '8px 12px', fontSize: 12, color: '#64748b' }}>{d.product?.sub_category?.sub_cat_name || '-'}</td>
-      <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
-        {fmtQty(d.qnty)} <span style={{ color: '#94a3b8', fontSize: 11 }}>{d.unit || ''}</span>
-      </td>
-      <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: 13, color: '#475569' }}>{fmt(d.unit_rate)}</td>
-      <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: 13 }}>{fmt(d.total_amount)}</td>
-      <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: 13, color: '#dc2626' }}>
-        {parseFloat(d.discount || 0) > 0 ? fmt(d.discount) : '-'}
-      </td>
-      <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: 13, fontWeight: 700, color: '#16a34a' }}>{fmt(d.net_total)}</td>
-    </tr>
-  );
+  const filteredProducts = useMemo(() => {
+    const q = searchText.toLowerCase();
+    if (!q) return products;
+    return products.filter(p =>
+      p.pro_title?.toLowerCase().includes(q) || String(p.pro_id).includes(q)
+    );
+  }, [products, searchText]);
+
+  const totals = useMemo(() => {
+    let purchase = 0, purchaseReturn = 0, sale = 0, saleReturn = 0, amount = 0;
+    details.forEach(r => {
+      purchase += r.purchaseQty || 0;
+      purchaseReturn += r.purchaseReturnQty || 0;
+      sale += r.saleQty || 0;
+      saleReturn += r.saleReturnQty || 0;
+      amount += r.amount || 0;
+    });
+    return { purchase, purchaseReturn, sale, saleReturn, amount };
+  }, [details]);
+
+  const typeColors = { PURCHASE: '#1a5276', PURCHASE_RETURN: '#922b21', SALE: '#1e8449', SALE_RETURN: '#784212' };
+  const typeLabel = { PURCHASE: 'Purchase', PURCHASE_RETURN: 'Pur. Return', SALE: 'Sale', SALE_RETURN: 'Sale Return' };
+
+  const thStyle = (align = 'center') => ({
+    border: '1px solid #888', padding: '6px 8px', textAlign: align,
+    fontWeight: 700, background: '#2c3e50', color: 'white', whiteSpace: 'nowrap', fontSize: 13,
+  });
+  const tdStyle = (align = 'center', extra = {}) => ({
+    border: '1px solid #ccc', padding: '5px 8px', textAlign: align, fontSize: 13, ...extra,
+  });
+
+  const handlePrint = () => window.print();
+  const handlePrintBill = () => {
+    const el = document.getElementById('bill-modal-print-area');
+    if (!el) return;
+    const w = window.open('', '_blank');
+    w.document.write(`<html><head><title>Bill</title><style>
+      body{font-family:Arial,sans-serif;font-size:13px;margin:0;padding:10mm}
+      table{width:100%;border-collapse:collapse}
+      th,td{border:1px solid #999;padding:5px 8px}
+      th{background:#555;color:#fff;font-weight:700}
+      .header{text-align:center;margin-bottom:12px}
+      .header h2{margin:0 0 4px;font-size:16px}
+      .header p{margin:2px 0;font-size:12px}
+      .info-row{display:flex;justify-content:space-between;margin-bottom:10px;font-size:13px}
+      .totals{margin-top:10px;display:flex;justify-content:flex-end}
+      .totals table{width:280px}
+    </style></head><body>${el.innerHTML}</body></html>`);
+    w.document.close();
+    w.focus();
+    setTimeout(() => { w.print(); w.close(); }, 400);
+  };
 
   return (
     <DashboardLayout>
@@ -209,272 +166,535 @@ export default function ItemSaleReport() {
         @media print {
           @page { size: A4 landscape; margin: 8mm; }
           .no-print { display: none !important; }
-          body { font-size: 10px !important; background: white !important; margin: 0 !important; padding: 0 !important; }
+          body { font-size: 11px !important; background: white !important; margin: 0 !important; padding: 0 !important; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-
-          /* Remove outer padding/background */
-          div[style*="background: #f1f5f9"],
-          div[style*="background:#f1f5f9"] { background: white !important; padding: 0 !important; }
-
-          /* Summary cards — compact row */
-          .print-summary { display: flex !important; flex-direction: row !important; gap: 8px !important; margin-bottom: 8px !important; }
-          .print-summary > div { padding: 6px 10px !important; flex: 1 !important; }
-
-          /* Table fills full width, no overflow */
-          table { width: 100% !important; table-layout: fixed !important; border-collapse: collapse !important; font-size: 9px !important; }
-          th, td { padding: 4px 5px !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
-          tfoot td { white-space: normal !important; word-break: break-word !important; }
-
-          /* Column widths — tune to fit A4 landscape (~270mm usable) */
-          th:nth-child(1),  td:nth-child(1)  { width: 28px !important; }   /* # */
-          th:nth-child(2),  td:nth-child(2)  { width: 60px !important; }   /* Date */
-          th:nth-child(3),  td:nth-child(3)  { width: 46px !important; }   /* Invoice */
-          th:nth-child(4),  td:nth-child(4)  { width: 80px !important; }   /* Customer */
-          th:nth-child(5),  td:nth-child(5)  { width: 90px !important; }   /* Product */
-          th:nth-child(6),  td:nth-child(6)  { width: 60px !important; }   /* Category */
-          th:nth-child(7),  td:nth-child(7)  { width: 60px !important; }   /* Sub Category */
-          th:nth-child(8),  td:nth-child(8)  { width: 48px !important; }   /* Qty */
-          th:nth-child(9),  td:nth-child(9)  { width: 54px !important; }   /* Unit Rate */
-          th:nth-child(10), td:nth-child(10) { width: 72px !important; }   /* Amount */
-          th:nth-child(11), td:nth-child(11) { width: 60px !important; }   /* Discount */
-          th:nth-child(12), td:nth-child(12) { width: 72px !important; }   /* Net Total */
-
-          /* Sticky header — remove position sticky for print */
-          th { position: static !important; }
-
-          /* Page breaks */
-          tr { page-break-inside: avoid !important; }
-          thead { display: table-header-group !important; }
-          tfoot { display: table-footer-group !important; }
-
-          /* Outer container */
-          div[style*="minHeight"] { min-height: unset !important; }
-
-          /* Print title */
-          .print-title { display: block !important; text-align: center; font-size: 14px; font-weight: 800; margin-bottom: 4px; color: #0f172a; }
-          .print-subtitle { display: block !important; text-align: center; font-size: 10px; color: #64748b; margin-bottom: 10px; }
+          table { border-collapse: collapse !important; width: 100% !important; }
+          th, td { border: 1px solid #000 !important; padding: 4px 6px !important; font-size: 11px !important; }
+          .print-header { display: block !important; }
         }
-
-        /* Hidden on screen, shown only in print */
-        .print-title, .print-subtitle { display: none; }
+        .print-header { display: none; }
+        .bill-badge:hover { background: #1a4fa0 !important; color: white !important; cursor: pointer; text-decoration: underline; }
       `}</style>
 
-      <div style={{ minHeight: '100vh', background: '#f1f5f9' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f5f5f5', fontFamily: 'Arial, sans-serif' }}>
 
-        {/* Header */}
-        <div className="no-print" style={{
-          background: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #0369a1 100%)',
-          padding: '20px 24px', color: 'white',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <button onClick={() => router.back()} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, padding: '7px 10px', cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center' }}>
-                <ArrowLeft size={18} />
-              </button>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Package size={20} />
-                </div>
-                <div>
-                  <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>Item Sales Report</h1>
-                  <p style={{ margin: 0, fontSize: 12, opacity: 0.75 }}>Product-wise sales line items detail</p>
-                </div>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={exportCSV} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 8, padding: '8px 14px', color: 'white', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-                <Download size={15} /> Export CSV
-              </button>
-              <button onClick={() => window.print()} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 8, padding: '8px 14px', color: 'white', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-                <Printer size={15} /> Print
-              </button>
-            </div>
-          </div>
+        {/* Top bar */}
+        <div className="no-print" style={{ background: '#2c3e50', color: 'white', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button onClick={() => router.back()} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', padding: '5px 12px', cursor: 'pointer', borderRadius: 3, fontSize: 14 }}>← Back</button>
+          <span style={{ fontWeight: 700, fontSize: 16 }}>Item Stock Ledger</span>
         </div>
 
-        <div style={{ padding: '20px 24px' }}>
+        <div style={{ background: '#fff', borderBottom: '2px solid #c0392b', padding: '7px 16px' }}>
+          <span style={{ fontSize: 18, fontWeight: 700, color: '#c0392b' }}>Item Stock Ledger</span>
+        </div>
 
-          {/* Filters */}
-          <div className="no-print" style={{ background: 'white', borderRadius: 12, padding: 20, marginBottom: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.07)', border: '1px solid #e2e8f0' }}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'flex-end' }}>
+        <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
-              {/* Date Range */}
-              <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 5 }}>From Date</label>
-                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-                  style={{ border: '1.5px solid #e2e8f0', borderRadius: 8, padding: '8px 12px', fontSize: 13, outline: 'none', color: '#0f172a' }} />
+          {/* LEFT: Product list */}
+          <div className="no-print" style={{ width: 300, borderRight: '2px solid #bbb', background: '#fff', display: 'flex', flexDirection: 'column' }}>
+            <fieldset style={{ margin: 8, border: '1px solid #aaa', padding: '6px 8px' }}>
+              <legend style={{ fontSize: 14, fontWeight: 700, color: '#333' }}>Products</legend>
+              <div style={{ fontSize: 13, color: '#c0392b', marginBottom: 4 }}>Select Product:</div>
+              <input
+                type="text"
+                value={searchText}
+                onChange={e => setSearchText(e.target.value)}
+                placeholder="Search..."
+                style={{ width: '100%', border: '1px solid #bbb', padding: '5px 8px', fontSize: 14, boxSizing: 'border-box', marginBottom: 6 }}
+              />
+              <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr', background: '#ddd', borderBottom: '1px solid #aaa', padding: '5px 6px', fontSize: 13, fontWeight: 700 }}>
+                <span>#</span><span>Product Name</span>
               </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 5 }}>To Date</label>
-                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-                  style={{ border: '1.5px solid #e2e8f0', borderRadius: 8, padding: '8px 12px', fontSize: 13, outline: 'none', color: '#0f172a' }} />
-              </div>
-
-              {/* Product Search */}
-              <div style={{ flex: '1 1 160px', minWidth: 160 }}>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 5 }}>Product</label>
-                <div style={{ position: 'relative' }}>
-                  <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                  <input type="text" value={searchProduct} onChange={e => setSearchProduct(e.target.value)} placeholder="Search product..."
-                    style={{ border: '1.5px solid #e2e8f0', borderRadius: 8, padding: '8px 12px 8px 30px', fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' }} />
-                </div>
-              </div>
-
-              {/* Customer Search */}
-              <div style={{ flex: '1 1 160px', minWidth: 160 }}>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 5 }}>Customer</label>
-                <div style={{ position: 'relative' }}>
-                  <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                  <input type="text" value={searchCustomer} onChange={e => setSearchCustomer(e.target.value)} placeholder="Search customer..."
-                    style={{ border: '1.5px solid #e2e8f0', borderRadius: 8, padding: '8px 12px 8px 30px', fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' }} />
-                </div>
-              </div>
-
-              {/* Category */}
-              <div style={{ flex: '1 1 150px', minWidth: 150 }}>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 5 }}>Category</label>
-                <select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)}
-                  style={{ border: '1.5px solid #e2e8f0', borderRadius: 8, padding: '8px 12px', fontSize: 13, outline: 'none', width: '100%', background: 'white', color: '#0f172a' }}>
-                  <option value="">All Categories</option>
-                  {categories.map(c => <option key={c.cat_id} value={c.cat_id}>{c.cat_name}</option>)}
-                </select>
-              </div>
-
-              {/* Group By */}
-              <div style={{ flex: '1 1 140px', minWidth: 140 }}>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 5 }}>Group By</label>
-                <select value={groupBy} onChange={e => setGroupBy(e.target.value)}
-                  style={{ border: '1.5px solid #e2e8f0', borderRadius: 8, padding: '8px 12px', fontSize: 13, outline: 'none', width: '100%', background: 'white', color: '#0f172a' }}>
-                  <option value="none">No Grouping</option>
-                  <option value="product">By Product</option>
-                  <option value="category">By Category</option>
-                  <option value="customer">By Customer</option>
-                </select>
-              </div>
-
-              {/* Apply Button */}
-              <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'transparent', marginBottom: 5 }}>_</label>
-                <button onClick={fetchReport} disabled={loading}
-                  style={{ background: '#1e40af', color: 'white', border: 'none', borderRadius: 8, padding: '8px 20px', fontSize: 13, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}>
-                  {loading ? 'Loading...' : 'Apply'}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Summary Cards */}
-          {filteredSummary && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14, marginBottom: 20 }}>
-              {[
-                { label: 'Total Line Items', value: filteredSummary.totalItems.toLocaleString(), color: '#3b82f6', bg: '#eff6ff', border: '#bfdbfe' },
-                { label: 'Total Quantity', value: fmtQty(filteredSummary.totalQty), color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
-                { label: 'Gross Amount', value: 'PKR ' + fmt(filteredSummary.totalAmount), color: '#0369a1', bg: '#f0f9ff', border: '#bae6fd' },
-                { label: 'Total Discount', value: 'PKR ' + fmt(filteredSummary.totalDiscount), color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
-                { label: 'Net Total', value: 'PKR ' + fmt(filteredSummary.netTotal), color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0' },
-              ].map(card => (
-                <div key={card.label} style={{ background: card.bg, border: `1.5px solid ${card.border}`, borderRadius: 10, padding: '14px 16px' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 }}>{card.label}</div>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: card.color }}>{card.value}</div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Print-only title */}
-          <div className="print-title">Item Sales Report</div>
-          <div className="print-subtitle">{startDate} — {endDate}</div>
-
-          {/* Table */}
-          <div style={{ background: 'white', borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.07)', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-
-            {loading ? (
-              <div style={{ padding: 60, textAlign: 'center', color: '#64748b', fontSize: 14 }}>Loading report data...</div>
-            ) : sorted.length === 0 ? (
-              <div style={{ padding: 60, textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>No records found for the selected filters.</div>
-            ) : groupBy !== 'none' && grouped ? (
-              /* Grouped View */
-              <div>
-                {grouped.map((group, gi) => (
-                  <div key={gi} style={{ borderBottom: gi < grouped.length - 1 ? '2px solid #e2e8f0' : 'none' }}>
-                    {/* Group Header */}
-                    <div style={{ background: '#1e293b', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{ fontWeight: 800, color: 'white', fontSize: 14 }}>{group.label}</span>
-                      <div style={{ display: 'flex', gap: 20, fontSize: 12 }}>
-                        <span style={{ color: '#94a3b8' }}>Items: <b style={{ color: 'white' }}>{group.rows.length}</b></span>
-                        <span style={{ color: '#94a3b8' }}>Qty: <b style={{ color: '#67e8f9' }}>{fmtQty(group.totalQty)}</b></span>
-                        <span style={{ color: '#94a3b8' }}>Gross: <b style={{ color: '#fbbf24' }}>PKR {fmt(group.totalAmount)}</b></span>
-                        <span style={{ color: '#94a3b8' }}>Discount: <b style={{ color: '#f87171' }}>PKR {fmt(group.totalDiscount)}</b></span>
-                        <span style={{ color: '#94a3b8' }}>Net: <b style={{ color: '#4ade80' }}>PKR {fmt(group.netTotal)}</b></span>
-                      </div>
-                    </div>
-                    <div style={{ overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                        <thead>
-                          <tr>
-                            <Th col="sno">#</Th>
-                            <Th col="date">Date</Th>
-                            <Th col="invoice">Invoice</Th>
-                            <Th col="customer">Customer</Th>
-                            <Th col="product">Product</Th>
-                            <Th col="category">Category</Th>
-                            <Th col="subcategory">Sub Category</Th>
-                            <Th col="qty" right>Qty</Th>
-                            <Th col="rate" right>Unit Rate</Th>
-                            <Th col="amount" right>Amount</Th>
-                            <Th col="discount" right>Discount</Th>
-                            <Th col="net" right>Net Total</Th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {group.rows.map((d, idx) => <DetailRow key={d.sale_detail_id} d={d} idx={idx} />)}
-                        </tbody>
-                      </table>
-                    </div>
+              <div style={{ height: 420, overflowY: 'auto', border: '1px solid #bbb' }}>
+                {filteredProducts.map(p => (
+                  <div key={p.pro_id} onClick={() => handleProductSelect(p)}
+                    style={{
+                      display: 'grid', gridTemplateColumns: '40px 1fr',
+                      padding: '6px 6px', fontSize: 13, cursor: 'pointer',
+                      background: selectedProduct?.pro_id === p.pro_id ? '#316ac5' : 'transparent',
+                      color: selectedProduct?.pro_id === p.pro_id ? 'white' : '#000',
+                      borderBottom: '1px solid #eee',
+                    }}>
+                    <span>{p.pro_id}</span>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={p.pro_title}>{p.pro_title}</span>
                   </div>
                 ))}
+                {filteredProducts.length === 0 && (
+                  <div style={{ padding: 10, color: '#999', fontSize: 13, textAlign: 'center' }}>No products found</div>
+                )}
               </div>
-            ) : (
-              /* Flat View */
-              <div style={{ overflowX: 'auto' }}>
+            </fieldset>
+          </div>
+
+          {/* RIGHT */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fff' }}>
+
+            {/* Date range */}
+            <div className="no-print" style={{ padding: '8px 14px', borderBottom: '1px solid #ccc', display: 'flex', alignItems: 'center', gap: 12, background: '#f9f9f9' }}>
+              <span style={{ fontSize: 15, fontWeight: 700, color: '#c0392b' }}>From:</span>
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
+                style={{ border: '1px solid #bbb', padding: '4px 8px', fontSize: 14, borderRadius: 2 }} />
+              <span style={{ fontSize: 15, fontWeight: 700, color: '#c0392b' }}>To:</span>
+              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
+                style={{ border: '1px solid #bbb', padding: '4px 8px', fontSize: 14, borderRadius: 2 }} />
+              <button onClick={handleApply} disabled={loading || !selectedProduct}
+                style={{ background: '#316ac5', color: 'white', border: 'none', padding: '5px 18px', cursor: 'pointer', fontSize: 14, borderRadius: 2, opacity: !selectedProduct ? 0.5 : 1 }}>
+                {loading ? 'Loading...' : 'Show'}
+              </button>
+            </div>
+
+            {/* Print header */}
+            <div className="print-header" style={{ textAlign: 'center', padding: '6px 0 2px' }}>
+              <div style={{ fontWeight: 700, fontSize: 15 }}>Item Stock Ledger</div>
+              {selectedProduct && <div style={{ fontSize: 13, marginTop: 2 }}>{selectedProduct.pro_title}</div>}
+              <div style={{ fontSize: 12, marginTop: 2 }}>From: {startDate} &nbsp;&nbsp; To: {endDate}</div>
+            </div>
+
+            {/* Table */}
+            <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', padding: '4px 4px 0' }}>
+              {!selectedProduct ? (
+                <div style={{ padding: 40, textAlign: 'center', color: '#999', fontSize: 15 }}>
+                  ← Select a product from the list to view its stock ledger
+                </div>
+              ) : loading ? (
+                <div style={{ padding: 40, textAlign: 'center', color: '#666', fontSize: 15 }}>Loading...</div>
+              ) : (
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                   <thead>
                     <tr>
-                      <Th col="sno">#</Th>
-                      <Th col="date">Date</Th>
-                      <Th col="invoice">Invoice</Th>
-                      <Th col="customer">Customer</Th>
-                      <Th col="product">Product</Th>
-                      <Th col="category">Category</Th>
-                      <Th col="subcategory">Sub Category</Th>
-                      <Th col="qty" right>Qty</Th>
-                      <Th col="rate" right>Unit Rate</Th>
-                      <Th col="amount" right>Amount</Th>
-                      <Th col="discount" right>Discount</Th>
-                      <Th col="net" right>Net Total</Th>
+                      <th style={thStyle('center')}>#</th>
+                      <th style={thStyle('left')}>Date</th>
+                      <th style={thStyle('left')}>Account Title / Bill No.</th>
+                      <th style={thStyle('right')}>Pre Stock</th>
+                      <th style={thStyle('right')}>Purchase</th>
+                      <th style={thStyle('right')}>Pur. Return</th>
+                      <th style={thStyle('right')}>Sale</th>
+                      <th style={thStyle('right')}>Sale Return</th>
+                      <th style={thStyle('right')}>Updated Stock</th>
+                      <th style={thStyle('right')}>Amount</th>
+                      <th style={thStyle('center')}>Type</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {sorted.map((d, idx) => <DetailRow key={d.sale_detail_id} d={d} idx={idx} />)}
-                  </tbody>
-                  {/* Footer totals */}
-                  <tfoot>
-                    <tr style={{ background: '#0f172a', fontWeight: 800 }}>
-                      <td colSpan={7} style={{ padding: '10px 12px', color: '#94a3b8', fontSize: 12 }}>TOTAL ({sorted.length} items)</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#67e8f9', fontSize: 13 }}>{fmtQty(filteredSummary?.totalQty)}</td>
-                      <td style={{ padding: '10px 12px' }}></td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#fbbf24', fontSize: 13 }}>{fmt(filteredSummary?.totalAmount)}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#f87171', fontSize: 13 }}>{fmt(filteredSummary?.totalDiscount)}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#4ade80', fontSize: 13 }}>{fmt(filteredSummary?.netTotal)}</td>
+                    {/* Opening row */}
+                    <tr style={{ background: '#d6eaf8' }}>
+                      <td style={tdStyle('center')}></td>
+                      <td style={tdStyle('left', { fontWeight: 700 })}>Opening</td>
+                      <td style={tdStyle('left', { fontWeight: 700 })}>Opening Stock</td>
+                      <td style={tdStyle('right', { fontWeight: 700 })}>{fmtQty(openingStock)}</td>
+                      <td style={tdStyle('right')}>-</td>
+                      <td style={tdStyle('right')}>-</td>
+                      <td style={tdStyle('right')}>-</td>
+                      <td style={tdStyle('right')}>-</td>
+                      <td style={tdStyle('right', { fontWeight: 700 })}>{fmtQty(openingStock)}</td>
+                      <td style={tdStyle('right')}>-</td>
+                      <td style={tdStyle('center')}>-</td>
                     </tr>
-                  </tfoot>
-                </table>
-              </div>
-            )}
-          </div>
 
+                    {details.length === 0 ? (
+                      <tr>
+                        <td colSpan={11} style={{ padding: 20, textAlign: 'center', color: '#999', border: '1px solid #ddd', fontSize: 14 }}>
+                          No transactions in selected date range
+                        </td>
+                      </tr>
+                    ) : (
+                      details.map((row, i) => (
+                        <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : '#f9f9f9' }}>
+                          <td style={tdStyle('center', { color: '#888' })}>{i + 1}</td>
+                          <td style={tdStyle('left')}>{fmtDate(row.date)}</td>
+                          <td style={tdStyle('left')}>
+                            <span style={{ fontWeight: 600 }}>{row.accountTitle || '-'}</span>
+                            {row.billNo && (
+                              <span
+                                className="bill-badge no-print"
+                                onClick={() => openBill(row)}
+                                title="Click to view bill"
+                                style={{
+                                  marginLeft: 6, fontSize: 11, color: '#316ac5',
+                                  background: '#eaf0fb', padding: '2px 7px',
+                                  borderRadius: 3, border: '1px solid #b0c8f0',
+                                  cursor: 'pointer', userSelect: 'none',
+                                  display: 'inline-block',
+                                }}
+                              >
+                                {row.billNo}
+                              </span>
+                            )}
+                            {row.billNo && (
+                              <span className="print-only" style={{ marginLeft: 6, fontSize: 11, color: '#555' }}>
+                                {row.billNo}
+                              </span>
+                            )}
+                          </td>
+                          <td style={tdStyle('right')}>{fmtQty(row.preStock)}</td>
+                          <td style={tdStyle('right', { color: row.purchaseQty > 0 ? '#1a5276' : '#aaa', fontWeight: row.purchaseQty > 0 ? 600 : 400 })}>
+                            {row.purchaseQty > 0 ? fmtQty(row.purchaseQty) : '-'}
+                          </td>
+                          <td style={tdStyle('right', { color: row.purchaseReturnQty > 0 ? '#922b21' : '#aaa', fontWeight: row.purchaseReturnQty > 0 ? 600 : 400 })}>
+                            {row.purchaseReturnQty > 0 ? fmtQty(row.purchaseReturnQty) : '-'}
+                          </td>
+                          <td style={tdStyle('right', { color: row.saleQty > 0 ? '#1e8449' : '#aaa', fontWeight: row.saleQty > 0 ? 600 : 400 })}>
+                            {row.saleQty > 0 ? fmtQty(row.saleQty) : '-'}
+                          </td>
+                          <td style={tdStyle('right', { color: row.saleReturnQty > 0 ? '#784212' : '#aaa', fontWeight: row.saleReturnQty > 0 ? 600 : 400 })}>
+                            {row.saleReturnQty > 0 ? fmtQty(row.saleReturnQty) : '-'}
+                          </td>
+                          <td style={tdStyle('right', { fontWeight: 700 })}>{fmtQty(row.updatedStock)}</td>
+                          <td style={tdStyle('right')}>{fmtAmt(row.amount)}</td>
+                          <td style={tdStyle('center', { color: typeColors[row.type] || '#333', fontWeight: 600, fontSize: 11 })}>
+                            {typeLabel[row.type] || row.type}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+
+                  {details.length > 0 && (
+                    <tfoot>
+                      <tr style={{ background: '#2c3e50', color: 'white', fontWeight: 700 }}>
+                        <td colSpan={4} style={{ border: '1px solid #555', padding: '6px 8px', textAlign: 'left' }}>Total</td>
+                        <td style={{ border: '1px solid #555', padding: '6px 8px', textAlign: 'right' }}>{fmtQty(totals.purchase)}</td>
+                        <td style={{ border: '1px solid #555', padding: '6px 8px', textAlign: 'right' }}>{fmtQty(totals.purchaseReturn)}</td>
+                        <td style={{ border: '1px solid #555', padding: '6px 8px', textAlign: 'right' }}>{fmtQty(totals.sale)}</td>
+                        <td style={{ border: '1px solid #555', padding: '6px 8px', textAlign: 'right' }}>{fmtQty(totals.saleReturn)}</td>
+                        <td style={{ border: '1px solid #555', padding: '6px 8px' }}></td>
+                        <td style={{ border: '1px solid #555', padding: '6px 8px', textAlign: 'right' }}>{fmtAmt(totals.amount)}</td>
+                        <td style={{ border: '1px solid #555', padding: '6px 8px' }}></td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              )}
+            </div>
+
+            {/* Bottom buttons */}
+            <div className="no-print" style={{ padding: '8px 12px', borderTop: '1px solid #ccc', display: 'flex', justifyContent: 'flex-end', gap: 10, background: '#f5f5f5' }}>
+              <button onClick={handlePrint} disabled={!selectedProduct || details.length === 0}
+                style={{ background: '#eee', border: '2px outset #bbb', padding: '6px 24px', cursor: 'pointer', fontSize: 14, minWidth: 90 }}>
+                Print
+              </button>
+              <button onClick={() => router.back()}
+                style={{ background: '#eee', border: '2px outset #bbb', padding: '6px 24px', cursor: 'pointer', fontSize: 14, minWidth: 90 }}>
+                Exit
+              </button>
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* ── Bill Viewer Modal ─────────────────────────────────────────── */}
+      {billModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999, padding: 16,
+        }}
+          onClick={e => { if (e.target === e.currentTarget) setBillModal(false); }}
+        >
+          <div style={{
+            background: 'white', borderRadius: 8, width: '100%', maxWidth: 760,
+            maxHeight: '92vh', display: 'flex', flexDirection: 'column',
+            boxShadow: '0 8px 40px rgba(0,0,0,0.35)',
+          }}>
+            {/* Title bar — blue like sales receipt */}
+            <div style={{ background: '#1976d2', color: '#fff', padding: '12px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderRadius: '8px 8px 0 0' }}>
+              <span style={{ fontWeight: 700, fontSize: 15 }}>
+                {billData?._type === 'SALE_RETURN' ? 'Sale Return Invoice' : billData?._type === 'SALE' ? 'Receipt' : billData?._type === 'PURCHASE' ? 'Purchase Receipt' : 'Purchase Return'}
+                {' - '}
+                {billData?._type === 'SALE' ? `Bill #${billData.sale_id}` : billData?._type === 'SALE_RETURN' ? `#${billData.return_id}` : billData?._type === 'PURCHASE' ? `#${billData.pur_id}` : `#${billData?.id}`}
+              </span>
+              <button onClick={() => setBillModal(false)}
+                style={{ background: 'none', border: 'none', color: 'white', fontSize: 20, cursor: 'pointer', lineHeight: 1, padding: '0 4px' }}>✕</button>
+            </div>
+
+            {/* Body */}
+            <div style={{ overflowY: 'auto', flex: 1, background: 'white' }}>
+              {billLoading ? (
+                <div style={{ padding: 40, textAlign: 'center', color: '#666', fontSize: 15 }}>Loading bill...</div>
+              ) : !billData ? (
+                <div style={{ padding: 40, textAlign: 'center', color: '#999', fontSize: 14 }}>Could not load bill.</div>
+              ) : (() => {
+                const d = billData;
+                const isSale = d._type === 'SALE';
+                const isSaleReturn = d._type === 'SALE_RETURN';
+                const isPurchase = d._type === 'PURCHASE';
+                // Purchase returns stored in purchases table have _subType flag
+                const isPurRetAsPur = d._subType === 'PURCHASE_RETURN_AS_PURCHASE';
+                const isPurReturn = d._type === 'PURCHASE_RETURN' && !isPurRetAsPur;
+
+                // Items list — purchase-returns-as-purchase use purchase_details
+                const items = isSale ? (d.sale_details || [])
+                  : isSaleReturn ? (d.return_details || [])
+                  : (isPurchase || isPurRetAsPur) ? (d.purchase_details || [])
+                  : (d.return_details || []);
+
+                const getItemQty = it => (isSaleReturn || isPurReturn) ? (it.return_quantity ?? it.qnty) : it.qnty;
+                const getItemRate = it => (isPurchase || isPurRetAsPur) ? (it.crate || it.unit_rate || 0) : it.unit_rate;
+                const getItemAmt = it => isPurReturn ? it.return_amount : it.total_amount;
+
+                const cus = d.customer || {};
+                const billDate2 = d.created_at || d.return_date;
+                const billNo = d.sale_id || d.return_id || d.pur_id || d.id;
+
+                // Sale / Sale Return summary values
+                const labour = parseFloat(d.labour_charges || d.labour_amount || 0);
+                const shipping = parseFloat(d.shipping_amount || d.transport_amount || 0);
+                const discount = parseFloat(d.discount || 0);
+                const totalAmt = parseFloat(d.total_amount || d.total_return_amount || 0);
+                const cash = parseFloat(d.cash_payment || 0);
+                const bank = parseFloat(d.bank_payment || 0);
+                const advance = parseFloat(d.advance_payment || 0);
+                const totalPaid = parseFloat(d.payment || 0);
+                const billAmt = totalAmt - labour - shipping + discount;
+                const remaining = totalAmt - totalPaid;
+
+                // Balance panel values (sale/purchase)
+                const prevBal = parseFloat(d.previous_customer_balance ?? cus.cus_balance ?? 0);
+                const currentDue = isSaleReturn
+                  ? totalPaid  // refunded
+                  : remaining;
+                const totalDue = isSaleReturn
+                  ? prevBal - totalPaid
+                  : prevBal + remaining;
+
+                return (
+                  <div id="bill-modal-print-area" style={{ padding: 24 }}>
+
+                    {/* Company Header */}
+                    <div style={{ textAlign: 'center', paddingBottom: 16, borderBottom: '2px solid #000' }}>
+                      <div style={{ fontSize: 22, fontWeight: 700, direction: 'rtl', fontFamily: 'serif', marginBottom: 4 }}>
+                        اتفاق آئرن اینڈ سیمنٹ سٹور
+                      </div>
+                      <div style={{ fontSize: 13, direction: 'rtl', marginBottom: 4 }}>
+                        گجرات سرگودھا روڈ، پاہڑیانوالی
+                      </div>
+                      <div style={{ fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 4 }}>
+                        <span style={{ color: '#25D366' }}>📞</span>
+                        Ph:- 0346-7560306, 0300-7560306
+                      </div>
+                      <div style={{ fontSize: 15, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginTop: 8, color: isSaleReturn ? '#d32f2f' : '#000' }}>
+                        {isSale ? 'SALE INVOICE' : isSaleReturn ? 'SALE RETURN INVOICE' : isPurchase ? 'PURCHASE INVOICE' : 'PURCHASE RETURN'}
+                      </div>
+                    </div>
+
+                    {/* Customer + Invoice Info */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid #ddd', marginBottom: 14, fontSize: 13 }}>
+                      <div style={{ flex: '0 0 50%' }}>
+                        <div style={{ marginBottom: 4 }}>Customer Name: <strong>{cus.cus_name || 'N/A'}</strong></div>
+                        <div style={{ marginBottom: 4 }}>Phone No: <strong>{cus.cus_phone_no || 'N/A'}</strong></div>
+                        <div>Address: <strong>{cus.cus_address || 'N/A'}</strong></div>
+                      </div>
+                      <div style={{ flex: '0 0 50%', textAlign: 'right' }}>
+                        <div style={{ marginBottom: 4 }}>Invoice No: <strong>#{billNo}</strong></div>
+                        <div style={{ marginBottom: 4 }}>Time: <strong>{billDate2 ? new Date(billDate2).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : '-'}</strong></div>
+                        <div style={{ marginBottom: 4 }}>Date: <strong>{billDate2 ? new Date(billDate2).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '-'}</strong></div>
+                        {d.invoice_number && <div style={{ marginBottom: 4 }}>Invoice#: <strong>{d.invoice_number}</strong></div>}
+                        <div>Bill Type: <strong>{isSale ? 'BILL' : isSaleReturn ? 'SALE RETURN' : isPurchase ? 'PURCHASE' : 'PURCHASE RETURN'}</strong></div>
+                      </div>
+                    </div>
+
+                    {/* Items Table */}
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 18 }}>
+                      <thead>
+                        <tr style={{ background: '#9e9e9e' }}>
+                          <th style={{ border: '1px solid #bbb', padding: '6px 8px', color: 'white', textAlign: 'left' }}>S#</th>
+                          <th style={{ border: '1px solid #bbb', padding: '6px 8px', color: 'white', textAlign: 'left' }}>Product Name</th>
+                          <th style={{ border: '1px solid #bbb', padding: '6px 8px', color: 'white', textAlign: 'right' }}>Qty</th>
+                          <th style={{ border: '1px solid #bbb', padding: '6px 8px', color: 'white', textAlign: 'right' }}>Rate</th>
+                          <th style={{ border: '1px solid #bbb', padding: '6px 8px', color: 'white', textAlign: 'right' }}>Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {items.length === 0 ? (
+                          <tr><td colSpan={5} style={{ border: '1px solid #ddd', padding: 14, textAlign: 'center', color: '#999' }}>No items</td></tr>
+                        ) : (
+                          <>
+                            {items.map((it, i) => (
+                              <tr key={i}>
+                                <td style={{ border: '1px solid #ddd', padding: '4px 8px' }}>{i + 1}</td>
+                                <td style={{ border: '1px solid #ddd', padding: '4px 8px' }}>{it.product?.pro_title || 'N/A'}</td>
+                                <td style={{ border: '1px solid #ddd', padding: '4px 8px', textAlign: 'right' }}>{fmtAmtAlways(getItemQty(it))}</td>
+                                <td style={{ border: '1px solid #ddd', padding: '4px 8px', textAlign: 'right' }}>{fmtAmtAlways(getItemRate(it))}</td>
+                                <td style={{ border: '1px solid #ddd', padding: '4px 8px', textAlign: 'right' }}>{fmtAmtAlways(getItemAmt(it))}</td>
+                              </tr>
+                            ))}
+                          </>
+                        )}
+                      </tbody>
+                    </table>
+
+                    {/* Bottom two-column summary */}
+                    <div style={{ display: 'flex', gap: 16 }}>
+
+                      {/* LEFT panel */}
+                      <div style={{ flex: '0 0 48%' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, border: '1px solid #000' }}>
+                          <tbody>
+                            {isSaleReturn ? (
+                              <>
+                                <tr>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: 'rtl' }}>منسوخ کردہ رقم</td>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right' }}>{fmtAmtAlways(totalAmt)}</td>
+                                </tr>
+                                <tr>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: 'rtl' }}>رعایت</td>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right' }}>-{fmtAmtAlways(discount)}</td>
+                                </tr>
+                                <tr>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: 'rtl' }}>مزدوری</td>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right' }}>{fmtAmtAlways(labour)}</td>
+                                </tr>
+                                <tr>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: 'rtl' }}>کرایہ</td>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right' }}>{fmtAmtAlways(shipping)}</td>
+                                </tr>
+                                <tr style={{ background: '#e8f5e9' }}>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: 'rtl' }}>کل منسوخی</td>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right', fontWeight: 700, color: '#2e7d32' }}>
+                                    {fmtAmtAlways(totalAmt - discount + labour + shipping)}
+                                  </td>
+                                </tr>
+                                <tr style={{ background: '#ffe0b2' }}>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: 'rtl' }}>کل واپسی</td>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right', fontWeight: 700, color: '#e65100' }}>{fmtAmtAlways(totalPaid)}</td>
+                                </tr>
+                                <tr>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: 'rtl' }}>سابقہ بقایا</td>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right' }}>{fmtAmtAlways(prevBal)}</td>
+                                </tr>
+                                <tr style={{ background: '#f5f5f5' }}>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: 'rtl' }}>موجودہ بقایا</td>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right', fontWeight: 700 }}>{fmtAmtAlways(prevBal - totalPaid)}</td>
+                                </tr>
+                              </>
+                            ) : (
+                              <>
+                                <tr>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: 'rtl' }}>سابقہ بقایا</td>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right' }}>{fmtAmtAlways(prevBal)}</td>
+                                </tr>
+                                <tr>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: 'rtl' }}>موجوده بقايا</td>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right' }}>{fmtAmtAlways(remaining)}</td>
+                                </tr>
+                                <tr style={{ background: '#f5f5f5' }}>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: 'rtl' }}>كل بقايا</td>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right', fontWeight: 700 }}>{fmtAmtAlways(prevBal + remaining)}</td>
+                                </tr>
+                              </>
+                            )}
+                          </tbody>
+                        </table>
+                        {/* Notes below left panel */}
+                        {(d.notes || d.reference || d.reason || d.return_reason) && (
+                          <div style={{ marginTop: 8, fontSize: 13 }}>
+                            <strong>تبصرے:</strong> {d.notes || d.reference || d.reason || d.return_reason}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* RIGHT panel */}
+                      <div style={{ flex: '0 0 48%' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, border: '1px solid #000' }}>
+                          <tbody>
+                            {isSaleReturn ? (
+                              <>
+                                <tr>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: 'rtl' }}>رقم بل</td>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right' }}>{fmtAmtAlways(billAmt)}</td>
+                                </tr>
+                                {labour > 0 && <tr><td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: 'rtl' }}>مزدوری</td><td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right' }}>{fmtAmtAlways(labour)}</td></tr>}
+                                {shipping > 0 && <tr><td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: 'rtl' }}>کرایہ</td><td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right' }}>{fmtAmtAlways(shipping)}</td></tr>}
+                                {discount > 0 && <tr><td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: 'rtl' }}>رعایت</td><td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right' }}>-{fmtAmtAlways(discount)}</td></tr>}
+                                <tr style={{ background: '#f5f5f5' }}>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: 'rtl' }}>کل واپسی رقم</td>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right', fontWeight: 700 }}>{fmtAmtAlways(totalAmt)}</td>
+                                </tr>
+                                <tr>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: 'rtl' }}>نقد</td>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right' }}>{fmtAmtAlways(cash)}</td>
+                                </tr>
+                                {bank > 0 && <tr><td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: 'rtl' }}>{d.bank_title || 'بینک ادائیگی'}</td><td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right' }}>{fmtAmtAlways(bank)}</td></tr>}
+                                <tr style={{ background: '#e8f5e9' }}>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: 'rtl' }}>کل وصول شدہ</td>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right', fontWeight: 700, color: '#2e7d32' }}>{fmtAmtAlways(totalPaid)}</td>
+                                </tr>
+                                <tr style={{ background: remaining > 0 ? '#ffe0b2' : '#e8f5e9' }}>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: 'rtl' }}>باقی واجب الادا</td>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right', fontWeight: 700, color: remaining > 0 ? '#e65100' : '#2e7d32' }}>{fmtAmtAlways(remaining)}</td>
+                                </tr>
+                              </>
+                            ) : (
+                              <>
+                                <tr>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: isSale ? 'rtl' : 'ltr' }}>{isSale ? 'رقم بل' : 'Bill Amount'}</td>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right' }}>{fmtAmtAlways(isSale ? billAmt : totalAmt)}</td>
+                                </tr>
+                                <tr>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: isSale ? 'rtl' : 'ltr' }}>{isSale ? 'مزدوری' : 'Labour'}</td>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right' }}>{fmtAmtAlways(isSale ? labour : (d.labour_amount || 0))}</td>
+                                </tr>
+                                <tr>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: isSale ? 'rtl' : 'ltr' }}>{isSale ? 'کرایہ' : 'Transport'}</td>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right' }}>{fmtAmtAlways(isSale ? shipping : (d.transport_amount || 0))}</td>
+                                </tr>
+                                <tr>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: isSale ? 'rtl' : 'ltr' }}>{isSale ? 'رعایت' : 'Discount'}</td>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right' }}>{fmtAmtAlways(discount)}</td>
+                                </tr>
+                                <tr style={{ background: '#f5f5f5' }}>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: isSale ? 'rtl' : 'ltr' }}>{isSale ? 'كل رقم' : 'Total Amount'}</td>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right', fontWeight: 700 }}>{fmtAmtAlways(totalAmt)}</td>
+                                </tr>
+                                <tr>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: isSale ? 'rtl' : 'ltr' }}>{isSale ? 'نقد كيش' : 'Cash'}</td>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right' }}>{fmtAmtAlways(cash)}</td>
+                                </tr>
+                                {bank > 0 && (
+                                  <tr>
+                                    <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: isSale ? 'rtl' : 'ltr' }}>{d.bank_title || (isSale ? 'بینک' : 'Bank Payment')}</td>
+                                    <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right' }}>{fmtAmtAlways(bank)}</td>
+                                  </tr>
+                                )}
+                                {advance > 0 && isSale && (
+                                  <tr>
+                                    <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: 'rtl' }}>پیشگی ادائیگی</td>
+                                    <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right' }}>{fmtAmtAlways(advance)}</td>
+                                  </tr>
+                                )}
+                                <tr style={{ background: '#f5f5f5' }}>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: isSale ? 'rtl' : 'ltr' }}>{isSale ? 'كل رقم وصول' : 'Total Received'}</td>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right', fontWeight: 700 }}>{fmtAmtAlways(totalPaid)}</td>
+                                </tr>
+                                <tr style={{ background: '#d0d0d0' }}>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: isSale ? 'rtl' : 'ltr' }}>{isSale ? 'بقايا رقم' : 'Remaining Due'}</td>
+                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right', fontWeight: 700 }}>{fmtAmtAlways(remaining)}</td>
+                                </tr>
+                              </>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Footer buttons */}
+            <div style={{ padding: '10px 16px', borderTop: '1px solid #ddd', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button onClick={() => setBillModal(false)}
+                style={{ background: '#fff', border: '1px solid #bbb', padding: '6px 20px', cursor: 'pointer', borderRadius: 4, fontSize: 13 }}>
+                Close
+              </button>
+              <button onClick={handlePrintBill}
+                style={{ background: '#1976d2', border: 'none', color: 'white', padding: '6px 20px', cursor: 'pointer', borderRadius: 4, fontSize: 13 }}>
+                🖨 Print A4
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

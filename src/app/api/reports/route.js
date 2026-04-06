@@ -70,7 +70,8 @@ export async function GET(request) {
         return await getDetailedCustomerBalanceReport();
 
       case 'item-sale-report':
-        return await getItemSaleReport(startDate, endDate);
+        const proId = searchParams.get('proId') ? parseInt(searchParams.get('proId')) : null;
+        return await getItemSaleReport(startDate, endDate, proId);
 
       default:
         return NextResponse.json({ error: 'Invalid report type' }, { status: 400 });
@@ -1271,48 +1272,232 @@ async function getRebateReport(supplierId, startDate, endDate) {
   return NextResponse.json({ supplier, products, summary });
 }
 
-// Item Sale Report — flat list of sale_details with product, customer, sale info
-async function getItemSaleReport(startDate, endDate) {
-  const whereClause = {};
-  if (startDate && endDate) {
-    whereClause.sale = {
-      created_at: {
-        gte: new Date(startDate),
-        lte: new Date(endDate + 'T23:59:59.999Z')
-      }
-    };
-  }
-
-  const details = await prisma.saleDetail.findMany({
-    where: whereClause,
-    include: {
-      sale: {
-        include: {
-          customer: {
-            include: { customer_category: true }
-          }
-        }
-      },
-      product: {
-        include: {
-          category: true,
-          sub_category: true
-        }
-      },
-      store: true
-    },
-    orderBy: {
-      sale: { created_at: 'desc' }
-    }
+// Item Sale Report — product accounts style with running balance
+async function getItemSaleReport(startDate, endDate, proId) {
+  const products = await prisma.product.findMany({
+    select: { pro_id: true, pro_title: true, pro_stock_qnty: true },
+    orderBy: { pro_title: 'asc' }
   });
 
-  const summary = {
-    totalItems: details.length,
-    totalQty: details.reduce((sum, d) => sum + parseFloat(d.qnty || 0), 0),
-    totalAmount: details.reduce((sum, d) => sum + parseFloat(d.total_amount || 0), 0),
-    totalDiscount: details.reduce((sum, d) => sum + parseFloat(d.discount || 0), 0),
-    netTotal: details.reduce((sum, d) => sum + parseFloat(d.net_total || 0), 0),
-  };
+  if (!proId) {
+    return NextResponse.json({ products, details: [] });
+  }
 
-  return NextResponse.json({ details, summary });
+  const product = await prisma.product.findUnique({
+    where: { pro_id: proId },
+    select: { pro_id: true, pro_title: true, pro_stock_qnty: true }
+  });
+
+  const dateFilter = startDate && endDate ? {
+    gte: new Date(startDate),
+    lte: new Date(endDate + 'T23:59:59.999Z')
+  } : undefined;
+
+  // Identify purchase IDs that are actually "purchase returns stored in purchases table"
+  // (no schema flag — identified via ledger entry details containing 'Purchase Return to')
+  const returnLedgerEntries = await prisma.ledger.findMany({
+    where: { details: { contains: 'Purchase Return to' } },
+    select: { bill_no: true },
+    distinct: ['bill_no']
+  });
+  const returnPurIds = new Set(returnLedgerEntries.map(e => parseInt(e.bill_no)).filter(n => !isNaN(n)));
+
+  // Fetch all 4 transaction types in parallel
+  // bill_type enum values: BILL (confirmed sale), ORDER (order/sale)
+  const [allPurchaseDetails, purchaseReturns, sales, saleReturns] = await Promise.all([
+    // All purchase details for this product in date range
+    prisma.purchaseDetail.findMany({
+      where: {
+        pro_id: proId,
+        ...(dateFilter ? { purchase: { created_at: dateFilter } } : {})
+      },
+      include: { purchase: { include: { customer: true } } }
+    }),
+    // Purchase Returns from purchase_returns table
+    prisma.purchaseReturnDetail.findMany({
+      where: {
+        pro_id: proId,
+        ...(dateFilter ? { purchase_return: { return_date: dateFilter } } : {})
+      },
+      include: { purchase_return: { include: { purchase: { include: { customer: true } } } } }
+    }),
+    // Sales (BILL and ORDER both reduce stock)
+    prisma.saleDetail.findMany({
+      where: {
+        pro_id: proId,
+        sale: {
+          bill_type: { in: ['BILL', 'ORDER'] },
+          ...(dateFilter ? { created_at: dateFilter } : {})
+        }
+      },
+      include: { sale: { include: { customer: true } } }
+    }),
+    // Sale Returns — stored in SaleReturnDetail, not SaleDetail
+    prisma.saleReturnDetail.findMany({
+      where: {
+        pro_id: proId,
+        ...(dateFilter ? { sale_return: { created_at: dateFilter } } : {})
+      },
+      include: { sale_return: { include: { customer: true } } }
+    }),
+  ]);
+
+  // Split purchase details into regular purchases vs returns-stored-as-purchases
+  const purchases = allPurchaseDetails.filter(d => !returnPurIds.has(d.pur_id));
+  const purchaseReturnsFromPurTable = allPurchaseDetails.filter(d => returnPurIds.has(d.pur_id));
+
+  // Build unified rows
+  const rows = [];
+
+  purchases.forEach(d => {
+    rows.push({
+      date: d.purchase?.created_at,
+      type: 'PURCHASE',
+      refId: d.pur_id,
+      accountTitle: d.purchase?.customer?.cus_name || '',
+      billNo: d.purchase?.invoice_number ? `INV-${d.purchase.invoice_number}` : `PUR-${d.pur_id}`,
+      purchaseQty: parseFloat(d.qnty || 0),
+      purchaseReturnQty: 0,
+      saleQty: 0,
+      saleReturnQty: 0,
+      amount: parseFloat(d.net_total || 0),
+    });
+  });
+
+  // Purchase returns from purchase_returns table (PR-xxx)
+  purchaseReturns.forEach(d => {
+    rows.push({
+      date: d.purchase_return?.return_date,
+      type: 'PURCHASE_RETURN',
+      refId: d.purchase_return?.id,
+      accountTitle: d.purchase_return?.purchase?.customer?.cus_name || '',
+      billNo: `PR-${d.purchase_return?.id}`,
+      purchaseQty: 0,
+      purchaseReturnQty: parseFloat(d.return_quantity || 0),
+      saleQty: 0,
+      saleReturnQty: 0,
+      amount: parseFloat(d.return_amount || 0),
+    });
+  });
+
+  // Purchase returns stored in purchases table (identified via ledger)
+  purchaseReturnsFromPurTable.forEach(d => {
+    rows.push({
+      date: d.purchase?.created_at,
+      type: 'PURCHASE_RETURN',
+      subType: 'PURCHASE_RETURN_AS_PURCHASE', // stored in purchases table, not purchase_returns
+      refId: d.pur_id,
+      accountTitle: d.purchase?.customer?.cus_name || '',
+      billNo: `PUR-${d.pur_id}`,
+      purchaseQty: 0,
+      purchaseReturnQty: parseFloat(d.qnty || 0),
+      saleQty: 0,
+      saleReturnQty: 0,
+      amount: parseFloat(d.net_total || 0),
+    });
+  });
+
+  sales.forEach(d => {
+    rows.push({
+      date: d.sale?.created_at,
+      type: 'SALE',
+      refId: d.sale?.sale_id,
+      accountTitle: d.sale?.customer?.cus_name || '',
+      billNo: `Bill-${d.sale?.sale_id}`,
+      purchaseQty: 0,
+      purchaseReturnQty: 0,
+      saleQty: parseFloat(d.qnty || 0),
+      saleReturnQty: 0,
+      amount: parseFloat(d.net_total || 0),
+    });
+  });
+
+  // SaleReturnDetail uses sale_return relation
+  saleReturns.forEach(d => {
+    rows.push({
+      date: d.sale_return?.created_at,
+      type: 'SALE_RETURN',
+      refId: d.sale_return?.return_id,
+      accountTitle: d.sale_return?.customer?.cus_name || '',
+      billNo: `SR-${d.sale_return?.return_id}`,
+      purchaseQty: 0,
+      purchaseReturnQty: 0,
+      saleQty: 0,
+      saleReturnQty: parseFloat(d.qnty || 0),
+      amount: parseFloat(d.net_total || 0),
+    });
+  });
+
+  // Sort by date ascending
+  rows.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  // Calculate CORRECT opening stock before this period.
+  // Strategy: sum ALL transactions that occurred BEFORE startDate.
+  // This avoids relying on pro_stock_qnty which may be inconsistent.
+  // openingStock = (all purchases < startDate) - (all purReturns < startDate)
+  //              - (all sales < startDate) + (all saleReturns < startDate)
+  const currentStock = parseFloat(product?.pro_stock_qnty || 0);
+  let openingStock = 0;
+
+  if (startDate) {
+    const beforeStart = new Date(startDate);
+    const [aggAllPur, aggPurRet, aggSale, aggSaleRet, returnLedgerBefore] = await Promise.all([
+      prisma.purchaseDetail.aggregate({
+        where: { pro_id: proId, purchase: { created_at: { lt: beforeStart } } },
+        _sum: { qnty: true }
+      }),
+      prisma.purchaseReturnDetail.aggregate({
+        where: { pro_id: proId, purchase_return: { return_date: { lt: beforeStart } } },
+        _sum: { return_quantity: true }
+      }),
+      prisma.saleDetail.aggregate({
+        where: { pro_id: proId, sale: { bill_type: { in: ['BILL', 'ORDER'] }, created_at: { lt: beforeStart } } },
+        _sum: { qnty: true }
+      }),
+      prisma.saleReturnDetail.aggregate({
+        where: { pro_id: proId, sale_return: { created_at: { lt: beforeStart } } },
+        _sum: { qnty: true }
+      }),
+      // Purchase returns stored in purchases table before startDate
+      prisma.purchaseDetail.aggregate({
+        where: { pro_id: proId, pur_id: { in: [...returnPurIds] }, purchase: { created_at: { lt: beforeStart } } },
+        _sum: { qnty: true }
+      }),
+    ]);
+    const purRetFromPurTable = parseFloat(returnLedgerBefore._sum.qnty || 0);
+    const realPurchases = parseFloat(aggAllPur._sum.qnty || 0) - purRetFromPurTable;
+    openingStock = realPurchases
+      - parseFloat(aggPurRet._sum.return_quantity || 0)
+      - purRetFromPurTable
+      - parseFloat(aggSale._sum.qnty || 0)
+      + parseFloat(aggSaleRet._sum.qnty || 0);
+  }
+
+  let totalPurchases = 0, totalPurchaseReturns = 0, totalSales = 0, totalSaleReturns = 0;
+  rows.forEach(r => {
+    totalPurchases += r.purchaseQty;
+    totalPurchaseReturns += r.purchaseReturnQty;
+    totalSales += r.saleQty;
+    totalSaleReturns += r.saleReturnQty;
+  });
+
+  // Attach preStock and updatedStock to each row
+  let running = openingStock;
+  const finalRows = rows.map(r => {
+    const preStock = running;
+    running = running + r.purchaseQty - r.purchaseReturnQty - r.saleQty + r.saleReturnQty;
+    return { ...r, preStock, updatedStock: running };
+  });
+
+  return NextResponse.json({
+    products,
+    details: finalRows,
+    openingStock,
+    currentStock,
+    product,
+    totalPurchases,
+    totalPurchaseReturns,
+    totalSales,
+    totalSaleReturns,
+  });
 }
