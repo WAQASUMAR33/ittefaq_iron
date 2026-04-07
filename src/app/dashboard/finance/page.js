@@ -23,6 +23,8 @@ import {
   Printer as Print
 } from 'lucide-react';
 import DashboardLayout from '../components/dashboard-layout';
+import { useFingerprint } from '../../hooks/useFingerprint';
+import FingerprintDialog from '../components/FingerprintDialog';
 
 // Material-UI imports
 import {
@@ -87,6 +89,9 @@ const getInvoiceRemainingDue = (bill) => {
 };
 
 export default function FinancePage() {
+  // Fingerprint auth
+  const { requireFingerprint, fpDialogOpen, fpDialogMode, fpErrorMsg, fpLoading, handleFpSetup, handleFpCancel } = useFingerprint();
+
   // State management
   const [ledgerEntries, setLedgerEntries] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -767,7 +772,9 @@ export default function FinancePage() {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    e?.preventDefault();
+    const authOk = await requireFingerprint();
+    if (!authOk) return;
     try {
       // Validation
       if (!formData.cus_id) {
@@ -3288,6 +3295,15 @@ export default function FinancePage() {
         </DialogActions>
       </Dialog>
 
+      {/* Fingerprint Authentication Dialog */}
+      <FingerprintDialog
+        open={fpDialogOpen}
+        mode={fpDialogMode}
+        errorMsg={fpErrorMsg}
+        loading={fpLoading}
+        onSetup={handleFpSetup}
+        onClose={handleFpCancel}
+      />
     </DashboardLayout>
   );
 }

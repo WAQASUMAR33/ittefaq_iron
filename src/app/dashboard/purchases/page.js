@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, Suspense, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '../components/dashboard-layout';
+import { useFingerprint } from '../../hooks/useFingerprint';
+import FingerprintDialog from '../components/FingerprintDialog';
 
 // Material-UI imports
 import {
@@ -88,6 +90,9 @@ import {
 } from '@mui/icons-material';
 
 function PurchasesPageContent() {
+  // Fingerprint auth
+  const { requireFingerprint, fpDialogOpen, fpDialogMode, fpErrorMsg, fpLoading, handleFpSetup, handleFpCancel } = useFingerprint();
+
   // State management
   const [purchases, setPurchases] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -1416,6 +1421,8 @@ function PurchasesPageContent() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const authOk = await requireFingerprint();
+    if (!authOk) { setIsSubmitting(false); return; }
     setIsSubmitting(true);
     try {
       // Validation
@@ -6439,6 +6446,16 @@ function PurchasesPageContent() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Fingerprint Authentication Dialog */}
+      <FingerprintDialog
+        open={fpDialogOpen}
+        mode={fpDialogMode}
+        errorMsg={fpErrorMsg}
+        loading={fpLoading}
+        onSetup={handleFpSetup}
+        onClose={handleFpCancel}
+      />
     </>
   );
 }

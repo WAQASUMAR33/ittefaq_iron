@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import DashboardLayout from '../components/dashboard-layout';
+import { useFingerprint } from '../../hooks/useFingerprint';
+import FingerprintDialog from '../components/FingerprintDialog';
 
 // Material-UI imports
 import {
@@ -138,6 +140,9 @@ const STYLES = {
 export default function PurchaseReturnsPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+  // Fingerprint auth
+  const { requireFingerprint, fpDialogOpen, fpDialogMode, fpErrorMsg, fpLoading, handleFpSetup, handleFpCancel } = useFingerprint();
 
   // State management
   const [currentView, setCurrentView] = useState('list'); // 'list', 'create', 'edit'
@@ -405,6 +410,8 @@ export default function PurchaseReturnsPage() {
 
   // Handle submit
   const handleSubmit = async () => {
+    const authOk = await requireFingerprint();
+    if (!authOk) return;
     // Validation
     if (!formData.purchase_id) {
       showSnackbar('Please select a purchase', 'error');
@@ -1240,6 +1247,16 @@ export default function PurchaseReturnsPage() {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      {/* Fingerprint Authentication Dialog */}
+      <FingerprintDialog
+        open={fpDialogOpen}
+        mode={fpDialogMode}
+        errorMsg={fpErrorMsg}
+        loading={fpLoading}
+        onSetup={handleFpSetup}
+        onClose={handleFpCancel}
+      />
     </DashboardLayout>
   );
 }

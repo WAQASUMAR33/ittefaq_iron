@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import DashboardLayout from '../components/dashboard-layout';
+import { useFingerprint } from '../../hooks/useFingerprint';
+import FingerprintDialog from '../components/FingerprintDialog';
 
 // Material-UI imports
 import {
@@ -135,6 +137,9 @@ const STYLES = {
 export default function SaleReturnsPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+  // Fingerprint auth
+  const { requireFingerprint, fpDialogOpen, fpDialogMode, fpErrorMsg, fpLoading, handleFpSetup, handleFpCancel } = useFingerprint();
 
   // State management
   const [currentView, setCurrentView] = useState('list'); // 'list', 'create', 'edit'
@@ -522,6 +527,8 @@ export default function SaleReturnsPage() {
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const authOk = await requireFingerprint();
+    if (!authOk) return;
 
     if (!formData.cus_id) {
       showSnackbar('Please select a customer', 'error');
@@ -1749,6 +1756,16 @@ export default function SaleReturnsPage() {
           </DialogActions>
         </form>
       </Dialog>
+
+      {/* Fingerprint Authentication Dialog */}
+      <FingerprintDialog
+        open={fpDialogOpen}
+        mode={fpDialogMode}
+        errorMsg={fpErrorMsg}
+        loading={fpLoading}
+        onSetup={handleFpSetup}
+        onClose={handleFpCancel}
+      />
     </>
   );
 }

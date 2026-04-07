@@ -3,6 +3,8 @@
 import { useState, useEffect, useMemo, Suspense, useRef, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '../components/dashboard-layout';
+import { useFingerprint } from '../../hooks/useFingerprint';
+import FingerprintDialog from '../components/FingerprintDialog';
 
 // Material-UI imports
 import {
@@ -74,6 +76,9 @@ import {
 
 function SalesPageContent() {
   const searchParams = useSearchParams();
+
+  // Fingerprint auth
+  const { requireFingerprint, fpDialogOpen, fpDialogMode, fpErrorMsg, fpLoading, handleFpSetup, handleFpCancel } = useFingerprint();
 
   // State management
   const [sales, setSales] = useState([]);
@@ -1148,6 +1153,8 @@ function SalesPageContent() {
 
   // Save bill to database
   const handleSaveBill = async () => {
+    const authOk = await requireFingerprint();
+    if (!authOk) return;
     try {
       // If bill type is SALE_RETURN, process it as a return
       if (billType === 'SALE_RETURN') {
@@ -2610,6 +2617,8 @@ function SalesPageContent() {
 
   // Handle return submission
   const handleSubmitReturn = async () => {
+    const authOk = await requireFingerprint();
+    if (!authOk) return;
     try {
       // Validation
       if (!returnFormData.sale_id) {
@@ -8712,6 +8721,16 @@ function SalesPageContent() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Fingerprint Authentication Dialog */}
+      <FingerprintDialog
+        open={fpDialogOpen}
+        mode={fpDialogMode}
+        errorMsg={fpErrorMsg}
+        loading={fpLoading}
+        onSetup={handleFpSetup}
+        onClose={handleFpCancel}
+      />
     </>
   );
 }
