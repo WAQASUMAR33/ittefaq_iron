@@ -186,6 +186,9 @@ function OrdersPageContent() {
   // Bank accounts state
   const [bankAccounts, setBankAccounts] = useState([]);
 
+  // Cash account state (system cash account, not customer)
+  const [cashAccount, setCashAccount] = useState(null);
+
   // Payment and calculation state
   const [paymentData, setPaymentData] = useState({
     cash: '',
@@ -604,6 +607,17 @@ function OrdersPageContent() {
       fetchBankAccounts(customers);
     }
   }, [customers, customerCategories, customerTypes]);
+
+  // Extract cash account when customers + categories are ready
+  useEffect(() => {
+    if (customers.length > 0 && customerCategories.length > 0) {
+      const cashCat = customerCategories.find(c => c.cus_cat_title?.toLowerCase().includes('cash'));
+      if (cashCat) {
+        const found = customers.find(c => c.cus_category === cashCat.cus_cat_id);
+        setCashAccount(found || null);
+      }
+    }
+  }, [customers, customerCategories]);
 
   // Auto-save when customer changes
   useEffect(() => {
@@ -2392,17 +2406,30 @@ function OrdersPageContent() {
                     <Autocomplete
                       size="small"
                       options={customers.filter(customer => {
-                        // Filter for customers with category "Customer"
                         const category = customerCategories.find(c => c.cus_cat_id === customer.cus_category);
                         return category && category.cus_cat_title.toLowerCase().includes('customer');
                       })}
-                      getOptionLabel={(option) => {
-                        console.log('🔍 getOptionLabel called with:', option);
-                        return option.cus_name || '';
+                      getOptionLabel={(option) => option.cus_name || ''}
+                      filterOptions={(options, { inputValue }) => {
+                        const q = inputValue.toLowerCase();
+                        return options.filter(o =>
+                          (o.cus_name || '').toLowerCase().includes(q) ||
+                          (o.cus_phone_no || '').toLowerCase().includes(q) ||
+                          (o.cus_phone_no2 || '').toLowerCase().includes(q)
+                        );
                       }}
+                      renderOption={(props, option) => (
+                        <li {...props} key={option.cus_id}>
+                          <Box>
+                            <Typography variant="body2" sx={{ fontWeight: 'medium' }}>{option.cus_name}</Typography>
+                            {option.cus_phone_no && (
+                              <Typography variant="caption" color="text.secondary">{option.cus_phone_no}{option.cus_phone_no2 ? ` / ${option.cus_phone_no2}` : ''}</Typography>
+                            )}
+                          </Box>
+                        </li>
+                      )}
                       value={formSelectedCustomer}
                       onChange={(event, newValue) => {
-                        console.log('🔍 Customer selected:', newValue);
                         setFormSelectedCustomer(newValue);
                       }}
                       isOptionEqualToValue={(option, value) => option.cus_id === value?.cus_id}
@@ -2413,29 +2440,21 @@ function OrdersPageContent() {
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && formSelectedCustomer) {
                           e.preventDefault();
-                          // Move focus to Product field
                           const productInputs = document.querySelectorAll('input[placeholder*="Select product"]');
                           if (productInputs.length > 0) {
                             productInputs[0]?.focus();
                           }
                         }
                       }}
-                      renderInput={(params) => {
-                        console.log('🔍 renderInput called, customers length:', customers.length);
-                        return (
-                          <TextField
-                            {...params}
-                            placeholder="Select customer"
-                            onFocus={(e) => e.target.select()}
-                            sx={{ bgcolor: 'white', minWidth: 250, '& .MuiInputBase-input': { fontWeight: formSelectedCustomer ? 'bold' : 'normal' } }}
-                          />
-                        );
-                      }}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          placeholder="Search by name or phone..."
+                          onFocus={(e) => e.target.select()}
+                          sx={{ bgcolor: 'white', minWidth: 250, '& .MuiInputBase-input': { fontWeight: formSelectedCustomer ? 'bold' : 'normal' } }}
+                        />
+                      )}
                     />
-                    {/* Debug info */}
-                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                      Debug: {customers.length} total customers, {customers.filter(c => c.customer_category?.cus_cat_title?.toLowerCase().includes('customer')).length} customers (filtered)
-                    </Typography>
                   </Box>
                 </Grid>
                 <Grid item xs={12} md={2}>
@@ -2853,9 +2872,16 @@ function OrdersPageContent() {
                   <Grid container spacing={1} sx={{ mb: 2 }}>
                     <Grid item xs={3}>
                       <Box>
-                        <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
-                          CASH
-                        </Typography>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 'medium', color: 'text.secondary' }}>
+                            CASH
+                          </Typography>
+                          {cashAccount && (
+                            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
+                              {fmtAmt(cashAccount.cus_balance || 0)}
+                            </Typography>
+                          )}
+                        </Box>
                         <TextField
                           fullWidth
                           size="small"
@@ -2913,9 +2939,16 @@ function OrdersPageContent() {
                     </Grid>
                     <Grid item xs={3}>
                       <Box>
-                        <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
-                          BANK ACCOUNT
-                        </Typography>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 'medium', color: 'text.secondary' }}>
+                            BANK ACCOUNT
+                          </Typography>
+                          {paymentData.bankAccountId && bankAccounts.find(acc => acc.cus_id === paymentData.bankAccountId) && (
+                            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
+                              {fmtAmt(bankAccounts.find(acc => acc.cus_id === paymentData.bankAccountId)?.cus_balance || 0)}
+                            </Typography>
+                          )}
+                        </Box>
                         <Autocomplete
                           size="small"
                           options={bankAccounts}
@@ -3060,36 +3093,6 @@ function OrdersPageContent() {
                     />
                   </Box>
 
-                  {/* BALANCE */}
-                  <Box sx={{
-                    mt: 2,
-                    p: 2,
-                    bgcolor: 'primary.light',
-                    borderRadius: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1
-                  }}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main', minWidth: '140px' }}>
-                      BALANCE
-                    </Typography>
-                    <TextField
-                      size="small"
-                      type="number"
-                      value={calculateBalance().toFixed(2)}
-                      sx={{
-                        bgcolor: 'white',
-                        '& .MuiInputBase-input': {
-                          fontWeight: 'bold',
-                          fontSize: '1.1rem',
-                          color: 'primary.main',
-                          padding: '8px'
-                        },
-                        flex: 1
-                      }}
-                      disabled
-                    />
-                  </Box>
                 </Box>
               </Box>
 
@@ -3650,16 +3653,21 @@ function OrdersPageContent() {
                                 {fmtAmt(currentBillData.customer?.cus_balance)}
                               </TableCell>
                             </TableRow>
-                            <TableRow>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</TableCell>
-                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                {fmtAmt(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0))}
-                              </TableCell>
-                            </TableRow>
+                            {currentBillData.bill_type !== 'ORDER' && (
+                              <TableRow>
+                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</TableCell>
+                                <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                  {fmtAmt(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0))}
+                                </TableCell>
+                              </TableRow>
+                            )}
                             <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                {fmtAmt(parseFloat(currentBillData.customer?.cus_balance || 0) + parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0))}
+                                {currentBillData.bill_type === 'ORDER'
+                                  ? fmtAmt(currentBillData.customer?.cus_balance || 0)
+                                  : fmtAmt(parseFloat(currentBillData.customer?.cus_balance || 0) + parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0))
+                                }
                               </TableCell>
                             </TableRow>
                           </TableBody>

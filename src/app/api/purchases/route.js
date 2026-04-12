@@ -632,11 +632,13 @@ export async function POST(request) {
       }
 
       // --- CARGO LEDGER POSTINGS ---
-      // Debit the selected cargo account(s) for out labour + out delivery charges.
-      // No double entry — only add the total cargo amount to the cargo account (no supplier credit).
-      const totalCargoAmt = safeParseFloat(out_labour_amount || 0) + safeParseFloat(out_delivery_amount || 0);
+      // Cargo account: Debit out_delivery_amount only (not labour).
+      // Supplier account: Credit out_delivery_amount (deduct cargo from supplier balance).
+      // Labour account: Debit out_labour_amount only.
+      const outDeliveryAmt = safeParseFloat(out_delivery_amount || 0);
+      const outLabourAmt = safeParseFloat(out_labour_amount || 0);
 
-      if (totalCargoAmt > 0) {
+      if (outDeliveryAmt > 0) {
         let cargoIds = [];
         try {
           if (cargo_account_ids) {
@@ -651,8 +653,8 @@ export async function POST(request) {
         if (cargoIds.length === 0 && cargo_account_id) cargoIds = [cargo_account_id];
 
         if (cargoIds.length > 0) {
-          const perAccount = parseFloat((totalCargoAmt / cargoIds.length).toFixed(2));
-          let remainder = parseFloat((totalCargoAmt - (perAccount * cargoIds.length)).toFixed(2));
+          const perAccount = parseFloat((outDeliveryAmt / cargoIds.length).toFixed(2));
+          let remainder = parseFloat((outDeliveryAmt - (perAccount * cargoIds.length)).toFixed(2));
 
           for (let i = 0; i < cargoIds.length; i++) {
             const aid = parseInt(cargoIds[i]);
@@ -665,6 +667,7 @@ export async function POST(request) {
             let allocate = perAccount;
             if (i === 0) allocate = parseFloat((perAccount + remainder).toFixed(2));
 
+            // Debit cargo account for out delivery amount only
             const cargoEntry = createLedgerEntry({
               cus_id: cargoAcc.cus_id,
               opening_balance: parseFloat(cargoAcc.cus_balance || 0),
@@ -676,12 +679,68 @@ export async function POST(request) {
               payments: 0,
               updated_by: updated_by ? parseInt(updated_by) : null
             });
-
             ledgerEntries.push(cargoEntry);
             console.log(`📦 Cargo entry: ${cargoAcc.cus_name} debited ${allocate}`);
+
+            // Credit the supplier for the cargo amount (deduct cargo from supplier balance)
+            if (cus_id) {
+              const supplierForCargo = await tx.customer.findUnique({ where: { cus_id }, select: { cus_name: true } });
+              const supplierCreditForCargo = createLedgerEntry({
+                cus_id: cus_id,
+                opening_balance: runningSupplierBalance,
+                debit_amount: 0,
+                credit_amount: allocate,
+                bill_no: newPurchase.pur_id.toString(),
+                trnx_type: 'PURCHASE',
+                details: `Cargo Charges deducted from ${supplierForCargo?.cus_name || 'Supplier'} via ${cargoAcc.cus_name} - Purchase #${newPurchase.pur_id}${invoice_number ? ` (Inv: ${invoice_number})` : ''}`,
+                payments: 0,
+                updated_by: updated_by ? parseInt(updated_by) : null
+              });
+              ledgerEntries.push(supplierCreditForCargo);
+              runningSupplierBalance = supplierCreditForCargo.closing_balance;
+              console.log(`📦 Supplier credit for cargo: ${supplierForCargo?.cus_name} credited ${allocate}`);
+            }
           }
         } else {
-          console.log('⚠️ Cargo amount present but no cargo account selected — skipping cargo ledger postings');
+          console.log('⚠️ Cargo delivery amount present but no cargo account selected — skipping cargo ledger postings');
+        }
+      }
+
+      // Labour account: Debit out_labour_amount only
+      if (outLabourAmt > 0) {
+        const labourAccount = await tx.customer.findFirst({
+          where: {
+            OR: [
+              { cus_name: { contains: 'Labour' } },
+              { cus_name: { contains: 'labour' } },
+              { customer_category: { cus_cat_title: { contains: 'Labour' } } },
+              { customer_type: { cus_type_title: { contains: 'Labour' } } }
+            ]
+          },
+          select: { cus_id: true, cus_balance: true, cus_name: true }
+        });
+
+        if (labourAccount) {
+          const priorLabourEntries = ledgerEntries.filter(e => e.cus_id === labourAccount.cus_id);
+          const labourOpeningBalance = priorLabourEntries.length > 0
+            ? priorLabourEntries[priorLabourEntries.length - 1].closing_balance
+            : parseFloat(labourAccount.cus_balance || 0);
+
+          const labourEntry = createLedgerEntry({
+            cus_id: labourAccount.cus_id,
+            opening_balance: labourOpeningBalance,
+            debit_amount: outLabourAmt,
+            credit_amount: 0,
+            bill_no: newPurchase.pur_id.toString(),
+            trnx_type: 'PURCHASE',
+            details: `Out Labour Charges - Purchase #${newPurchase.pur_id}${invoice_number ? ` (Inv: ${invoice_number})` : ''}`,
+            payments: 0,
+            updated_by: updated_by ? parseInt(updated_by) : null
+          });
+          ledgerEntries.push(labourEntry);
+          console.log(`🔧 Labour account entry: ${labourAccount.cus_name} debited ${outLabourAmt}`);
+        } else {
+          console.log('⚠️ Out labour amount present but Labour account not found — skipping labour ledger posting');
         }
       }
 
@@ -1102,27 +1161,41 @@ export async function PUT(request) {
       const outLabourAmtPUT = safeParseFloat(out_labour_amount || 0);
       const outDeliveryAmtPUT = safeParseFloat(out_delivery_amount || 0);
 
-      // OUT‑LABOUR (PUT): single supplier CREDIT entry only (no labour debit, no cash/bank offset)
+      // OUT‑LABOUR (PUT): Debit Labour account for out_labour_amount only (no supplier credit, no cash/bank offset)
       if (outLabourAmtPUT > 0) {
-        if (cus_id) {
-          const supplierCreditForOutLabourPUT = createLedgerEntry({
-            cus_id: cus_id,
-            opening_balance: runningSupplierBalance,
-            debit_amount: 0,
-            credit_amount: outLabourAmtPUT,
+        const labourAccountPUT = await tx.customer.findFirst({
+          where: {
+            OR: [
+              { cus_name: { contains: 'Labour' } },
+              { cus_name: { contains: 'labour' } },
+              { customer_category: { cus_cat_title: { contains: 'Labour' } } },
+              { customer_type: { cus_type_title: { contains: 'Labour' } } }
+            ]
+          },
+          select: { cus_id: true, cus_balance: true, cus_name: true }
+        });
+
+        if (labourAccountPUT) {
+          const priorLabourEntriesPUT = ledgerEntries.filter(e => e.cus_id === labourAccountPUT.cus_id);
+          const labourOpeningBalancePUT = priorLabourEntriesPUT.length > 0
+            ? priorLabourEntriesPUT[priorLabourEntriesPUT.length - 1].closing_balance
+            : parseFloat(labourAccountPUT.cus_balance || 0);
+
+          const labourEntryPUT = createLedgerEntry({
+            cus_id: labourAccountPUT.cus_id,
+            opening_balance: labourOpeningBalancePUT,
+            debit_amount: outLabourAmtPUT,
+            credit_amount: 0,
             bill_no: id.toString(),
             trnx_type: 'PURCHASE',
-            details: `Out Labour - Purchase #${id}${invoice_number ? ` (Inv: ${invoice_number})` : ''}`,
-            payments: outLabourAmtPUT,
-            cash_payment: payment_type === 'BANK_TRANSFER' ? 0 : outLabourAmtPUT,
-            bank_payment: payment_type === 'BANK_TRANSFER' ? outLabourAmtPUT : 0,
+            details: `Out Labour Charges - Purchase #${id}${invoice_number ? ` (Inv: ${invoice_number})` : ''}`,
+            payments: 0,
             updated_by: updated_by ? parseInt(updated_by) : null
           });
-
-          ledgerEntries.push(supplierCreditForOutLabourPUT);
-          runningSupplierBalance = supplierCreditForOutLabourPUT.closing_balance;
+          ledgerEntries.push(labourEntryPUT);
+          console.log(`🔧 Labour account (PUT) entry: ${labourAccountPUT.cus_name} debited ${outLabourAmtPUT}`);
         } else {
-          console.log('⚠️ Out‑labour present but no supplier found — skipping supplier credit (PUT)');
+          console.log('⚠️ Out labour amount present but Labour account not found — skipping labour ledger posting (PUT)');
         }
       }
 
@@ -1488,9 +1561,7 @@ export async function PUT(request) {
       }
 
       // --- Update OUT-Labour / Cargo / Out-Payment account balances (PUT) ---
-      // No labour account ledger entries are created for OUT‑LABOUR on update (supplier is credited only).
-
-      // No Cash/Bank offset entries were created for OUT charges (PUT) — no balance update required for an OUT payment account.
+      // Labour account and Cargo account balances are updated via the generic otherAccountIds loop below.
 
       try {
         const cargoIdsUsed = [];
