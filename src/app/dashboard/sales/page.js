@@ -1153,8 +1153,12 @@ function SalesPageContent() {
 
   // Save bill to database
   const handleSaveBill = async () => {
-    const authOk = await requireFingerprint();
-    if (!authOk) return;
+    const hasCash = parseFloat(paymentData.cash || 0) > 0;
+    const hasBank = parseFloat(paymentData.bank || 0) > 0;
+    if (hasCash || hasBank) {
+      const authOk = await requireFingerprint();
+      if (!authOk) return;
+    }
     try {
       // If bill type is SALE_RETURN, process it as a return
       if (billType === 'SALE_RETURN') {

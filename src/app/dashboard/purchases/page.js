@@ -1421,8 +1421,12 @@ function PurchasesPageContent() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const authOk = await requireFingerprint();
-    if (!authOk) { setIsSubmitting(false); return; }
+    const hasCash = parseFloat(formData.cash_payment || 0) > 0;
+    const hasBank = parseFloat(formData.bank_payment || 0) > 0;
+    if (hasCash || hasBank) {
+      const authOk = await requireFingerprint();
+      if (!authOk) { setIsSubmitting(false); return; }
+    }
     setIsSubmitting(true);
     try {
       // Validation
