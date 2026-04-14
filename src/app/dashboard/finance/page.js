@@ -653,6 +653,9 @@ export default function FinancePage() {
         created_by: 7 // Super admin user ID
       };
 
+      const customer = customers.find(c => c.cus_id === selectedCustomer);
+      const previousBalance = parseFloat(customer?.cus_balance || 0);
+
       const response = await fetch('/api/payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -665,9 +668,9 @@ export default function FinancePage() {
           await createDiscountExpense(parseFloat(receivePaymentData.discount), receivePaymentData.description || 'Payment discount');
         }
 
-        const customer = customers.find(c => c.cus_id === selectedCustomer);
         const bankAcc = bankAccounts.find(b => b.cus_id === parseInt(receivePaymentData.bank_account));
         const cashAcc = cashAccounts.find(c => c.cus_id === parseInt(receivePaymentData.cash_account));
+        const remainingBalance = previousBalance - totalAmount;
 
         setPaymentReceiptData({
           type: 'RECEIVE',
@@ -675,6 +678,8 @@ export default function FinancePage() {
           date: new Date().toLocaleDateString('en-GB'),
           time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
           customer,
+          previousBalance,
+          remainingBalance,
           cashAmount,
           bankAmount,
           discountAmount,
@@ -728,6 +733,9 @@ export default function FinancePage() {
         created_by: 7 // Super admin user ID
       };
 
+      const customer = customers.find(c => c.cus_id === selectedCustomer);
+      const previousBalance = parseFloat(customer?.cus_balance || 0);
+
       const response = await fetch('/api/payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -740,9 +748,9 @@ export default function FinancePage() {
           await createDiscountExpense(parseFloat(payPaymentData.discount), payPaymentData.description || 'Payment discount');
         }
 
-        const customer = customers.find(c => c.cus_id === selectedCustomer);
         const bankAcc = bankAccounts.find(b => b.cus_id === parseInt(payPaymentData.bank_account));
         const cashAcc = cashAccounts.find(c => c.cus_id === parseInt(payPaymentData.cash_account));
+        const remainingBalance = previousBalance - totalAmount;
 
         setPaymentReceiptData({
           type: 'PAY',
@@ -750,6 +758,8 @@ export default function FinancePage() {
           date: new Date().toLocaleDateString('en-GB'),
           time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
           customer,
+          previousBalance,
+          remainingBalance,
           cashAmount,
           bankAmount,
           discountAmount,
@@ -3120,6 +3130,11 @@ export default function FinancePage() {
                   <Typography variant="body2" sx={{ fontWeight: 700 }}>Description</Typography>
                   <Typography variant="body2" sx={{ fontWeight: 700 }}>Amount (PKR)</Typography>
                 </Box>
+                {/* Previous Balance */}
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1, borderBottom: '1px solid #eee', bgcolor: '#fafafa' }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>Previous Balance (سابقہ بقایا)</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{parseFloat(paymentReceiptData.previousBalance).toLocaleString('en-US', { minimumFractionDigits: 2 })}</Typography>
+                </Box>
                 {paymentReceiptData.cashAmount > 0 && (
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1, borderBottom: '1px solid #eee' }}>
                     <Typography variant="body2">Cash {paymentReceiptData.cashAcc ? `(${paymentReceiptData.cashAcc.cus_name})` : ''}</Typography>
@@ -3138,10 +3153,17 @@ export default function FinancePage() {
                     <Typography variant="body2">{parseFloat(paymentReceiptData.discountAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</Typography>
                   </Box>
                 )}
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1, borderBottom: '1px solid #ddd', bgcolor: '#f1f5f9' }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>Total Paid</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                    {parseFloat(paymentReceiptData.totalAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </Typography>
+                </Box>
+                {/* Remaining Balance */}
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1.5, bgcolor: '#1e293b' }}>
-                  <Typography variant="body2" sx={{ fontWeight: 700, color: 'white' }}>Total Amount</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700, color: 'white' }}>
-                    PKR {parseFloat(paymentReceiptData.totalAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: 'white' }}>Remaining Balance (کل بقایا)</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: paymentReceiptData.remainingBalance > 0 ? '#fbbf24' : '#4ade80' }}>
+                    PKR {parseFloat(paymentReceiptData.remainingBalance).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </Typography>
                 </Box>
               </Box>
