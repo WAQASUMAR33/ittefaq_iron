@@ -3190,20 +3190,79 @@ export default function FinancePage() {
           <Button
             variant="contained"
             onClick={() => {
-              const printArea = document.getElementById('payment-receipt-preview');
-              if (!printArea) return;
-              const win = window.open('', '_blank', 'width=800,height=600');
-              win.document.write(`<html><head><title>Payment Receipt</title>
-                <style>
-                  body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
-                  * { box-sizing: border-box; }
-                  @media print { body { padding: 0; } }
-                </style></head><body>`);
-              win.document.write(printArea.innerHTML);
-              win.document.write('</body></html>');
+              if (!paymentReceiptData) return;
+              const d = paymentReceiptData;
+              const fmt = (v) => parseFloat(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+              const isRed = d.type === 'PAY';
+              const accentColor = isRed ? '#ef4444' : '#16a34a';
+
+              const rows = [];
+              rows.push(`<tr style="background:#f9fafb"><td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-weight:600">Previous Balance (سابقہ بقایا)</td><td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:600">${fmt(d.previousBalance)}</td></tr>`);
+              if (d.cashAmount > 0) rows.push(`<tr><td style="padding:10px 14px;border-bottom:1px solid #e5e7eb">Cash${d.cashAcc ? ` (${d.cashAcc.cus_name})` : ''}</td><td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:right">${fmt(d.cashAmount)}</td></tr>`);
+              if (d.bankAmount > 0) rows.push(`<tr><td style="padding:10px 14px;border-bottom:1px solid #e5e7eb">Bank${d.bankAcc ? ` (${d.bankAcc.cus_name})` : ''}</td><td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:right">${fmt(d.bankAmount)}</td></tr>`);
+              if (d.discountAmount > 0) rows.push(`<tr><td style="padding:10px 14px;border-bottom:1px solid #e5e7eb">Discount</td><td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:right">${fmt(d.discountAmount)}</td></tr>`);
+              rows.push(`<tr style="background:#f1f5f9"><td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-weight:700">Total Paid</td><td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:700">${fmt(d.totalAmount)}</td></tr>`);
+              rows.push(`<tr style="background:#1e293b"><td style="padding:12px 14px;color:white;font-weight:700">Remaining Balance (کل بقایا)</td><td style="padding:12px 14px;text-align:right;font-weight:700;color:${d.remainingBalance > 0 ? '#fbbf24' : '#4ade80'}">PKR ${fmt(d.remainingBalance)}</td></tr>`);
+
+              const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Payment Receipt</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;background:white;padding:30px;color:#111}
+  .header-bar{background:${accentColor};color:white;display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-radius:8px 8px 0 0;margin-bottom:0}
+  .header-bar h2{font-size:18px;font-weight:800}
+  .header-bar span{background:rgba(255,255,255,0.25);padding:4px 12px;border-radius:6px;font-size:13px;font-weight:700}
+  .company-box{text-align:center;padding:18px 20px 14px;border-bottom:2px solid #000;margin-bottom:16px}
+  .company-box .name-urdu{font-size:22px;font-weight:bold;direction:rtl}
+  .company-box .address{font-size:13px;direction:rtl;color:#555;margin:4px 0}
+  .company-box .phone{font-size:13px;color:#555;margin:4px 0}
+  .company-box .voucher-type{font-size:15px;font-weight:800;letter-spacing:1px;margin-top:10px;text-transform:uppercase}
+  .meta{display:flex;justify-content:space-between;padding:0 4px 14px;border-bottom:1px solid #e5e7eb;margin-bottom:16px}
+  .meta p{font-size:13px;margin:3px 0;line-height:1.5}
+  .meta strong{color:#111}
+  table{width:100%;border-collapse:collapse;border:1px solid #000;border-radius:6px;overflow:hidden;margin-bottom:24px}
+  thead th{background:#f3f4f6;padding:10px 14px;text-align:left;font-size:13px;font-weight:700;border-bottom:2px solid #000}
+  thead th:last-child{text-align:right}
+  td{font-size:13px}
+  .sig{display:flex;justify-content:space-between;margin-top:36px;padding-top:8px}
+  .sig-box{text-align:center;flex:1;margin:0 20px}
+  .sig-line{border-top:1px solid #000;padding-top:6px;font-size:12px;color:#555}
+  @media print{body{padding:10px}@page{margin:10mm}}
+</style></head><body>
+<div class="header-bar"><h2>${d.type === 'PAY' ? 'Payment Receipt' : 'Receipt - Payment Received'}</h2><span>PAY-${d.paymentId}</span></div>
+<div style="border:1px solid #ddd;border-top:none;border-radius:0 0 8px 8px;padding:0 20px 20px">
+  <div class="company-box">
+    <div class="name-urdu">اتفاق آئرن اینڈ سیمنٹ سٹور</div>
+    <div class="address">گجرات سرگودھا روڈ، پاہڑیانوالی</div>
+    <div class="phone">Ph:- 0346-7560306, 0300-7560306</div>
+    <div class="voucher-type">${d.type === 'PAY' ? 'Payment Voucher' : 'Receipt Voucher'}</div>
+  </div>
+  <div class="meta">
+    <div>
+      <p><strong>Account:</strong> ${d.customer?.cus_name || ''}</p>
+      <p><strong>Phone:</strong> ${d.customer?.cus_phone_no || '—'}</p>
+      ${d.description ? `<p><strong>Note:</strong> ${d.description}</p>` : ''}
+    </div>
+    <div style="text-align:right">
+      <p><strong>Ref #:</strong> PAY-${d.paymentId}</p>
+      <p><strong>Date:</strong> ${d.date}</p>
+      <p><strong>Time:</strong> ${d.time}</p>
+    </div>
+  </div>
+  <table>
+    <thead><tr><th>Description</th><th style="text-align:right">Amount (PKR)</th></tr></thead>
+    <tbody>${rows.join('')}</tbody>
+  </table>
+  <div class="sig">
+    <div class="sig-box"><div class="sig-line">Received By</div></div>
+    <div class="sig-box"><div class="sig-line">Authorized Signature</div></div>
+  </div>
+</div>
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`;
+
+              const win = window.open('', '_blank', 'width=800,height=700');
+              win.document.write(html);
               win.document.close();
-              win.focus();
-              setTimeout(() => { win.print(); win.close(); }, 400);
             }}
             sx={{ bgcolor: '#1e293b', '&:hover': { bgcolor: '#0f172a' } }}
           >
