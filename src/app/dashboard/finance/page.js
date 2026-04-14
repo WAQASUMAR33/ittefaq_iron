@@ -151,6 +151,8 @@ export default function FinancePage() {
   // Payment Form States
   const [showReceivePaymentForm, setShowReceivePaymentForm] = useState(false);
   const [showPayPaymentForm, setShowPayPaymentForm] = useState(false);
+  const [paymentReceiptData, setPaymentReceiptData] = useState(null);
+  const [showPaymentReceipt, setShowPaymentReceipt] = useState(false);
   const [receivePaymentData, setReceivePaymentData] = useState({
     total_payment: '',
     discount: '',
@@ -658,25 +660,34 @@ export default function FinancePage() {
       });
 
       if (response.ok) {
-        // Create discount expense if discount > 0
+        const result = await response.json();
         if (parseFloat(receivePaymentData.discount || 0) > 0) {
           await createDiscountExpense(parseFloat(receivePaymentData.discount), receivePaymentData.description || 'Payment discount');
         }
 
-        setShowReceivePaymentForm(false);
-        // Reset form
-        setReceivePaymentData({
-          total_payment: '',
-          discount: '',
-          cash_account: '',
-          cash_amount: '',
-          bank_account: '',
-          bank_amount: '',
-          description: ''
+        const customer = customers.find(c => c.cus_id === selectedCustomer);
+        const bankAcc = bankAccounts.find(b => b.cus_id === parseInt(receivePaymentData.bank_account));
+        const cashAcc = cashAccounts.find(c => c.cus_id === parseInt(receivePaymentData.cash_account));
+
+        setPaymentReceiptData({
+          type: 'RECEIVE',
+          paymentId: result.payment_id,
+          date: new Date().toLocaleDateString('en-GB'),
+          time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
+          customer,
+          cashAmount,
+          bankAmount,
+          discountAmount,
+          totalAmount,
+          bankAcc,
+          cashAcc,
+          description: receivePaymentData.description
         });
-        // Refresh ledger data
+
+        setShowReceivePaymentForm(false);
+        setReceivePaymentData({ total_payment: '', discount: '', cash_account: '', cash_amount: '', bank_account: '', bank_amount: '', description: '' });
         fetchData();
-        alert('Payment received successfully!');
+        setShowPaymentReceipt(true);
       } else {
         const error = await response.json();
         alert(`Error: ${error.error}`);
@@ -724,25 +735,34 @@ export default function FinancePage() {
       });
 
       if (response.ok) {
-        // Create discount expense if discount > 0
+        const result = await response.json();
         if (parseFloat(payPaymentData.discount || 0) > 0) {
           await createDiscountExpense(parseFloat(payPaymentData.discount), payPaymentData.description || 'Payment discount');
         }
 
-        setShowPayPaymentForm(false);
-        // Reset form
-        setPayPaymentData({
-          total_payment: '',
-          discount: '',
-          cash_account: '',
-          cash_amount: '',
-          bank_account: '',
-          bank_amount: '',
-          description: ''
+        const customer = customers.find(c => c.cus_id === selectedCustomer);
+        const bankAcc = bankAccounts.find(b => b.cus_id === parseInt(payPaymentData.bank_account));
+        const cashAcc = cashAccounts.find(c => c.cus_id === parseInt(payPaymentData.cash_account));
+
+        setPaymentReceiptData({
+          type: 'PAY',
+          paymentId: result.payment_id,
+          date: new Date().toLocaleDateString('en-GB'),
+          time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
+          customer,
+          cashAmount,
+          bankAmount,
+          discountAmount,
+          totalAmount,
+          bankAcc,
+          cashAcc,
+          description: payPaymentData.description
         });
-        // Refresh ledger data
+
+        setShowPayPaymentForm(false);
+        setPayPaymentData({ total_payment: '', discount: '', cash_account: '', cash_amount: '', bank_account: '', bank_amount: '', description: '' });
         fetchData();
-        alert('Payment processed successfully!');
+        setShowPaymentReceipt(true);
       } else {
         const error = await response.json();
         alert(`Error: ${error.error}`);
@@ -3043,6 +3063,129 @@ export default function FinancePage() {
             }}
           >
             {paymentStatus.loading ? <CircularProgress size={20} color="inherit" /> : 'Confirm Payment'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Payment Receipt Dialog */}
+      <Dialog
+        open={showPaymentReceipt}
+        onClose={() => setShowPaymentReceipt(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 2 } }}
+      >
+        <DialogTitle sx={{
+          bgcolor: paymentReceiptData?.type === 'PAY' ? '#ef4444' : '#16a34a',
+          color: 'white', fontWeight: 800, display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+        }}>
+          {paymentReceiptData?.type === 'PAY' ? 'Payment Receipt' : 'Receipt - Payment Received'}
+          <Typography variant="body2" sx={{ bgcolor: 'rgba(255,255,255,0.2)', px: 1.5, py: 0.5, borderRadius: 1, fontWeight: 600 }}>
+            PAY-{paymentReceiptData?.paymentId}
+          </Typography>
+        </DialogTitle>
+
+        <DialogContent sx={{ p: 0 }}>
+          {paymentReceiptData && (
+            <Box id="payment-receipt-preview" sx={{ bgcolor: 'white', p: 3 }}>
+              {/* Header */}
+              <Box sx={{ textAlign: 'center', pb: 2, borderBottom: '2px solid #000', mb: 2 }}>
+                <Typography variant="h5" sx={{ fontWeight: 'bold', direction: 'rtl', fontFamily: 'Arial' }}>اتفاق آئرن اینڈ سیمنٹ سٹور</Typography>
+                <Typography variant="body2" sx={{ direction: 'rtl' }}>گجرات سرگودھا روڈ، پاہڑیانوالی</Typography>
+                <Typography variant="body2">Ph:- 0346-7560306, 0300-7560306</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', mt: 1, letterSpacing: 1 }}>
+                  {paymentReceiptData.type === 'PAY' ? 'PAYMENT VOUCHER' : 'RECEIPT VOUCHER'}
+                </Typography>
+              </Box>
+
+              {/* Meta info */}
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, px: 1 }}>
+                <Box>
+                  <Typography variant="body2"><strong>Account:</strong> {paymentReceiptData.customer?.cus_name}</Typography>
+                  <Typography variant="body2"><strong>Phone:</strong> {paymentReceiptData.customer?.cus_phone_no || '—'}</Typography>
+                  {paymentReceiptData.description && (
+                    <Typography variant="body2"><strong>Note:</strong> {paymentReceiptData.description}</Typography>
+                  )}
+                </Box>
+                <Box sx={{ textAlign: 'right' }}>
+                  <Typography variant="body2"><strong>Ref #:</strong> PAY-{paymentReceiptData.paymentId}</Typography>
+                  <Typography variant="body2"><strong>Date:</strong> {paymentReceiptData.date}</Typography>
+                  <Typography variant="body2"><strong>Time:</strong> {paymentReceiptData.time}</Typography>
+                </Box>
+              </Box>
+
+              {/* Payment breakdown table */}
+              <Box sx={{ border: '1px solid #000', borderRadius: 1, overflow: 'hidden', mb: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1, borderBottom: '1px solid #ddd', bgcolor: '#f5f5f5' }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>Description</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>Amount (PKR)</Typography>
+                </Box>
+                {paymentReceiptData.cashAmount > 0 && (
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1, borderBottom: '1px solid #eee' }}>
+                    <Typography variant="body2">Cash {paymentReceiptData.cashAcc ? `(${paymentReceiptData.cashAcc.cus_name})` : ''}</Typography>
+                    <Typography variant="body2">{parseFloat(paymentReceiptData.cashAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</Typography>
+                  </Box>
+                )}
+                {paymentReceiptData.bankAmount > 0 && (
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1, borderBottom: '1px solid #eee' }}>
+                    <Typography variant="body2">Bank {paymentReceiptData.bankAcc ? `(${paymentReceiptData.bankAcc.cus_name})` : ''}</Typography>
+                    <Typography variant="body2">{parseFloat(paymentReceiptData.bankAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</Typography>
+                  </Box>
+                )}
+                {paymentReceiptData.discountAmount > 0 && (
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1, borderBottom: '1px solid #eee' }}>
+                    <Typography variant="body2">Discount</Typography>
+                    <Typography variant="body2">{parseFloat(paymentReceiptData.discountAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</Typography>
+                  </Box>
+                )}
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1.5, bgcolor: '#1e293b' }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: 'white' }}>Total Amount</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: 'white' }}>
+                    PKR {parseFloat(paymentReceiptData.totalAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </Typography>
+                </Box>
+              </Box>
+
+              {/* Signature line */}
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4, pt: 2 }}>
+                <Box sx={{ textAlign: 'center', flex: 1 }}>
+                  <Box sx={{ borderTop: '1px solid #000', pt: 0.5, mx: 3 }}>
+                    <Typography variant="caption">Received By</Typography>
+                  </Box>
+                </Box>
+                <Box sx={{ textAlign: 'center', flex: 1 }}>
+                  <Box sx={{ borderTop: '1px solid #000', pt: 0.5, mx: 3 }}>
+                    <Typography variant="caption">Authorized Signature</Typography>
+                  </Box>
+                </Box>
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+
+        <DialogActions sx={{ p: 2, borderTop: '1px solid #e2e8f0' }}>
+          <Button onClick={() => setShowPaymentReceipt(false)}>Close</Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              const printArea = document.getElementById('payment-receipt-preview');
+              if (!printArea) return;
+              const win = window.open('', '_blank', 'width=800,height=600');
+              win.document.write(`<html><head><title>Payment Receipt</title>
+                <style>
+                  body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+                  * { box-sizing: border-box; }
+                  @media print { body { padding: 0; } }
+                </style></head><body>`);
+              win.document.write(printArea.innerHTML);
+              win.document.write('</body></html>');
+              win.document.close();
+              win.focus();
+              setTimeout(() => { win.print(); win.close(); }, 400);
+            }}
+            sx={{ bgcolor: '#1e293b', '&:hover': { bgcolor: '#0f172a' } }}
+          >
+            Print A4
           </Button>
         </DialogActions>
       </Dialog>

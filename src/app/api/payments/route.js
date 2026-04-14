@@ -252,9 +252,10 @@ export async function POST(request) {
         }
       const ledgerEntries = [];
 
-      // Main account ledger entry direction depends on account type:
-      // Bank/Cash account: PAY → CREDIT (money out, balance decreases); RECEIVE → DEBIT (money in, increases)
-      // Customer/Supplier: always DEBIT (balance increases = debt reduces, regardless of PAY or RECEIVE)
+      // Main account ledger entry direction depends on account type and payment type:
+      // Bank/Cash account: PAY → CREDIT (money out); RECEIVE → DEBIT (money in)
+      // Customer/Supplier: PAY → CREDIT (we paid them, their balance/debt reduces)
+      //                    RECEIVE → CREDIT (they paid us, their balance/debt reduces)
       let mainDebitAmount = 0;
       let mainCreditAmount = 0;
       if (mainAccountIsBankOrCash) {
@@ -264,7 +265,8 @@ export async function POST(request) {
           mainCreditAmount = parseFloat(total_amount);
         }
       } else {
-        mainDebitAmount = parseFloat(total_amount);
+        // Customer/Supplier: always CREDIT to reduce their outstanding balance
+        mainCreditAmount = parseFloat(total_amount);
       }
 
       const mainAccountEntry = createLedgerEntry({
