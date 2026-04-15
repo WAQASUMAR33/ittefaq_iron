@@ -31,7 +31,7 @@ export async function POST(request) {
 
   try {
     const body = await request.json();
-    const { imageBase64, phone, bill } = body;
+    const { imageBase64, phone, bill, caption: customCaption } = body;
 
     if (!imageBase64) {
       return NextResponse.json({ error: 'Image data is required' }, { status: 400 });
@@ -57,9 +57,9 @@ export async function POST(request) {
 
     // Send via Twilio
     const isReturn = bill?.is_return || bill?.bill_type === 'SALE_RETURN';
-    const caption = isReturn
+    const caption = customCaption || (isReturn
       ? `🔄 Sale Return #${bill?.sale_id} - ${bill?.customer?.cus_name || ''}`
-      : `🧾 Invoice #${bill?.sale_id} - ${bill?.customer?.cus_name || ''}`;
+      : `🧾 Invoice #${bill?.sale_id} - ${bill?.customer?.cus_name || ''}`);
 
     const result = await client.messages.create({
       from: FROM,

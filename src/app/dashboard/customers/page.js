@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Container,
@@ -123,6 +123,12 @@ export default function CustomersPage() {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [balanceFilter, setBalanceFilter] = useState('all');
   const [activityFilter, setActivityFilter] = useState('all');
+
+  // Print / WhatsApp
+  const tableRef = useRef(null);
+  const [showWhatsAppDialog, setShowWhatsAppDialog] = useState(false);
+  const [whatsappPhone, setWhatsappPhone] = useState('');
+  const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
 
   // Snackbar states
   const [snackbar, setSnackbar] = useState({
@@ -559,6 +565,94 @@ export default function CustomersPage() {
     return '#fee2e2';                           // red-100
   };
 
+  const buildPrintHTML = () => {
+    const now = new Date().toLocaleString();
+    const rows = filteredCustomers.map((c, i) => {
+      const bg = getActivityRowBg(c) || '#fff';
+      const bal = parseFloat(c.cus_balance);
+      const balColor = bal > 0 ? '#16a34a' : bal < 0 ? '#dc2626' : '#374151';
+      const lastAct = c.updated_at ? new Date(c.updated_at).toLocaleDateString() : new Date(c.created_at).toLocaleDateString();
+      const cat = c.customer_category?.cus_cat_title || c.cus_category || '';
+      return `<tr style="background:${bg}">
+        <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center">${i + 1}</td>
+        <td style="padding:6px 8px;border:1px solid #e5e7eb">${c.cus_name || ''}</td>
+        <td style="padding:6px 8px;border:1px solid #e5e7eb">${c.cus_phone_no || ''}</td>
+        <td style="padding:6px 8px;border:1px solid #e5e7eb">${cat}</td>
+        <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:right;color:${balColor};font-weight:600">${parseFloat(c.cus_balance || 0).toLocaleString()}</td>
+        <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center">${lastAct}</td>
+      </tr>`;
+    }).join('');
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8">
+    <title>Accounts List — Itefaq Iron & Cement Store</title>
+    <style>
+      body{font-family:'Segoe UI',sans-serif;margin:24px;color:#1e293b}
+      h1{font-size:1.2rem;font-weight:800;margin:0}
+      p.sub{font-size:0.8rem;color:#64748b;margin:4px 0 16px}
+      table{width:100%;border-collapse:collapse;font-size:0.82rem}
+      th{background:#1e3a5f;color:#fff;padding:7px 8px;border:1px solid #1e3a5f;text-align:left}
+      th:last-child,th:nth-child(5){text-align:right}
+      th:first-child{text-align:center}
+      tr:nth-child(even):not([style*="background:#dc"]):not([style*="background:#fef"]):not([style*="background:#dbe"]):not([style*="background:#dcf"]){}
+      .legend{display:flex;gap:16px;margin-top:12px;font-size:0.75rem}
+      .dot{width:12px;height:12px;border-radius:50%;display:inline-block;margin-right:4px;vertical-align:middle}
+      @media print{@page{size:A4 landscape;margin:12mm}}
+    </style></head><body>
+    <h1>Itefaq Iron &amp; Cement Store — Accounts List</h1>
+    <p class="sub">Printed: ${now} &nbsp;|&nbsp; Total: ${filteredCustomers.length} accounts</p>
+    <table>
+      <thead><tr>
+        <th>#</th><th>Name</th><th>Phone</th><th>Category</th><th style="text-align:right">Balance (PKR)</th><th style="text-align:center">Last Activity</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="legend">
+      <span><span class="dot" style="background:#86efac"></span>≤ 1 Month</span>
+      <span><span class="dot" style="background:#93c5fd"></span>1–3 Months</span>
+      <span><span class="dot" style="background:#fde047"></span>3–6 Months</span>
+      <span><span class="dot" style="background:#fca5a5"></span>&gt; 6 Months</span>
+    </div>
+    <script>window.onload=()=>{window.print();}</script>
+    </body></html>`;
+  };
+
+  const handlePrint = () => {
+    const w = window.open('', '_blank', 'width=1100,height=750');
+    w.document.write(buildPrintHTML());
+    w.document.close();
+  };
+
+  const handleSendWhatsApp = async () => {
+    if (!whatsappPhone.trim()) return;
+    setIsSendingWhatsApp(true);
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const canvas = await html2canvas(tableRef.current, { scale: 1.5, useCORS: true, backgroundColor: '#fff' });
+      const imageBase64 = canvas.toDataURL('image/png');
+      const res = await fetch('/api/whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64,
+          phone: whatsappPhone.trim(),
+          caption: `📋 Accounts List — Itefaq Iron & Cement Store\nTotal: ${filteredCustomers.length} accounts\nDate: ${new Date().toLocaleDateString()}`
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSnackbar({ open: true, message: 'Accounts list sent via WhatsApp!', severity: 'success' });
+        setShowWhatsAppDialog(false);
+        setWhatsappPhone('');
+      } else {
+        setSnackbar({ open: true, message: data.error || 'Failed to send WhatsApp', severity: 'error' });
+      }
+    } catch (err) {
+      setSnackbar({ open: true, message: 'Error: ' + err.message, severity: 'error' });
+    } finally {
+      setIsSendingWhatsApp(false);
+    }
+  };
+
   // Get customer type title from ID
   const getCustomerTypeTitle = (typeId) => {
     const customerType = customerTypes.find(type => type.cus_type_id === typeId);
@@ -613,8 +707,31 @@ export default function CustomersPage() {
             {/* removed redundant 'Accounts' title per request */}
           </div>
 
-          {/* right side kept minimal for balance/stats */}
-          <div />
+          {/* Print & WhatsApp */}
+          <Box sx={{ display: 'flex', gap: 1.5 }}>
+            <Button
+              variant="outlined"
+              onClick={handlePrint}
+              startIcon={<span style={{ fontSize: 18 }}>🖨️</span>}
+              sx={{
+                borderColor: '#3b82f6', color: '#3b82f6', fontWeight: 700, borderRadius: 2,
+                '&:hover': { bgcolor: '#eff6ff', borderColor: '#2563eb' }
+              }}
+            >
+              Print List
+            </Button>
+            <Button
+              variant="contained"
+              onClick={() => setShowWhatsAppDialog(true)}
+              startIcon={<span style={{ fontSize: 18 }}>📲</span>}
+              sx={{
+                bgcolor: '#25d366', color: '#fff', fontWeight: 700, borderRadius: 2,
+                '&:hover': { bgcolor: '#128c7e' }
+              }}
+            >
+              Send WhatsApp
+            </Button>
+          </Box>
         </div>
 
 
@@ -992,7 +1109,7 @@ export default function CustomersPage() {
             </Typography>
           </Box>
           <Box sx={{ flex: 1, overflow: 'auto' }}>
-            <TableContainer component={Paper} sx={{ height: '100%' }}>
+            <TableContainer ref={tableRef} component={Paper} sx={{ height: '100%' }}>
               <Table stickyHeader>
                 <TableHead>
                   <TableRow>
@@ -1124,6 +1241,39 @@ export default function CustomersPage() {
             </TableContainer>
           </Box>
         </Card>
+
+        {/* WhatsApp Send Dialog */}
+        <Dialog open={showWhatsAppDialog} onClose={() => setShowWhatsAppDialog(false)} maxWidth="xs" fullWidth>
+          <DialogTitle sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <span style={{ fontSize: 22 }}>📲</span> Send Accounts List via WhatsApp
+          </DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              This will capture the current filtered list ({filteredCustomers.length} accounts) as an image and send it via WhatsApp.
+            </Typography>
+            <TextField
+              fullWidth
+              label="WhatsApp Phone Number"
+              placeholder="e.g. 03001234567"
+              value={whatsappPhone}
+              onChange={(e) => setWhatsappPhone(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSendWhatsApp(); }}
+              autoFocus
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+            />
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button onClick={() => setShowWhatsAppDialog(false)} disabled={isSendingWhatsApp}>Cancel</Button>
+            <Button
+              variant="contained"
+              onClick={handleSendWhatsApp}
+              disabled={isSendingWhatsApp || !whatsappPhone.trim()}
+              sx={{ bgcolor: '#25d366', '&:hover': { bgcolor: '#128c7e' }, fontWeight: 700, minWidth: 130 }}
+            >
+              {isSendingWhatsApp ? 'Sending...' : 'Send'}
+            </Button>
+          </DialogActions>
+        </Dialog>
 
         {/* Full Replica of Sales Page Customer Modal */}
         <Dialog
