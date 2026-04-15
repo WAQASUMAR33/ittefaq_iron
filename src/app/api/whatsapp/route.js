@@ -49,7 +49,7 @@ export async function POST(request) {
       folder: 'ittefaq-receipts',
       public_id: `receipt-${bill?.sale_id || Date.now()}`,
       overwrite: true,
-      resource_type: 'image',
+      resource_type: 'auto',
     });
 
     cloudinaryPublicId = uploadResult.public_id;

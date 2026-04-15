@@ -627,8 +627,59 @@ export default function CustomersPage() {
     setIsSendingWhatsApp(true);
     try {
       const html2canvas = (await import('html2canvas')).default;
-      const canvas = await html2canvas(tableRef.current, { scale: 1.5, useCORS: true, backgroundColor: '#fff' });
-      const imageBase64 = canvas.toDataURL('image/png');
+
+      // Render full table into a hidden off-screen div so html2canvas
+      // captures ALL rows — not just the visible scrolled portion
+      const container = document.createElement('div');
+      container.style.cssText = 'position:fixed;left:-9999px;top:0;width:900px;background:#fff;padding:16px;font-family:Segoe UI,sans-serif;font-size:13px;color:#1e293b;z-index:-1';
+      container.innerHTML = `
+        <div style="margin-bottom:10px">
+          <strong style="font-size:15px">Itefaq Iron &amp; Cement Store — Accounts List</strong><br/>
+          <span style="color:#64748b;font-size:11px">Date: ${new Date().toLocaleDateString()} &nbsp;|&nbsp; Total: ${filteredCustomers.length} accounts</span>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead>
+            <tr style="background:#1e3a5f;color:#fff">
+              <th style="padding:6px 8px;border:1px solid #1e3a5f;text-align:center">#</th>
+              <th style="padding:6px 8px;border:1px solid #1e3a5f">Name</th>
+              <th style="padding:6px 8px;border:1px solid #1e3a5f">Phone</th>
+              <th style="padding:6px 8px;border:1px solid #1e3a5f">Category</th>
+              <th style="padding:6px 8px;border:1px solid #1e3a5f;text-align:right">Balance (PKR)</th>
+              <th style="padding:6px 8px;border:1px solid #1e3a5f;text-align:center">Last Activity</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filteredCustomers.map((c, i) => {
+              const bg = getActivityRowBg(c) || (i % 2 === 0 ? '#fff' : '#f8fafc');
+              const bal = parseFloat(c.cus_balance || 0);
+              const balColor = bal > 0 ? '#16a34a' : bal < 0 ? '#dc2626' : '#374151';
+              const lastAct = c.updated_at ? new Date(c.updated_at).toLocaleDateString() : new Date(c.created_at).toLocaleDateString();
+              const cat = c.customer_category?.cus_cat_title || c.cus_category || '';
+              return `<tr style="background:${bg}">
+                <td style="padding:5px 8px;border:1px solid #e5e7eb;text-align:center">${i + 1}</td>
+                <td style="padding:5px 8px;border:1px solid #e5e7eb">${c.cus_name || ''}</td>
+                <td style="padding:5px 8px;border:1px solid #e5e7eb">${c.cus_phone_no || ''}</td>
+                <td style="padding:5px 8px;border:1px solid #e5e7eb">${cat}</td>
+                <td style="padding:5px 8px;border:1px solid #e5e7eb;text-align:right;color:${balColor};font-weight:600">${bal.toLocaleString()}</td>
+                <td style="padding:5px 8px;border:1px solid #e5e7eb;text-align:center">${lastAct}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+        <div style="display:flex;gap:14px;margin-top:10px;font-size:11px">
+          <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#86efac;margin-right:3px"></span>≤1 Month</span>
+          <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#93c5fd;margin-right:3px"></span>1–3 Months</span>
+          <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#fde047;margin-right:3px"></span>3–6 Months</span>
+          <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#fca5a5;margin-right:3px"></span>&gt;6 Months</span>
+        </div>`;
+      document.body.appendChild(container);
+
+      const canvas = await html2canvas(container, { scale: 1, useCORS: true, backgroundColor: '#fff', logging: false });
+      document.body.removeChild(container);
+
+      // JPEG at 80% quality keeps size well under Twilio's 5MB limit
+      const imageBase64 = canvas.toDataURL('image/jpeg', 0.8);
+
       const res = await fetch('/api/whatsapp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
