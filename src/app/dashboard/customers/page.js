@@ -122,6 +122,7 @@ export default function CustomersPage() {
   const [typeFilter, setTypeFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [balanceFilter, setBalanceFilter] = useState('all');
+  const [activityFilter, setActivityFilter] = useState('all');
 
   // Snackbar states
   const [snackbar, setSnackbar] = useState({
@@ -478,7 +479,23 @@ export default function CustomersPage() {
         matchesBalance = parseFloat(customer.cus_balance) === 0;
       }
 
-      return matchesSearch && matchesType && matchesCategory && matchesBalance;
+      let matchesActivity = true;
+      if (activityFilter !== 'all') {
+        const balance = parseFloat(customer.cus_balance);
+        if (balance <= 0) {
+          matchesActivity = false;
+        } else {
+          const now = new Date();
+          const lastActivity = customer.updated_at ? new Date(customer.updated_at) : new Date(customer.created_at);
+          const diffDays = (now - lastActivity) / (1000 * 60 * 60 * 24);
+          if (activityFilter === '1month') matchesActivity = diffDays <= 30;
+          else if (activityFilter === '1to3months') matchesActivity = diffDays > 30 && diffDays <= 90;
+          else if (activityFilter === '3to6months') matchesActivity = diffDays > 90 && diffDays <= 180;
+          else if (activityFilter === 'over6months') matchesActivity = diffDays > 180;
+        }
+      }
+
+      return matchesSearch && matchesType && matchesCategory && matchesBalance && matchesActivity;
     })
     .map((customer, index) => ({
       ...customer,
@@ -491,6 +508,7 @@ export default function CustomersPage() {
     setTypeFilter('all');
     setCategoryFilter('all');
     setBalanceFilter('all');
+    setActivityFilter('all');
   };
 
   // Stats Calculations
@@ -527,6 +545,18 @@ export default function CustomersPage() {
     if (bal > 0) return 'text-green-600';
     if (bal < 0) return 'text-red-600';
     return 'text-gray-600';
+  };
+
+  const getActivityRowBg = (customer) => {
+    const balance = parseFloat(customer.cus_balance);
+    if (balance <= 0) return undefined;
+    const now = new Date();
+    const lastActivity = customer.updated_at ? new Date(customer.updated_at) : new Date(customer.created_at);
+    const diffDays = (now - lastActivity) / (1000 * 60 * 60 * 24);
+    if (diffDays <= 30) return '#dcfce7';       // green-100
+    if (diffDays <= 90) return '#dbeafe';       // blue-100
+    if (diffDays <= 180) return '#fef9c3';      // yellow-100
+    return '#fee2e2';                           // red-100
   };
 
   // Get customer type title from ID
@@ -621,7 +651,7 @@ export default function CustomersPage() {
                 gridTemplateColumns: {
                   xs: '1fr',
                   sm: '1fr 1fr',
-                  md: 'repeat(4, 1fr)'
+                  md: 'repeat(5, 1fr)'
                 },
                 gap: 3,
                 width: '100%'
@@ -808,6 +838,61 @@ export default function CustomersPage() {
                     )}
                   />
                 </Box>
+
+                {/* Activity Filter */}
+                <Box>
+                  <Autocomplete
+                    fullWidth
+                    autoSelect={true}
+                    autoHighlight={true}
+                    openOnFocus={true}
+                    selectOnFocus={true}
+                    options={[
+                      { value: 'all', label: 'All Activity' },
+                      { value: '1month', label: '≤ 1 Month (Active)' },
+                      { value: '1to3months', label: '1–3 Months' },
+                      { value: '3to6months', label: '3–6 Months' },
+                      { value: 'over6months', label: '> 6 Months (Inactive)' }
+                    ]}
+                    getOptionLabel={(option) => option.label}
+                    value={{
+                      value: activityFilter,
+                      label: activityFilter === 'all' ? 'All Activity' :
+                        activityFilter === '1month' ? '≤ 1 Month (Active)' :
+                          activityFilter === '1to3months' ? '1–3 Months' :
+                            activityFilter === '3to6months' ? '3–6 Months' :
+                              activityFilter === 'over6months' ? '> 6 Months (Inactive)' : 'All Activity'
+                    }}
+                    onChange={(event, newValue) => {
+                      setActivityFilter(newValue ? newValue.value : 'all');
+                    }}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Last Activity"
+                        placeholder="Select activity"
+                        onFocus={(e) => e.target.select()}
+                        InputProps={{
+                          ...params.InputProps,
+                          startAdornment: (
+                            <Fragment>
+                              <InputAdornment position="start">
+                                <Calendar size={18} color="#94a3b8" />
+                              </InputAdornment>
+                              {params.InputProps.startAdornment}
+                            </Fragment>
+                          ),
+                        }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 1.5,
+                            bgcolor: 'white',
+                          }
+                        }}
+                      />
+                    )}
+                  />
+                </Box>
               </Box>
             </CardContent>
           </Card>
@@ -922,7 +1007,11 @@ export default function CustomersPage() {
                 </TableHead>
                 <TableBody>
                   {filteredCustomers.map((customer) => (
-                    <TableRow key={customer.cus_id} hover>
+                    <TableRow
+                      key={customer.cus_id}
+                      hover
+                      sx={{ bgcolor: getActivityRowBg(customer) }}
+                    >
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center' }}>
                           <Avatar sx={{
