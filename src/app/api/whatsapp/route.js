@@ -44,12 +44,13 @@ export async function POST(request) {
       return NextResponse.json({ error: 'No valid phone number found' }, { status: 400 });
     }
 
-    // Upload base64 image to Cloudinary
+    // Detect if PDF or image based on data URI
+    const isPdf = imageBase64.startsWith('data:application/pdf');
     const uploadResult = await cloudinary.uploader.upload(imageBase64, {
       folder: 'ittefaq-receipts',
       public_id: `receipt-${bill?.sale_id || Date.now()}`,
       overwrite: true,
-      resource_type: 'auto',
+      resource_type: isPdf ? 'raw' : 'auto',
     });
 
     cloudinaryPublicId = uploadResult.public_id;

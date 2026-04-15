@@ -626,72 +626,136 @@ export default function CustomersPage() {
     if (!whatsappPhone.trim()) return;
     setIsSendingWhatsApp(true);
     try {
-      const html2canvas = (await import('html2canvas')).default;
+      const { jsPDF } = await import('jspdf');
 
-      // Render full table into a hidden off-screen div so html2canvas
-      // captures ALL rows — not just the visible scrolled portion
-      const container = document.createElement('div');
-      container.style.cssText = 'position:fixed;left:-9999px;top:0;width:900px;background:#fff;padding:16px;font-family:Segoe UI,sans-serif;font-size:13px;color:#1e293b;z-index:-1';
-      container.innerHTML = `
-        <div style="margin-bottom:10px">
-          <strong style="font-size:15px">Itefaq Iron &amp; Cement Store — Accounts List</strong><br/>
-          <span style="color:#64748b;font-size:11px">Date: ${new Date().toLocaleDateString()} &nbsp;|&nbsp; Total: ${filteredCustomers.length} accounts</span>
-        </div>
-        <table style="width:100%;border-collapse:collapse;font-size:12px">
-          <thead>
-            <tr style="background:#1e3a5f;color:#fff">
-              <th style="padding:6px 8px;border:1px solid #1e3a5f;text-align:center">#</th>
-              <th style="padding:6px 8px;border:1px solid #1e3a5f">Name</th>
-              <th style="padding:6px 8px;border:1px solid #1e3a5f">Phone</th>
-              <th style="padding:6px 8px;border:1px solid #1e3a5f">Category</th>
-              <th style="padding:6px 8px;border:1px solid #1e3a5f;text-align:right">Balance (PKR)</th>
-              <th style="padding:6px 8px;border:1px solid #1e3a5f;text-align:center">Last Activity</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${filteredCustomers.map((c, i) => {
-              const bg = getActivityRowBg(c) || (i % 2 === 0 ? '#fff' : '#f8fafc');
-              const bal = parseFloat(c.cus_balance || 0);
-              const balColor = bal > 0 ? '#16a34a' : bal < 0 ? '#dc2626' : '#374151';
-              const lastAct = c.updated_at ? new Date(c.updated_at).toLocaleDateString() : new Date(c.created_at).toLocaleDateString();
-              const cat = c.customer_category?.cus_cat_title || c.cus_category || '';
-              return `<tr style="background:${bg}">
-                <td style="padding:5px 8px;border:1px solid #e5e7eb;text-align:center">${i + 1}</td>
-                <td style="padding:5px 8px;border:1px solid #e5e7eb">${c.cus_name || ''}</td>
-                <td style="padding:5px 8px;border:1px solid #e5e7eb">${c.cus_phone_no || ''}</td>
-                <td style="padding:5px 8px;border:1px solid #e5e7eb">${cat}</td>
-                <td style="padding:5px 8px;border:1px solid #e5e7eb;text-align:right;color:${balColor};font-weight:600">${bal.toLocaleString()}</td>
-                <td style="padding:5px 8px;border:1px solid #e5e7eb;text-align:center">${lastAct}</td>
-              </tr>`;
-            }).join('')}
-          </tbody>
-        </table>
-        <div style="display:flex;gap:14px;margin-top:10px;font-size:11px">
-          <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#86efac;margin-right:3px"></span>≤1 Month</span>
-          <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#93c5fd;margin-right:3px"></span>1–3 Months</span>
-          <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#fde047;margin-right:3px"></span>3–6 Months</span>
-          <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#fca5a5;margin-right:3px"></span>&gt;6 Months</span>
-        </div>`;
-      document.body.appendChild(container);
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
+      const margin = 12;
+      const colWidths = [12, 65, 38, 45, 42, 36]; // # | Name | Phone | Category | Balance | Last Activity
+      const rowH = 7;
+      let y = margin;
 
-      const canvas = await html2canvas(container, { scale: 1, useCORS: true, backgroundColor: '#fff', logging: false });
-      document.body.removeChild(container);
+      // Header block
+      doc.setFillColor(30, 58, 95);
+      doc.rect(margin, y, pageW - margin * 2, 12, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Itefaq Iron & Cement Store — Accounts List', margin + 4, y + 8);
+      y += 16;
 
-      // JPEG at 80% quality keeps size well under Twilio's 5MB limit
-      const imageBase64 = canvas.toDataURL('image/jpeg', 0.8);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Date: ${new Date().toLocaleDateString()}   |   Total: ${filteredCustomers.length} accounts`, margin, y);
+      y += 6;
+
+      // Table header
+      const headers = ['#', 'Name', 'Phone', 'Category', 'Balance (PKR)', 'Last Activity'];
+      doc.setFillColor(30, 58, 95);
+      doc.rect(margin, y, pageW - margin * 2, rowH, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      let x = margin;
+      headers.forEach((h, i) => {
+        const align = (i === 4) ? 'right' : (i === 0 || i === 5) ? 'center' : 'left';
+        const cellX = align === 'right' ? x + colWidths[i] - 2 : align === 'center' ? x + colWidths[i] / 2 : x + 2;
+        doc.text(h, cellX, y + 5, { align });
+        x += colWidths[i];
+      });
+      y += rowH;
+
+      // Table rows
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+
+      filteredCustomers.forEach((c, i) => {
+        if (y + rowH > pageH - margin) {
+          doc.addPage();
+          y = margin;
+        }
+
+        const bal = parseFloat(c.cus_balance || 0);
+        const bg = getActivityRowBg(c);
+        const lastAct = c.updated_at
+          ? new Date(c.updated_at).toLocaleDateString()
+          : new Date(c.created_at).toLocaleDateString();
+        const cat = c.customer_category?.cus_cat_title || c.cus_category || '';
+
+        // Row background
+        if (bg) {
+          const rgb = bg === '#dcfce7' ? [220, 252, 231] : bg === '#dbeafe' ? [219, 234, 254] : bg === '#fef9c3' ? [254, 249, 195] : [254, 226, 226];
+          doc.setFillColor(...rgb);
+          doc.rect(margin, y, pageW - margin * 2, rowH, 'F');
+        } else if (i % 2 === 1) {
+          doc.setFillColor(248, 250, 252);
+          doc.rect(margin, y, pageW - margin * 2, rowH, 'F');
+        }
+
+        // Row border
+        doc.setDrawColor(229, 231, 235);
+        doc.rect(margin, y, pageW - margin * 2, rowH, 'S');
+
+        // Cell text
+        doc.setTextColor(30, 41, 59);
+        x = margin;
+        const cells = [String(i + 1), c.cus_name || '', c.cus_phone_no || '', cat, bal.toLocaleString(), lastAct];
+        cells.forEach((cell, ci) => {
+          if (ci === 4) {
+            // Balance — colored
+            doc.setTextColor(bal > 0 ? 22 : bal < 0 ? 220 : 55, bal > 0 ? 163 : bal < 0 ? 38 : 65, bal > 0 ? 74 : bal < 0 ? 38 : 81);
+            doc.setFont('helvetica', 'bold');
+          } else {
+            doc.setTextColor(30, 41, 59);
+            doc.setFont('helvetica', 'normal');
+          }
+          const align = ci === 4 ? 'right' : (ci === 0 || ci === 5) ? 'center' : 'left';
+          const maxW = colWidths[ci] - 3;
+          const clipped = doc.getTextWidth(cell) > maxW ? doc.splitTextToSize(cell, maxW)[0] : cell;
+          const cellX = align === 'right' ? x + colWidths[ci] - 2 : align === 'center' ? x + colWidths[ci] / 2 : x + 2;
+          doc.text(clipped, cellX, y + 5, { align });
+          x += colWidths[ci];
+        });
+        y += rowH;
+      });
+
+      // Legend at bottom of last page
+      y += 4;
+      if (y + 8 > pageH - margin) { doc.addPage(); y = margin; }
+      const legend = [
+        { color: [134, 239, 172], label: '\u22641 Month' },
+        { color: [147, 197, 253], label: '1\u20133 Months' },
+        { color: [253, 224, 71], label: '3\u20136 Months' },
+        { color: [252, 165, 165], label: '>6 Months' },
+      ];
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      let lx = margin;
+      legend.forEach(({ color, label }) => {
+        doc.setFillColor(...color);
+        doc.rect(lx, y, 6, 4, 'F');
+        doc.setTextColor(30, 41, 59);
+        doc.text(label, lx + 8, y + 3.5);
+        lx += 40;
+      });
+
+      // Convert PDF to base64
+      const pdfBase64 = 'data:application/pdf;base64,' + doc.output('datauristring').split(',')[1];
 
       const res = await fetch('/api/whatsapp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          imageBase64,
+          imageBase64: pdfBase64,
           phone: whatsappPhone.trim(),
           caption: `📋 Accounts List — Itefaq Iron & Cement Store\nTotal: ${filteredCustomers.length} accounts\nDate: ${new Date().toLocaleDateString()}`
         })
       });
       const data = await res.json();
       if (res.ok) {
-        setSnackbar({ open: true, message: 'Accounts list sent via WhatsApp!', severity: 'success' });
+        setSnackbar({ open: true, message: 'Accounts list PDF sent via WhatsApp!', severity: 'success' });
         setShowWhatsAppDialog(false);
         setWhatsappPhone('');
       } else {
