@@ -99,6 +99,9 @@ export default function SettingsPage() {
     const reader = readerRef.current;
     if (!reader) return;
 
+    // Cancel any stuck previous operation before starting a new one
+    await reader.stopCapture().catch(() => {});
+
     setFpError('');
     setScanState(SCAN_STATE.SCANNING);
     setScanMessage('Waiting for finger... (uses Windows Hello identity)');
@@ -339,19 +342,8 @@ export default function SettingsPage() {
                 </h3>
                 <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: '24px' }}>
                   {users.find(u => u.user_id === enrollingUserId)?.full_name}
-                  {' — '}Scan {ENROLL_STEPS} times for reliable enrollment
+                  {' — '}Place finger on scanner to map
                 </p>
-
-                {/* Progress dots */}
-                <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginBottom: '24px' }}>
-                  {Array.from({ length: ENROLL_STEPS }).map((_, i) => (
-                    <div key={i} style={{
-                      width: '40px', height: '8px', borderRadius: '4px',
-                      background: i < samplesCollected.length ? '#22c55e' : '#e2e8f0',
-                      transition: 'background 0.3s',
-                    }} />
-                  ))}
-                </div>
 
                 {/* Scanner circle */}
                 <div style={{

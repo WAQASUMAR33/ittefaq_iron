@@ -39,9 +39,27 @@ const WinbioIdentity = koffi.struct('WINBIO_IDENTITY', {
 });
 
 let winbio;
-let fnOpenSession, fnIdentify, fnVerify, fnCloseSession;
+let fnOpenSession, fnIdentify, fnVerify, fnCloseSession, fnCancel;
 let sessionHandle = 0;
-let busy = false; // only one capture at a time
+let busy = false;
+let busyTimeout = null;
+
+function setBusy() {
+  busy = true;
+  // Auto-reset after 30 s so a crashed/timed-out scan never locks the service
+  if (busyTimeout) clearTimeout(busyTimeout);
+  busyTimeout = setTimeout(() => {
+    if (busy) {
+      console.log('  [!] Scan timeout — resetting busy flag');
+      busy = false;
+    }
+  }, 30000);
+}
+
+function clearBusy() {
+  busy = false;
+  if (busyTimeout) { clearTimeout(busyTimeout); busyTimeout = null; }
+}
 
 function hrStr(hr) {
   return '0x' + (hr >>> 0).toString(16).toUpperCase().padStart(8, '0');
@@ -77,6 +95,7 @@ function loadAndInit() {
   );
 
   fnCloseSession = winbio.func('int32 WinBioCloseSession(size_t SessionHandle)');
+  fnCancel       = winbio.func('int32 WinBioCancel(size_t SessionHandle)');
 
   const sessionOut = [0];
   const hr = fnOpenSession(
@@ -141,23 +160,32 @@ function startServer() {
           send(ws, id, ['fingerprint-sensor-0']);
           sendEvent(ws, { Event: 'DeviceConnected', DeviceId: 'fingerprint-sensor-0' });
 
-        // ── StopCapture / StartCapture (legacy compat stubs) ──────────────────
+        // ── StopCapture: cancel any in-progress WinBio operation ─────────────
         } else if (method === 'StopCapture' || method === 'StartCapture') {
+          if (method === 'StopCapture' && busy) {
+            try { fnCancel(sessionHandle); } catch { /* ignore */ }
+            clearBusy();
+            console.log('  [*] Capture cancelled by client');
+          }
           send(ws, id, {});
 
         // ── Identify: scan → auto-detect who it is by Windows SID ─────────────
         } else if (method === 'Identify') {
-          if (busy) throw new Error('Scanner busy — please wait.');
-          busy = true;
+          if (busy) {
+            // Cancel the stuck operation and retry
+            try { fnCancel(sessionHandle); } catch { /* ignore */ }
+            clearBusy();
+          }
+          setBusy();
           send(ws, id, {}); // immediate ack
 
-          const unitId     = [0];
-          const identity   = { Type: 0, Value: new Array(72).fill(0) };
-          const subFactor  = [0];
+          const unitId       = [0];
+          const identity     = { Type: 0, Value: new Array(72).fill(0) };
+          const subFactor    = [0];
           const rejectDetail = [0];
 
           fnIdentify.async(sessionHandle, unitId, identity, subFactor, rejectDetail, (err, hr) => {
-            busy = false;
+            clearBusy();
             if (err) {
               sendEvent(ws, { Event: 'ErrorOccurred', Error: err.message });
               return;
@@ -192,8 +220,11 @@ function startServer() {
         } else if (method === 'Verify') {
           const { identity: sidHex } = params;
           if (!sidHex) throw new Error('identity (SID hex) required');
-          if (busy) throw new Error('Scanner busy — please wait.');
-          busy = true;
+          if (busy) {
+            try { fnCancel(sessionHandle); } catch { /* ignore */ }
+            clearBusy();
+          }
+          setBusy();
           send(ws, id, {}); // immediate ack
 
           const identityStruct = buildSIDIdentity(sidHex);
@@ -205,7 +236,7 @@ function startServer() {
             sessionHandle, identityStruct, WINBIO_SUBTYPE_ANY,
             unitId, match, rejectDetail,
             (err, hr) => {
-              busy = false;
+              clearBusy();
               if (err) {
                 sendEvent(ws, { Event: 'VerifyResult', Matched: false, Error: err.message });
                 return;
