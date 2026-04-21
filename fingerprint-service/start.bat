@@ -3,8 +3,8 @@ title DigitalPersona Fingerprint Service
 color 0A
 
 echo.
-echo  DigitalPersona U.are.U 4500 - Local Bridge Service
-echo  ====================================================
+echo  Itefaq Fingerprint Bridge
+echo  =========================================
 echo.
 
 cd /d "%~dp0"
@@ -15,6 +15,9 @@ if not exist node_modules (
     echo.
 )
 
+echo  TIP: To auto-start this service with Windows (run once as Admin):
+echo       node install-service.js
+echo.
 echo  Starting fingerprint service on ws://localhost:15896
 echo  Keep this window open while using the app.
 echo  Press Ctrl+C to stop.
