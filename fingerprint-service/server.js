@@ -43,15 +43,16 @@ let fnOpenSession, fnIdentify, fnVerify, fnCloseSession, fnCancel;
 let sessionHandle = 0;
 let busy = false;
 let busyTimeout = null;
+let callGeneration = 0;
 
 function setBusy() {
   busy = true;
-  // Auto-reset after 30 s so a crashed/timed-out scan never locks the service
   if (busyTimeout) clearTimeout(busyTimeout);
   busyTimeout = setTimeout(() => {
     if (busy) {
       console.log('  [!] Scan timeout — resetting busy flag');
       busy = false;
+      callGeneration++;
     }
   }, 30000);
 }
@@ -163,6 +164,7 @@ function startServer() {
         // ── StopCapture: cancel any in-progress WinBio operation ─────────────
         } else if (method === 'StopCapture' || method === 'StartCapture') {
           if (method === 'StopCapture' && busy) {
+            callGeneration++; // invalidate any pending callback
             try { fnCancel(sessionHandle); } catch { /* ignore */ }
             clearBusy();
             console.log('  [*] Capture cancelled by client');
@@ -172,10 +174,11 @@ function startServer() {
         // ── Identify: scan → auto-detect who it is by Windows SID ─────────────
         } else if (method === 'Identify') {
           if (busy) {
-            // Cancel the stuck operation and retry
+            callGeneration++; // invalidate stale callback before cancelling
             try { fnCancel(sessionHandle); } catch { /* ignore */ }
             clearBusy();
           }
+          const myGen = ++callGeneration;
           setBusy();
           send(ws, id, {}); // immediate ack
 
@@ -185,6 +188,7 @@ function startServer() {
           const rejectDetail = [0];
 
           fnIdentify.async(sessionHandle, unitId, identity, subFactor, rejectDetail, (err, hr) => {
+            if (callGeneration !== myGen) return; // stale callback — discard
             clearBusy();
             if (err) {
               sendEvent(ws, { Event: 'ErrorOccurred', Error: err.message });
@@ -221,9 +225,11 @@ function startServer() {
           const { identity: sidHex } = params;
           if (!sidHex) throw new Error('identity (SID hex) required');
           if (busy) {
+            callGeneration++;
             try { fnCancel(sessionHandle); } catch { /* ignore */ }
             clearBusy();
           }
+          const myGen = ++callGeneration;
           setBusy();
           send(ws, id, {}); // immediate ack
 
@@ -236,6 +242,7 @@ function startServer() {
             sessionHandle, identityStruct, WINBIO_SUBTYPE_ANY,
             unitId, match, rejectDetail,
             (err, hr) => {
+              if (callGeneration !== myGen) return; // stale callback — discard
               clearBusy();
               if (err) {
                 sendEvent(ws, { Event: 'VerifyResult', Matched: false, Error: err.message });
