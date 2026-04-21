@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import DashboardLayout from '../components/dashboard-layout';
-import { useFingerprint } from '../../hooks/useFingerprint';
-import FingerprintDialog from '../components/FingerprintDialog';
+import { useDigitalPersonaAuth } from '../../hooks/useDigitalPersonaAuth';
+import BiometricAuthDialog from '../components/BiometricAuthDialog';
 
 // Material-UI imports
 import {
@@ -139,7 +139,7 @@ export default function SaleReturnsPage() {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   // Fingerprint auth
-  const { requireFingerprint, fpDialogOpen, fpDialogMode, fpErrorMsg, fpLoading, handleFpSetup, handleFpCancel } = useFingerprint();
+  const { requireAuth, authDialogOpen, handleAuthSuccess, handleAuthCancel } = useDigitalPersonaAuth();
 
   // State management
   const [currentView, setCurrentView] = useState('list'); // 'list', 'create', 'edit'
@@ -527,7 +527,7 @@ export default function SaleReturnsPage() {
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const authOk = await requireFingerprint();
+    const authOk = await requireAuth();
     if (!authOk) return;
 
     if (!formData.cus_id) {
@@ -1757,14 +1757,10 @@ export default function SaleReturnsPage() {
         </form>
       </Dialog>
 
-      {/* Fingerprint Authentication Dialog */}
-      <FingerprintDialog
-        open={fpDialogOpen}
-        mode={fpDialogMode}
-        errorMsg={fpErrorMsg}
-        loading={fpLoading}
-        onSetup={handleFpSetup}
-        onClose={handleFpCancel}
+      <BiometricAuthDialog
+        open={authDialogOpen}
+        onSuccess={handleAuthSuccess}
+        onClose={handleAuthCancel}
       />
     </>
   );

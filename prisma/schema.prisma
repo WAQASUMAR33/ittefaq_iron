@@ -15,9 +15,12 @@ model Users {
   password            String
   is_verified         Boolean            @default(false)
   status              UserStatus         @default(ACTIVE)
-  last_logged_in      DateTime?
-  created_at          DateTime           @default(now())
-  updated_at          DateTime           @updatedAt
+  last_logged_in       DateTime?
+  pin_code             String?
+  fingerprint_template String?            @db.LongText
+  fingerprint_enrolled Boolean            @default(false)
+  created_at           DateTime           @default(now())
+  updated_at           DateTime           @updatedAt
   cargo               Cargo[]
   categories          Categories[]
   cities              City[]

@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback, Suspense, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '../components/dashboard-layout';
-import { useFingerprint } from '../../hooks/useFingerprint';
-import FingerprintDialog from '../components/FingerprintDialog';
+import { useDigitalPersonaAuth } from '../../hooks/useDigitalPersonaAuth';
+import BiometricAuthDialog from '../components/BiometricAuthDialog';
 
 // Material-UI imports
 import {
@@ -91,7 +91,7 @@ import {
 
 function PurchasesPageContent() {
   // Fingerprint auth
-  const { requireFingerprint, fpDialogOpen, fpDialogMode, fpErrorMsg, fpLoading, handleFpSetup, handleFpCancel } = useFingerprint();
+  const { requireAuth, authDialogOpen, handleAuthSuccess, handleAuthCancel } = useDigitalPersonaAuth();
 
   // State management
   const [purchases, setPurchases] = useState([]);
@@ -1424,7 +1424,7 @@ function PurchasesPageContent() {
     const hasCash = parseFloat(formData.cash_payment || 0) > 0;
     const hasBank = parseFloat(formData.bank_payment || 0) > 0;
     if (hasCash || hasBank) {
-      const authOk = await requireFingerprint();
+      const authOk = await requireAuth();
       if (!authOk) { setIsSubmitting(false); return; }
     }
     setIsSubmitting(true);
@@ -6451,14 +6451,10 @@ function PurchasesPageContent() {
         </DialogActions>
       </Dialog>
 
-      {/* Fingerprint Authentication Dialog */}
-      <FingerprintDialog
-        open={fpDialogOpen}
-        mode={fpDialogMode}
-        errorMsg={fpErrorMsg}
-        loading={fpLoading}
-        onSetup={handleFpSetup}
-        onClose={handleFpCancel}
+      <BiometricAuthDialog
+        open={authDialogOpen}
+        onSuccess={handleAuthSuccess}
+        onClose={handleAuthCancel}
       />
     </>
   );

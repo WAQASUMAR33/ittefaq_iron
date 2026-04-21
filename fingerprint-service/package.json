@@ -1,0 +1,13 @@
+{
+  "name": "fingerprint-service",
+  "version": "1.0.0",
+  "description": "Local WebSocket bridge for DigitalPersona U.are.U 4500",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "koffi": "^2.9.0",
+    "ws": "^8.18.0"
+  }
+}

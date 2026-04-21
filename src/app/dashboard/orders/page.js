@@ -111,6 +111,9 @@ function OrdersPageContent() {
   const [selectedBill, setSelectedBill] = useState(null);
   const [currentView, setCurrentView] = useState('list');
 
+  // WhatsApp state
+  const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
+
   // Handle URL query parameter for view and type
   useEffect(() => {
     const viewParam = searchParams?.get('view');
@@ -1906,6 +1909,45 @@ function OrdersPageContent() {
     } catch (e) {
       console.error('Print error:', e);
       window.print();
+    }
+  };
+
+  // Send order receipt via WhatsApp
+  const handleSendWhatsApp = async (bill, elementId = 'receipt-preview') => {
+    try {
+      setIsSendingWhatsApp(true);
+      const html2canvas = (await import('html2canvas')).default;
+      const receiptEl = document.getElementById(elementId);
+      if (!receiptEl) {
+        showSnackbar('❌ Receipt preview not found', 'error');
+        return;
+      }
+      const canvas = await html2canvas(receiptEl, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false
+      });
+      const imageBase64 = canvas.toDataURL('image/png');
+      const response = await fetch('/api/whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64,
+          bill,
+          phone: bill?.customer?.cus_phone_no
+        })
+      });
+      const result = await response.json();
+      if (response.ok) {
+        showSnackbar(`✅ WhatsApp receipt sent to ${bill?.customer?.cus_phone_no}`, 'success');
+      } else {
+        showSnackbar(`❌ WhatsApp failed: ${result.error}`, 'error');
+      }
+    } catch (err) {
+      showSnackbar(`❌ WhatsApp error: ${err.message}`, 'error');
+    } finally {
+      setIsSendingWhatsApp(false);
     }
   };
 
@@ -3786,6 +3828,20 @@ function OrdersPageContent() {
             >
               Print Thermal
             </Button>
+            <Button
+              variant="contained"
+              sx={{
+                minWidth: 150,
+                bgcolor: '#25D366',
+                '&:hover': { bgcolor: '#1ebe5d' }
+              }}
+              onClick={() => handleSendWhatsApp(currentBillData, 'receipt-preview')}
+              disabled={isSendingWhatsApp || !currentBillData?.customer?.cus_phone_no}
+              title={!currentBillData?.customer?.cus_phone_no ? 'No phone number on file' : 'Send receipt via WhatsApp'}
+            >
+              {isSendingWhatsApp ? <CircularProgress size={16} sx={{ mr: 1, color: 'white' }} /> : null}
+              {isSendingWhatsApp ? 'Sending...' : '📲 WhatsApp'}
+            </Button>
           </DialogActions>
         </Dialog>
 
@@ -5291,6 +5347,20 @@ function OrdersPageContent() {
             onClick={handlePrintBill}
           >
             Print Bill
+          </Button>
+          <Button
+            variant="contained"
+            sx={{
+              minWidth: 150,
+              bgcolor: '#25D366',
+              '&:hover': { bgcolor: '#1ebe5d' }
+            }}
+            onClick={() => handleSendWhatsApp(selectedBill, 'printable-invoice')}
+            disabled={isSendingWhatsApp || !selectedBill?.customer?.cus_phone_no}
+            title={!selectedBill?.customer?.cus_phone_no ? 'No phone number on file' : 'Send receipt via WhatsApp'}
+          >
+            {isSendingWhatsApp ? <CircularProgress size={16} sx={{ mr: 1, color: 'white' }} /> : null}
+            {isSendingWhatsApp ? 'Sending...' : '📲 WhatsApp'}
           </Button>
         </DialogActions>
       </Dialog>

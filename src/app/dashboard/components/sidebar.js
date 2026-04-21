@@ -138,7 +138,8 @@ export default function Sidebar({
     { id: 'usermanagement', name: 'User Management', icon: PersonIcon, category: 'system', parent: 'System' },
     { id: 'stores', name: 'Store Management', icon: StoreIcon, category: 'system', parent: 'System' },
     { id: 'store-stock', name: 'Store Stock', icon: InventoryIcon, category: 'system', parent: 'System' },
-    { id: 'stock-transfer', name: 'Stock Transfer', icon: SwapHorizIcon, category: 'system', parent: 'System' }
+    { id: 'stock-transfer', name: 'Stock Transfer', icon: SwapHorizIcon, category: 'system', parent: 'System' },
+    { id: 'settings', name: 'Biometric Settings', icon: PersonIcon, category: 'system', parent: 'System' },
   ];
 
   const isSearching = searchQuery.trim().length > 0;
@@ -246,6 +247,8 @@ export default function Sidebar({
       router.push('/dashboard/store-stock');
     } else if (itemId === 'stock-transfer') {
       router.push('/dashboard/stock-transfer');
+    } else if (itemId === 'settings') {
+      router.push('/dashboard/settings');
     } else if (itemId === 'dashboard') {
       router.push('/dashboard');
     }

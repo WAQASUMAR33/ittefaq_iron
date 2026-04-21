@@ -265,8 +265,14 @@ export async function POST(request) {
           mainCreditAmount = parseFloat(total_amount);
         }
       } else {
-        // Customer/Supplier: always CREDIT to reduce their outstanding balance
-        mainCreditAmount = parseFloat(total_amount);
+        // Customer/Supplier:
+        // RECEIVE (In Amount) → CREDIT → decreases balance (they paid us, debt reduces)
+        // PAY (Out Amount) → DEBIT → increases balance (we paid them, their credit increases)
+        if (payment_type === 'RECEIVE') {
+          mainCreditAmount = parseFloat(total_amount);
+        } else {
+          mainDebitAmount = parseFloat(total_amount);
+        }
       }
 
       const mainAccountEntry = createLedgerEntry({
@@ -474,9 +480,11 @@ export async function DELETE(request) {
 
       let newBalance = parseFloat(currentCustomer.cus_balance || 0);
       if (payment.payment_type === 'RECEIVE') {
-        newBalance -= parseFloat(payment.net_amount);
-      } else {
+        // RECEIVE (In Amount) added a CREDIT (decreased balance) → reverse by adding back
         newBalance += parseFloat(payment.net_amount);
+      } else {
+        // PAY (Out Amount) added a DEBIT (increased balance) → reverse by subtracting
+        newBalance -= parseFloat(payment.net_amount);
       }
 
       await tx.customer.update({

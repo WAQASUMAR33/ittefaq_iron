@@ -23,8 +23,8 @@ import {
   Printer as Print
 } from 'lucide-react';
 import DashboardLayout from '../components/dashboard-layout';
-import { useFingerprint } from '../../hooks/useFingerprint';
-import FingerprintDialog from '../components/FingerprintDialog';
+import { useDigitalPersonaAuth } from '../../hooks/useDigitalPersonaAuth';
+import BiometricAuthDialog from '../components/BiometricAuthDialog';
 
 // Material-UI imports
 import {
@@ -70,6 +70,18 @@ import {
   LinearProgress
 } from '@mui/material';
 
+const buildPaymentDescription = (cashAmount, bankAmount, bankAccountId, bankAccountsList) => {
+  const parts = [];
+  const cash = parseFloat(cashAmount || 0);
+  const bank = parseFloat(bankAmount || 0);
+  if (cash > 0) parts.push(`Cash: PKR ${cash.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`);
+  if (bank > 0 && bankAccountId) {
+    const bankName = bankAccountsList.find(b => String(b.cus_id) === String(bankAccountId))?.cus_name || 'Bank';
+    parts.push(`${bankName}: PKR ${bank.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`);
+  }
+  return parts.join(', ');
+};
+
 const fmtAmt = (val) => {
   const n = parseFloat(val || 0);
   if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -90,7 +102,7 @@ const getInvoiceRemainingDue = (bill) => {
 
 export default function FinancePage() {
   // Fingerprint auth
-  const { requireFingerprint, fpDialogOpen, fpDialogMode, fpErrorMsg, fpLoading, handleFpSetup, handleFpCancel } = useFingerprint();
+  const { requireAuth, authDialogOpen, handleAuthSuccess, handleAuthCancel } = useDigitalPersonaAuth();
 
   // State management
   const [ledgerEntries, setLedgerEntries] = useState([]);
@@ -750,7 +762,7 @@ export default function FinancePage() {
 
         const bankAcc = bankAccounts.find(b => b.cus_id === parseInt(payPaymentData.bank_account));
         const cashAcc = cashAccounts.find(c => c.cus_id === parseInt(payPaymentData.cash_account));
-        const remainingBalance = previousBalance - totalAmount;
+        const remainingBalance = previousBalance + totalAmount;
 
         setPaymentReceiptData({
           type: 'PAY',
@@ -803,7 +815,7 @@ export default function FinancePage() {
 
   const handleSubmit = async (e) => {
     e?.preventDefault();
-    const authOk = await requireFingerprint();
+    const authOk = await requireAuth();
     if (!authOk) return;
     try {
       // Validation
@@ -1485,7 +1497,7 @@ export default function FinancePage() {
                           transition: 'all 0.2s'
                         }}
                       >
-                        Receive Payment
+                        In Amount
                       </Button>
                       <Button
                         variant="contained"
@@ -1509,7 +1521,7 @@ export default function FinancePage() {
                           transition: 'all 0.2s'
                         }}
                       >
-                        Pay Payment
+                        Out Amount
                       </Button>
                     </Box>
                   )}
@@ -2773,7 +2785,7 @@ export default function FinancePage() {
           px: 3,
           py: 2
         }}>
-          <Typography variant="h6" sx={{ fontWeight: 800 }}>RECEIVE PAYMENT</Typography>
+          <Typography variant="h6" sx={{ fontWeight: 800 }}>IN AMOUNT</Typography>
           <Typography variant="subtitle1" sx={{ fontWeight: 600, bgcolor: 'rgba(255,255,255,0.2)', px: 1.5, py: 0.5, borderRadius: 1 }}>
             Serial: #{ledgerEntries.length + 1}
           </Typography>
@@ -2814,7 +2826,11 @@ export default function FinancePage() {
                 fullWidth
                 type="number"
                 value={receivePaymentData.cash_amount}
-                onChange={(e) => setReceivePaymentData(prev => ({ ...prev, cash_amount: e.target.value }))}
+                onChange={(e) => setReceivePaymentData(prev => {
+                  const updated = { ...prev, cash_amount: e.target.value };
+                  updated.description = buildPaymentDescription(e.target.value, prev.bank_amount, prev.bank_account, bankAccounts);
+                  return updated;
+                })}
                 placeholder="0.00"
                 InputProps={{
                   startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
@@ -2830,7 +2846,11 @@ export default function FinancePage() {
               <FormControl fullWidth>
                 <Select
                   value={receivePaymentData.bank_account}
-                  onChange={(e) => setReceivePaymentData(prev => ({ ...prev, bank_account: e.target.value }))}
+                  onChange={(e) => setReceivePaymentData(prev => {
+                    const updated = { ...prev, bank_account: e.target.value };
+                    updated.description = buildPaymentDescription(prev.cash_amount, prev.bank_amount, e.target.value, bankAccounts);
+                    return updated;
+                  })}
                   displayEmpty
                   sx={{ bgcolor: '#f8fafc' }}
                 >
@@ -2850,7 +2870,11 @@ export default function FinancePage() {
                 fullWidth
                 type="number"
                 value={receivePaymentData.bank_amount}
-                onChange={(e) => setReceivePaymentData(prev => ({ ...prev, bank_amount: e.target.value }))}
+                onChange={(e) => setReceivePaymentData(prev => {
+                  const updated = { ...prev, bank_amount: e.target.value };
+                  updated.description = buildPaymentDescription(prev.cash_amount, e.target.value, prev.bank_account, bankAccounts);
+                  return updated;
+                })}
                 disabled={!receivePaymentData.bank_account}
                 placeholder="0.00"
                 InputProps={{
@@ -2934,7 +2958,7 @@ export default function FinancePage() {
           px: 3,
           py: 2
         }}>
-          <Typography variant="h6" sx={{ fontWeight: 800 }}>ISSUE PAYMENT</Typography>
+          <Typography variant="h6" sx={{ fontWeight: 800 }}>OUT AMOUNT</Typography>
           <Typography variant="subtitle1" sx={{ fontWeight: 600, bgcolor: 'rgba(255,255,255,0.2)', px: 1.5, py: 0.5, borderRadius: 1 }}>
             Serial: #{ledgerEntries.length + 1}
           </Typography>
@@ -2975,7 +2999,11 @@ export default function FinancePage() {
                 fullWidth
                 type="number"
                 value={payPaymentData.cash_amount}
-                onChange={(e) => setPayPaymentData(prev => ({ ...prev, cash_amount: e.target.value }))}
+                onChange={(e) => setPayPaymentData(prev => {
+                  const updated = { ...prev, cash_amount: e.target.value };
+                  updated.description = buildPaymentDescription(e.target.value, prev.bank_amount, prev.bank_account, bankAccounts);
+                  return updated;
+                })}
                 placeholder="0.00"
                 InputProps={{
                   startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
@@ -2991,7 +3019,11 @@ export default function FinancePage() {
               <FormControl fullWidth>
                 <Select
                   value={payPaymentData.bank_account}
-                  onChange={(e) => setPayPaymentData(prev => ({ ...prev, bank_account: e.target.value }))}
+                  onChange={(e) => setPayPaymentData(prev => {
+                    const updated = { ...prev, bank_account: e.target.value };
+                    updated.description = buildPaymentDescription(prev.cash_amount, prev.bank_amount, e.target.value, bankAccounts);
+                    return updated;
+                  })}
                   displayEmpty
                   sx={{ bgcolor: '#f8fafc' }}
                 >
@@ -3011,7 +3043,11 @@ export default function FinancePage() {
                 fullWidth
                 type="number"
                 value={payPaymentData.bank_amount}
-                onChange={(e) => setPayPaymentData(prev => ({ ...prev, bank_amount: e.target.value }))}
+                onChange={(e) => setPayPaymentData(prev => {
+                  const updated = { ...prev, bank_amount: e.target.value };
+                  updated.description = buildPaymentDescription(prev.cash_amount, e.target.value, prev.bank_account, bankAccounts);
+                  return updated;
+                })}
                 disabled={!payPaymentData.bank_account}
                 placeholder="0.00"
                 InputProps={{
@@ -3519,14 +3555,10 @@ export default function FinancePage() {
         </DialogActions>
       </Dialog>
 
-      {/* Fingerprint Authentication Dialog */}
-      <FingerprintDialog
-        open={fpDialogOpen}
-        mode={fpDialogMode}
-        errorMsg={fpErrorMsg}
-        loading={fpLoading}
-        onSetup={handleFpSetup}
-        onClose={handleFpCancel}
+      <BiometricAuthDialog
+        open={authDialogOpen}
+        onSuccess={handleAuthSuccess}
+        onClose={handleAuthCancel}
       />
     </DashboardLayout>
   );

@@ -62,12 +62,15 @@ export async function POST(request) {
       ? `🔄 Sale Return #${bill?.sale_id} - ${bill?.customer?.cus_name || ''}`
       : `🧾 Invoice #${bill?.sale_id} - ${bill?.customer?.cus_name || ''}`);
 
+    console.log('📤 Sending WhatsApp to:', formattedTo);
     const result = await client.messages.create({
       from: FROM,
       to: formattedTo,
       body: caption,
       mediaUrl: [mediaUrl]
     });
+
+    console.log('✅ Twilio result — SID:', result.sid, '| Status:', result.status, '| To:', result.to, '| ErrorCode:', result.errorCode, '| ErrorMsg:', result.errorMessage);
 
     // Delete from Cloudinary after 5 minutes
     setTimeout(async () => {

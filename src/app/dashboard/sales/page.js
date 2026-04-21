@@ -3,8 +3,8 @@
 import { useState, useEffect, useMemo, Suspense, useRef, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '../components/dashboard-layout';
-import { useFingerprint } from '../../hooks/useFingerprint';
-import FingerprintDialog from '../components/FingerprintDialog';
+import { useDigitalPersonaAuth } from '../../hooks/useDigitalPersonaAuth';
+import BiometricAuthDialog from '../components/BiometricAuthDialog';
 
 // Material-UI imports
 import {
@@ -78,7 +78,7 @@ function SalesPageContent() {
   const searchParams = useSearchParams();
 
   // Fingerprint auth
-  const { requireFingerprint, fpDialogOpen, fpDialogMode, fpErrorMsg, fpLoading, handleFpSetup, handleFpCancel } = useFingerprint();
+  const { requireAuth, authDialogOpen, handleAuthSuccess, handleAuthCancel } = useDigitalPersonaAuth();
 
   // State management
   const [sales, setSales] = useState([]);
@@ -1156,7 +1156,7 @@ function SalesPageContent() {
     const hasCash = parseFloat(paymentData.cash || 0) > 0;
     const hasBank = parseFloat(paymentData.bank || 0) > 0;
     if (hasCash || hasBank) {
-      const authOk = await requireFingerprint();
+      const authOk = await requireAuth();
       if (!authOk) return;
     }
     try {
@@ -2621,7 +2621,7 @@ function SalesPageContent() {
 
   // Handle return submission
   const handleSubmitReturn = async () => {
-    const authOk = await requireFingerprint();
+    const authOk = await requireAuth();
     if (!authOk) return;
     try {
       // Validation
@@ -8726,14 +8726,10 @@ function SalesPageContent() {
         </DialogActions>
       </Dialog>
 
-      {/* Fingerprint Authentication Dialog */}
-      <FingerprintDialog
-        open={fpDialogOpen}
-        mode={fpDialogMode}
-        errorMsg={fpErrorMsg}
-        loading={fpLoading}
-        onSetup={handleFpSetup}
-        onClose={handleFpCancel}
+      <BiometricAuthDialog
+        open={authDialogOpen}
+        onSuccess={handleAuthSuccess}
+        onClose={handleAuthCancel}
       />
     </>
   );
