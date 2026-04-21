@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { getReader } from '../../utils/digitalpersona';
 
 const SCAN = {
   IDLE: 'idle',
@@ -19,18 +20,25 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
   const [scanMsg, setScanMsg] = useState('');
   const [fpError, setFpError] = useState('');
   const activeRef = useRef(false);
+  const readerRef = useRef(null);
+  const sidRef = useRef(null);
 
   // PIN state
   const [pin, setPin] = useState('');
   const [pinError, setPinError] = useState('');
   const [pinLoading, setPinLoading] = useState(false);
 
-  // Get current logged-in user from localStorage
   const getCurrentUser = () => {
     try { return JSON.parse(localStorage.getItem('user') || 'null'); } catch { return null; }
   };
 
-  // Reset state whenever dialog opens
+  const disconnectReader = useCallback(() => {
+    try { readerRef.current?.disconnect(); } catch { /* ignore */ }
+    readerRef.current = null;
+    sidRef.current = null;
+  }, []);
+
+  // Reset state whenever dialog opens/closes
   useEffect(() => {
     if (open) {
       setTab('pin');
@@ -42,68 +50,96 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
       activeRef.current = true;
     } else {
       activeRef.current = false;
+      disconnectReader();
     }
-  }, [open]);
+  }, [open, disconnectReader]);
 
+  // Connect to DigitalPersona service when fingerprint tab is selected
   useEffect(() => {
-    if (open && tab === 'fingerprint') {
-      setScanState(SCAN.READY);
-      setScanMsg('Click "Scan Finger" — your browser will prompt for fingerprint.');
+    if (!open || tab !== 'fingerprint') {
+      disconnectReader();
+      return;
     }
-  }, [open, tab]);
 
-  const initScanner = useCallback(() => {
-    setScanState(SCAN.READY);
-    setScanMsg('Click "Scan Finger" — your browser will prompt for fingerprint.');
-    setFpError('');
-  }, []);
+    let cancelled = false;
+
+    async function connectAndPrepare() {
+      setScanState(SCAN.CONNECTING);
+      setScanMsg('Connecting to fingerprint scanner...');
+      setFpError('');
+
+      const user = getCurrentUser();
+      if (!user) {
+        setFpError('Session expired. Please log in again.');
+        setScanState(SCAN.ERROR);
+        return;
+      }
+
+      try {
+        // Connect to DP service
+        const reader = getReader();
+        await reader.connect();
+        readerRef.current = reader;
+
+        if (cancelled) return;
+
+        // Fetch user's stored SID
+        const res = await fetch(`/api/auth/user-template?userId=${user.user_id}`);
+        const data = await res.json();
+
+        if (cancelled) return;
+
+        if (!data.enrolled || !data.template) {
+          setFpError('No fingerprint enrolled for your account.\nAsk an admin to enroll your fingerprint in Settings → Biometric Settings.');
+          setScanState(SCAN.ERROR);
+          return;
+        }
+
+        sidRef.current = data.template;
+        setScanState(SCAN.READY);
+        setScanMsg('Place your finger on the DigitalPersona scanner.');
+      } catch (err) {
+        if (cancelled) return;
+        setFpError(err.message || 'Could not connect to fingerprint scanner.\nMake sure the fingerprint service is running.');
+        setScanState(SCAN.ERROR);
+      }
+    }
+
+    connectAndPrepare();
+    return () => { cancelled = true; };
+  }, [open, tab, disconnectReader]);
 
   async function handleScan() {
-    const user = getCurrentUser();
-    if (!user) { setFpError('Session expired. Please log in again.'); return; }
+    if (!readerRef.current || !sidRef.current) return;
 
     setFpError('');
     setScanState(SCAN.SCANNING);
-    setScanMsg('Follow the browser prompt to scan fingerprint...');
+    setScanMsg('Place your finger on the scanner...');
 
     try {
-      const { startAuthentication } = await import('@simplewebauthn/browser');
-
-      // 1. Get auth options (challenge + allowed credentials)
-      const optRes = await fetch('/api/auth/webauthn/auth-options', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.user_id }),
-      });
-      if (!optRes.ok) {
-        const d = await optRes.json();
-        throw new Error(d.error || 'No fingerprint enrolled. Use PIN instead.');
-      }
-      const options = await optRes.json();
-
-      // 2. Browser fingerprint prompt
-      const credential = await startAuthentication({ optionsJSON: options });
-
-      // 3. Verify on server
-      const verRes = await fetch('/api/auth/webauthn/auth-verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.user_id, credential }),
-      });
-      const verData = await verRes.json();
-      if (!verRes.ok) throw new Error(verData.error);
+      const { matched } = await readerRef.current.verifyIdentity(sidRef.current);
 
       if (!activeRef.current) return;
-      setScanState(SCAN.SUCCESS);
-      setScanMsg('Verified!');
-      setTimeout(() => { if (activeRef.current) onSuccess(); }, 600);
+
+      if (matched) {
+        setScanState(SCAN.SUCCESS);
+        setScanMsg('Verified!');
+        setTimeout(() => { if (activeRef.current) onSuccess(); }, 600);
+      } else {
+        setScanState(SCAN.ERROR);
+        setFpError('Fingerprint did not match. Try again.');
+      }
     } catch (err) {
       if (!activeRef.current) return;
       setScanState(SCAN.ERROR);
-      setFpError(err.name === 'NotAllowedError'
-        ? 'Scan cancelled or timed out. Try again or use PIN.'
-        : (err.message || 'Verification failed.'));
+      setFpError(err.message || 'Scan failed. Try again.');
     }
+  }
+
+  function resetFingerprint() {
+    setScanState(SCAN.READY);
+    setScanMsg('Place your finger on the DigitalPersona scanner.');
+    setFpError('');
   }
 
   // PIN handlers
@@ -153,6 +189,7 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
 
   const isPulsing = scanState === SCAN.SCANNING;
   const isConnecting = scanState === SCAN.CONNECTING;
+  const isBusy = [SCAN.CONNECTING, SCAN.SCANNING, SCAN.SUCCESS].includes(scanState);
 
   return (
     <div style={{
@@ -197,7 +234,7 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
           ))}
         </div>
 
-        {/* ── FINGERPRINT TAB ── */}
+        {/* ── FINGERPRINT TAB (DigitalPersona 4500) ── */}
         {tab === 'fingerprint' && (
           <div>
             <div style={{
@@ -235,20 +272,20 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
             <div style={{ display: 'flex', gap: '8px' }}>
               <button
                 onClick={handleScan}
-                disabled={scanState === SCAN.CONNECTING || scanState === SCAN.SCANNING || scanState === SCAN.SUCCESS}
+                disabled={isBusy || scanState !== SCAN.READY}
                 style={{
                   flex: 1, padding: '11px',
-                  background: [SCAN.CONNECTING, SCAN.SCANNING, SCAN.SUCCESS].includes(scanState)
+                  background: isBusy || scanState !== SCAN.READY
                     ? '#93c5fd' : 'linear-gradient(135deg, #1d4ed8, #1e40af)',
                   color: 'white', border: 'none', borderRadius: '10px',
                   fontWeight: '700', fontSize: '0.875rem',
-                  cursor: [SCAN.CONNECTING, SCAN.SCANNING, SCAN.SUCCESS].includes(scanState) ? 'not-allowed' : 'pointer',
+                  cursor: isBusy || scanState !== SCAN.READY ? 'not-allowed' : 'pointer',
                 }}
               >
                 {scanState === SCAN.SCANNING ? 'Scanning...' : scanState === SCAN.SUCCESS ? 'Verified ✓' : '🖐️ Scan Finger'}
               </button>
               {scanState === SCAN.ERROR && (
-                <button onClick={initScanner} style={{
+                <button onClick={resetFingerprint} style={{
                   padding: '11px 14px', background: '#f8fafc', border: '2px solid #e2e8f0',
                   borderRadius: '10px', fontWeight: '600', fontSize: '0.8rem', cursor: 'pointer', color: '#374151',
                 }}>Retry</button>
@@ -260,7 +297,6 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
         {/* ── PIN TAB ── */}
         {tab === 'pin' && (
           <div>
-            {/* PIN dots */}
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginBottom: '16px' }}>
               {[0,1,2,3,4,5].map(i => (
                 <div key={i} style={{
@@ -275,7 +311,6 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
               ))}
             </div>
 
-            {/* Numpad */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '14px' }}>
               {[1,2,3,4,5,6,7,8,9].map(n => (
                 <button key={n} onClick={() => addDigit(String(n))} style={{

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../components/dashboard-layout';
+import { getReader } from '../../utils/digitalpersona';
 
 const ENROLL_STEPS = 3; // number of fingerprint scans required for enrollment
 
@@ -71,45 +72,48 @@ export default function SettingsPage() {
     setLoading(false);
   }
 
-  // ─── Fingerprint enrollment (WebAuthn) ────────────────────────────────────
+  // ─── Fingerprint enrollment (DigitalPersona 4500) ─────────────────────────
 
   async function startEnrollment(userId) {
     setEnrollingUserId(userId);
     setSamplesCollected([]);
     setFpError('');
-    setScanState(SCAN_STATE.READY);
-    setScanMessage('Click "Scan Now" — your browser will prompt for fingerprint.');
+    setScanState(SCAN_STATE.CONNECTING);
+    setScanMessage('Connecting to DigitalPersona scanner...');
+
+    try {
+      const reader = getReader();
+      readerRef.current = reader;
+      await reader.connect();
+      setScanState(SCAN_STATE.READY);
+      setScanMessage('Place your finger on the scanner to capture fingerprint.');
+    } catch (err) {
+      setScanState(SCAN_STATE.ERROR);
+      setFpError(err.message || 'Could not connect to fingerprint scanner.\nMake sure the fingerprint service is running.');
+    }
   }
 
   async function captureEnrollSample() {
+    if (!readerRef.current) return;
     setFpError('');
     setScanState(SCAN_STATE.SCANNING);
-    setScanMessage('Follow the browser prompt to scan fingerprint...');
+    setScanMessage('Place your finger on the scanner now...');
 
     try {
-      const { startRegistration } = await import('@simplewebauthn/browser');
+      // identify() → Windows reads the finger and returns the user's SID
+      const result = await readerRef.current.identify();
+      const sid = result?.Identity || result?.identity;
 
-      // 1. Get registration options from server
-      const optRes = await fetch('/api/auth/webauthn/register-options', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: enrollingUserId }),
-      });
-      if (!optRes.ok) { const d = await optRes.json(); throw new Error(d.error); }
-      const options = await optRes.json();
+      if (!sid) throw new Error('Could not read fingerprint identity. Try again.');
 
-      // 2. Browser fingerprint prompt
-      const credential = await startRegistration({ optionsJSON: options });
-
-      // 3. Verify and save on server
       setScanMessage('Saving fingerprint...');
-      const verRes = await fetch('/api/auth/webauthn/register-verify', {
+      const res = await fetch('/api/settings/fingerprint', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: enrollingUserId, credential }),
+        body: JSON.stringify({ userId: enrollingUserId, template: sid }),
       });
-      const verData = await verRes.json();
-      if (!verRes.ok) throw new Error(verData.error);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save fingerprint');
 
       setScanState(SCAN_STATE.DONE);
       setScanMessage('Fingerprint enrolled successfully!');
@@ -117,9 +121,7 @@ export default function SettingsPage() {
       setTimeout(cancelEnrollment, 1500);
     } catch (err) {
       setScanState(SCAN_STATE.ERROR);
-      setFpError(err.name === 'NotAllowedError'
-        ? 'Fingerprint scan was cancelled or timed out. Try again.'
-        : err.message);
+      setFpError(err.message || 'Scan failed. Try again.');
     }
   }
 
@@ -138,6 +140,8 @@ export default function SettingsPage() {
   }
 
   function cancelEnrollment() {
+    try { readerRef.current?.disconnect(); } catch { /* ignore */ }
+    readerRef.current = null;
     setEnrollingUserId(null);
     setSamplesCollected([]);
     setScanState(SCAN_STATE.IDLE);
@@ -291,8 +295,8 @@ export default function SettingsPage() {
             borderRadius: '12px', padding: '14px 16px', marginBottom: '20px',
             fontSize: '0.85rem', color: '#1e40af',
           }}>
-            <strong>How it works:</strong> Uses Windows Hello (built-in biometric) — no extra software needed.
-            The user must have a fingerprint enrolled in <strong>Windows Settings → Accounts → Sign-in options → Windows Hello Fingerprint</strong>.
+            <strong>How it works:</strong> Uses the <strong>DigitalPersona 4500</strong> fingerprint reader.
+            The fingerprint service must be running on this machine. Click <strong>Enroll</strong> then place the user&apos;s finger on the scanner.
           </div>
 
           {/* Enrollment modal */}
