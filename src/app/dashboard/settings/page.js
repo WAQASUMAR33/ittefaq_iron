@@ -71,86 +71,55 @@ export default function SettingsPage() {
     setLoading(false);
   }
 
-  // ─── Fingerprint enrollment ────────────────────────────────────────────────
+  // ─── Fingerprint enrollment (WebAuthn) ────────────────────────────────────
 
   async function startEnrollment(userId) {
     setEnrollingUserId(userId);
     setSamplesCollected([]);
     setFpError('');
-    setScanState(SCAN_STATE.CONNECTING);
-    setScanMessage('Connecting to fingerprint scanner...');
-
-    try {
-      const { getReader } = await import('../../utils/digitalpersona');
-      const reader = getReader();
-      readerRef.current = reader;
-
-      if (!reader.isReady) await reader.connect();
-
-      setScanState(SCAN_STATE.READY);
-      setScanMessage('Ready. Have the user place their finger on the scanner.');
-    } catch (err) {
-      setScanState(SCAN_STATE.ERROR);
-      setFpError(err.message);
-    }
+    setScanState(SCAN_STATE.READY);
+    setScanMessage('Click "Scan Now" — your browser will prompt for fingerprint.');
   }
 
   async function captureEnrollSample() {
-    const reader = readerRef.current;
-    if (!reader) return;
-
-    // Cancel any stuck previous operation before starting a new one
-    await reader.stopCapture().catch(() => {});
-
     setFpError('');
     setScanState(SCAN_STATE.SCANNING);
-    setScanMessage('Waiting for finger... (uses Windows Hello identity)');
+    setScanMessage('Follow the browser prompt to scan fingerprint...');
 
     try {
-      // WinBioIdentify: scan finger → get Windows SID
-      const result = await reader.identify();
+      const { startRegistration } = await import('@simplewebauthn/browser');
 
-      if (!result?.Matched || !result?.Identity) {
-        setScanState(SCAN_STATE.ERROR);
-        setFpError(
-          'Finger not recognized by Windows.\n' +
-          'The user must first enroll their fingerprint in:\n' +
-          'Windows Settings → Accounts → Sign-in options → Windows Hello Fingerprint',
-        );
-        return;
-      }
-
-      // Save the SID as the "template"
-      await saveEnrollment(enrollingUserId, result.Identity);
-    } catch (err) {
-      setScanState(SCAN_STATE.ERROR);
-      setFpError(err.message);
-    }
-  }
-
-  async function saveEnrollment(userId, template) {
-    setScanState(SCAN_STATE.DONE);
-    setScanMessage('Saving fingerprint mapping...');
-
-    try {
-      const res = await fetch('/api/settings/fingerprint', {
+      // 1. Get registration options from server
+      const optRes = await fetch('/api/auth/webauthn/register-options', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, template }),
+        body: JSON.stringify({ userId: enrollingUserId }),
       });
+      if (!optRes.ok) { const d = await optRes.json(); throw new Error(d.error); }
+      const options = await optRes.json();
 
-      if (res.ok) {
-        setScanMessage('Fingerprint mapped successfully!');
-        await fetchUsers();
-        setTimeout(cancelEnrollment, 1500);
-      } else {
-        const d = await res.json();
-        setScanState(SCAN_STATE.ERROR);
-        setFpError(d.error || 'Failed to save fingerprint mapping');
-      }
-    } catch {
+      // 2. Browser fingerprint prompt
+      const credential = await startRegistration({ optionsJSON: options });
+
+      // 3. Verify and save on server
+      setScanMessage('Saving fingerprint...');
+      const verRes = await fetch('/api/auth/webauthn/register-verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: enrollingUserId, credential }),
+      });
+      const verData = await verRes.json();
+      if (!verRes.ok) throw new Error(verData.error);
+
+      setScanState(SCAN_STATE.DONE);
+      setScanMessage('Fingerprint enrolled successfully!');
+      await fetchUsers();
+      setTimeout(cancelEnrollment, 1500);
+    } catch (err) {
       setScanState(SCAN_STATE.ERROR);
-      setFpError('Network error saving fingerprint');
+      setFpError(err.name === 'NotAllowedError'
+        ? 'Fingerprint scan was cancelled or timed out. Try again.'
+        : err.message);
     }
   }
 
@@ -169,7 +138,6 @@ export default function SettingsPage() {
   }
 
   function cancelEnrollment() {
-    readerRef.current?.stopCapture().catch(() => {});
     setEnrollingUserId(null);
     setSamplesCollected([]);
     setScanState(SCAN_STATE.IDLE);
@@ -323,8 +291,8 @@ export default function SettingsPage() {
             borderRadius: '12px', padding: '14px 16px', marginBottom: '20px',
             fontSize: '0.85rem', color: '#1e40af',
           }}>
-            <strong>Requirements:</strong> DigitalPersona U.are.U 4500 must be connected and the
-            DigitalPersona WebAPI Service must be running on this computer.
+            <strong>How it works:</strong> Uses Windows Hello (built-in biometric) — no extra software needed.
+            The user must have a fingerprint enrolled in <strong>Windows Settings → Accounts → Sign-in options → Windows Hello Fingerprint</strong>.
           </div>
 
           {/* Enrollment modal */}

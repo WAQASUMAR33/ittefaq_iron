@@ -20,6 +20,8 @@
     "@mui/material": "^7.3.4",
     "@mui/material-nextjs": "^7.3.9",
     "@prisma/client": "^6.17.0",
+    "@simplewebauthn/browser": "^13.3.0",
+    "@simplewebauthn/server": "^13.3.0",
     "axios": "^1.13.4",
     "bcryptjs": "^3.0.2",
     "cloudinary": "^2.9.0",

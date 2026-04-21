@@ -18,7 +18,6 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
   const [scanState, setScanState] = useState(SCAN.IDLE);
   const [scanMsg, setScanMsg] = useState('');
   const [fpError, setFpError] = useState('');
-  const readerRef = useRef(null);
   const activeRef = useRef(false);
 
   // PIN state
@@ -34,7 +33,7 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
   // Reset state whenever dialog opens
   useEffect(() => {
     if (open) {
-      setTab('pin'); // default to PIN; fingerprint only connects if user switches to it
+      setTab('pin');
       setScanState(SCAN.IDLE);
       setScanMsg('');
       setFpError('');
@@ -43,92 +42,67 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
       activeRef.current = true;
     } else {
       activeRef.current = false;
-      readerRef.current?.stopCapture().catch(() => {});
     }
   }, [open]);
 
-  // Auto-init scanner when fingerprint tab is active and dialog is open
-  const initScanner = useCallback(async () => {
-    if (!activeRef.current) return;
-    setScanState(SCAN.CONNECTING);
-    setScanMsg('Connecting to scanner...');
-    setFpError('');
-
-    try {
-      const { getReader } = await import('../../utils/digitalpersona');
-      const reader = getReader();
-      readerRef.current = reader;
-
-      if (!reader.isReady) await reader.connect();
-
-      if (!activeRef.current) return;
-      setScanState(SCAN.READY);
-      setScanMsg('Place your finger on the scanner.');
-
-      reader.callbacks.onDeviceConnected = () => {
-        if (!activeRef.current) return;
-        setScanState(SCAN.READY);
-        setScanMsg('Device connected. Place finger.');
-      };
-      reader.callbacks.onDeviceDisconnected = () => {
-        if (!activeRef.current) return;
-        setScanState(SCAN.ERROR);
-        setFpError('Scanner disconnected. Reconnect and retry.');
-      };
-    } catch (err) {
-      if (!activeRef.current) return;
-      setScanState(SCAN.ERROR);
-      setFpError(err.message);
-    }
-  }, []);
-
   useEffect(() => {
     if (open && tab === 'fingerprint') {
-      initScanner();
+      setScanState(SCAN.READY);
+      setScanMsg('Click "Scan Finger" — your browser will prompt for fingerprint.');
     }
-  }, [open, tab, initScanner]);
+  }, [open, tab]);
+
+  const initScanner = useCallback(() => {
+    setScanState(SCAN.READY);
+    setScanMsg('Click "Scan Finger" — your browser will prompt for fingerprint.');
+    setFpError('');
+  }, []);
 
   async function handleScan() {
     const user = getCurrentUser();
     if (!user) { setFpError('Session expired. Please log in again.'); return; }
 
-    const reader = readerRef.current;
-    if (!reader) { setFpError('Scanner not ready. Click Retry.'); return; }
-
     setFpError('');
     setScanState(SCAN.SCANNING);
-    setScanMsg('Place finger on scanner...');
+    setScanMsg('Follow the browser prompt to scan fingerprint...');
 
     try {
-      // Fetch stored SID for this user
-      const templateRes = await fetch(`/api/auth/user-template?userId=${user.user_id}`);
-      const templateData = await templateRes.json();
+      const { startAuthentication } = await import('@simplewebauthn/browser');
 
-      if (!templateData.enrolled || !templateData.template) {
-        setScanState(SCAN.ERROR);
-        setFpError('No fingerprint enrolled for your account. Use PIN instead, or ask admin to map your fingerprint in Settings → Biometric Settings.');
-        return;
+      // 1. Get auth options (challenge + allowed credentials)
+      const optRes = await fetch('/api/auth/webauthn/auth-options', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.user_id }),
+      });
+      if (!optRes.ok) {
+        const d = await optRes.json();
+        throw new Error(d.error || 'No fingerprint enrolled. Use PIN instead.');
       }
+      const options = await optRes.json();
+
+      // 2. Browser fingerprint prompt
+      const credential = await startAuthentication({ optionsJSON: options });
+
+      // 3. Verify on server
+      const verRes = await fetch('/api/auth/webauthn/auth-verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.user_id, credential }),
+      });
+      const verData = await verRes.json();
+      if (!verRes.ok) throw new Error(verData.error);
 
       if (!activeRef.current) return;
-
-      // Verify finger against the stored Windows SID
-      const { matched } = await reader.verifyIdentity(templateData.template);
-
-      if (!activeRef.current) return;
-
-      if (matched) {
-        setScanState(SCAN.SUCCESS);
-        setScanMsg('Verified!');
-        setTimeout(() => { if (activeRef.current) onSuccess(); }, 600);
-      } else {
-        setScanState(SCAN.ERROR);
-        setFpError('Fingerprint not recognized. Try again or use PIN.');
-      }
+      setScanState(SCAN.SUCCESS);
+      setScanMsg('Verified!');
+      setTimeout(() => { if (activeRef.current) onSuccess(); }, 600);
     } catch (err) {
       if (!activeRef.current) return;
       setScanState(SCAN.ERROR);
-      setFpError('Verification error: ' + err.message);
+      setFpError(err.name === 'NotAllowedError'
+        ? 'Scan cancelled or timed out. Try again or use PIN.'
+        : (err.message || 'Verification failed.'));
     }
   }
 
