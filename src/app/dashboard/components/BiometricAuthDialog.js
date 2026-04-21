@@ -12,7 +12,7 @@ const SCAN = {
 };
 
 export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
-  const [tab, setTab] = useState('fingerprint');
+  const [tab, setTab] = useState('pin');
 
   // Fingerprint state
   const [scanState, setScanState] = useState(SCAN.IDLE);
@@ -34,7 +34,7 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
   // Reset state whenever dialog opens
   useEffect(() => {
     if (open) {
-      setTab('fingerprint');
+      setTab('pin'); // default to PIN; fingerprint only connects if user switches to it
       setScanState(SCAN.IDLE);
       setScanMsg('');
       setFpError('');
