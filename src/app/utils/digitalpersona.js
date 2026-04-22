@@ -8,7 +8,9 @@ let _reader = null;
 
 export async function createReader() {
   if (typeof window === 'undefined') throw new Error('Browser only');
-  const { FingerprintReader, SampleFormat } = await import('@digitalpersona/devices');
+  // Variable-based import prevents Turbopack from statically bundling this on the server
+  const pkg = '@digitalpersona/devices';
+  const { FingerprintReader, SampleFormat } = await import(/* webpackIgnore: true */ pkg);
   return { reader: new FingerprintReader(), SampleFormat };
 }
 
