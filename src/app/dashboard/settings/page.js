@@ -29,6 +29,7 @@ export default function SettingsPage() {
   const [scanMessage, setScanMessage] = useState('');
   const [samplesCollected, setSamplesCollected] = useState([]);
   const [fpError, setFpError] = useState('');
+  const [fpNotice, setFpNotice] = useState('');
   const readerRef = useRef(null);
   const connectTimeoutRef = useRef(null);
 
@@ -84,6 +85,7 @@ export default function SettingsPage() {
     setEnrollingUserId(userId);
     setSamplesCollected([]);
     setFpError('');
+    setFpNotice('');
     setScanState(SCAN_STATE.CONNECTING);
     setScanMessage('Connecting to DigitalPersona scanner...');
 
@@ -97,6 +99,7 @@ export default function SettingsPage() {
           connectTimeoutRef.current = null;
         }
         setFpError('');
+        setFpNotice('');
         setScanState(SCAN_STATE.READY);
         setScanMessage('Scanner ready — click "Scan Now" to enroll finger.');
       });
@@ -127,7 +130,7 @@ export default function SettingsPage() {
       connectTimeoutRef.current = setTimeout(() => {
         setScanState((prev) => {
           if (prev !== SCAN_STATE.CONNECTING) return prev;
-          setFpError('Scanner connection is slow. If scan fails, verify Lite Client is running and reader is plugged in.');
+          setFpNotice('Scanner connection is slow. If scan fails, verify Lite Client is running and reader is plugged in.');
           setScanMessage('Scanner ready — click "Scan Now" to enroll finger.');
           return SCAN_STATE.READY;
         });
@@ -147,6 +150,7 @@ export default function SettingsPage() {
     const { reader, SampleFormat } = readerRef.current;
 
     setFpError('');
+    setFpNotice('');
     setScanState(SCAN_STATE.SCANNING);
     setScanMessage('Place your finger firmly on the scanner...');
 
@@ -209,6 +213,7 @@ export default function SettingsPage() {
     setScanState(SCAN_STATE.IDLE);
     setScanMessage('');
     setFpError('');
+    setFpNotice('');
   }
 
   // ─── PIN management ───────────────────────────────────────────────────────
@@ -407,6 +412,15 @@ export default function SettingsPage() {
                     color: '#dc2626', fontSize: '0.85rem',
                   }}>
                     ⚠️ {fpError}
+                  </div>
+                )}
+                {!fpError && fpNotice && (
+                  <div style={{
+                    background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px',
+                    padding: '10px 14px', marginBottom: '16px',
+                    color: '#1e40af', fontSize: '0.85rem',
+                  }}>
+                    ℹ️ {fpNotice}
                   </div>
                 )}
 

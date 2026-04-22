@@ -7,6 +7,11 @@
 let _reader = null;
 let _dpScriptPromise = null;
 
+const DP_CORE_URLS = [
+  'https://cdn.jsdelivr.net/npm/@digitalpersona/core@0.2.6/dist/es5.bundles/index.umd.js',
+  'https://unpkg.com/@digitalpersona/core@0.2.6/dist/es5.bundles/index.umd.js',
+];
+
 const DP_WEBSDK_URLS = [
   'https://cdn.jsdelivr.net/npm/@digitalpersona/websdk@1.1.0/dist/websdk.client.ui.js',
   'https://unpkg.com/@digitalpersona/websdk@1.1.0/dist/websdk.client.ui.js',
@@ -45,6 +50,20 @@ async function loadDigitalPersonaFromUmd() {
 
   _dpScriptPromise = (async () => {
     let lastError = null;
+    // DigitalPersona devices UMD expects dp.core global from @digitalpersona/core.
+    for (const url of DP_CORE_URLS) {
+      try {
+        await loadScript(url);
+        if (window?.dp?.core?.Base64Url) break;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    if (!window?.dp?.core?.Base64Url) {
+      throw lastError || new Error('Could not load DigitalPersona Core dependency.');
+    }
+
     // DigitalPersona devices UMD expects a global WebSdk object.
     for (const url of DP_WEBSDK_URLS) {
       try {
