@@ -8,16 +8,19 @@ let _reader = null;
 let _dpScriptPromise = null;
 
 const DP_CORE_URLS = [
+  '/api/digitalpersona-sdk/core',
   'https://cdn.jsdelivr.net/npm/@digitalpersona/core@0.2.6/dist/es5.bundles/index.umd.js',
   'https://unpkg.com/@digitalpersona/core@0.2.6/dist/es5.bundles/index.umd.js',
 ];
 
 const DP_WEBSDK_URLS = [
+  '/api/digitalpersona-sdk/websdk',
   'https://cdn.jsdelivr.net/npm/@digitalpersona/websdk@1.1.0/dist/websdk.client.ui.js',
   'https://unpkg.com/@digitalpersona/websdk@1.1.0/dist/websdk.client.ui.js',
 ];
 
 const DP_UMD_URLS = [
+  '/api/digitalpersona-sdk/devices',
   'https://cdn.jsdelivr.net/npm/@digitalpersona/devices@0.2.6/dist/es5.bundles/index.umd.js',
   'https://unpkg.com/@digitalpersona/devices@0.2.6/dist/es5.bundles/index.umd.js',
 ];
@@ -132,7 +135,7 @@ export function captureSample(reader, SampleFormat) {
 }
 
 // ── Verification: capture + compare against stored template ──────────────────
-// Returns { matched: boolean }
+// Returns { matched: boolean, score: number, secondScore?: number, templateCount?: number }
 export async function captureAndVerify(reader, SampleFormat, storedTemplate) {
   const liveSample = await captureSample(reader, SampleFormat);
 
@@ -147,6 +150,6 @@ export async function captureAndVerify(reader, SampleFormat, storedTemplate) {
     throw new Error(d.error || 'Verification failed');
   }
 
-  const { matched } = await res.json();
-  return { matched, liveSample };
+  const { matched, score, secondScore, templateCount } = await res.json();
+  return { matched, score, secondScore, templateCount, liveSample };
 }

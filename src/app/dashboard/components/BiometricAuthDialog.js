@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { createReader, captureAndVerify } from '../../utils/digitalpersona';
+import { createFingerprintBridge } from '../../utils/fingerprintBridge';
 
 const SCAN = {
   IDLE: 'idle',
@@ -12,6 +12,10 @@ const SCAN = {
   ERROR: 'error',
 };
 
+function isSidHex(value) {
+  return typeof value === 'string' && /^[0-9a-f]+$/i.test(value) && value.length >= 16;
+}
+
 export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
   const [tab, setTab] = useState('pin');
 
@@ -20,7 +24,7 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
   const [scanMsg, setScanMsg] = useState('');
   const [fpError, setFpError] = useState('');
   const activeRef = useRef(false);
-  const readerRef = useRef(null);
+  const bridgeRef = useRef(null);
   const sidRef = useRef(null);
 
   // PIN state
@@ -33,8 +37,9 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
   };
 
   const disconnectReader = useCallback(() => {
-    try { readerRef.current?.reader?.stopAcquisition?.(); } catch { /* ignore */ }
-    readerRef.current = null;
+    try { bridgeRef.current?.stopCapture?.(); } catch { /* ignore */ }
+    try { bridgeRef.current?.close?.(); } catch { /* ignore */ }
+    bridgeRef.current = null;
     sidRef.current = null;
   }, []);
 
@@ -77,7 +82,10 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
 
       try {
         // Fetch user's stored template
-        const res = await fetch(`/api/auth/user-template?userId=${user.user_id}`);
+        const res = await fetch(`/api/auth/user-template?userId=${user.user_id}&_ts=${Date.now()}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' },
+        });
         const data = await res.json();
 
         if (cancelled) return;
@@ -88,27 +96,32 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
           return;
         }
 
+        if (!isSidHex(data.template)) {
+          setFpError('Stored fingerprint format is outdated. Please re-enroll this user in Settings.');
+          setScanState(SCAN.ERROR);
+          return;
+        }
+
         sidRef.current = data.template;
 
-        // Load official SDK and create reader
-        const { reader, SampleFormat } = await createReader();
-        if (cancelled) { reader.stopAcquisition().catch(() => {}); return; }
-
-        readerRef.current = { reader, SampleFormat };
-
-        reader.on('DeviceDisconnected', () => {
-          if (!activeRef.current) return;
-          setScanState(SCAN.ERROR);
-          setFpError('Scanner disconnected. Reconnect the DigitalPersona reader.');
-        });
+        // Connect to local fingerprint bridge and prepare verify flow
+        // Use the updated local bridge instance explicitly.
+        const bridge = createFingerprintBridge('ws://localhost:15897');
+        await bridge.connect();
+        const devices = await bridge.getDevices();
+        if (!devices.length) {
+          throw new Error('No fingerprint device detected by service. Reconnect scanner and retry.');
+        }
+        if (cancelled) { bridge.close(); return; }
+        bridgeRef.current = bridge;
 
         setScanState(SCAN.READY);
-        setScanMsg('Place your finger on the DigitalPersona scanner.');
+        setScanMsg(`Place your finger on the scanner. (${devices.length} device ready)`);
       } catch (err) {
         if (cancelled) return;
         setFpError(
           err.message ||
-          'Could not connect to fingerprint scanner.\nMake sure DigitalPersona Lite Client is installed and running.'
+          'Could not connect to fingerprint scanner.\nMake sure fingerprint-service is running.'
         );
         setScanState(SCAN.ERROR);
       }
@@ -119,15 +132,16 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
   }, [open, tab, disconnectReader]);
 
   async function handleScan() {
-    if (!readerRef.current || !sidRef.current) return;
-    const { reader, SampleFormat } = readerRef.current;
+    if (!bridgeRef.current || !sidRef.current) return;
 
     setFpError('');
     setScanState(SCAN.SCANNING);
     setScanMsg('Place your finger firmly on the scanner...');
 
     try {
-      const { matched } = await captureAndVerify(reader, SampleFormat, sidRef.current);
+      // Reset any previous in-flight capture so each scan starts clean.
+      await bridgeRef.current.stopCapture();
+      const { matched } = await bridgeRef.current.verify(sidRef.current);
 
       if (!activeRef.current) return;
 

@@ -1,11 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../components/dashboard-layout';
-import { createReader, captureSample } from '../../utils/digitalpersona';
-
-const ENROLL_STEPS = 3; // number of fingerprint scans required for enrollment
+import { createFingerprintBridge } from '../../utils/fingerprintBridge';
 
 const SCAN_STATE = {
   IDLE: 'idle',
@@ -21,37 +19,40 @@ export default function SettingsPage() {
   const [currentUser, setCurrentUser] = useState(null);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeSection, setActiveSection] = useState('fingerprint'); // 'fingerprint' | 'pin'
+  const [activeSection, setActiveSection] = useState('fingerprint');
 
-  // Fingerprint enrollment state
+  // Fingerprint state
   const [enrollingUserId, setEnrollingUserId] = useState(null);
   const [scanState, setScanState] = useState(SCAN_STATE.IDLE);
   const [scanMessage, setScanMessage] = useState('');
-  const [samplesCollected, setSamplesCollected] = useState([]);
   const [fpError, setFpError] = useState('');
   const [fpNotice, setFpNotice] = useState('');
-  const readerRef = useRef(null);
-  const connectTimeoutRef = useRef(null);
+  const bridgeRef = useRef(null);
+  const sidRef = useRef(null);
 
   // PIN state
   const [pinUserId, setPinUserId] = useState(null);
   const [pinDigits, setPinDigits] = useState('');
   const [pinConfirm, setPinConfirm] = useState('');
-  const [pinStep, setPinStep] = useState('enter'); // 'enter' | 'confirm'
+  const [pinStep, setPinStep] = useState('enter');
   const [pinError, setPinError] = useState('');
   const [pinSuccess, setPinSuccess] = useState('');
   const [pinLoading, setPinLoading] = useState(false);
 
   useEffect(() => {
     const userData = localStorage.getItem('user');
-    if (!userData) { router.push('/login'); return; }
+    if (!userData) {
+      router.push('/login');
+      return;
+    }
+
     try {
-      const u = JSON.parse(userData);
-      if (u.role !== 'SUPER_ADMIN' && u.role !== 'ADMIN') {
+      const user = JSON.parse(userData);
+      if (user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN') {
         router.push('/dashboard');
         return;
       }
-      setCurrentUser(u);
+      setCurrentUser(user);
     } catch {
       router.push('/login');
     }
@@ -70,120 +71,80 @@ export default function SettingsPage() {
       setUsers(list);
     } catch {
       setUsers([]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
-  // ─── Fingerprint enrollment (DigitalPersona 4500 official SDK) ───────────
+  function cleanupBridge() {
+    try { bridgeRef.current?.stopCapture?.(); } catch { /* ignore */ }
+    try { bridgeRef.current?.close?.(); } catch { /* ignore */ }
+    bridgeRef.current = null;
+    sidRef.current = null;
+  }
 
   async function startEnrollment(userId) {
-    if (connectTimeoutRef.current) {
-      clearTimeout(connectTimeoutRef.current);
-      connectTimeoutRef.current = null;
-    }
-
+    cleanupBridge();
     setEnrollingUserId(userId);
-    setSamplesCollected([]);
     setFpError('');
     setFpNotice('');
     setScanState(SCAN_STATE.CONNECTING);
-    setScanMessage('Connecting to DigitalPersona scanner...');
+    setScanMessage('Connecting to fingerprint service...');
 
     try {
-      const { reader, SampleFormat } = await createReader();
-      readerRef.current = { reader, SampleFormat };
+      // Force the modern bridge that supports GetCurrentIdentity.
+      const bridge = createFingerprintBridge('ws://localhost:15897');
+      bridgeRef.current = bridge;
+      await bridge.connect();
 
-      reader.on('DeviceConnected', () => {
-        if (connectTimeoutRef.current) {
-          clearTimeout(connectTimeoutRef.current);
-          connectTimeoutRef.current = null;
-        }
-        setFpError('');
-        setFpNotice('');
-        setScanState(SCAN_STATE.READY);
-        setScanMessage('Scanner ready — click "Scan Now" to enroll finger.');
-      });
+      const devices = await bridge.getDevices();
+      if (!devices.length) throw new Error('No fingerprint device detected.');
 
-      reader.on('DeviceDisconnected', () => {
-        if (connectTimeoutRef.current) {
-          clearTimeout(connectTimeoutRef.current);
-          connectTimeoutRef.current = null;
-        }
-        setScanState(SCAN_STATE.ERROR);
-        setFpError('Scanner disconnected. Reconnect the DigitalPersona reader.');
-      });
+      const sidHex = await bridge.getCurrentIdentity();
+      if (!sidHex) throw new Error('Could not resolve current Windows identity.');
+      sidRef.current = sidHex;
 
-      reader.on('CommunicationFailed', () => {
-        if (connectTimeoutRef.current) {
-          clearTimeout(connectTimeoutRef.current);
-          connectTimeoutRef.current = null;
-        }
-        setScanState(SCAN_STATE.ERROR);
-        setFpError('Could not communicate with DigitalPersona service. Start Lite Client and reconnect scanner.');
-      });
-
-      reader.on('QualityReported', (e) => {
-        if (e.quality) setScanMessage(`Quality: ${e.quality} — keep finger steady`);
-      });
-
-      // Give device time to connect; if no DeviceConnected fires, show ready anyway
-      connectTimeoutRef.current = setTimeout(() => {
-        setScanState((prev) => {
-          if (prev !== SCAN_STATE.CONNECTING) return prev;
-          setFpNotice('Scanner connection is slow. If scan fails, verify Lite Client is running and reader is plugged in.');
-          setScanMessage('Scanner ready — click "Scan Now" to enroll finger.');
-          return SCAN_STATE.READY;
-        });
-        connectTimeoutRef.current = null;
-      }, 3000);
-    } catch (err) {
+      setScanState(SCAN_STATE.READY);
+      setScanMessage('Scanner ready — touch finger to verify and map this user.');
+      setFpNotice(`Connected (${devices.length} device detected).`);
+    } catch (error) {
       setScanState(SCAN_STATE.ERROR);
-      setFpError(
-        err.message ||
-        'Could not load fingerprint SDK.\nMake sure DigitalPersona Lite Client is installed.'
-      );
+      setFpError(error.message || 'Could not connect to fingerprint service.');
     }
   }
 
   async function captureEnrollSample() {
-    if (!readerRef.current) return;
-    const { reader, SampleFormat } = readerRef.current;
-
+    if (!bridgeRef.current || !sidRef.current) return;
     setFpError('');
     setFpNotice('');
     setScanState(SCAN_STATE.SCANNING);
     setScanMessage('Place your finger firmly on the scanner...');
 
     try {
-      const sample = await captureSample(reader, SampleFormat);
-
-      const newSamples = [...samplesCollected, sample];
-      setSamplesCollected(newSamples);
-
-      const SAMPLES_NEEDED = 3;
-      if (newSamples.length < SAMPLES_NEEDED) {
-        setScanState(SCAN_STATE.READY);
-        setScanMessage(`Sample ${newSamples.length}/${SAMPLES_NEEDED} captured. Lift and place finger again.`);
+      // Reset any stale native capture operation before starting a new verification.
+      await bridgeRef.current.stopCapture();
+      const { matched } = await bridgeRef.current.verify(sidRef.current, 60000);
+      if (!matched) {
+        setScanState(SCAN_STATE.ERROR);
+        setFpError('Fingerprint was not recognized for this Windows user.');
         return;
       }
 
-      // All samples collected — save to DB as JSON array
-      setScanMessage('Saving fingerprint...');
       const res = await fetch('/api/settings/fingerprint', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: enrollingUserId, template: JSON.stringify(newSamples) }),
+        body: JSON.stringify({ userId: enrollingUserId, template: sidRef.current }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to save fingerprint');
+      if (!res.ok) throw new Error(data.error || 'Failed to save fingerprint mapping.');
 
       setScanState(SCAN_STATE.DONE);
-      setScanMessage('Fingerprint enrolled successfully!');
+      setScanMessage('Fingerprint mapped successfully!');
       await fetchUsers();
-      setTimeout(cancelEnrollment, 1500);
-    } catch (err) {
+      setTimeout(cancelEnrollment, 900);
+    } catch (error) {
       setScanState(SCAN_STATE.ERROR);
-      setFpError(err.message || 'Scan failed. Try again.');
+      setFpError(error.message || 'Scan failed.');
     }
   }
 
@@ -202,21 +163,13 @@ export default function SettingsPage() {
   }
 
   function cancelEnrollment() {
-    if (connectTimeoutRef.current) {
-      clearTimeout(connectTimeoutRef.current);
-      connectTimeoutRef.current = null;
-    }
-    try { readerRef.current?.reader?.stopAcquisition?.(); } catch { /* ignore */ }
-    readerRef.current = null;
+    cleanupBridge();
     setEnrollingUserId(null);
-    setSamplesCollected([]);
     setScanState(SCAN_STATE.IDLE);
     setScanMessage('');
     setFpError('');
     setFpNotice('');
   }
-
-  // ─── PIN management ───────────────────────────────────────────────────────
 
   function startPinSetup(userId) {
     setPinUserId(userId);
@@ -227,54 +180,59 @@ export default function SettingsPage() {
     setPinSuccess('');
   }
 
-  function handlePinDigit(d) {
-    if (pinStep === 'enter' && pinDigits.length < 6) {
-      setPinDigits(p => p + d);
-    } else if (pinStep === 'confirm' && pinConfirm.length < 6) {
-      setPinConfirm(p => p + d);
-    }
+  function cancelPinSetup() {
+    setPinUserId(null);
+    setPinDigits('');
+    setPinConfirm('');
+    setPinError('');
+    setPinSuccess('');
+    setPinStep('enter');
+  }
+
+  function handlePinDigit(digit) {
+    if (pinStep === 'enter' && pinDigits.length < 6) setPinDigits((p) => p + digit);
+    else if (pinStep === 'confirm' && pinConfirm.length < 6) setPinConfirm((p) => p + digit);
   }
 
   function handlePinBack() {
-    if (pinStep === 'enter') setPinDigits(p => p.slice(0, -1));
-    else setPinConfirm(p => p.slice(0, -1));
+    if (pinStep === 'enter') setPinDigits((p) => p.slice(0, -1));
+    else setPinConfirm((p) => p.slice(0, -1));
   }
 
   async function handlePinNext() {
     if (pinStep === 'enter') {
-      if (pinDigits.length !== 6) { setPinError('Enter all 6 digits.'); return; }
+      if (pinDigits.length !== 6) return setPinError('Enter all 6 digits.');
       setPinError('');
       setPinConfirm('');
       setPinStep('confirm');
-    } else {
-      if (pinConfirm.length !== 6) { setPinError('Confirm all 6 digits.'); return; }
-      if (pinDigits !== pinConfirm) {
-        setPinError('PINs do not match. Try again.');
-        setPinDigits('');
-        setPinConfirm('');
-        setPinStep('enter');
-        return;
-      }
+      return;
+    }
 
-      setPinLoading(true);
-      setPinError('');
-      try {
-        const res = await fetch('/api/settings/pin', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: pinUserId, pin: pinDigits }),
-        });
-        const data = await res.json();
-        if (res.ok) {
-          setPinSuccess('PIN set successfully!');
-          await fetchUsers();
-          setTimeout(cancelPinSetup, 1500);
-        } else {
-          setPinError(data.error || 'Failed to set PIN');
-        }
-      } catch {
-        setPinError('Network error');
-      }
+    if (pinConfirm.length !== 6) return setPinError('Confirm all 6 digits.');
+    if (pinDigits !== pinConfirm) {
+      setPinError('PINs do not match. Try again.');
+      setPinDigits('');
+      setPinConfirm('');
+      setPinStep('enter');
+      return;
+    }
+
+    setPinLoading(true);
+    setPinError('');
+    try {
+      const res = await fetch('/api/settings/pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: pinUserId, pin: pinDigits }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to set PIN');
+      setPinSuccess('PIN set successfully!');
+      await fetchUsers();
+      setTimeout(cancelPinSetup, 900);
+    } catch (error) {
+      setPinError(error.message || 'Failed to set PIN');
+    } finally {
       setPinLoading(false);
     }
   }
@@ -293,419 +251,154 @@ export default function SettingsPage() {
     }
   }
 
-  function cancelPinSetup() {
-    setPinUserId(null);
-    setPinDigits('');
-    setPinConfirm('');
-    setPinError('');
-    setPinSuccess('');
-    setPinStep('enter');
-  }
-
-  // ─── Render helpers ───────────────────────────────────────────────────────
-
-  const scannerColor = () => {
-    if (scanState === SCAN_STATE.SCANNING) return '#3b82f6';
-    if (scanState === SCAN_STATE.DONE) return '#22c55e';
-    if (scanState === SCAN_STATE.ERROR) return '#ef4444';
-    if (scanState === SCAN_STATE.READY) return '#f59e0b';
-    return '#94a3b8';
-  };
-
-  const activePinStr = pinStep === 'enter' ? pinDigits : pinConfirm;
+  const activePin = pinStep === 'enter' ? pinDigits : pinConfirm;
 
   if (loading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748b' }}>
-        Loading settings...
-      </div>
-    );
+    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>Loading settings...</div>;
   }
 
   return (
     <DashboardLayout>
-    <div style={{ padding: '24px', maxWidth: '900px', fontFamily: "'Segoe UI', system-ui, sans-serif" }}>
+      <div style={{ padding: '24px', maxWidth: '980px', fontFamily: "'Segoe UI', system-ui, sans-serif" }}>
+        <h1 style={{ fontSize: '1.75rem', fontWeight: '800', marginBottom: '6px' }}>Security Settings</h1>
+        <p style={{ color: '#64748b', marginBottom: '18px' }}>Register fingerprint and PIN for user authentication.</p>
 
-      {/* Header */}
-      <div style={{ marginBottom: '28px' }}>
-        <h1 style={{ fontSize: '1.75rem', fontWeight: '800', color: '#0f172a', marginBottom: '6px' }}>
-          Biometric Settings
-        </h1>
-        <p style={{ color: '#64748b', fontSize: '0.9rem' }}>
-          Manage fingerprint enrollment and PIN codes for all users
-        </p>
-      </div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+          <button onClick={() => setActiveSection('fingerprint')} style={{ padding: '10px 16px', borderRadius: 10, border: 'none', background: activeSection === 'fingerprint' ? '#1d4ed8' : '#f1f5f9', color: activeSection === 'fingerprint' ? '#fff' : '#475569', fontWeight: 700, cursor: 'pointer' }}>🖐️ Fingerprint</button>
+          <button onClick={() => setActiveSection('pin')} style={{ padding: '10px 16px', borderRadius: 10, border: 'none', background: activeSection === 'pin' ? '#1d4ed8' : '#f1f5f9', color: activeSection === 'pin' ? '#fff' : '#475569', fontWeight: 700, cursor: 'pointer' }}>🔢 PIN</button>
+        </div>
 
-      {/* Section tabs */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
-        {[
-          { id: 'fingerprint', label: '🖐️ Fingerprint Enrollment' },
-          { id: 'pin', label: '🔢 PIN Management' },
-        ].map(s => (
-          <button key={s.id} onClick={() => setActiveSection(s.id)} style={{
-            padding: '10px 20px', border: 'none', borderRadius: '10px', cursor: 'pointer',
-            fontWeight: '600', fontSize: '0.875rem',
-            background: activeSection === s.id ? '#1d4ed8' : '#f1f5f9',
-            color: activeSection === s.id ? 'white' : '#475569',
-            transition: 'all 0.2s',
-          }}>
-            {s.label}
-          </button>
-        ))}
-      </div>
+        {activeSection === 'fingerprint' && (
+          <>
+            <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 12, padding: '14px 16px', marginBottom: 18, color: '#1e40af', fontSize: '0.85rem' }}>
+              The user finger must be enrolled in Windows Hello on this machine. Enrollment verifies scanner input and maps this app user to Windows identity.
+            </div>
 
-      {/* ── FINGERPRINT SECTION ── */}
-      {activeSection === 'fingerprint' && (
-        <div>
-          <div style={{
-            background: '#eff6ff', border: '1px solid #bfdbfe',
-            borderRadius: '12px', padding: '14px 16px', marginBottom: '20px',
-            fontSize: '0.85rem', color: '#1e40af',
-          }}>
-            <strong>How it works:</strong> Uses the <strong>DigitalPersona 4500</strong> fingerprint reader.
-            The fingerprint service must be running on this machine. Click <strong>Enroll</strong> then place the user&apos;s finger on the scanner.
-          </div>
-
-          {/* Enrollment modal */}
-          {enrollingUserId && (
-            <div style={{
-              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-            }}>
-              <div style={{
-                background: 'white', borderRadius: '20px', padding: '32px',
-                width: '400px', maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-              }}>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: '800', color: '#0f172a', marginBottom: '8px' }}>
-                  Enroll Fingerprint
-                </h3>
-                <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: '24px' }}>
-                  {users.find(u => u.user_id === enrollingUserId)?.full_name}
-                  {' — '}Place finger on scanner to map
-                </p>
-
-                {/* Scanner circle */}
-                <div style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'center',
-                  padding: '28px', background: '#f8fafc', borderRadius: '16px',
-                  border: `2px solid ${scannerColor()}`,
-                  marginBottom: '20px',
-                }}>
-                  <div style={{
-                    width: '80px', height: '80px', borderRadius: '50%',
-                    background: `${scannerColor()}20`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '2.5rem', marginBottom: '12px',
-                    animation: scanState === SCAN_STATE.SCANNING ? 'pulse 1.2s ease-in-out infinite' : 'none',
-                  }}>
-                    {scanState === SCAN_STATE.DONE ? '✅' : scanState === SCAN_STATE.ERROR ? '❌' : '👆'}
+            {enrollingUserId && (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                <div style={{ width: 420, maxWidth: '92vw', background: '#fff', borderRadius: 20, padding: 26 }}>
+                  <h3 style={{ margin: 0, marginBottom: 8, fontSize: '1.25rem' }}>Enroll Fingerprint</h3>
+                  <p style={{ marginTop: 0, color: '#64748b' }}>{users.find((u) => u.user_id === enrollingUserId)?.full_name}</p>
+                  <div style={{ border: `2px solid ${scanState === SCAN_STATE.ERROR ? '#ef4444' : scanState === SCAN_STATE.DONE ? '#22c55e' : '#60a5fa'}`, borderRadius: 14, padding: 18, marginBottom: 12 }}>
+                    <p style={{ margin: 0, fontWeight: 600, color: '#334155', textAlign: 'center' }}>{scanMessage || 'Ready'}</p>
                   </div>
-                  <p style={{ color: '#475569', fontSize: '0.875rem', fontWeight: '500', textAlign: 'center', margin: 0 }}>
-                    {scanMessage}
-                  </p>
-                </div>
-
-                {fpError && (
-                  <div style={{
-                    background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px',
-                    padding: '10px 14px', marginBottom: '16px',
-                    color: '#dc2626', fontSize: '0.85rem',
-                  }}>
-                    ⚠️ {fpError}
+                  {fpNotice && !fpError && <div style={{ marginBottom: 10, background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e40af', borderRadius: 10, padding: '10px 12px', fontSize: '0.84rem' }}>ℹ️ {fpNotice}</div>}
+                  {fpError && <div style={{ marginBottom: 10, background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 10, padding: '10px 12px', fontSize: '0.84rem' }}>⚠️ {fpError}</div>}
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    {(scanState === SCAN_STATE.READY || scanState === SCAN_STATE.ERROR) && (
+                      <button onClick={captureEnrollSample} style={{ flex: 1, padding: '12px', border: 'none', borderRadius: 10, background: '#2563eb', color: 'white', fontWeight: 700, cursor: 'pointer' }}>
+                        {scanState === SCAN_STATE.ERROR ? 'Retry Scan' : 'Scan Now'}
+                      </button>
+                    )}
+                    {(scanState === SCAN_STATE.CONNECTING || scanState === SCAN_STATE.SCANNING) && (
+                      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6', fontWeight: 700 }}>Scanning...</div>
+                    )}
+                    <button onClick={cancelEnrollment} style={{ padding: '12px 18px', borderRadius: 10, border: '2px solid #e2e8f0', background: '#f1f5f9', cursor: 'pointer', fontWeight: 700 }}>Cancel</button>
                   </div>
-                )}
-                {!fpError && fpNotice && (
-                  <div style={{
-                    background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px',
-                    padding: '10px 14px', marginBottom: '16px',
-                    color: '#1e40af', fontSize: '0.85rem',
-                  }}>
-                    ℹ️ {fpNotice}
-                  </div>
-                )}
-
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  {(scanState === SCAN_STATE.READY || scanState === SCAN_STATE.ERROR) && (
-                    <button onClick={captureEnrollSample} style={{
-                      flex: 1, padding: '12px',
-                      background: 'linear-gradient(135deg, #1d4ed8, #1e40af)',
-                      color: 'white', border: 'none', borderRadius: '10px',
-                      fontWeight: '700', cursor: 'pointer', fontSize: '0.9rem',
-                    }}>
-                      {scanState === SCAN_STATE.ERROR ? '🔄 Retry Scan' : `🖐️ Scan Now (${samplesCollected.length}/3)`}
-                    </button>
-                  )}
-                  {scanState === SCAN_STATE.CONNECTING && (
-                    <div style={{ flex: 1, textAlign: 'center', padding: '12px', color: '#64748b', fontSize: '0.875rem' }}>
-                      Connecting...
-                    </div>
-                  )}
-                  {scanState === SCAN_STATE.SCANNING && (
-                    <div style={{ flex: 1, textAlign: 'center', padding: '12px', color: '#3b82f6', fontWeight: '600', fontSize: '0.875rem' }}>
-                      Scanning...
-                    </div>
-                  )}
-                  <button onClick={cancelEnrollment} style={{
-                    padding: '12px 18px', background: '#f1f5f9',
-                    color: '#374151', border: '2px solid #e2e8f0',
-                    borderRadius: '10px', fontWeight: '600', cursor: 'pointer', fontSize: '0.875rem',
-                  }}>
-                    Cancel
-                  </button>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Users table */}
-          <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                  {['User', 'Role', 'Status', 'Fingerprint', 'Actions'].map(h => (
-                    <th key={h} style={{
-                      padding: '14px 16px', textAlign: 'left', fontSize: '0.8rem',
-                      fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em',
-                    }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((u, i) => (
-                  <tr key={u.user_id} style={{ borderBottom: i < users.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
-                    <td style={{ padding: '14px 16px' }}>
-                      <div style={{ fontWeight: '700', color: '#0f172a', fontSize: '0.9rem' }}>{u.full_name}</div>
-                      <div style={{ color: '#94a3b8', fontSize: '0.78rem' }}>{u.email}</div>
-                    </td>
-                    <td style={{ padding: '14px 16px' }}>
-                      <span style={{
-                        padding: '3px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '600',
-                        background: u.role === 'SUPER_ADMIN' ? '#fef3c7' : u.role === 'ADMIN' ? '#dbeafe' : '#f0fdf4',
-                        color: u.role === 'SUPER_ADMIN' ? '#92400e' : u.role === 'ADMIN' ? '#1e40af' : '#166534',
-                      }}>
-                        {u.role}
-                      </span>
-                    </td>
-                    <td style={{ padding: '14px 16px' }}>
-                      <span style={{
-                        padding: '3px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '600',
-                        background: u.status === 'ACTIVE' ? '#dcfce7' : '#fee2e2',
-                        color: u.status === 'ACTIVE' ? '#166534' : '#991b1b',
-                      }}>
-                        {u.status}
-                      </span>
-                    </td>
-                    <td style={{ padding: '14px 16px' }}>
-                      {u.fingerprint_enrolled ? (
-                        <span style={{ color: '#22c55e', fontWeight: '600', fontSize: '0.875rem' }}>✅ Enrolled</span>
-                      ) : (
-                        <span style={{ color: '#94a3b8', fontSize: '0.875rem' }}>Not enrolled</span>
-                      )}
-                    </td>
-                    <td style={{ padding: '14px 16px' }}>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button
-                          onClick={() => startEnrollment(u.user_id)}
-                          style={{
-                            padding: '7px 14px', background: '#eff6ff', color: '#1d4ed8',
-                            border: '1px solid #bfdbfe', borderRadius: '8px',
-                            fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer',
-                          }}
-                        >
-                          {u.fingerprint_enrolled ? '🔄 Re-enroll' : '+ Enroll'}
+            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, overflow: 'hidden' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: '#f8fafc' }}>
+                    {['User', 'Role', 'Fingerprint', 'Actions'].map((h) => <th key={h} style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.78rem', color: '#64748b', textTransform: 'uppercase' }}>{h}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((u, i) => (
+                    <tr key={u.user_id} style={{ borderTop: i ? '1px solid #f1f5f9' : 'none' }}>
+                      <td style={{ padding: '12px 14px' }}>
+                        <div style={{ fontWeight: 700 }}>{u.full_name}</div>
+                        <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>{u.email}</div>
+                      </td>
+                      <td style={{ padding: '12px 14px' }}>{u.role}</td>
+                      <td style={{ padding: '12px 14px' }}>{u.fingerprint_enrolled ? '✅ Enrolled' : 'Not enrolled'}</td>
+                      <td style={{ padding: '12px 14px' }}>
+                        <button onClick={() => startEnrollment(u.user_id)} style={{ marginRight: 8, padding: '6px 12px', borderRadius: 8, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8', cursor: 'pointer', fontWeight: 700 }}>
+                          {u.fingerprint_enrolled ? 'Re-enroll' : 'Enroll'}
                         </button>
                         {u.fingerprint_enrolled && (
-                          <button
-                            onClick={() => removeFingerprint(u.user_id)}
-                            style={{
-                              padding: '7px 12px', background: '#fef2f2', color: '#dc2626',
-                              border: '1px solid #fecaca', borderRadius: '8px',
-                              fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer',
-                            }}
-                          >
+                          <button onClick={() => removeFingerprint(u.user_id)} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626', cursor: 'pointer', fontWeight: 700 }}>
                             Remove
                           </button>
                         )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+
+        {activeSection === 'pin' && (
+          <>
+            {pinUserId && (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                <div style={{ background: 'white', borderRadius: 20, padding: 32, width: 380, maxWidth: '90vw' }}>
+                  <h3 style={{ margin: 0, marginBottom: 6 }}>Set PIN Code</h3>
+                  <p style={{ marginTop: 0, color: '#64748b' }}>{users.find((u) => u.user_id === pinUserId)?.full_name}</p>
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 18 }}>
+                    {[0, 1, 2, 3, 4, 5].map((i) => (
+                      <div key={i} style={{ width: 44, height: 52, borderRadius: 10, border: `2px solid ${i < activePin.length ? '#1d4ed8' : '#e2e8f0'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {i < activePin.length ? '●' : ''}
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ── PIN SECTION ── */}
-      {activeSection === 'pin' && (
-        <div>
-          {/* PIN setup modal */}
-          {pinUserId && (
-            <div style={{
-              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-            }}>
-              <div style={{
-                background: 'white', borderRadius: '20px', padding: '32px',
-                width: '380px', maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-              }}>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: '800', color: '#0f172a', marginBottom: '4px' }}>
-                  Set PIN Code
-                </h3>
-                <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: '20px' }}>
-                  {users.find(u => u.user_id === pinUserId)?.full_name}
-                  {' — '}{pinStep === 'enter' ? 'Enter new 6-digit PIN' : 'Confirm your PIN'}
-                </p>
-
-                {/* PIN dots */}
-                <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginBottom: '20px' }}>
-                  {[0,1,2,3,4,5].map(i => (
-                    <div key={i} style={{
-                      width: '44px', height: '52px', borderRadius: '10px',
-                      border: `2px solid ${i < activePinStr.length ? '#1d4ed8' : '#e2e8f0'}`,
-                      background: i < activePinStr.length ? '#eff6ff' : 'white',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: '1.4rem', color: '#1d4ed8',
-                    }}>
-                      {i < activePinStr.length ? '●' : ''}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Numpad */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '16px' }}>
-                  {[1,2,3,4,5,6,7,8,9].map(n => (
-                    <button key={n} onClick={() => handlePinDigit(String(n))} style={{
-                      padding: '14px', fontSize: '1.2rem', fontWeight: '700',
-                      background: 'white', border: '2px solid #e2e8f0', borderRadius: '10px',
-                      cursor: 'pointer', color: '#0f172a',
-                    }}>
-                      {n}
+                    ))}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 14 }}>
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => <button key={n} onClick={() => handlePinDigit(String(n))} style={{ padding: 14, borderRadius: 10, border: '2px solid #e2e8f0', background: '#fff', fontWeight: 700, cursor: 'pointer' }}>{n}</button>)}
+                    <button onClick={handlePinBack} style={{ padding: 14, borderRadius: 10, border: '2px solid #fecaca', background: '#fef2f2', color: '#dc2626', fontWeight: 700, cursor: 'pointer' }}>⌫</button>
+                    <button onClick={() => handlePinDigit('0')} style={{ padding: 14, borderRadius: 10, border: '2px solid #e2e8f0', background: '#fff', fontWeight: 700, cursor: 'pointer' }}>0</button>
+                    <button onClick={() => pinStep === 'enter' ? setPinDigits('') : setPinConfirm('')} style={{ padding: 14, borderRadius: 10, border: '2px solid #e2e8f0', background: '#f8fafc', color: '#64748b', fontWeight: 700, cursor: 'pointer' }}>CLR</button>
+                  </div>
+                  {pinError && <div style={{ marginBottom: 10, color: '#dc2626' }}>⚠️ {pinError}</div>}
+                  {pinSuccess && <div style={{ marginBottom: 10, color: '#16a34a' }}>✅ {pinSuccess}</div>}
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button onClick={handlePinNext} disabled={pinLoading || activePin.length !== 6} style={{ flex: 1, padding: 12, border: 'none', borderRadius: 10, background: activePin.length !== 6 ? '#93c5fd' : '#1d4ed8', color: '#fff', fontWeight: 700, cursor: activePin.length !== 6 ? 'not-allowed' : 'pointer' }}>
+                      {pinLoading ? 'Saving...' : pinStep === 'enter' ? 'Next' : 'Confirm PIN'}
                     </button>
-                  ))}
-                  <button onClick={handlePinBack} style={{
-                    padding: '14px', fontSize: '1rem', background: '#fef2f2',
-                    border: '2px solid #fecaca', borderRadius: '10px', cursor: 'pointer', color: '#dc2626', fontWeight: '700',
-                  }}>⌫</button>
-                  <button onClick={() => handlePinDigit('0')} style={{
-                    padding: '14px', fontSize: '1.2rem', fontWeight: '700',
-                    background: 'white', border: '2px solid #e2e8f0', borderRadius: '10px', cursor: 'pointer', color: '#0f172a',
-                  }}>0</button>
-                  <button onClick={() => pinStep === 'enter' ? setPinDigits('') : setPinConfirm('')} style={{
-                    padding: '14px', fontSize: '0.75rem', fontWeight: '600',
-                    background: '#f8fafc', border: '2px solid #e2e8f0', borderRadius: '10px', cursor: 'pointer', color: '#64748b',
-                  }}>CLR</button>
-                </div>
-
-                {pinError && (
-                  <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', padding: '10px', marginBottom: '12px', color: '#dc2626', fontSize: '0.85rem' }}>
-                    ⚠️ {pinError}
+                    <button onClick={cancelPinSetup} style={{ padding: '12px 18px', borderRadius: 10, border: '2px solid #e2e8f0', background: '#f1f5f9', fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
                   </div>
-                )}
-                {pinSuccess && (
-                  <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '10px', marginBottom: '12px', color: '#166534', fontSize: '0.85rem' }}>
-                    ✅ {pinSuccess}
-                  </div>
-                )}
-
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <button
-                    onClick={handlePinNext}
-                    disabled={pinLoading || activePinStr.length !== 6}
-                    style={{
-                      flex: 1, padding: '12px',
-                      background: activePinStr.length !== 6 ? '#93c5fd' : 'linear-gradient(135deg, #1d4ed8, #1e40af)',
-                      color: 'white', border: 'none', borderRadius: '10px',
-                      fontWeight: '700', cursor: activePinStr.length !== 6 ? 'not-allowed' : 'pointer',
-                    }}
-                  >
-                    {pinLoading ? 'Saving...' : pinStep === 'enter' ? 'Next →' : '✅ Confirm PIN'}
-                  </button>
-                  <button onClick={cancelPinSetup} style={{
-                    padding: '12px 18px', background: '#f1f5f9', color: '#374151',
-                    border: '2px solid #e2e8f0', borderRadius: '10px', fontWeight: '600', cursor: 'pointer',
-                  }}>
-                    Cancel
-                  </button>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Users table */}
-          <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                  {['User', 'Role', 'PIN Status', 'Actions'].map(h => (
-                    <th key={h} style={{
-                      padding: '14px 16px', textAlign: 'left', fontSize: '0.8rem',
-                      fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em',
-                    }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((u, i) => (
-                  <tr key={u.user_id} style={{ borderBottom: i < users.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
-                    <td style={{ padding: '14px 16px' }}>
-                      <div style={{ fontWeight: '700', color: '#0f172a', fontSize: '0.9rem' }}>{u.full_name}</div>
-                      <div style={{ color: '#94a3b8', fontSize: '0.78rem' }}>{u.email}</div>
-                    </td>
-                    <td style={{ padding: '14px 16px' }}>
-                      <span style={{
-                        padding: '3px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '600',
-                        background: u.role === 'SUPER_ADMIN' ? '#fef3c7' : u.role === 'ADMIN' ? '#dbeafe' : '#f0fdf4',
-                        color: u.role === 'SUPER_ADMIN' ? '#92400e' : u.role === 'ADMIN' ? '#1e40af' : '#166534',
-                      }}>
-                        {u.role}
-                      </span>
-                    </td>
-                    <td style={{ padding: '14px 16px' }}>
-                      {u.pin_code ? (
-                        <span style={{ color: '#22c55e', fontWeight: '600', fontSize: '0.875rem' }}>✅ PIN Set</span>
-                      ) : (
-                        <span style={{ color: '#94a3b8', fontSize: '0.875rem' }}>No PIN</span>
-                      )}
-                    </td>
-                    <td style={{ padding: '14px 16px' }}>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button
-                          onClick={() => startPinSetup(u.user_id)}
-                          style={{
-                            padding: '7px 14px', background: '#eff6ff', color: '#1d4ed8',
-                            border: '1px solid #bfdbfe', borderRadius: '8px',
-                            fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer',
-                          }}
-                        >
-                          {u.pin_code ? '🔄 Change PIN' : '+ Set PIN'}
+            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, overflow: 'hidden' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: '#f8fafc' }}>
+                    {['User', 'Role', 'PIN', 'Actions'].map((h) => <th key={h} style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.78rem', color: '#64748b', textTransform: 'uppercase' }}>{h}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((u, i) => (
+                    <tr key={u.user_id} style={{ borderTop: i ? '1px solid #f1f5f9' : 'none' }}>
+                      <td style={{ padding: '12px 14px' }}>
+                        <div style={{ fontWeight: 700 }}>{u.full_name}</div>
+                        <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>{u.email}</div>
+                      </td>
+                      <td style={{ padding: '12px 14px' }}>{u.role}</td>
+                      <td style={{ padding: '12px 14px' }}>{u.pin_code ? '✅ PIN Set' : 'No PIN'}</td>
+                      <td style={{ padding: '12px 14px' }}>
+                        <button onClick={() => startPinSetup(u.user_id)} style={{ marginRight: 8, padding: '6px 12px', borderRadius: 8, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8', cursor: 'pointer', fontWeight: 700 }}>
+                          {u.pin_code ? 'Change PIN' : 'Set PIN'}
                         </button>
                         {u.pin_code && (
-                          <button
-                            onClick={() => removePin(u.user_id)}
-                            style={{
-                              padding: '7px 12px', background: '#fef2f2', color: '#dc2626',
-                              border: '1px solid #fecaca', borderRadius: '8px',
-                              fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer',
-                            }}
-                          >
+                          <button onClick={() => removePin(u.user_id)} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626', cursor: 'pointer', fontWeight: 700 }}>
                             Remove
                           </button>
                         )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      <style>{`
-        @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
-      `}</style>
-    </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </div>
     </DashboardLayout>
   );
 }

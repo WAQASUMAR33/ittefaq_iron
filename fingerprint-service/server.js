@@ -14,8 +14,9 @@
 
 const WebSocket = require('ws');
 const koffi = require('koffi');
+const { execSync } = require('child_process');
 
-const PORT = 15896;
+const PORT = Number(process.env.FP_BRIDGE_PORT || '15896');
 
 // ─── WinBio constants ─────────────────────────────────────────────────────────
 const WINBIO_TYPE_FINGERPRINT = 8;
@@ -45,14 +46,18 @@ let busy = false;
 let busyTimeout = null;
 let callGeneration = 0;
 
-function setBusy() {
+function setBusy(onTimeout) {
   busy = true;
   if (busyTimeout) clearTimeout(busyTimeout);
   busyTimeout = setTimeout(() => {
     if (busy) {
-      console.log('  [!] Scan timeout — resetting busy flag');
+      console.log('  [!] Scan timeout — cancelling WinBio operation');
+      try { fnCancel(sessionHandle); } catch { /* ignore */ }
+      if (typeof onTimeout === 'function') {
+        try { onTimeout(); } catch { /* ignore */ }
+      }
       busy = false;
-      callGeneration++;
+      if (busyTimeout) { clearTimeout(busyTimeout); busyTimeout = null; }
     }
   }, 30000);
 }
@@ -139,6 +144,25 @@ function buildSIDIdentity(sidHex) {
   return { Type: WINBIO_ID_TYPE_SID, Value: value };
 }
 
+function getCurrentSidHex() {
+  try {
+    const script = [
+      '$wi=[System.Security.Principal.WindowsIdentity]::GetCurrent()',
+      '$sid=$wi.User',
+      '$bytes=New-Object byte[] ($sid.BinaryLength)',
+      '$sid.GetBinaryForm($bytes,0)',
+      '($bytes | ForEach-Object { $_.ToString(\'x2\') }) -join \'\'',
+    ].join(';');
+    const out = execSync(`powershell -NoProfile -Command "${script}"`, { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim()
+      .toLowerCase();
+    return /^[0-9a-f]+$/.test(out) ? out : null;
+  } catch {
+    return null;
+  }
+}
+
 // ─── WebSocket server ─────────────────────────────────────────────────────────
 function startServer() {
   loadAndInit();
@@ -161,6 +185,12 @@ function startServer() {
           send(ws, id, ['fingerprint-sensor-0']);
           sendEvent(ws, { Event: 'DeviceConnected', DeviceId: 'fingerprint-sensor-0' });
 
+        // ── GetCurrentIdentity: Windows SID of service user (hex) ──────────────
+        } else if (method === 'GetCurrentIdentity') {
+          const sidHex = getCurrentSidHex();
+          if (!sidHex) throw new Error('Could not resolve current Windows SID');
+          send(ws, id, { Identity: sidHex });
+
         // ── StopCapture: cancel any in-progress WinBio operation ─────────────
         } else if (method === 'StopCapture' || method === 'StartCapture') {
           if (method === 'StopCapture' && busy) {
@@ -179,7 +209,11 @@ function startServer() {
             clearBusy();
           }
           const myGen = ++callGeneration;
-          setBusy();
+          setBusy(() => {
+            if (callGeneration !== myGen) return;
+            callGeneration++; // invalidate stale callback after timeout cancel
+            sendEvent(ws, { Event: 'ErrorOccurred', Error: 'Fingerprint scan timed out' });
+          });
           send(ws, id, {}); // immediate ack
 
           const unitId       = [0];
@@ -187,13 +221,20 @@ function startServer() {
           const subFactor    = [0];
           const rejectDetail = [0];
 
-          fnIdentify.async(sessionHandle, unitId, identity, subFactor, rejectDetail, (err, hr) => {
-            if (callGeneration !== myGen) return; // stale callback — discard
-            clearBusy();
-            if (err) {
-              sendEvent(ws, { Event: 'ErrorOccurred', Error: err.message });
+          setImmediate(() => {
+            if (callGeneration !== myGen) return;
+            let hr = S_OK;
+            try {
+              hr = fnIdentify(sessionHandle, unitId, identity, subFactor, rejectDetail);
+            } catch (err) {
+              clearBusy();
+              if (callGeneration !== myGen) return;
+              sendEvent(ws, { Event: 'ErrorOccurred', Error: err.message || 'WinBioIdentify failed' });
               return;
             }
+
+            if (callGeneration !== myGen) return; // stale — canceled/invalidated
+            clearBusy();
 
             const hru = hr >>> 0;
             if (hru === WINBIO_E_UNKNOWN_ID || hru === WINBIO_E_NO_MATCH) {
@@ -230,7 +271,11 @@ function startServer() {
             clearBusy();
           }
           const myGen = ++callGeneration;
-          setBusy();
+          setBusy(() => {
+            if (callGeneration !== myGen) return;
+            callGeneration++; // invalidate stale callback after timeout cancel
+            sendEvent(ws, { Event: 'ErrorOccurred', Error: 'Fingerprint verification timed out' });
+          });
           send(ws, id, {}); // immediate ack
 
           const identityStruct = buildSIDIdentity(sidHex);
@@ -238,26 +283,29 @@ function startServer() {
           const match        = [0];
           const rejectDetail = [0];
 
-          fnVerify.async(
-            sessionHandle, identityStruct, WINBIO_SUBTYPE_ANY,
-            unitId, match, rejectDetail,
-            (err, hr) => {
-              if (callGeneration !== myGen) return; // stale callback — discard
+          setImmediate(() => {
+            if (callGeneration !== myGen) return;
+            let hr = S_OK;
+            try {
+              hr = fnVerify(sessionHandle, identityStruct, WINBIO_SUBTYPE_ANY, unitId, match, rejectDetail);
+            } catch (err) {
               clearBusy();
-              if (err) {
-                sendEvent(ws, { Event: 'VerifyResult', Matched: false, Error: err.message });
-                return;
-              }
-              const hru = hr >>> 0;
-              if (hr === S_OK) {
-                sendEvent(ws, { Event: 'VerifyResult', Matched: match[0] !== 0 });
-              } else if (hru === WINBIO_E_BAD_CAPTURE || hru === WINBIO_E_NO_MATCH || hru === WINBIO_E_CANCELED) {
-                sendEvent(ws, { Event: 'VerifyResult', Matched: false });
-              } else {
-                sendEvent(ws, { Event: 'ErrorOccurred', Error: `WinBioVerify: ${hrStr(hr)}` });
-              }
-            },
-          );
+              if (callGeneration !== myGen) return;
+              sendEvent(ws, { Event: 'ErrorOccurred', Error: err.message || 'WinBioVerify failed' });
+              return;
+            }
+
+            if (callGeneration !== myGen) return; // stale — canceled/invalidated
+            clearBusy();
+            const hru = hr >>> 0;
+            if (hr === S_OK) {
+              sendEvent(ws, { Event: 'VerifyResult', Matched: match[0] !== 0 });
+            } else if (hru === WINBIO_E_BAD_CAPTURE || hru === WINBIO_E_NO_MATCH || hru === WINBIO_E_CANCELED) {
+              sendEvent(ws, { Event: 'VerifyResult', Matched: false });
+            } else {
+              sendEvent(ws, { Event: 'ErrorOccurred', Error: `WinBioVerify: ${hrStr(hr)}` });
+            }
+          });
           return;
 
         } else {

@@ -76,8 +76,6 @@ import {
 
 function SalesPageContent() {
   const searchParams = useSearchParams();
-
-  // Fingerprint auth
   const { requireAuth, authDialogOpen, handleAuthSuccess, handleAuthCancel } = useDigitalPersonaAuth();
 
   // State management
@@ -8731,6 +8729,7 @@ function SalesPageContent() {
         onSuccess={handleAuthSuccess}
         onClose={handleAuthCancel}
       />
+
     </>
   );
 }

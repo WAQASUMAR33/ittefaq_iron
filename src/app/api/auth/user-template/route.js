@@ -22,10 +22,18 @@ export async function GET(request) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    return NextResponse.json({
-      enrolled: user.fingerprint_enrolled,
-      template: user.fingerprint_enrolled ? user.fingerprint_template : null,
-    });
+    return NextResponse.json(
+      {
+        enrolled: user.fingerprint_enrolled,
+        template: user.fingerprint_enrolled ? user.fingerprint_template : null,
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+          Pragma: 'no-cache',
+        },
+      },
+    );
   } catch (error) {
     console.error('user-template error:', error);
     return NextResponse.json({ error: 'Failed to fetch template' }, { status: 500 });
