@@ -30,6 +30,7 @@ export default function SettingsPage() {
   const [samplesCollected, setSamplesCollected] = useState([]);
   const [fpError, setFpError] = useState('');
   const readerRef = useRef(null);
+  const connectTimeoutRef = useRef(null);
 
   // PIN state
   const [pinUserId, setPinUserId] = useState(null);
@@ -75,6 +76,11 @@ export default function SettingsPage() {
   // ─── Fingerprint enrollment (DigitalPersona 4500 official SDK) ───────────
 
   async function startEnrollment(userId) {
+    if (connectTimeoutRef.current) {
+      clearTimeout(connectTimeoutRef.current);
+      connectTimeoutRef.current = null;
+    }
+
     setEnrollingUserId(userId);
     setSamplesCollected([]);
     setFpError('');
@@ -86,13 +92,31 @@ export default function SettingsPage() {
       readerRef.current = { reader, SampleFormat };
 
       reader.on('DeviceConnected', () => {
+        if (connectTimeoutRef.current) {
+          clearTimeout(connectTimeoutRef.current);
+          connectTimeoutRef.current = null;
+        }
+        setFpError('');
         setScanState(SCAN_STATE.READY);
         setScanMessage('Scanner ready — click "Scan Now" to enroll finger.');
       });
 
       reader.on('DeviceDisconnected', () => {
+        if (connectTimeoutRef.current) {
+          clearTimeout(connectTimeoutRef.current);
+          connectTimeoutRef.current = null;
+        }
         setScanState(SCAN_STATE.ERROR);
         setFpError('Scanner disconnected. Reconnect the DigitalPersona reader.');
+      });
+
+      reader.on('CommunicationFailed', () => {
+        if (connectTimeoutRef.current) {
+          clearTimeout(connectTimeoutRef.current);
+          connectTimeoutRef.current = null;
+        }
+        setScanState(SCAN_STATE.ERROR);
+        setFpError('Could not communicate with DigitalPersona service. Start Lite Client and reconnect scanner.');
       });
 
       reader.on('QualityReported', (e) => {
@@ -100,11 +124,14 @@ export default function SettingsPage() {
       });
 
       // Give device time to connect; if no DeviceConnected fires, show ready anyway
-      setTimeout(() => {
-        if (scanState === SCAN_STATE.CONNECTING) {
-          setScanState(SCAN_STATE.READY);
+      connectTimeoutRef.current = setTimeout(() => {
+        setScanState((prev) => {
+          if (prev !== SCAN_STATE.CONNECTING) return prev;
+          setFpError('Scanner connection is slow. If scan fails, verify Lite Client is running and reader is plugged in.');
           setScanMessage('Scanner ready — click "Scan Now" to enroll finger.');
-        }
+          return SCAN_STATE.READY;
+        });
+        connectTimeoutRef.current = null;
       }, 3000);
     } catch (err) {
       setScanState(SCAN_STATE.ERROR);
@@ -171,6 +198,10 @@ export default function SettingsPage() {
   }
 
   function cancelEnrollment() {
+    if (connectTimeoutRef.current) {
+      clearTimeout(connectTimeoutRef.current);
+      connectTimeoutRef.current = null;
+    }
     try { readerRef.current?.reader?.stopAcquisition?.(); } catch { /* ignore */ }
     readerRef.current = null;
     setEnrollingUserId(null);

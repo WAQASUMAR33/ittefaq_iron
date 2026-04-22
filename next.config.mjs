@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   serverExternalPackages: ['@prisma/client'],
+  turbopack: {},
 
   webpack(config, { isServer }) {
     if (isServer) {

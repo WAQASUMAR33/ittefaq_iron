@@ -7,6 +7,11 @@
 let _reader = null;
 let _dpScriptPromise = null;
 
+const DP_WEBSDK_URLS = [
+  'https://cdn.jsdelivr.net/npm/@digitalpersona/websdk@1.1.0/dist/websdk.client.ui.js',
+  'https://unpkg.com/@digitalpersona/websdk@1.1.0/dist/websdk.client.ui.js',
+];
+
 const DP_UMD_URLS = [
   'https://cdn.jsdelivr.net/npm/@digitalpersona/devices@0.2.6/dist/es5.bundles/index.umd.js',
   'https://unpkg.com/@digitalpersona/devices@0.2.6/dist/es5.bundles/index.umd.js',
@@ -14,7 +19,7 @@ const DP_UMD_URLS = [
 
 function loadScript(src) {
   return new Promise((resolve, reject) => {
-    const existing = document.querySelector(`script[data-dp-devices="${src}"]`);
+    const existing = document.querySelector(`script[data-dp-sdk="${src}"]`);
     if (existing) {
       if (existing.dataset.loaded === 'true') return resolve();
       existing.addEventListener('load', () => resolve(), { once: true });
@@ -25,7 +30,7 @@ function loadScript(src) {
     const script = document.createElement('script');
     script.src = src;
     script.async = true;
-    script.dataset.dpDevices = src;
+    script.dataset.dpSdk = src;
     script.onload = () => {
       script.dataset.loaded = 'true';
       resolve();
@@ -40,6 +45,20 @@ async function loadDigitalPersonaFromUmd() {
 
   _dpScriptPromise = (async () => {
     let lastError = null;
+    // DigitalPersona devices UMD expects a global WebSdk object.
+    for (const url of DP_WEBSDK_URLS) {
+      try {
+        await loadScript(url);
+        if (window?.WebSdk) break;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    if (!window?.WebSdk) {
+      throw lastError || new Error('Could not load DigitalPersona WebSdk dependency.');
+    }
+
     for (const url of DP_UMD_URLS) {
       try {
         await loadScript(url);
