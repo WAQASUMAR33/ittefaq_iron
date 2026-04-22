@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getReader } from '../../utils/digitalpersona';
+import { createReader, captureAndVerify } from '../../utils/digitalpersona';
 
 const SCAN = {
   IDLE: 'idle',
@@ -33,7 +33,7 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
   };
 
   const disconnectReader = useCallback(() => {
-    try { readerRef.current?.disconnect(); } catch { /* ignore */ }
+    try { readerRef.current?.reader?.stopAcquisition?.(); } catch { /* ignore */ }
     readerRef.current = null;
     sidRef.current = null;
   }, []);
@@ -76,14 +76,7 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
       }
 
       try {
-        // Connect to DP service
-        const reader = getReader();
-        await reader.connect();
-        readerRef.current = reader;
-
-        if (cancelled) return;
-
-        // Fetch user's stored SID
+        // Fetch user's stored template
         const res = await fetch(`/api/auth/user-template?userId=${user.user_id}`);
         const data = await res.json();
 
@@ -96,11 +89,27 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
         }
 
         sidRef.current = data.template;
+
+        // Load official SDK and create reader
+        const { reader, SampleFormat } = await createReader();
+        if (cancelled) { reader.stopAcquisition().catch(() => {}); return; }
+
+        readerRef.current = { reader, SampleFormat };
+
+        reader.on('DeviceDisconnected', () => {
+          if (!activeRef.current) return;
+          setScanState(SCAN.ERROR);
+          setFpError('Scanner disconnected. Reconnect the DigitalPersona reader.');
+        });
+
         setScanState(SCAN.READY);
         setScanMsg('Place your finger on the DigitalPersona scanner.');
       } catch (err) {
         if (cancelled) return;
-        setFpError(err.message || 'Could not connect to fingerprint scanner.\nMake sure the fingerprint service is running.');
+        setFpError(
+          err.message ||
+          'Could not connect to fingerprint scanner.\nMake sure DigitalPersona Lite Client is installed and running.'
+        );
         setScanState(SCAN.ERROR);
       }
     }
@@ -111,13 +120,14 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
 
   async function handleScan() {
     if (!readerRef.current || !sidRef.current) return;
+    const { reader, SampleFormat } = readerRef.current;
 
     setFpError('');
     setScanState(SCAN.SCANNING);
-    setScanMsg('Place your finger on the scanner...');
+    setScanMsg('Place your finger firmly on the scanner...');
 
     try {
-      const { matched } = await readerRef.current.verifyIdentity(sidRef.current);
+      const { matched } = await captureAndVerify(reader, SampleFormat, sidRef.current);
 
       if (!activeRef.current) return;
 
@@ -127,7 +137,7 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
         setTimeout(() => { if (activeRef.current) onSuccess(); }, 600);
       } else {
         setScanState(SCAN.ERROR);
-        setFpError('Fingerprint did not match. Try again.');
+        setFpError('Fingerprint did not match. Try again or use PIN.');
       }
     } catch (err) {
       if (!activeRef.current) return;

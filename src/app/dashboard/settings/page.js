@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../components/dashboard-layout';
-import { getReader } from '../../utils/digitalpersona';
+import { createReader, captureSample } from '../../utils/digitalpersona';
 
 const ENROLL_STEPS = 3; // number of fingerprint scans required for enrollment
 
@@ -72,7 +72,7 @@ export default function SettingsPage() {
     setLoading(false);
   }
 
-  // ─── Fingerprint enrollment (DigitalPersona 4500) ─────────────────────────
+  // ─── Fingerprint enrollment (DigitalPersona 4500 official SDK) ───────────
 
   async function startEnrollment(userId) {
     setEnrollingUserId(userId);
@@ -82,35 +82,66 @@ export default function SettingsPage() {
     setScanMessage('Connecting to DigitalPersona scanner...');
 
     try {
-      const reader = getReader();
-      readerRef.current = reader;
-      await reader.connect();
-      setScanState(SCAN_STATE.READY);
-      setScanMessage('Place your finger on the scanner to capture fingerprint.');
+      const { reader, SampleFormat } = await createReader();
+      readerRef.current = { reader, SampleFormat };
+
+      reader.on('DeviceConnected', () => {
+        setScanState(SCAN_STATE.READY);
+        setScanMessage('Scanner ready — click "Scan Now" to enroll finger.');
+      });
+
+      reader.on('DeviceDisconnected', () => {
+        setScanState(SCAN_STATE.ERROR);
+        setFpError('Scanner disconnected. Reconnect the DigitalPersona reader.');
+      });
+
+      reader.on('QualityReported', (e) => {
+        if (e.quality) setScanMessage(`Quality: ${e.quality} — keep finger steady`);
+      });
+
+      // Give device time to connect; if no DeviceConnected fires, show ready anyway
+      setTimeout(() => {
+        if (scanState === SCAN_STATE.CONNECTING) {
+          setScanState(SCAN_STATE.READY);
+          setScanMessage('Scanner ready — click "Scan Now" to enroll finger.');
+        }
+      }, 3000);
     } catch (err) {
       setScanState(SCAN_STATE.ERROR);
-      setFpError(err.message || 'Could not connect to fingerprint scanner.\nMake sure the fingerprint service is running.');
+      setFpError(
+        err.message ||
+        'Could not load fingerprint SDK.\nMake sure DigitalPersona Lite Client is installed.'
+      );
     }
   }
 
   async function captureEnrollSample() {
     if (!readerRef.current) return;
+    const { reader, SampleFormat } = readerRef.current;
+
     setFpError('');
     setScanState(SCAN_STATE.SCANNING);
-    setScanMessage('Place your finger on the scanner now...');
+    setScanMessage('Place your finger firmly on the scanner...');
 
     try {
-      // identify() → Windows reads the finger and returns the user's SID
-      const result = await readerRef.current.identify();
-      const sid = result?.Identity || result?.identity;
+      const sample = await captureSample(reader, SampleFormat);
 
-      if (!sid) throw new Error('Could not read fingerprint identity. Try again.');
+      const newSamples = [...samplesCollected, sample];
+      setSamplesCollected(newSamples);
 
+      const SAMPLES_NEEDED = 3;
+      if (newSamples.length < SAMPLES_NEEDED) {
+        setScanState(SCAN_STATE.READY);
+        setScanMessage(`Sample ${newSamples.length}/${SAMPLES_NEEDED} captured. Lift and place finger again.`);
+        return;
+      }
+
+      // All samples collected — save to DB as JSON array
       setScanMessage('Saving fingerprint...');
       const res = await fetch('/api/settings/fingerprint', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: enrollingUserId, template: sid }),
+        body: JSON.stringify({ userId: enrollingUserId, template: JSON.stringify(newSamples) }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to save fingerprint');
@@ -140,7 +171,7 @@ export default function SettingsPage() {
   }
 
   function cancelEnrollment() {
-    try { readerRef.current?.disconnect(); } catch { /* ignore */ }
+    try { readerRef.current?.reader?.stopAcquisition?.(); } catch { /* ignore */ }
     readerRef.current = null;
     setEnrollingUserId(null);
     setSamplesCollected([]);
@@ -356,7 +387,7 @@ export default function SettingsPage() {
                       color: 'white', border: 'none', borderRadius: '10px',
                       fontWeight: '700', cursor: 'pointer', fontSize: '0.9rem',
                     }}>
-                      {scanState === SCAN_STATE.ERROR ? '🔄 Retry Scan' : '🖐️ Scan Now'}
+                      {scanState === SCAN_STATE.ERROR ? '🔄 Retry Scan' : `🖐️ Scan Now (${samplesCollected.length}/3)`}
                     </button>
                   )}
                   {scanState === SCAN_STATE.CONNECTING && (
