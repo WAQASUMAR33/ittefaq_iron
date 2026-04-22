@@ -57,15 +57,7 @@ async function loadDigitalPersonaFromUmd() {
 
 export async function createReader() {
   if (typeof window === 'undefined') throw new Error('Browser only');
-  let FingerprintReader;
-  let SampleFormat;
-
-  try {
-    ({ FingerprintReader, SampleFormat } = await import('@digitalpersona/devices'));
-  } catch {
-    ({ FingerprintReader, SampleFormat } = await loadDigitalPersonaFromUmd());
-  }
-
+  const { FingerprintReader, SampleFormat } = await loadDigitalPersonaFromUmd();
   return { reader: new FingerprintReader(), SampleFormat };
 }
 
