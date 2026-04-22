@@ -5,10 +5,67 @@
 // Download: https://www.hidglobal.com/drivers
 
 let _reader = null;
+let _dpScriptPromise = null;
+
+const DP_UMD_URLS = [
+  'https://cdn.jsdelivr.net/npm/@digitalpersona/devices@0.2.6/dist/es5.bundles/index.umd.js',
+  'https://unpkg.com/@digitalpersona/devices@0.2.6/dist/es5.bundles/index.umd.js',
+];
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[data-dp-devices="${src}"]`);
+    if (existing) {
+      if (existing.dataset.loaded === 'true') return resolve();
+      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener('error', () => reject(new Error(`Failed to load ${src}`)), { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = src;
+    script.async = true;
+    script.dataset.dpDevices = src;
+    script.onload = () => {
+      script.dataset.loaded = 'true';
+      resolve();
+    };
+    script.onerror = () => reject(new Error(`Failed to load ${src}`));
+    document.head.appendChild(script);
+  });
+}
+
+async function loadDigitalPersonaFromUmd() {
+  if (_dpScriptPromise) return _dpScriptPromise;
+
+  _dpScriptPromise = (async () => {
+    let lastError = null;
+    for (const url of DP_UMD_URLS) {
+      try {
+        await loadScript(url);
+        const devices = window?.dp?.devices;
+        if (devices?.FingerprintReader && devices?.SampleFormat) return devices;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError || new Error('Could not load DigitalPersona browser SDK.');
+  })();
+
+  return _dpScriptPromise;
+}
 
 export async function createReader() {
   if (typeof window === 'undefined') throw new Error('Browser only');
-  const { FingerprintReader, SampleFormat } = await import('@digitalpersona/devices');
+  let FingerprintReader;
+  let SampleFormat;
+
+  try {
+    ({ FingerprintReader, SampleFormat } = await import('@digitalpersona/devices'));
+  } catch {
+    ({ FingerprintReader, SampleFormat } = await loadDigitalPersonaFromUmd());
+  }
+
   return { reader: new FingerprintReader(), SampleFormat };
 }
 
