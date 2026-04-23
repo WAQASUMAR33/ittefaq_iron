@@ -1,36 +1,17 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { SampleFormat } from '@digitalpersona/devices';
+import FingerprintScanner from '@/components/FingerprintScanner';
 import DashboardLayout from '../components/dashboard-layout';
-import { createFingerprintBridge } from '../../utils/fingerprintBridge';
-
-const SCAN_STATE = {
-  IDLE: 'idle',
-  CONNECTING: 'connecting',
-  READY: 'ready',
-  SCANNING: 'scanning',
-  DONE: 'done',
-  ERROR: 'error',
-};
 
 export default function SettingsPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState(null);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeSection, setActiveSection] = useState('fingerprint');
 
-  // Fingerprint state
-  const [enrollingUserId, setEnrollingUserId] = useState(null);
-  const [scanState, setScanState] = useState(SCAN_STATE.IDLE);
-  const [scanMessage, setScanMessage] = useState('');
-  const [fpError, setFpError] = useState('');
-  const [fpNotice, setFpNotice] = useState('');
-  const bridgeRef = useRef(null);
-  const sidRef = useRef(null);
-
-  // PIN state
   const [pinUserId, setPinUserId] = useState(null);
   const [pinDigits, setPinDigits] = useState('');
   const [pinConfirm, setPinConfirm] = useState('');
@@ -38,6 +19,12 @@ export default function SettingsPage() {
   const [pinError, setPinError] = useState('');
   const [pinSuccess, setPinSuccess] = useState('');
   const [pinLoading, setPinLoading] = useState(false);
+
+  const [fpUserId, setFpUserId] = useState(null);
+  const [fpSamples, setFpSamples] = useState([]);
+  const [fpError, setFpError] = useState('');
+  const [fpSuccess, setFpSuccess] = useState('');
+  const [fpLoading, setFpLoading] = useState(false);
 
   useEffect(() => {
     const userData = localStorage.getItem('user');
@@ -67,108 +54,13 @@ export default function SettingsPage() {
     try {
       const res = await fetch('/api/users');
       const data = await res.json();
-      const list = Array.isArray(data) ? data : (data.users || []);
+      const list = Array.isArray(data) ? data : data.users || [];
       setUsers(list);
     } catch {
       setUsers([]);
     } finally {
       setLoading(false);
     }
-  }
-
-  function cleanupBridge() {
-    try { bridgeRef.current?.stopCapture?.(); } catch { /* ignore */ }
-    try { bridgeRef.current?.close?.(); } catch { /* ignore */ }
-    bridgeRef.current = null;
-    sidRef.current = null;
-  }
-
-  async function startEnrollment(userId) {
-    cleanupBridge();
-    setEnrollingUserId(userId);
-    setFpError('');
-    setFpNotice('');
-    setScanState(SCAN_STATE.CONNECTING);
-    setScanMessage('Connecting to fingerprint service...');
-
-    try {
-      // Force the modern bridge that supports GetCurrentIdentity.
-      const bridge = createFingerprintBridge('ws://localhost:15897');
-      bridgeRef.current = bridge;
-      await bridge.connect();
-
-      const devices = await bridge.getDevices();
-      if (!devices.length) throw new Error('No fingerprint device detected.');
-
-      const sidHex = await bridge.getCurrentIdentity();
-      if (!sidHex) throw new Error('Could not resolve current Windows identity.');
-      sidRef.current = sidHex;
-
-      setScanState(SCAN_STATE.READY);
-      setScanMessage('Scanner ready — touch finger to verify and map this user.');
-      setFpNotice(`Connected (${devices.length} device detected).`);
-    } catch (error) {
-      setScanState(SCAN_STATE.ERROR);
-      setFpError(error.message || 'Could not connect to fingerprint service.');
-    }
-  }
-
-  async function captureEnrollSample() {
-    if (!bridgeRef.current || !sidRef.current) return;
-    setFpError('');
-    setFpNotice('');
-    setScanState(SCAN_STATE.SCANNING);
-    setScanMessage('Place your finger firmly on the scanner...');
-
-    try {
-      // Reset any stale native capture operation before starting a new verification.
-      await bridgeRef.current.stopCapture();
-      const { matched } = await bridgeRef.current.verify(sidRef.current, 60000);
-      if (!matched) {
-        setScanState(SCAN_STATE.ERROR);
-        setFpError('Fingerprint was not recognized for this Windows user.');
-        return;
-      }
-
-      const res = await fetch('/api/settings/fingerprint', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: enrollingUserId, template: sidRef.current }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to save fingerprint mapping.');
-
-      setScanState(SCAN_STATE.DONE);
-      setScanMessage('Fingerprint mapped successfully!');
-      await fetchUsers();
-      setTimeout(cancelEnrollment, 900);
-    } catch (error) {
-      setScanState(SCAN_STATE.ERROR);
-      setFpError(error.message || 'Scan failed.');
-    }
-  }
-
-  async function removeFingerprint(userId) {
-    if (!confirm('Remove fingerprint for this user?')) return;
-    try {
-      await fetch('/api/settings/fingerprint', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId }),
-      });
-      await fetchUsers();
-    } catch {
-      // ignore
-    }
-  }
-
-  function cancelEnrollment() {
-    cleanupBridge();
-    setEnrollingUserId(null);
-    setScanState(SCAN_STATE.IDLE);
-    setScanMessage('');
-    setFpError('');
-    setFpNotice('');
   }
 
   function startPinSetup(userId) {
@@ -201,14 +93,21 @@ export default function SettingsPage() {
 
   async function handlePinNext() {
     if (pinStep === 'enter') {
-      if (pinDigits.length !== 6) return setPinError('Enter all 6 digits.');
+      if (pinDigits.length !== 6) {
+        setPinError('Enter all 6 digits.');
+        return;
+      }
       setPinError('');
       setPinConfirm('');
       setPinStep('confirm');
       return;
     }
 
-    if (pinConfirm.length !== 6) return setPinError('Confirm all 6 digits.');
+    if (pinConfirm.length !== 6) {
+      setPinError('Confirm all 6 digits.');
+      return;
+    }
+
     if (pinDigits !== pinConfirm) {
       setPinError('PINs do not match. Try again.');
       setPinDigits('');
@@ -251,6 +150,98 @@ export default function SettingsPage() {
     }
   }
 
+  function startFingerprintSetup(userId) {
+    setFpUserId(userId);
+    setFpSamples([]);
+    setFpError('');
+    setFpSuccess('');
+  }
+
+  function cancelFingerprintSetup() {
+    setFpUserId(null);
+    setFpSamples([]);
+    setFpError('');
+    setFpSuccess('');
+    setFpLoading(false);
+  }
+
+  async function submitFingerprintEnrollment() {
+    if (fpSamples.length < 2) {
+      setFpError('Need at least 2 good scans. Keep fingers dry/clean and try again.');
+      return;
+    }
+    if (!fpUserId) return;
+
+    setFpLoading(true);
+    setFpError('');
+    setFpSuccess('');
+    try {
+      const res = await fetch('/api/fingerprint/enroll', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: fpUserId,
+          finger: 'right-index',
+          format: 'PngImage',
+          templates: fpSamples.map((s) => s.template),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Enrollment failed');
+      setFpSuccess('Fingerprint enrolled successfully!');
+      await fetchUsers();
+
+      // Keep local `user` object in sync for step-up auth dialogs
+      try {
+        const raw = localStorage.getItem('user');
+        if (raw) {
+          const u = JSON.parse(raw);
+          if (u && u.user_id === fpUserId) {
+            u.fingerprint_enrolled = true;
+            localStorage.setItem('user', JSON.stringify(u));
+          }
+        }
+      } catch {
+        // ignore
+      }
+
+      setTimeout(cancelFingerprintSetup, 900);
+    } catch (error) {
+      setFpError(error.message || 'Enrollment failed');
+    } finally {
+      setFpLoading(false);
+    }
+  }
+
+  async function removeFingerprint(userId) {
+    if (!confirm('Remove fingerprint templates for this user?')) return;
+    try {
+      const res = await fetch('/api/fingerprint/enroll', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to remove fingerprint');
+      await fetchUsers();
+
+      try {
+        const raw = localStorage.getItem('user');
+        if (raw) {
+          const u = JSON.parse(raw);
+          if (u && u.user_id === userId) {
+            u.fingerprint_enrolled = false;
+            localStorage.setItem('user', JSON.stringify(u));
+          }
+        }
+      } catch {
+        // ignore
+      }
+    } catch (error) {
+      alert(error.message || 'Failed to remove fingerprint');
+    }
+  }
+
   const activePin = pinStep === 'enter' ? pinDigits : pinConfirm;
 
   if (loading) {
@@ -261,143 +252,128 @@ export default function SettingsPage() {
     <DashboardLayout>
       <div style={{ padding: '24px', maxWidth: '980px', fontFamily: "'Segoe UI', system-ui, sans-serif" }}>
         <h1 style={{ fontSize: '1.75rem', fontWeight: '800', marginBottom: '6px' }}>Security Settings</h1>
-        <p style={{ color: '#64748b', marginBottom: '18px' }}>Register fingerprint and PIN for user authentication.</p>
+        <p style={{ color: '#64748b', marginBottom: '18px' }}>PIN + fingerprint management for user authentication.</p>
 
-        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-          <button onClick={() => setActiveSection('fingerprint')} style={{ padding: '10px 16px', borderRadius: 10, border: 'none', background: activeSection === 'fingerprint' ? '#1d4ed8' : '#f1f5f9', color: activeSection === 'fingerprint' ? '#fff' : '#475569', fontWeight: 700, cursor: 'pointer' }}>🖐️ Fingerprint</button>
-          <button onClick={() => setActiveSection('pin')} style={{ padding: '10px 16px', borderRadius: 10, border: 'none', background: activeSection === 'pin' ? '#1d4ed8' : '#f1f5f9', color: activeSection === 'pin' ? '#fff' : '#475569', fontWeight: 700, cursor: 'pointer' }}>🔢 PIN</button>
-        </div>
-
-        {activeSection === 'fingerprint' && (
-          <>
-            <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 12, padding: '14px 16px', marginBottom: 18, color: '#1e40af', fontSize: '0.85rem' }}>
-              The user finger must be enrolled in Windows Hello on this machine. Enrollment verifies scanner input and maps this app user to Windows identity.
-            </div>
-
-            {enrollingUserId && (
-              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-                <div style={{ width: 420, maxWidth: '92vw', background: '#fff', borderRadius: 20, padding: 26 }}>
-                  <h3 style={{ margin: 0, marginBottom: 8, fontSize: '1.25rem' }}>Enroll Fingerprint</h3>
-                  <p style={{ marginTop: 0, color: '#64748b' }}>{users.find((u) => u.user_id === enrollingUserId)?.full_name}</p>
-                  <div style={{ border: `2px solid ${scanState === SCAN_STATE.ERROR ? '#ef4444' : scanState === SCAN_STATE.DONE ? '#22c55e' : '#60a5fa'}`, borderRadius: 14, padding: 18, marginBottom: 12 }}>
-                    <p style={{ margin: 0, fontWeight: 600, color: '#334155', textAlign: 'center' }}>{scanMessage || 'Ready'}</p>
+        {pinUserId && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+            <div style={{ background: 'white', borderRadius: 20, padding: 32, width: 380, maxWidth: '90vw' }}>
+              <h3 style={{ margin: 0, marginBottom: 6 }}>Set PIN Code</h3>
+              <p style={{ marginTop: 0, color: '#64748b' }}>{users.find((u) => u.user_id === pinUserId)?.full_name}</p>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 18 }}>
+                {[0, 1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} style={{ width: 44, height: 52, borderRadius: 10, border: `2px solid ${i < activePin.length ? '#1d4ed8' : '#e2e8f0'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {i < activePin.length ? '●' : ''}
                   </div>
-                  {fpNotice && !fpError && <div style={{ marginBottom: 10, background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e40af', borderRadius: 10, padding: '10px 12px', fontSize: '0.84rem' }}>ℹ️ {fpNotice}</div>}
-                  {fpError && <div style={{ marginBottom: 10, background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 10, padding: '10px 12px', fontSize: '0.84rem' }}>⚠️ {fpError}</div>}
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    {(scanState === SCAN_STATE.READY || scanState === SCAN_STATE.ERROR) && (
-                      <button onClick={captureEnrollSample} style={{ flex: 1, padding: '12px', border: 'none', borderRadius: 10, background: '#2563eb', color: 'white', fontWeight: 700, cursor: 'pointer' }}>
-                        {scanState === SCAN_STATE.ERROR ? 'Retry Scan' : 'Scan Now'}
+                ))}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 14 }}>
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => <button key={n} onClick={() => handlePinDigit(String(n))} style={{ padding: 14, borderRadius: 10, border: '2px solid #e2e8f0', background: '#fff', fontWeight: 700, cursor: 'pointer' }}>{n}</button>)}
+                <button onClick={handlePinBack} style={{ padding: 14, borderRadius: 10, border: '2px solid #fecaca', background: '#fef2f2', color: '#dc2626', fontWeight: 700, cursor: 'pointer' }}>⌫</button>
+                <button onClick={() => handlePinDigit('0')} style={{ padding: 14, borderRadius: 10, border: '2px solid #e2e8f0', background: '#fff', fontWeight: 700, cursor: 'pointer' }}>0</button>
+                <button onClick={() => (pinStep === 'enter' ? setPinDigits('') : setPinConfirm(''))} style={{ padding: 14, borderRadius: 10, border: '2px solid #e2e8f0', background: '#f8fafc', color: '#64748b', fontWeight: 700, cursor: 'pointer' }}>CLR</button>
+              </div>
+              {pinError && <div style={{ marginBottom: 10, color: '#dc2626' }}>⚠️ {pinError}</div>}
+              {pinSuccess && <div style={{ marginBottom: 10, color: '#16a34a' }}>✅ {pinSuccess}</div>}
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={handlePinNext} disabled={pinLoading || activePin.length !== 6} style={{ flex: 1, padding: 12, border: 'none', borderRadius: 10, background: activePin.length !== 6 ? '#93c5fd' : '#1d4ed8', color: '#fff', fontWeight: 700, cursor: activePin.length !== 6 ? 'not-allowed' : 'pointer' }}>
+                  {pinLoading ? 'Saving...' : pinStep === 'enter' ? 'Next' : 'Confirm PIN'}
+                </button>
+                <button onClick={cancelPinSetup} style={{ padding: '12px 18px', borderRadius: 10, border: '2px solid #e2e8f0', background: '#f1f5f9', fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {fpUserId && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+            <div style={{ background: 'white', borderRadius: 20, padding: 24, width: 520, maxWidth: '95vw' }}>
+              <h3 style={{ margin: 0, marginBottom: 6 }}>Enroll Fingerprint</h3>
+              <p style={{ marginTop: 0, color: '#64748b' }}>{users.find((u) => u.user_id === fpUserId)?.full_name}</p>
+              <FingerprintScanner
+                format={SampleFormat.PngImage}
+                autoStart
+                onSample={(s) => {
+                  setFpSamples((prev) => {
+                    if (prev.length >= 4) return prev;
+                    return [...prev, s];
+                  });
+                }}
+                hint={`Captured ${fpSamples.length}/4 (minimum 2).`}
+              />
+              {fpError && <div style={{ color: '#dc2626', marginTop: 10, fontSize: 13 }}>⚠️ {fpError}</div>}
+              {fpSuccess && <div style={{ color: '#16a34a', marginTop: 10, fontSize: 13 }}>✅ {fpSuccess}</div>}
+              <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+                <button
+                  onClick={submitFingerprintEnrollment}
+                  disabled={fpLoading || fpSamples.length < 2}
+                  style={{
+                    flex: 1,
+                    padding: 12,
+                    border: 'none',
+                    borderRadius: 10,
+                    background: fpSamples.length < 2 || fpLoading ? '#93c5fd' : '#1d4ed8',
+                    color: 'white',
+                    fontWeight: 800,
+                    cursor: fpSamples.length < 2 || fpLoading ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {fpLoading ? 'Saving...' : 'Save fingerprint'}
+                </button>
+                <button
+                  onClick={cancelFingerprintSetup}
+                  style={{ padding: '12px 16px', borderRadius: 10, border: '2px solid #e2e8f0', background: '#f1f5f9', fontWeight: 800, cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: '#f8fafc' }}>
+                {['User', 'Role', 'PIN', 'Fingerprint', 'Actions'].map((h) => <th key={h} style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.78rem', color: '#64748b', textTransform: 'uppercase' }}>{h}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u, i) => (
+                <tr key={u.user_id} style={{ borderTop: i ? '1px solid #f1f5f9' : 'none' }}>
+                  <td style={{ padding: '12px 14px' }}>
+                    <div style={{ fontWeight: 700 }}>{u.full_name}</div>
+                    <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>{u.email}</div>
+                  </td>
+                  <td style={{ padding: '12px 14px' }}>{u.role}</td>
+                  <td style={{ padding: '12px 14px' }}>{u.pin_code ? '✅ PIN Set' : 'No PIN'}</td>
+                  <td style={{ padding: '12px 14px' }}>{u.fingerprint_enrolled ? '✅ Enrolled' : 'Not enrolled'}</td>
+                  <td style={{ padding: '12px 14px' }}>
+                    <button onClick={() => startPinSetup(u.user_id)} style={{ marginRight: 8, padding: '6px 12px', borderRadius: 8, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8', cursor: 'pointer', fontWeight: 700 }}>
+                      {u.pin_code ? 'Change PIN' : 'Set PIN'}
+                    </button>
+                    {u.pin_code && (
+                      <button onClick={() => removePin(u.user_id)} style={{ marginRight: 8, padding: '6px 12px', borderRadius: 8, border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626', cursor: 'pointer', fontWeight: 700 }}>
+                        Remove PIN
                       </button>
                     )}
-                    {(scanState === SCAN_STATE.CONNECTING || scanState === SCAN_STATE.SCANNING) && (
-                      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6', fontWeight: 700 }}>Scanning...</div>
-                    )}
-                    <button onClick={cancelEnrollment} style={{ padding: '12px 18px', borderRadius: 10, border: '2px solid #e2e8f0', background: '#f1f5f9', cursor: 'pointer', fontWeight: 700 }}>Cancel</button>
-                  </div>
-                </div>
-              </div>
-            )}
 
-            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, overflow: 'hidden' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ background: '#f8fafc' }}>
-                    {['User', 'Role', 'Fingerprint', 'Actions'].map((h) => <th key={h} style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.78rem', color: '#64748b', textTransform: 'uppercase' }}>{h}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((u, i) => (
-                    <tr key={u.user_id} style={{ borderTop: i ? '1px solid #f1f5f9' : 'none' }}>
-                      <td style={{ padding: '12px 14px' }}>
-                        <div style={{ fontWeight: 700 }}>{u.full_name}</div>
-                        <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>{u.email}</div>
-                      </td>
-                      <td style={{ padding: '12px 14px' }}>{u.role}</td>
-                      <td style={{ padding: '12px 14px' }}>{u.fingerprint_enrolled ? '✅ Enrolled' : 'Not enrolled'}</td>
-                      <td style={{ padding: '12px 14px' }}>
-                        <button onClick={() => startEnrollment(u.user_id)} style={{ marginRight: 8, padding: '6px 12px', borderRadius: 8, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8', cursor: 'pointer', fontWeight: 700 }}>
-                          {u.fingerprint_enrolled ? 'Re-enroll' : 'Enroll'}
-                        </button>
-                        {u.fingerprint_enrolled && (
-                          <button onClick={() => removeFingerprint(u.user_id)} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626', cursor: 'pointer', fontWeight: 700 }}>
-                            Remove
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-
-        {activeSection === 'pin' && (
-          <>
-            {pinUserId && (
-              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-                <div style={{ background: 'white', borderRadius: 20, padding: 32, width: 380, maxWidth: '90vw' }}>
-                  <h3 style={{ margin: 0, marginBottom: 6 }}>Set PIN Code</h3>
-                  <p style={{ marginTop: 0, color: '#64748b' }}>{users.find((u) => u.user_id === pinUserId)?.full_name}</p>
-                  <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 18 }}>
-                    {[0, 1, 2, 3, 4, 5].map((i) => (
-                      <div key={i} style={{ width: 44, height: 52, borderRadius: 10, border: `2px solid ${i < activePin.length ? '#1d4ed8' : '#e2e8f0'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {i < activePin.length ? '●' : ''}
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 14 }}>
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => <button key={n} onClick={() => handlePinDigit(String(n))} style={{ padding: 14, borderRadius: 10, border: '2px solid #e2e8f0', background: '#fff', fontWeight: 700, cursor: 'pointer' }}>{n}</button>)}
-                    <button onClick={handlePinBack} style={{ padding: 14, borderRadius: 10, border: '2px solid #fecaca', background: '#fef2f2', color: '#dc2626', fontWeight: 700, cursor: 'pointer' }}>⌫</button>
-                    <button onClick={() => handlePinDigit('0')} style={{ padding: 14, borderRadius: 10, border: '2px solid #e2e8f0', background: '#fff', fontWeight: 700, cursor: 'pointer' }}>0</button>
-                    <button onClick={() => pinStep === 'enter' ? setPinDigits('') : setPinConfirm('')} style={{ padding: 14, borderRadius: 10, border: '2px solid #e2e8f0', background: '#f8fafc', color: '#64748b', fontWeight: 700, cursor: 'pointer' }}>CLR</button>
-                  </div>
-                  {pinError && <div style={{ marginBottom: 10, color: '#dc2626' }}>⚠️ {pinError}</div>}
-                  {pinSuccess && <div style={{ marginBottom: 10, color: '#16a34a' }}>✅ {pinSuccess}</div>}
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    <button onClick={handlePinNext} disabled={pinLoading || activePin.length !== 6} style={{ flex: 1, padding: 12, border: 'none', borderRadius: 10, background: activePin.length !== 6 ? '#93c5fd' : '#1d4ed8', color: '#fff', fontWeight: 700, cursor: activePin.length !== 6 ? 'not-allowed' : 'pointer' }}>
-                      {pinLoading ? 'Saving...' : pinStep === 'enter' ? 'Next' : 'Confirm PIN'}
+                    <button
+                      onClick={() => startFingerprintSetup(u.user_id)}
+                      style={{ marginRight: 8, padding: '6px 12px', borderRadius: 8, border: '1px solid #c7d2fe', background: '#eef2ff', color: '#3730a3', cursor: 'pointer', fontWeight: 800 }}
+                    >
+                      {u.fingerprint_enrolled ? 'Re-enroll' : 'Enroll'}
                     </button>
-                    <button onClick={cancelPinSetup} style={{ padding: '12px 18px', borderRadius: 10, border: '2px solid #e2e8f0', background: '#f1f5f9', fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, overflow: 'hidden' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ background: '#f8fafc' }}>
-                    {['User', 'Role', 'PIN', 'Actions'].map((h) => <th key={h} style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.78rem', color: '#64748b', textTransform: 'uppercase' }}>{h}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((u, i) => (
-                    <tr key={u.user_id} style={{ borderTop: i ? '1px solid #f1f5f9' : 'none' }}>
-                      <td style={{ padding: '12px 14px' }}>
-                        <div style={{ fontWeight: 700 }}>{u.full_name}</div>
-                        <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>{u.email}</div>
-                      </td>
-                      <td style={{ padding: '12px 14px' }}>{u.role}</td>
-                      <td style={{ padding: '12px 14px' }}>{u.pin_code ? '✅ PIN Set' : 'No PIN'}</td>
-                      <td style={{ padding: '12px 14px' }}>
-                        <button onClick={() => startPinSetup(u.user_id)} style={{ marginRight: 8, padding: '6px 12px', borderRadius: 8, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8', cursor: 'pointer', fontWeight: 700 }}>
-                          {u.pin_code ? 'Change PIN' : 'Set PIN'}
-                        </button>
-                        {u.pin_code && (
-                          <button onClick={() => removePin(u.user_id)} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626', cursor: 'pointer', fontWeight: 700 }}>
-                            Remove
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
+                    {u.fingerprint_enrolled && (
+                      <button onClick={() => removeFingerprint(u.user_id)} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626', cursor: 'pointer', fontWeight: 800 }}>
+                        Remove FP
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </DashboardLayout>
   );

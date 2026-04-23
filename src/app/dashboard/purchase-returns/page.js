@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import DashboardLayout from '../components/dashboard-layout';
-import { useDigitalPersonaAuth } from '../../hooks/useDigitalPersonaAuth';
+import { usePinAuth } from '../../hooks/usePinAuth';
 import BiometricAuthDialog from '../components/BiometricAuthDialog';
 
 // Material-UI imports
@@ -64,7 +64,8 @@ import {
   ShoppingCart as ShoppingCartIcon,
   AttachMoney as MoneyIcon,
   AccountBalance as BankIcon,
-  Business as BusinessIcon
+  Business as BusinessIcon,
+  Phone as PhoneIcon
 } from '@mui/icons-material';
 
 // Premium Theme Patterns
@@ -141,8 +142,8 @@ export default function PurchaseReturnsPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
-  // Fingerprint auth
-  const { requireAuth, authDialogOpen, handleAuthSuccess, handleAuthCancel } = useDigitalPersonaAuth();
+  // PIN auth
+  const { requireAuth, authDialogOpen, handleAuthSuccess, handleAuthCancel } = usePinAuth();
 
   // State management
   const [currentView, setCurrentView] = useState('list'); // 'list', 'create', 'edit'
@@ -185,6 +186,7 @@ export default function PurchaseReturnsPage() {
     message: '',
     severity: 'success'
   });
+  const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
 
   // Fetch data
   const fetchData = async () => {
@@ -405,6 +407,72 @@ export default function PurchaseReturnsPage() {
     } catch (error) {
       console.error('Error deleting:', error);
       showSnackbar(error.message || 'Error deleting purchase return', 'error');
+    }
+  };
+
+  const handleSendWhatsApp = async (returnItem) => {
+    const customerId = returnItem?.purchase?.cus_id ?? returnItem?.cus_id;
+    const customer = customers.find(c => c.cus_id === customerId);
+    const phone = returnItem?.purchase?.customer?.cus_phone_no || customer?.cus_phone_no;
+    if (!phone) {
+      showSnackbar('No phone number found for this supplier', 'error');
+      return;
+    }
+
+    let tempEl = null;
+    try {
+      setIsSendingWhatsApp(true);
+      tempEl = document.createElement('div');
+      tempEl.style.position = 'fixed';
+      tempEl.style.left = '-9999px';
+      tempEl.style.top = '0';
+      tempEl.style.width = '700px';
+      tempEl.style.background = '#fff';
+      tempEl.style.padding = '24px';
+      tempEl.style.fontFamily = 'Arial, sans-serif';
+      tempEl.innerHTML = `
+        <div style="border-bottom:1px solid #ddd;padding-bottom:12px;margin-bottom:12px;">
+          <h2 style="margin:0;color:#dc2626;">Purchase Return Receipt</h2>
+          <p style="margin:6px 0 0 0;color:#555;">Return #${returnItem.id}</p>
+        </div>
+        <p><strong>Supplier:</strong> ${customer?.cus_name || 'N/A'}</p>
+        <p><strong>Date:</strong> ${new Date(returnItem.return_date).toLocaleDateString('en-PK')}</p>
+        <p><strong>Reason:</strong> ${returnItem.return_reason || 'N/A'}</p>
+        <p><strong>Total Return:</strong> Rs. ${parseFloat(returnItem.total_return_amount || 0).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+      `;
+      document.body.appendChild(tempEl);
+
+      const html2canvas = (await import('html2canvas')).default;
+      const canvas = await html2canvas(tempEl, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false
+      });
+      const imageBase64 = canvas.toDataURL('image/png');
+      const response = await fetch('/api/whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64,
+          bill: {
+            ...returnItem,
+            customer
+          },
+          phone
+        })
+      });
+      const result = await response.json();
+      if (response.ok) {
+        showSnackbar(`✅ WhatsApp receipt sent to ${phone}`, 'success');
+      } else {
+        showSnackbar(`❌ WhatsApp failed: ${result.error}`, 'error');
+      }
+    } catch (err) {
+      showSnackbar(`❌ WhatsApp error: ${err.message}`, 'error');
+    } finally {
+      if (tempEl && tempEl.parentNode) tempEl.parentNode.removeChild(tempEl);
+      setIsSendingWhatsApp(false);
     }
   };
 
@@ -808,6 +876,16 @@ export default function PurchaseReturnsPage() {
                                   sx={{ color: '#ef4444' }}
                                 >
                                   <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Send WhatsApp Receipt">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleSendWhatsApp(returnItem)}
+                                  disabled={isSendingWhatsApp}
+                                  sx={{ color: '#16a34a' }}
+                                >
+                                  {isSendingWhatsApp ? <CircularProgress size={16} /> : <PhoneIcon fontSize="small" />}
                                 </IconButton>
                               </Tooltip>
                             </Stack>

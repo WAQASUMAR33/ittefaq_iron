@@ -19,6 +19,7 @@ model Users {
   pin_code             String?
   fingerprint_template String?            @db.LongText
   fingerprint_enrolled Boolean            @default(false)
+  fingerprints        Fingerprint[]
   created_at           DateTime           @default(now())
   updated_at           DateTime           @updatedAt
   cargo               Cargo[]
@@ -52,6 +53,22 @@ model Users {
   payments            Payment[]
 
   @@map("users")
+}
+
+// SourceAFIS templates + raw PNG captures for per-user step-up auth.
+// (`Users.fingerprint_template` / `fingerprint_enrolled` are kept for legacy UI flags.)
+model Fingerprint {
+  id         Int      @id @default(autoincrement())
+  user_id    Int
+  finger     String   @db.VarChar(40)
+  format     String   @db.VarChar(40)
+  template   String   @db.LongText
+  descriptor String?  @db.LongText
+  created_at DateTime @default(now())
+  user       Users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@map("fingerprints")
 }
 
 model CustomerCategory {
@@ -899,6 +916,7 @@ enum PaymentType {
 enum BillType {
   QUOTATION
   ORDER
+  ORDER_TRASH
   BILL
 }
 

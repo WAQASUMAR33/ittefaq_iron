@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, Suspense, useRef, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '../components/dashboard-layout';
-import { useDigitalPersonaAuth } from '../../hooks/useDigitalPersonaAuth';
+import { usePinAuth } from '../../hooks/usePinAuth';
 import BiometricAuthDialog from '../components/BiometricAuthDialog';
 
 // Material-UI imports
@@ -76,7 +76,7 @@ import {
 
 function SalesPageContent() {
   const searchParams = useSearchParams();
-  const { requireAuth, authDialogOpen, handleAuthSuccess, handleAuthCancel } = useDigitalPersonaAuth();
+  const { requireAuth, authDialogOpen, handleAuthSuccess, handleAuthCancel } = usePinAuth();
 
   // State management
   const [sales, setSales] = useState([]);

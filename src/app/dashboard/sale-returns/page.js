@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import DashboardLayout from '../components/dashboard-layout';
-import { useDigitalPersonaAuth } from '../../hooks/useDigitalPersonaAuth';
+import { usePinAuth } from '../../hooks/usePinAuth';
 import BiometricAuthDialog from '../components/BiometricAuthDialog';
 
 // Material-UI imports
@@ -62,7 +62,8 @@ import {
   Error as ErrorIcon,
   ArrowForward as ArrowForwardIcon,
   CloudUpload as UploadIcon,
-  Warning as WarningIcon
+  Warning as WarningIcon,
+  Phone as PhoneIcon
 } from '@mui/icons-material';
 
 const fmtAmt = (val) => {
@@ -138,8 +139,8 @@ export default function SaleReturnsPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
-  // Fingerprint auth
-  const { requireAuth, authDialogOpen, handleAuthSuccess, handleAuthCancel } = useDigitalPersonaAuth();
+  // PIN auth
+  const { requireAuth, authDialogOpen, handleAuthSuccess, handleAuthCancel } = usePinAuth();
 
   // State management
   const [currentView, setCurrentView] = useState('list'); // 'list', 'create', 'edit'
@@ -195,6 +196,7 @@ export default function SaleReturnsPage() {
     message: '',
     severity: 'success'
   });
+  const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
 
   // Account creation states
   const [showAccountForm, setShowAccountForm] = useState(false);
@@ -659,6 +661,71 @@ export default function SaleReturnsPage() {
     }
   };
 
+  const handleSendWhatsApp = async (returnItem) => {
+    const customer = customers.find(c => c.cus_id === returnItem.cus_id);
+    const phone = customer?.cus_phone_no;
+    if (!phone) {
+      showSnackbar('No phone number found for this customer', 'error');
+      return;
+    }
+
+    let tempEl = null;
+    try {
+      setIsSendingWhatsApp(true);
+      tempEl = document.createElement('div');
+      tempEl.style.position = 'fixed';
+      tempEl.style.left = '-9999px';
+      tempEl.style.top = '0';
+      tempEl.style.width = '700px';
+      tempEl.style.background = '#fff';
+      tempEl.style.padding = '24px';
+      tempEl.style.fontFamily = 'Arial, sans-serif';
+      tempEl.innerHTML = `
+        <div style="border-bottom:1px solid #ddd;padding-bottom:12px;margin-bottom:12px;">
+          <h2 style="margin:0;color:#1e3a8a;">Sale Return Receipt</h2>
+          <p style="margin:6px 0 0 0;color:#555;">Return #${returnItem.return_id}</p>
+        </div>
+        <p><strong>Customer:</strong> ${customer?.cus_name || 'N/A'}</p>
+        <p><strong>Date:</strong> ${new Date(returnItem.return_date).toLocaleDateString('en-PK')}</p>
+        <p><strong>Reason:</strong> ${returnItem.reason || 'N/A'}</p>
+        <p><strong>Total Return:</strong> Rs. ${parseFloat(returnItem.total_amount || 0).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+      `;
+      document.body.appendChild(tempEl);
+
+      const html2canvas = (await import('html2canvas')).default;
+      const canvas = await html2canvas(tempEl, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false
+      });
+      const imageBase64 = canvas.toDataURL('image/png');
+      const response = await fetch('/api/whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64,
+          bill: {
+            ...returnItem,
+            customer
+          },
+          phone
+        })
+      });
+      const result = await response.json();
+      if (response.ok) {
+        showSnackbar(`✅ WhatsApp receipt sent to ${phone}`, 'success');
+      } else {
+        showSnackbar(`❌ WhatsApp failed: ${result.error}`, 'error');
+      }
+    } catch (err) {
+      showSnackbar(`❌ WhatsApp error: ${err.message}`, 'error');
+    } finally {
+      if (tempEl && tempEl.parentNode) tempEl.parentNode.removeChild(tempEl);
+      setIsSendingWhatsApp(false);
+    }
+  };
+
   // Filter and sort data
   const filteredAndSortedReturns = saleReturns
     .filter(returnItem => {
@@ -973,6 +1040,16 @@ export default function SaleReturnsPage() {
                                       sx={{ color: 'error.main', bgcolor: 'error.50', '&:hover': { bgcolor: 'error.100' } }}
                                     >
                                       <DeleteIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                  <Tooltip title="Send WhatsApp Receipt">
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => handleSendWhatsApp(returnItem)}
+                                      disabled={isSendingWhatsApp}
+                                      sx={{ color: 'success.main', bgcolor: 'success.50', '&:hover': { bgcolor: 'success.100' } }}
+                                    >
+                                      {isSendingWhatsApp ? <CircularProgress size={16} /> : <PhoneIcon fontSize="small" />}
                                     </IconButton>
                                   </Tooltip>
                                 </Stack>

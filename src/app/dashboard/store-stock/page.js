@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import DashboardLayout from '../components/dashboard-layout';
+import { usePinAuth } from '../../hooks/usePinAuth';
+import BiometricAuthDialog from '../components/BiometricAuthDialog';
 
 // Material-UI imports
 import { 
@@ -54,6 +56,7 @@ import {
 } from '@mui/icons-material';
 
 export default function StoreStockPage() {
+  const { requireAuth, authDialogOpen, handleAuthSuccess, handleAuthCancel } = usePinAuth();
   const [stores, setStores] = useState([]);
   const [selectedStore, setSelectedStore] = useState('');
   const [storeStock, setStoreStock] = useState([]);
@@ -61,6 +64,10 @@ export default function StoreStockPage() {
   const [loading, setLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [transferDialog, setTransferDialog] = useState(false);
+  const [editStockDialog, setEditStockDialog] = useState(false);
+  const [updatingStock, setUpdatingStock] = useState(false);
+  const [editingStockItem, setEditingStockItem] = useState(null);
+  const [editStockQuantity, setEditStockQuantity] = useState('');
   const [transferData, setTransferData] = useState({
     fromStore: '',
     toStore: '',
@@ -214,6 +221,74 @@ export default function StoreStockPage() {
     } catch (error) {
       console.error('Error transferring stock:', error);
       showSnackbar('Error transferring stock', 'error');
+    }
+  };
+
+  const openEditStockDialog = (stockItem) => {
+    setEditingStockItem(stockItem);
+    setEditStockQuantity(String(parseFloat(stockItem?.stock_quantity || 0)));
+    setEditStockDialog(true);
+  };
+
+  const getCurrentUserId = () => {
+    try {
+      const rawUser = localStorage.getItem('user');
+      if (!rawUser) return 1;
+      const parsed = JSON.parse(rawUser);
+      return parsed?.user_id || parsed?.id || 1;
+    } catch {
+      return 1;
+    }
+  };
+
+  const handleUpdateStock = async () => {
+    if (!editingStockItem) return;
+
+    const newQty = parseFloat(editStockQuantity);
+    if (Number.isNaN(newQty) || newQty < 0) {
+      showSnackbar('Please enter a valid stock quantity', 'error');
+      return;
+    }
+
+    const authOk = await requireAuth();
+    if (!authOk) return;
+
+    try {
+      setUpdatingStock(true);
+      const response = await fetch('/api/store-stock', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          store_id: editingStockItem.store_id || editingStockItem.store?.storeid,
+          product_id: editingStockItem.pro_id || editingStockItem.product?.pro_id,
+          quantity: newQty,
+          operation: 'set',
+          updated_by: getCurrentUserId()
+        }),
+      });
+
+      if (response.ok) {
+        showSnackbar('Stock updated successfully', 'success');
+        setEditStockDialog(false);
+        setEditingStockItem(null);
+        setEditStockQuantity('');
+        if (selectedStore) {
+          await loadStoreStock(selectedStore);
+          await loadLowStockProducts(selectedStore);
+        } else {
+          await loadAllStock();
+        }
+      } else {
+        const error = await response.json();
+        showSnackbar(error.error || 'Error updating stock', 'error');
+      }
+    } catch (error) {
+      console.error('Error updating stock:', error);
+      showSnackbar('Error updating stock', 'error');
+    } finally {
+      setUpdatingStock(false);
     }
   };
 
@@ -661,12 +736,13 @@ export default function StoreStockPage() {
                         <TableCell sx={{ fontWeight: 'bold' }}>Current Stock</TableCell>
                         <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>
                         <TableCell sx={{ fontWeight: 'bold' }}>Unit</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }} className="no-print">Actions</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
                       {filteredStoreStock.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                          <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
                             {storeStock.length === 0 ? 'No stock found' : 'No products match your filters'}
                           </TableCell>
                         </TableRow>
@@ -699,6 +775,17 @@ export default function StoreStockPage() {
                               />
                             </TableCell>
                               <TableCell>{item.product?.pro_unit || 'N/A'}</TableCell>
+                              <TableCell className="no-print">
+                                <Tooltip title="Edit Stock">
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => openEditStockDialog(item)}
+                                    color="primary"
+                                  >
+                                    <EditIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              </TableCell>
                           </TableRow>
                         );
                         })
@@ -781,6 +868,47 @@ export default function StoreStockPage() {
             </Button>
           </DialogActions>
         </Dialog>
+
+        {/* Edit Stock Dialog */}
+        <Dialog open={editStockDialog} onClose={() => setEditStockDialog(false)} maxWidth="sm" fullWidth className="no-print">
+          <DialogTitle>Edit Stock Quantity</DialogTitle>
+          <DialogContent>
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              <TextField
+                label="Store"
+                value={editingStockItem?.store?.store_name || 'N/A'}
+                fullWidth
+                disabled
+              />
+              <TextField
+                label="Product"
+                value={editingStockItem?.product?.pro_title || 'N/A'}
+                fullWidth
+                disabled
+              />
+              <TextField
+                label="New Stock Quantity"
+                type="number"
+                fullWidth
+                value={editStockQuantity}
+                onChange={(e) => setEditStockQuantity(e.target.value)}
+                inputProps={{ min: 0, step: '0.01' }}
+              />
+            </Stack>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setEditStockDialog(false)} disabled={updatingStock}>Cancel</Button>
+            <Button onClick={handleUpdateStock} variant="contained" disabled={updatingStock}>
+              {updatingStock ? 'Updating...' : 'Update Stock'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        <BiometricAuthDialog
+          open={authDialogOpen}
+          onSuccess={handleAuthSuccess}
+          onClose={handleAuthCancel}
+        />
 
         {/* Snackbar */}
         <Snackbar

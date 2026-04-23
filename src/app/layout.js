@@ -1,4 +1,5 @@
 import { Poppins } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import CustomThemeProvider from "./providers/theme-provider";
 import { AppRouterCacheProvider } from "@mui/material-nextjs/v15-appRouter";
@@ -23,6 +24,7 @@ export default function RootLayout({ children }) {
         className={`${poppins.variable} antialiased`}
         suppressHydrationWarning={true}
       >
+        <Script src="/websdk.client.js" strategy="beforeInteractive" />
         <AppRouterCacheProvider>
           <CustomThemeProvider>
             {children}

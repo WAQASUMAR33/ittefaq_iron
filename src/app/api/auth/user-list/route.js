@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../../../../lib/prisma';
 
-const prisma = new PrismaClient();
-
-// Returns all active users (name, role, enrollment status) for the login page user selector
+// Returns all active users for the login page user selector
 export async function GET() {
   try {
     const users = await prisma.users.findMany({

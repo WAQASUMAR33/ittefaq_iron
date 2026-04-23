@@ -3,6 +3,8 @@
 import { useState, useEffect, useMemo, useCallback, Suspense, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '../components/dashboard-layout';
+import { usePinAuth } from '../../hooks/usePinAuth';
+import BiometricAuthDialog from '../components/BiometricAuthDialog';
 
 // Material-UI imports
 import {
@@ -35,6 +37,8 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  FormControlLabel,
+  Switch,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -77,6 +81,7 @@ const fmtAmt = (val) => {
 
 function OrdersPageContent() {
   const searchParams = useSearchParams();
+  const { requireAuth, authDialogOpen, handleAuthSuccess, handleAuthCancel } = usePinAuth();
 
   // ========== SCREEN MANAGEMENT STATE ==========
   const [screenStack, setScreenStack] = useState([]);
@@ -98,6 +103,7 @@ function OrdersPageContent() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCustomer, setFilterCustomer] = useState('');
   const [filterBillType, setFilterBillType] = useState('ORDER');
+  const [showTrashOrders, setShowTrashOrders] = useState(false);
   const [filterStore, setFilterStore] = useState('');
   const [filterPaymentType, setFilterPaymentType] = useState('');
   const [filterMinAmount, setFilterMinAmount] = useState('');
@@ -125,11 +131,18 @@ function OrdersPageContent() {
     if (typeParam) {
       setBillType(typeParam);
       setFilterBillType(typeParam);
+      setShowTrashOrders(typeParam === 'ORDER_TRASH');
     } else {
       setBillType('ORDER');
       setFilterBillType('ORDER');
+      setShowTrashOrders(false);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    // Primary list mode toggle: active orders vs trashed orders.
+    setFilterBillType(showTrashOrders ? 'ORDER_TRASH' : 'ORDER');
+  }, [showTrashOrders]);
 
   // Sale return state
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
@@ -875,6 +888,12 @@ function OrdersPageContent() {
 
   // Save bill to database
   const handleSaveBill = async () => {
+    const hasCash = parseFloat(paymentData.cash || 0) > 0;
+    const hasBank = parseFloat(paymentData.bank || 0) > 0;
+    if (hasCash || hasBank) {
+      const authOk = await requireAuth();
+      if (!authOk) return;
+    }
     try {
       // If bill type is SALE_RETURN, guide user to proper return flow
       if (billType === 'SALE_RETURN') {
@@ -2096,11 +2115,13 @@ function OrdersPageContent() {
     }
   }, [customers]);
 
-  // Calculate stats
-  const totalSales = sales.length;
-  const totalSalesValue = sales.reduce((sum, sale) => sum + parseFloat(sale.total_amount || 0), 0);
-  const totalDiscount = sales.reduce((sum, sale) => sum + parseFloat(sale.discount || 0), 0);
-  const totalPayment = sales.reduce((sum, sale) => sum + parseFloat(sale.payment || 0), 0);
+  // Calculate stats for current mode (active orders or trashed orders)
+  const modeBillType = showTrashOrders ? 'ORDER_TRASH' : 'ORDER';
+  const modeSales = sales.filter((sale) => sale.bill_type === modeBillType);
+  const totalSales = modeSales.length;
+  const totalSalesValue = modeSales.reduce((sum, sale) => sum + parseFloat(sale.total_amount || 0), 0);
+  const totalDiscount = modeSales.reduce((sum, sale) => sum + parseFloat(sale.discount || 0), 0);
+  const totalPayment = modeSales.reduce((sum, sale) => sum + parseFloat(sale.payment || 0), 0);
 
   // Filter and sort sales
   const filteredAndSortedSales = sales
@@ -2214,8 +2235,37 @@ function OrdersPageContent() {
     }
   };
 
-  const handleDelete = async (saleId) => {
-    showSnackbar('Delete functionality will be implemented soon', 'info');
+  const handleDelete = async (sale) => {
+    const isTrash = sale.bill_type === 'ORDER_TRASH';
+    const targetType = isTrash ? 'ORDER' : 'ORDER_TRASH';
+    const actionLabel = isTrash ? 'restore' : 'move to trash';
+    if (!confirm(`Are you sure you want to ${actionLabel} order #${sale.sale_id}?`)) return;
+
+    try {
+      const response = await fetch('/api/sales', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: sale.sale_id, bill_type: targetType }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to update order status');
+      }
+
+      setSales((prev) =>
+        prev.map((s) =>
+          s.sale_id === sale.sale_id ? { ...s, bill_type: targetType } : s
+        )
+      );
+      showSnackbar(
+        isTrash
+          ? `Order #${sale.sale_id} restored to active orders`
+          : `Order #${sale.sale_id} moved to trash`,
+        'success'
+      );
+    } catch (error) {
+      showSnackbar(error.message || 'Failed to update order status', 'error');
+    }
   };
 
   const handleViewReceipt = async (sale) => {
@@ -2511,6 +2561,7 @@ function OrdersPageContent() {
                         sx={{ bgcolor: 'white', minWidth: 200, '& .MuiSelect-select': { fontWeight: 'bold' } }}
                       >
                         <MenuItem value="ORDER">Order</MenuItem>
+                        <MenuItem value="ORDER_TRASH">Order Trash</MenuItem>
                         <MenuItem value="BILL">Bill</MenuItem>
                         <MenuItem value="QUOTATION">Quotation</MenuItem>
                         <MenuItem value="SALE_RETURN">Sale Return</MenuItem>
@@ -4107,8 +4158,26 @@ function OrdersPageContent() {
                     Filters & Sorting
                   </Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={showTrashOrders}
+                          onChange={(e) => setShowTrashOrders(e.target.checked)}
+                          color="warning"
+                        />
+                      }
+                      label={showTrashOrders ? 'Showing Trash Orders' : 'Showing Active Orders'}
+                      sx={{
+                        mr: 1,
+                        '& .MuiFormControlLabel-label': {
+                          fontSize: '0.875rem',
+                          fontWeight: 600,
+                          color: showTrashOrders ? '#b45309' : '#334155',
+                        },
+                      }}
+                    />
                     <Typography variant="body2" sx={{ color: '#64748b', fontWeight: 500 }}>
-                      Showing <strong>{filteredSales.length}</strong> of <strong>{sales.length}</strong> orders
+                      Showing <strong>{filteredSales.length}</strong> of <strong>{modeSales.length}</strong> orders
                     </Typography>
                     <Button
                       onClick={clearFilters}
@@ -4197,6 +4266,7 @@ function OrdersPageContent() {
                       >
                         <MenuItem value="">All Types</MenuItem>
                         <MenuItem value="ORDER">Order</MenuItem>
+                        <MenuItem value="ORDER_TRASH">Order Trash</MenuItem>
                         <MenuItem value="BILL">Bill</MenuItem>
                         <MenuItem value="QUOTATION">Quotation</MenuItem>
                         <MenuItem value="SALE_RETURN">Sale Return</MenuItem>
@@ -4355,11 +4425,11 @@ function OrdersPageContent() {
           <Card>
             <Box sx={{ p: 3, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Typography variant="h6" sx={{ fontWeight: 'semibold' }}>
-                Order List
+                {showTrashOrders ? 'Trash Order List' : 'Order List'}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Showing {filteredSales.length} of {sales.length} orders
-                {sales.length > 0 && ` (Debug: Orders loaded successfully)`}
+                Showing {filteredSales.length} of {modeSales.length} orders
+                {modeSales.length > 0 && ` (Debug: Orders loaded successfully)`}
               </Typography>
             </Box>
             <TableContainer sx={{ overflowX: 'auto', maxWidth: '100%' }}>
@@ -4385,10 +4455,14 @@ function OrdersPageContent() {
                         <Box sx={{ py: 8, textAlign: 'center' }}>
                           <ShoppingCartIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
                           <Typography variant="h6" color="text.secondary" gutterBottom>
-                            {sales.length === 0 ? 'No sales found' : 'No sales match your filters'}
+                            {modeSales.length === 0
+                              ? (showTrashOrders ? 'No trashed orders found' : 'No active orders found')
+                              : 'No orders match your filters'}
                           </Typography>
                           <Typography variant="body2" color="text.disabled">
-                            {sales.length === 0 ? 'Create your first sale to get started.' : 'Try adjusting your filter criteria.'}
+                            {modeSales.length === 0
+                              ? (showTrashOrders ? 'Move any order to trash to see it here.' : 'Create your first order to get started.')
+                              : 'Try adjusting your filter criteria.'}
                           </Typography>
                         </Box>
                       </TableCell>
@@ -4414,7 +4488,7 @@ function OrdersPageContent() {
                             <Chip
                               label={sale.bill_type || 'N/A'}
                               size="small"
-                              color="secondary"
+                              color={sale.bill_type === 'ORDER_TRASH' ? 'warning' : 'secondary'}
                               variant="outlined"
                             />
                           </TableCell>
@@ -4452,6 +4526,7 @@ function OrdersPageContent() {
                                   size="small"
                                   color="info"
                                   onClick={() => handleEdit(sale)}
+                                  disabled={sale.bill_type === 'ORDER_TRASH'}
                                 >
                                   <EditIcon fontSize="small" />
                                 </IconButton>
@@ -4461,8 +4536,18 @@ function OrdersPageContent() {
                                   size="small"
                                   color="error"
                                   onClick={() => handleOpenReturnDialog(sale)}
+                                  disabled={sale.bill_type === 'ORDER_TRASH'}
                                 >
                                   <TrendingDownIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title={sale.bill_type === 'ORDER_TRASH' ? 'Restore Order' : 'Move to Trash'}>
+                                <IconButton
+                                  size="small"
+                                  color={sale.bill_type === 'ORDER_TRASH' ? 'success' : 'warning'}
+                                  onClick={() => handleDelete(sale)}
+                                >
+                                  <DeleteIcon fontSize="small" />
                                 </IconButton>
                               </Tooltip>
                             </Stack>
@@ -5944,6 +6029,12 @@ function OrdersPageContent() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <BiometricAuthDialog
+        open={authDialogOpen}
+        onSuccess={handleAuthSuccess}
+        onClose={handleAuthCancel}
+      />
     </>
   );
 }

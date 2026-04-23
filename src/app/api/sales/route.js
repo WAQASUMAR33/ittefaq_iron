@@ -639,9 +639,9 @@ export async function POST(request) {
     // Discount is recorded separately for accounting but doesn't affect customer balance
     const netTotal = parseFloat(total_amount);
 
-    // Check if this is a quotation or order (skip stock check for quotations and orders)
+    // Check if this is a quotation or order-like record (skip stock checks)
     const isQuotation = bill_type === 'QUOTATION';
-    const isOrder = bill_type === 'ORDER';
+    const isOrder = bill_type === 'ORDER' || bill_type === 'ORDER_TRASH';
 
     // Stock validation removed - allow negative stock
     // if (!isQuotation) {
@@ -1548,8 +1548,11 @@ export async function PUT(request) {
       });
 
       // Restore store stock quantities from old sale details
-      // CRITICAL FIX: Only restore stock if the previous bill was NOT a quotation or order (since those didn't deduct stock)
-      const wasStockDeducted = existingSale.bill_type !== 'QUOTATION' && existingSale.bill_type !== 'ORDER';
+      // CRITICAL FIX: Only restore stock if the previous bill was NOT quotation/order(-trash)
+      const wasStockDeducted =
+        existingSale.bill_type !== 'QUOTATION' &&
+        existingSale.bill_type !== 'ORDER' &&
+        existingSale.bill_type !== 'ORDER_TRASH';
 
       if (existingSale.store_id && wasStockDeducted) {
         const stockRestorePromises = existingSale.sale_details.map(async detail => {
@@ -1648,7 +1651,8 @@ export async function PUT(request) {
       const finalStoreIdForStock = store_id ? parseInt(store_id) : existingSale.store_id;
 
       // CRITICAL FIX: Determine if new bill type requires stock deduction
-      const isNewBillQuotationOrOrder = bill_type === 'QUOTATION' || bill_type === 'ORDER';
+      const isNewBillQuotationOrOrder =
+        bill_type === 'QUOTATION' || bill_type === 'ORDER' || bill_type === 'ORDER_TRASH';
 
       if (!isNewBillQuotationOrOrder && finalStoreIdForStock) {
         // Stock validation removed - allow negative stock
@@ -1976,8 +1980,11 @@ export async function DELETE(request) {
       }
 
       // Restore store stock quantities
-      // Only restore if it wasn't a QUOTATION or ORDER (which don't deduct stock)
-      const shouldRestoreStock = existingSale.bill_type !== 'QUOTATION' && existingSale.bill_type !== 'ORDER';
+      // Only restore if it wasn't a QUOTATION or ORDER-like type (which don't deduct stock)
+      const shouldRestoreStock =
+        existingSale.bill_type !== 'QUOTATION' &&
+        existingSale.bill_type !== 'ORDER' &&
+        existingSale.bill_type !== 'ORDER_TRASH';
 
       if (existingSale.store_id && shouldRestoreStock) {
         const stockRestorePromises = existingSale.sale_details.map(async detail => {

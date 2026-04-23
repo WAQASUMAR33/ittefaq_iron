@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, Suspense, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '../components/dashboard-layout';
-import { useDigitalPersonaAuth } from '../../hooks/useDigitalPersonaAuth';
+import { usePinAuth } from '../../hooks/usePinAuth';
 import BiometricAuthDialog from '../components/BiometricAuthDialog';
 
 // Material-UI imports
@@ -90,8 +90,8 @@ import {
 } from '@mui/icons-material';
 
 function PurchasesPageContent() {
-  // Fingerprint auth
-  const { requireAuth, authDialogOpen, handleAuthSuccess, handleAuthCancel } = useDigitalPersonaAuth();
+  // PIN auth
+  const { requireAuth, authDialogOpen, handleAuthSuccess, handleAuthCancel } = usePinAuth();
 
   // State management
   const [purchases, setPurchases] = useState([]);
@@ -349,6 +349,7 @@ function PurchasesPageContent() {
   // Receipt dialog states
   const [currentBillData, setCurrentBillData] = useState(null);
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
+  const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
 
   // Handle print receipt (A4 / Thermal) - copied from sales print logic and adapted for purchases
   const handlePrintReceipt = (mode = 'A4', fromDialog = false) => {
@@ -429,6 +430,45 @@ function PurchasesPageContent() {
     } catch (e) {
       console.error('Print error (purchases):', e);
       window.print();
+    }
+  };
+
+  const handleSendWhatsApp = async (bill, elementId = 'receipt-preview') => {
+    try {
+      setIsSendingWhatsApp(true);
+      const html2canvas = (await import('html2canvas')).default;
+      const receiptEl = document.getElementById(elementId);
+      if (!receiptEl) {
+        showSnackbar('❌ Receipt preview not found', 'error');
+        return;
+      }
+
+      const canvas = await html2canvas(receiptEl, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false
+      });
+      const imageBase64 = canvas.toDataURL('image/png');
+      const response = await fetch('/api/whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64,
+          bill,
+          phone: bill?.customer?.cus_phone_no
+        })
+      });
+      const result = await response.json();
+      if (response.ok) {
+        showSnackbar(`✅ WhatsApp receipt sent to ${bill?.customer?.cus_phone_no}`, 'success');
+      } else {
+        showSnackbar(`❌ WhatsApp failed: ${result.error}`, 'error');
+      }
+    } catch (err) {
+      showSnackbar(`❌ WhatsApp error: ${err.message}`, 'error');
+    } finally {
+      setIsSendingWhatsApp(false);
     }
   };
 
@@ -1423,9 +1463,12 @@ function PurchasesPageContent() {
     e.preventDefault();
     const hasCash = parseFloat(formData.cash_payment || 0) > 0;
     const hasBank = parseFloat(formData.bank_payment || 0) > 0;
-    if (hasCash || hasBank) {
+    // Match sales: confirm when cash/bank is used, and always for purchase returns
+    // (returns may have no cash/bank line but are still a sensitive action).
+    const needsStepUpAuth = hasCash || hasBank || purchaseType === 'return';
+    if (needsStepUpAuth) {
       const authOk = await requireAuth();
-      if (!authOk) { setIsSubmitting(false); return; }
+      if (!authOk) return;
     }
     setIsSubmitting(true);
     try {
@@ -6231,6 +6274,15 @@ function PurchasesPageContent() {
             sx={{ textTransform: 'none' }}
           >
             Close
+          </Button>
+          <Button
+            onClick={() => handleSendWhatsApp(currentBillData, 'receipt-preview')}
+            disabled={isSendingWhatsApp || !currentBillData?.customer?.cus_phone_no}
+            title={!currentBillData?.customer?.cus_phone_no ? 'No phone number on file' : 'Send receipt via WhatsApp'}
+            sx={{ textTransform: 'none' }}
+          >
+            {isSendingWhatsApp ? <CircularProgress size={16} sx={{ mr: 1 }} /> : null}
+            {isSendingWhatsApp ? 'Sending...' : '📲 WhatsApp'}
           </Button>
           <Button
             startIcon={<PrintIcon />}

@@ -23,7 +23,7 @@ import {
   Printer as Print
 } from 'lucide-react';
 import DashboardLayout from '../components/dashboard-layout';
-import { useDigitalPersonaAuth } from '../../hooks/useDigitalPersonaAuth';
+import { usePinAuth } from '../../hooks/usePinAuth';
 import BiometricAuthDialog from '../components/BiometricAuthDialog';
 
 // Material-UI imports
@@ -70,22 +70,29 @@ import {
   LinearProgress
 } from '@mui/material';
 
-const buildPaymentDescription = (cashAmount, bankAmount, bankAccountId, bankAccountsList) => {
-  const parts = [];
-  const cash = parseFloat(cashAmount || 0);
-  const bank = parseFloat(bankAmount || 0);
-  if (cash > 0) parts.push(`Cash: PKR ${cash.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`);
-  if (bank > 0 && bankAccountId) {
-    const bankName = bankAccountsList.find(b => String(b.cus_id) === String(bankAccountId))?.cus_name || 'Bank';
-    parts.push(`${bankName}: PKR ${bank.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`);
-  }
-  return parts.join(', ');
-};
-
 const fmtAmt = (val) => {
   const n = parseFloat(val || 0);
   if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+/** Auto description for IN / OUT payment modals: title, account, cash, bank+name, discount */
+const buildFinancePaymentDescription = (mode, accountName, cashAmount, bankAmount, bankAccountId, bankAccountsList, discountAmount) => {
+  const title = mode === 'RECEIVE' ? 'IN AMOUNT' : 'OUT AMOUNT';
+  const head = `${title} — ${accountName || 'Account'}`;
+  const bits = [head];
+  const cash = parseFloat(cashAmount || 0);
+  const bank = parseFloat(bankAmount || 0);
+  const disc = parseFloat(discountAmount || 0);
+  if (cash > 0) bits.push(`Cash PKR ${fmtAmt(cash)}`);
+  if (bank > 0 && bankAccountId) {
+    const bankName = bankAccountsList.find((b) => String(b.cus_id) === String(bankAccountId))?.cus_name || 'Bank';
+    bits.push(`${bankName} PKR ${fmtAmt(bank)}`);
+  } else if (bank > 0) {
+    bits.push(`Bank PKR ${fmtAmt(bank)}`);
+  }
+  if (disc > 0) bits.push(`Discount PKR ${fmtAmt(disc)}`);
+  return bits.join(' | ');
 };
 
 const getInvoiceNet = (bill) => {
@@ -101,8 +108,8 @@ const getInvoiceRemainingDue = (bill) => {
 };
 
 export default function FinancePage() {
-  // Fingerprint auth
-  const { requireAuth, authDialogOpen, handleAuthSuccess, handleAuthCancel } = useDigitalPersonaAuth();
+  // PIN auth
+  const { requireAuth, authDialogOpen, handleAuthSuccess, handleAuthCancel } = usePinAuth();
 
   // State management
   const [ledgerEntries, setLedgerEntries] = useState([]);
@@ -188,6 +195,7 @@ export default function FinancePage() {
   const [paymentStatus, setPaymentStatus] = useState({ loading: false, error: null });
   const [selectedLedgerBankAccount, setSelectedLedgerBankAccount] = useState(null);
   const [isSubmittingLedger, setIsSubmittingLedger] = useState(false);
+  const [isSendingPaymentWhatsApp, setIsSendingPaymentWhatsApp] = useState(false);
 
   // Fetch data
   useEffect(() => {
@@ -440,6 +448,18 @@ export default function FinancePage() {
     ? parseFloat(customers.find(c => c.cus_id === selectedCustomer)?.cus_balance || 0)
     : (ledgerEntries.length > 0 ? parseFloat(ledgerEntries[0].closing_balance || 0) : 0);
 
+  const receiveTotalPreview =
+    parseFloat(receivePaymentData.cash_amount || 0) +
+    parseFloat(receivePaymentData.bank_amount || 0) +
+    parseFloat(receivePaymentData.discount || 0);
+  const receiveBalanceAfter = currentBalance - receiveTotalPreview;
+
+  const payTotalPreview =
+    parseFloat(payPaymentData.cash_amount || 0) +
+    parseFloat(payPaymentData.bank_amount || 0) +
+    parseFloat(payPaymentData.discount || 0);
+  const payBalanceAfter = currentBalance + payTotalPreview;
+
   const handleNewJournalEntry = () => {
     if (selectedCustomer) {
       const customer = customers.find(c => c.cus_id === selectedCustomer);
@@ -589,7 +609,7 @@ export default function FinancePage() {
           cash_amount: '',
           bank_account: '',
           bank_amount: '',
-          description: `Payment received from ${customer.cus_name}`
+          description: buildFinancePaymentDescription('RECEIVE', customer.cus_name, '', '', '', bankAccounts, ''),
         });
         setShowReceivePaymentForm(true);
       }
@@ -607,7 +627,7 @@ export default function FinancePage() {
           cash_amount: '',
           bank_account: '',
           bank_amount: '',
-          description: `Payment made to ${customer.cus_name}`
+          description: buildFinancePaymentDescription('PAY', customer.cus_name, '', '', '', bankAccounts, ''),
         });
         setShowPayPaymentForm(true);
       }
@@ -639,8 +659,6 @@ export default function FinancePage() {
 
   const handleReceivePaymentSubmit = async () => {
     try {
-      setPaymentStatus({ loading: true, error: null });
-
       const cashAmount = parseFloat(receivePaymentData.cash_amount || 0);
       const bankAmount = parseFloat(receivePaymentData.bank_amount || 0);
       const discountAmount = parseFloat(receivePaymentData.discount || 0);
@@ -650,6 +668,11 @@ export default function FinancePage() {
         alert('Please enter at least one amount (Cash, Bank, or Discount)');
         return;
       }
+
+      const authOk = await requireAuth();
+      if (!authOk) return;
+
+      setPaymentStatus({ loading: true, error: null });
 
       const paymentData = {
         payment_date: new Date().toISOString().split('T')[0],
@@ -719,8 +742,6 @@ export default function FinancePage() {
 
   const handlePayPaymentSubmit = async () => {
     try {
-      setPaymentStatus({ loading: true, error: null });
-
       const cashAmount = parseFloat(payPaymentData.cash_amount || 0);
       const bankAmount = parseFloat(payPaymentData.bank_amount || 0);
       const discountAmount = parseFloat(payPaymentData.discount || 0);
@@ -730,6 +751,11 @@ export default function FinancePage() {
         alert('Please enter at least one amount (Cash, Bank, or Discount)');
         return;
       }
+
+      const authOk = await requireAuth();
+      if (!authOk) return;
+
+      setPaymentStatus({ loading: true, error: null });
 
       const paymentData = {
         payment_date: new Date().toISOString().split('T')[0],
@@ -794,6 +820,54 @@ export default function FinancePage() {
       alert('Failed to process payment');
     } finally {
       setPaymentStatus({ loading: false, error: null });
+    }
+  };
+
+  const handleSendPaymentWhatsApp = async () => {
+    try {
+      if (!paymentReceiptData?.customer?.cus_phone_no) {
+        alert('No phone number on file for this account. Add a phone on the customer record to send WhatsApp.');
+        return;
+      }
+      setIsSendingPaymentWhatsApp(true);
+      const html2canvas = (await import('html2canvas')).default;
+      const receiptEl = document.getElementById('payment-receipt-preview');
+      if (!receiptEl) {
+        alert('Receipt preview not found');
+        return;
+      }
+      const canvas = await html2canvas(receiptEl, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+      });
+      const imageBase64 = canvas.toDataURL('image/png');
+      const d = paymentReceiptData;
+      const caption =
+        d.type === 'PAY'
+          ? `OUT — Payment voucher PAY-${d.paymentId} — ${d.customer?.cus_name || ''}`
+          : `IN — Receipt voucher PAY-${d.paymentId} — ${d.customer?.cus_name || ''}`;
+      const response = await fetch('/api/whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64,
+          phone: d.customer.cus_phone_no,
+          bill: { sale_id: d.paymentId, customer: d.customer },
+          caption,
+        }),
+      });
+      const result = await response.json();
+      if (response.ok) {
+        alert(`WhatsApp sent to ${d.customer.cus_phone_no}`);
+      } else {
+        alert(result.error || 'WhatsApp send failed');
+      }
+    } catch (err) {
+      alert(err.message || 'WhatsApp error');
+    } finally {
+      setIsSendingPaymentWhatsApp(false);
     }
   };
 
@@ -2814,6 +2888,15 @@ export default function FinancePage() {
                 </Grid>
               </Grid>
             </Box>
+            {receiveTotalPreview > 0 && (
+              <Alert severity="info" sx={{ py: 0.5 }}>
+                <strong>After IN (receipt):</strong> account balance → PKR{' '}
+                {receiveBalanceAfter.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+                <Typography component="span" variant="caption" display="block" color="text.secondary">
+                  IN applies a credit to this account (reduces the shown balance).
+                </Typography>
+              </Alert>
+            )}
 
             <Divider sx={{ my: 1 }} />
 
@@ -2826,9 +2909,18 @@ export default function FinancePage() {
                 fullWidth
                 type="number"
                 value={receivePaymentData.cash_amount}
-                onChange={(e) => setReceivePaymentData(prev => {
+                onChange={(e) => setReceivePaymentData((prev) => {
                   const updated = { ...prev, cash_amount: e.target.value };
-                  updated.description = buildPaymentDescription(e.target.value, prev.bank_amount, prev.bank_account, bankAccounts);
+                  const accName = customers.find((c) => c.cus_id === selectedCustomer)?.cus_name || '';
+                  updated.description = buildFinancePaymentDescription(
+                    'RECEIVE',
+                    accName,
+                    updated.cash_amount,
+                    updated.bank_amount,
+                    updated.bank_account,
+                    bankAccounts,
+                    updated.discount
+                  );
                   return updated;
                 })}
                 placeholder="0.00"
@@ -2846,9 +2938,18 @@ export default function FinancePage() {
               <FormControl fullWidth>
                 <Select
                   value={receivePaymentData.bank_account}
-                  onChange={(e) => setReceivePaymentData(prev => {
+                  onChange={(e) => setReceivePaymentData((prev) => {
                     const updated = { ...prev, bank_account: e.target.value };
-                    updated.description = buildPaymentDescription(prev.cash_amount, prev.bank_amount, e.target.value, bankAccounts);
+                    const accName = customers.find((c) => c.cus_id === selectedCustomer)?.cus_name || '';
+                    updated.description = buildFinancePaymentDescription(
+                      'RECEIVE',
+                      accName,
+                      updated.cash_amount,
+                      updated.bank_amount,
+                      updated.bank_account,
+                      bankAccounts,
+                      updated.discount
+                    );
                     return updated;
                   })}
                   displayEmpty
@@ -2870,9 +2971,18 @@ export default function FinancePage() {
                 fullWidth
                 type="number"
                 value={receivePaymentData.bank_amount}
-                onChange={(e) => setReceivePaymentData(prev => {
+                onChange={(e) => setReceivePaymentData((prev) => {
                   const updated = { ...prev, bank_amount: e.target.value };
-                  updated.description = buildPaymentDescription(prev.cash_amount, e.target.value, prev.bank_account, bankAccounts);
+                  const accName = customers.find((c) => c.cus_id === selectedCustomer)?.cus_name || '';
+                  updated.description = buildFinancePaymentDescription(
+                    'RECEIVE',
+                    accName,
+                    updated.cash_amount,
+                    updated.bank_amount,
+                    updated.bank_account,
+                    bankAccounts,
+                    updated.discount
+                  );
                   return updated;
                 })}
                 disabled={!receivePaymentData.bank_account}
@@ -2893,7 +3003,20 @@ export default function FinancePage() {
                 placeholder="0.00"
                 type="number"
                 value={receivePaymentData.discount}
-                onChange={(e) => setReceivePaymentData(prev => ({ ...prev, discount: e.target.value }))}
+                onChange={(e) => setReceivePaymentData((prev) => {
+                  const updated = { ...prev, discount: e.target.value };
+                  const accName = customers.find((c) => c.cus_id === selectedCustomer)?.cus_name || '';
+                  updated.description = buildFinancePaymentDescription(
+                    'RECEIVE',
+                    accName,
+                    updated.cash_amount,
+                    updated.bank_amount,
+                    updated.bank_account,
+                    bankAccounts,
+                    updated.discount
+                  );
+                  return updated;
+                })}
                 InputProps={{
                   startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
                 }}
@@ -2913,7 +3036,7 @@ export default function FinancePage() {
                 rows={3}
                 value={receivePaymentData.description}
                 onChange={(e) => setReceivePaymentData(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Enter payment details..."
+                placeholder="Auto-filled from amounts; you can edit."
                 sx={{ bgcolor: '#f8fafc' }}
               />
             </Box>
@@ -2987,6 +3110,15 @@ export default function FinancePage() {
                 </Grid>
               </Grid>
             </Box>
+            {payTotalPreview > 0 && (
+              <Alert severity="info" sx={{ py: 0.5 }}>
+                <strong>After OUT (payment):</strong> account balance → PKR{' '}
+                {payBalanceAfter.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+                <Typography component="span" variant="caption" display="block" color="text.secondary">
+                  OUT applies a debit to this account (increases the shown balance).
+                </Typography>
+              </Alert>
+            )}
 
             <Divider sx={{ my: 1 }} />
 
@@ -2999,9 +3131,18 @@ export default function FinancePage() {
                 fullWidth
                 type="number"
                 value={payPaymentData.cash_amount}
-                onChange={(e) => setPayPaymentData(prev => {
+                onChange={(e) => setPayPaymentData((prev) => {
                   const updated = { ...prev, cash_amount: e.target.value };
-                  updated.description = buildPaymentDescription(e.target.value, prev.bank_amount, prev.bank_account, bankAccounts);
+                  const accName = customers.find((c) => c.cus_id === selectedCustomer)?.cus_name || '';
+                  updated.description = buildFinancePaymentDescription(
+                    'PAY',
+                    accName,
+                    updated.cash_amount,
+                    updated.bank_amount,
+                    updated.bank_account,
+                    bankAccounts,
+                    updated.discount
+                  );
                   return updated;
                 })}
                 placeholder="0.00"
@@ -3019,9 +3160,18 @@ export default function FinancePage() {
               <FormControl fullWidth>
                 <Select
                   value={payPaymentData.bank_account}
-                  onChange={(e) => setPayPaymentData(prev => {
+                  onChange={(e) => setPayPaymentData((prev) => {
                     const updated = { ...prev, bank_account: e.target.value };
-                    updated.description = buildPaymentDescription(prev.cash_amount, prev.bank_amount, e.target.value, bankAccounts);
+                    const accName = customers.find((c) => c.cus_id === selectedCustomer)?.cus_name || '';
+                    updated.description = buildFinancePaymentDescription(
+                      'PAY',
+                      accName,
+                      updated.cash_amount,
+                      updated.bank_amount,
+                      updated.bank_account,
+                      bankAccounts,
+                      updated.discount
+                    );
                     return updated;
                   })}
                   displayEmpty
@@ -3043,9 +3193,18 @@ export default function FinancePage() {
                 fullWidth
                 type="number"
                 value={payPaymentData.bank_amount}
-                onChange={(e) => setPayPaymentData(prev => {
+                onChange={(e) => setPayPaymentData((prev) => {
                   const updated = { ...prev, bank_amount: e.target.value };
-                  updated.description = buildPaymentDescription(prev.cash_amount, e.target.value, prev.bank_account, bankAccounts);
+                  const accName = customers.find((c) => c.cus_id === selectedCustomer)?.cus_name || '';
+                  updated.description = buildFinancePaymentDescription(
+                    'PAY',
+                    accName,
+                    updated.cash_amount,
+                    updated.bank_amount,
+                    updated.bank_account,
+                    bankAccounts,
+                    updated.discount
+                  );
                   return updated;
                 })}
                 disabled={!payPaymentData.bank_account}
@@ -3066,7 +3225,20 @@ export default function FinancePage() {
                 placeholder="0.00"
                 type="number"
                 value={payPaymentData.discount}
-                onChange={(e) => setPayPaymentData(prev => ({ ...prev, discount: e.target.value }))}
+                onChange={(e) => setPayPaymentData((prev) => {
+                  const updated = { ...prev, discount: e.target.value };
+                  const accName = customers.find((c) => c.cus_id === selectedCustomer)?.cus_name || '';
+                  updated.description = buildFinancePaymentDescription(
+                    'PAY',
+                    accName,
+                    updated.cash_amount,
+                    updated.bank_amount,
+                    updated.bank_account,
+                    bankAccounts,
+                    updated.discount
+                  );
+                  return updated;
+                })}
                 InputProps={{
                   startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
                 }}
@@ -3086,7 +3258,7 @@ export default function FinancePage() {
                 rows={3}
                 value={payPaymentData.description}
                 onChange={(e) => setPayPaymentData(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Enter payment details..."
+                placeholder="Auto-filled from amounts; you can edit."
                 sx={{ bgcolor: '#f8fafc' }}
               />
             </Box>
@@ -3221,8 +3393,17 @@ export default function FinancePage() {
           )}
         </DialogContent>
 
-        <DialogActions sx={{ p: 2, borderTop: '1px solid #e2e8f0' }}>
+        <DialogActions sx={{ p: 2, borderTop: '1px solid #e2e8f0', flexWrap: 'wrap', gap: 1 }}>
           <Button onClick={() => setShowPaymentReceipt(false)}>Close</Button>
+          <Button
+            variant="outlined"
+            color="success"
+            disabled={isSendingPaymentWhatsApp || !paymentReceiptData?.customer?.cus_phone_no}
+            onClick={handleSendPaymentWhatsApp}
+            startIcon={isSendingPaymentWhatsApp ? <CircularProgress size={18} /> : null}
+          >
+            {isSendingPaymentWhatsApp ? 'Sending…' : 'Send WhatsApp'}
+          </Button>
           <Button
             variant="contained"
             onClick={() => {
