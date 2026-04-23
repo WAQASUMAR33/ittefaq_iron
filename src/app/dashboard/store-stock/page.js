@@ -52,8 +52,13 @@ import {
   Search as SearchIcon,
   FilterList as FilterIcon,
   Clear as ClearIcon,
-  Print as PrintIcon
+  Print as PrintIcon,
+  Send as SendIcon,
+  Phone as PhoneIcon,
+  PictureAsPdf as PdfIcon
 } from '@mui/icons-material';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export default function StoreStockPage() {
   const { requireAuth, authDialogOpen, handleAuthSuccess, handleAuthCancel } = usePinAuth();
@@ -80,6 +85,13 @@ export default function StoreStockPage() {
   const [filterProduct, setFilterProduct] = useState('');
   const [filterStockStatus, setFilterStockStatus] = useState('');
   const [filterStore, setFilterStore] = useState('');
+
+  // WhatsApp share modal state
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+  const [whatsAppPhone, setWhatsAppPhone] = useState('');
+  const [whatsAppSending, setWhatsAppSending] = useState(false);
+  const [whatsAppError, setWhatsAppError] = useState('');
+  const [whatsAppSuccess, setWhatsAppSuccess] = useState('');
 
   // Load initial data
   useEffect(() => {
@@ -345,6 +357,176 @@ export default function StoreStockPage() {
       return matchesSearch && matchesProduct && matchesStore && matchesStockStatus;
     });
   }, [storeStock, searchTerm, filterProduct, filterStore, filterStockStatus]);
+
+  // ─── PDF generation ──────────────────────────────────────────────────────
+  const filterSummaryLines = () => {
+    const lines = [];
+    if (selectedStore) {
+      const s = stores.find(x => x.storeid === parseInt(selectedStore));
+      if (s) lines.push(`Store: ${s.store_name}`);
+    } else if (filterStore) {
+      const s = stores.find(x => x.storeid?.toString() === filterStore);
+      if (s) lines.push(`Store: ${s.store_name}`);
+    }
+    if (filterProduct) {
+      const p = storeStock.find(x => x.product?.pro_id?.toString() === filterProduct)?.product;
+      if (p) lines.push(`Product: ${p.pro_title}`);
+    }
+    if (filterStockStatus) {
+      const label = filterStockStatus === 'out_of_stock' ? 'Out of Stock'
+        : filterStockStatus === 'low_stock' ? 'Low Stock'
+        : filterStockStatus === 'in_stock' ? 'In Stock' : filterStockStatus;
+      lines.push(`Stock Status: ${label}`);
+    }
+    if (searchTerm) lines.push(`Search: "${searchTerm}"`);
+    return lines;
+  };
+
+  const buildStockPdf = () => {
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text('ITTEFAQ IRON STORE', pageWidth / 2, 36, { align: 'center' });
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Parianwali, Pakistan', pageWidth / 2, 52, { align: 'center' });
+
+    doc.setFillColor(30, 41, 59);
+    doc.rect(30, 62, pageWidth - 60, 22, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    const heading = selectedStore
+      ? `STORE STOCK — ${stores.find(s => s.storeid === parseInt(selectedStore))?.store_name || ''}`
+      : 'STORE STOCK — ALL STORES';
+    doc.text(heading.toUpperCase(), pageWidth / 2, 77, { align: 'center' });
+    doc.setTextColor(0, 0, 0);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    let y = 98;
+    const lines = [
+      `Generated: ${new Date().toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}`,
+      `Total Items: ${filteredStoreStock.length}`,
+      ...filterSummaryLines(),
+    ];
+    lines.forEach(l => { doc.text(l, 30, y); y += 12; });
+    const startY = y + 4;
+
+    const fmtNum = (v) => (parseFloat(v) || 0).toLocaleString('en-PK', { maximumFractionDigits: 2 });
+
+    const body = filteredStoreStock.map((item, i) => {
+      const qty = parseFloat(item.stock_quantity) || 0;
+      const min = parseFloat(item.min_stock) || 0;
+      const status = qty <= 0 ? 'Out of Stock' : qty <= min ? 'Low Stock' : 'In Stock';
+      return [
+        String(i + 1),
+        item.store?.store_name || '-',
+        item.product?.pro_title || '-',
+        item.product?.pro_unit || '-',
+        fmtNum(qty),
+        fmtNum(min),
+        status,
+      ];
+    });
+
+    const totalQty = filteredStoreStock.reduce((s, it) => s + (parseFloat(it.stock_quantity) || 0), 0);
+
+    autoTable(doc, {
+      startY,
+      head: [['S#', 'Store', 'Product', 'Unit', 'Current Stock', 'Min Stock', 'Status']],
+      body: body.length ? body : [[{ content: 'No stock records match the filters.', colSpan: 7, styles: { halign: 'center' } }]],
+      foot: body.length ? [[
+        { content: 'Total', colSpan: 4, styles: { halign: 'right', fontStyle: 'bold' } },
+        { content: fmtNum(totalQty), styles: { halign: 'right', fontStyle: 'bold' } },
+        '',
+        '',
+      ]] : undefined,
+      theme: 'grid',
+      headStyles: { fillColor: [30, 41, 59], textColor: 255, fontSize: 9, fontStyle: 'bold' },
+      footStyles: { fillColor: [30, 41, 59], textColor: 255, fontSize: 9 },
+      bodyStyles: { fontSize: 9 },
+      styles: { cellPadding: 4, overflow: 'linebreak' },
+      columnStyles: {
+        0: { halign: 'center', cellWidth: 28 },
+        3: { halign: 'center', cellWidth: 45 },
+        4: { halign: 'right', cellWidth: 75 },
+        5: { halign: 'right', cellWidth: 70 },
+        6: { halign: 'center', cellWidth: 70 },
+      },
+    });
+
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(120);
+      const ph = doc.internal.pageSize.getHeight();
+      const pw = doc.internal.pageSize.getWidth();
+      doc.text(`Page ${i} of ${pageCount}`, pw - 40, ph - 14, { align: 'right' });
+      doc.text('Ittefaq Iron Store — Store Stock', 30, ph - 14);
+    }
+
+    return doc;
+  };
+
+  const handleDownloadPdf = () => {
+    const doc = buildStockPdf();
+    const storeLabel = selectedStore
+      ? (stores.find(s => s.storeid === parseInt(selectedStore))?.store_name || 'store')
+      : 'all-stores';
+    const safe = String(storeLabel).toLowerCase().replace(/\s+/g, '-');
+    doc.save(`store-stock-${safe}-${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
+  const openWhatsAppModal = () => {
+    setWhatsAppError('');
+    setWhatsAppSuccess('');
+    setShowWhatsAppModal(true);
+  };
+
+  const handleSendWhatsApp = async () => {
+    const phone = (whatsAppPhone || '').trim();
+    if (!phone || phone.replace(/\D/g, '').length < 7) {
+      setWhatsAppError('Please enter a valid phone number (e.g. 03001234567).');
+      return;
+    }
+    try {
+      setWhatsAppSending(true);
+      setWhatsAppError('');
+      setWhatsAppSuccess('');
+
+      const doc = buildStockPdf();
+      const pdfBase64 = doc.output('datauristring');
+
+      const today = new Date().toLocaleDateString('en-GB');
+      const storeLabel = selectedStore
+        ? stores.find(s => s.storeid === parseInt(selectedStore))?.store_name || 'Store'
+        : 'All Stores';
+      const caption = `📦 Store Stock — ${storeLabel}\n🗓️ ${today}\nItems: ${filteredStoreStock.length}\n${filterSummaryLines().join('\n') || ''}`.trim();
+
+      const res = await fetch('/api/whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64: pdfBase64,
+          phone,
+          caption,
+          bill: { sale_id: `store-stock-${Date.now()}` },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed to send WhatsApp message');
+      setWhatsAppSuccess(`Sent to ${data.to || phone}. Status: ${data.status || 'queued'}`);
+    } catch (err) {
+      console.error(err);
+      setWhatsAppError(err.message || 'Failed to send WhatsApp message');
+    } finally {
+      setWhatsAppSending(false);
+    }
+  };
 
   return (
     <>
@@ -685,6 +867,32 @@ export default function StoreStockPage() {
                 </Typography>
                 <Button
                   variant="contained"
+                  startIcon={<PdfIcon />}
+                  onClick={handleDownloadPdf}
+                  disabled={filteredStoreStock.length === 0}
+                  className="no-print"
+                  sx={{
+                    bgcolor: '#e11d48',
+                    '&:hover': { bgcolor: '#be123c' }
+                  }}
+                >
+                  PDF
+                </Button>
+                <Button
+                  variant="contained"
+                  startIcon={<SendIcon />}
+                  onClick={openWhatsAppModal}
+                  disabled={filteredStoreStock.length === 0}
+                  className="no-print"
+                  sx={{
+                    bgcolor: '#16a34a',
+                    '&:hover': { bgcolor: '#15803d' }
+                  }}
+                >
+                  WhatsApp PDF
+                </Button>
+                <Button
+                  variant="contained"
                   startIcon={<PrintIcon />}
                   onClick={() => window.print()}
                   className="no-print"
@@ -900,6 +1108,73 @@ export default function StoreStockPage() {
             <Button onClick={() => setEditStockDialog(false)} disabled={updatingStock}>Cancel</Button>
             <Button onClick={handleUpdateStock} variant="contained" disabled={updatingStock}>
               {updatingStock ? 'Updating...' : 'Update Stock'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* WhatsApp Share Modal */}
+        <Dialog
+          open={showWhatsAppModal}
+          onClose={() => !whatsAppSending && setShowWhatsAppModal(false)}
+          maxWidth="sm"
+          fullWidth
+          className="no-print"
+          PaperProps={{ sx: { borderRadius: '12px' } }}
+        >
+          <DialogTitle sx={{ fontWeight: 'bold', bgcolor: '#ecfdf5', borderBottom: '2px solid #a7f3d0', display: 'flex', alignItems: 'center', gap: 1 }}>
+            <SendIcon sx={{ color: '#16a34a' }} />
+            Send Store Stock to WhatsApp
+          </DialogTitle>
+          <DialogContent sx={{ pt: 3 }}>
+            <Alert severity="info" sx={{ mb: 2, fontSize: '0.8rem' }}>
+              A PDF of the current stock list will be generated using your
+              selected filters and sent to the given WhatsApp number.
+            </Alert>
+            <TextField
+              fullWidth
+              size="small"
+              label="WhatsApp Number"
+              placeholder="03001234567 or +923001234567"
+              value={whatsAppPhone}
+              onChange={(e) => setWhatsAppPhone(e.target.value)}
+              disabled={whatsAppSending}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <PhoneIcon fontSize="small" sx={{ color: '#94a3b8' }} />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ mb: 2 }}
+            />
+            <Box sx={{ bgcolor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', p: 1.5, fontSize: '0.8rem' }}>
+              <div style={{ fontWeight: 600, color: '#334155', marginBottom: 4 }}>Report contents</div>
+              <div style={{ color: '#64748b' }}>
+                <div>• Items: {filteredStoreStock.length}</div>
+                {filterSummaryLines().length > 0
+                  ? filterSummaryLines().map((l, i) => <div key={i}>• {l}</div>)
+                  : <div>• No filters applied (sending full list)</div>}
+              </div>
+            </Box>
+            {whatsAppError && <Alert severity="error" sx={{ mt: 2 }}>{whatsAppError}</Alert>}
+            {whatsAppSuccess && <Alert severity="success" sx={{ mt: 2 }}>{whatsAppSuccess}</Alert>}
+          </DialogContent>
+          <DialogActions sx={{ p: 2, borderTop: '1px solid #e5e7eb' }}>
+            <Button
+              onClick={() => { setShowWhatsAppModal(false); setWhatsAppError(''); setWhatsAppSuccess(''); }}
+              disabled={whatsAppSending}
+              variant="outlined"
+            >
+              Close
+            </Button>
+            <Button
+              onClick={handleSendWhatsApp}
+              disabled={whatsAppSending || !whatsAppPhone.trim() || filteredStoreStock.length === 0}
+              variant="contained"
+              startIcon={whatsAppSending ? <CircularProgress size={16} color="inherit" /> : <SendIcon />}
+              sx={{ bgcolor: '#16a34a', '&:hover': { bgcolor: '#15803d' } }}
+            >
+              {whatsAppSending ? 'Sending...' : 'Send PDF'}
             </Button>
           </DialogActions>
         </Dialog>
