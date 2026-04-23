@@ -44,16 +44,34 @@ export async function POST(request) {
       return NextResponse.json({ error: 'No valid phone number found' }, { status: 400 });
     }
 
+    // Some generators (e.g. jsPDF) emit non-standard data URIs like
+    // `data:application/pdf;filename=generated.pdf;base64,...`
+    // Cloudinary's parser rejects those, so normalise to the canonical
+    // `data:<mime>;base64,...` form before uploading.
+    const sanitizedDataUri = imageBase64.replace(
+      /^(data:[^;,]+)(?:;[^,;]+)*;base64,/i,
+      '$1;base64,'
+    );
+
     // Detect if PDF or image based on data URI
-    const isPdf = imageBase64.startsWith('data:application/pdf');
-    const uploadResult = await cloudinary.uploader.upload(imageBase64, {
+    const isPdf = sanitizedDataUri.startsWith('data:application/pdf');
+    const baseId = `receipt-${bill?.sale_id || Date.now()}`;
+    const uploadOptions = {
       folder: 'ittefaq-receipts',
-      public_id: `receipt-${bill?.sale_id || Date.now()}`,
+      // For raw uploads, include the .pdf extension in the public_id so the
+      // resulting secure_url ends in `.pdf`. Twilio/WhatsApp rely on the URL
+      // extension to determine media type for documents.
+      public_id: isPdf ? `${baseId}.pdf` : baseId,
+      use_filename: false,
+      unique_filename: false,
       overwrite: true,
       resource_type: isPdf ? 'raw' : 'auto',
-    });
+    };
+
+    const uploadResult = await cloudinary.uploader.upload(sanitizedDataUri, uploadOptions);
 
     cloudinaryPublicId = uploadResult.public_id;
+    const cloudinaryResourceType = uploadResult.resource_type || (isPdf ? 'raw' : 'image');
     const mediaUrl = uploadResult.secure_url;
 
     // Send via Twilio
@@ -75,7 +93,9 @@ export async function POST(request) {
     // Delete from Cloudinary after 5 minutes
     setTimeout(async () => {
       try {
-        await cloudinary.uploader.destroy(cloudinaryPublicId);
+        await cloudinary.uploader.destroy(cloudinaryPublicId, {
+          resource_type: cloudinaryResourceType,
+        });
       } catch (e) {
         console.error('Cloudinary cleanup error:', e.message);
       }
