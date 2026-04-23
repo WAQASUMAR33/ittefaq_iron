@@ -1943,15 +1943,32 @@ export async function PATCH(request) {
     if (!id) return NextResponse.json({ error: 'Sale ID is required' }, { status: 400 });
     if (!bill_type) return NextResponse.json({ error: 'bill_type is required' }, { status: 400 });
 
-    const updated = await prisma.sale.update({
-      where: { sale_id: parseInt(id) },
-      data: { bill_type }
-    });
+    const saleId = parseInt(id);
+    if (!Number.isFinite(saleId)) {
+      return NextResponse.json({ error: 'Invalid sale id' }, { status: 400 });
+    }
 
-    return NextResponse.json({ success: true, sale_id: updated.sale_id, bill_type: updated.bill_type });
+    // Use raw SQL to bypass Prisma client-side enum validation.
+    // The DB enum column already supports ORDER_TRASH via `prisma db push`,
+    // but the cached client may be older and reject newly-added enum values.
+    const allowed = new Set(['QUOTATION', 'ORDER', 'ORDER_TRASH', 'BILL']);
+    const nextType = String(bill_type).toUpperCase();
+    if (!allowed.has(nextType)) {
+      return NextResponse.json({ error: `Invalid bill_type: ${bill_type}` }, { status: 400 });
+    }
+
+    const affected = await prisma.$executeRaw`
+      UPDATE sales SET bill_type = ${nextType}, updated_at = NOW() WHERE sale_id = ${saleId}
+    `;
+
+    if (!affected) {
+      return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, sale_id: saleId, bill_type: nextType });
   } catch (err) {
     console.error('❌ Error updating sale status:', err);
-    return NextResponse.json({ error: 'Failed to update sale status' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update sale status', details: err?.message }, { status: 500 });
   }
 }
 
