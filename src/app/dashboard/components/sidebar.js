@@ -104,6 +104,7 @@ export default function Sidebar({
     { id: 'sale-returns', name: 'Sale Returns', icon: CloseIcon, category: 'sales-operations', parent: 'Sales' },
     { id: 'loaders', name: 'Loader/Transport', icon: LocalShippingIcon, category: 'sales-operations', parent: 'Sales' },
     { id: 'quotations', name: 'Quotations', icon: ReceiptIcon, category: 'sales-operations', parent: 'Sales' },
+    { id: 'sales-analytics', name: 'Sales Analytics', icon: TrendingUpIcon, category: 'sales-operations', parent: 'Sales' },
 
     // Purchase Operations
     { id: 'new-purchase', name: 'Create New Purchase', icon: AddIcon, category: 'purchase-operations', parent: 'Purchase' },
@@ -203,6 +204,8 @@ export default function Sidebar({
       router.push('/dashboard/orders');
     } else if (itemId === 'quotations') {
       router.push('/dashboard/quotations');
+    } else if (itemId === 'sales-analytics') {
+      router.push('/dashboard/sales/analytics');
     } else if (itemId === 'reports-dashboard') {
       router.push('/dashboard/reports');
     } else if (itemId === 'sales-by-date') {
