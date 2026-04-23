@@ -1,13 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Download, Printer, Search, Package, AlertTriangle, XCircle, RefreshCw, Store, BarChart2 } from 'lucide-react';
+import { ArrowLeft, Download, Printer, Search, Package, AlertTriangle, XCircle, RefreshCw, Store, BarChart2, Send, Phone } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
 import {
   Autocomplete, TextField, InputAdornment, Dialog, DialogTitle, DialogContent,
-  DialogActions, Button, Box, Alert, Tab, Tabs, Chip
+  DialogActions, Button, Box, Alert, Tab, Tabs, Chip, CircularProgress
 } from '@mui/material';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const TABS = [
   { id: 'all', label: 'All Stock', icon: Package },
@@ -37,6 +39,13 @@ export default function StockReport() {
   const [purchasePercentage, setPurchasePercentage] = useState('');
   const [salePercentage, setSalePercentage] = useState('');
   const [adjustmentLoading, setAdjustmentLoading] = useState(false);
+
+  // WhatsApp share modal
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+  const [whatsAppPhone, setWhatsAppPhone] = useState('');
+  const [whatsAppSending, setWhatsAppSending] = useState(false);
+  const [whatsAppError, setWhatsAppError] = useState('');
+  const [whatsAppSuccess, setWhatsAppSuccess] = useState('');
 
   useEffect(() => {
     fetchCategories();
@@ -208,6 +217,338 @@ export default function StockReport() {
     a.href = url;
     a.download = `stock-report-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
+  };
+
+  // ─── PDF generation ────────────────────────────────────────────────────────
+
+  const activeTabLabel = () => TABS.find(t => t.id === activeTab)?.label || 'Stock Report';
+
+  const filterSummaryLines = () => {
+    const lines = [];
+    if (selectedCategory) {
+      const c = categories.find(x => x.cat_id === parseInt(selectedCategory));
+      if (c) lines.push(`Category: ${c.cat_name}`);
+    }
+    if (selectedStore) {
+      const s = stores.find(x => x.storeid === parseInt(selectedStore));
+      if (s) lines.push(`Store: ${s.store_name}`);
+    }
+    if (searchQuery) lines.push(`Search: "${searchQuery}"`);
+    return lines;
+  };
+
+  const startPdf = () => {
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text('ITTEFAQ IRON STORE', pageWidth / 2, 36, { align: 'center' });
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Parianwali, Pakistan', pageWidth / 2, 52, { align: 'center' });
+
+    doc.setFillColor(30, 41, 59);
+    doc.rect(30, 62, pageWidth - 60, 22, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text(`STOCK REPORT — ${activeTabLabel().toUpperCase()}`, pageWidth / 2, 77, { align: 'center' });
+    doc.setTextColor(0, 0, 0);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    const lines = [
+      `Generated: ${new Date().toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}`,
+      ...filterSummaryLines(),
+    ];
+    let y = 98;
+    lines.forEach(l => { doc.text(l, 30, y); y += 12; });
+    return { doc, startY: y + 4 };
+  };
+
+  const addSummaryFooter = (doc, startY) => {
+    if (!summary) return;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('Summary', 30, startY);
+    autoTable(doc, {
+      startY: startY + 4,
+      head: [['Total Items', 'Total Qty', 'Stock Value (Rs.)', 'Low Stock', 'Out of Stock']],
+      body: [[
+        formatNumber(summary.total),
+        formatNumber(summary.totalQty),
+        formatCurrency(summary.totalValue),
+        String(summary.lowStock),
+        String(summary.outOfStock),
+      ]],
+      theme: 'grid',
+      headStyles: { fillColor: [67, 56, 202], textColor: 255, fontStyle: 'bold', fontSize: 9 },
+      bodyStyles: { fontSize: 9, halign: 'right' },
+      styles: { cellPadding: 4 },
+    });
+  };
+
+  const buildPdfForActiveTab = () => {
+    const { doc, startY } = startPdf();
+
+    if (activeTab === 'all') {
+      const products = getAllStockData();
+      const body = products.map((p, i) => {
+        const qty = selectedStore ? getStoreQty(p, selectedStore) : getTotalQty(p);
+        const threshold = p.low_stock_quantity ?? 10;
+        const status = qty < 0 ? 'Negative' : qty === 0 ? 'Out of Stock' : qty <= threshold ? 'Low Stock' : 'In Stock';
+        const value = qty * parseFloat(p.pro_cost_price || 0);
+        const breakdown = selectedStore
+          ? `${stores.find(s => s.storeid === parseInt(selectedStore))?.store_name || ''}: ${getStoreQty(p, selectedStore)}`
+          : (p.store_stocks?.map(ss => `${ss.store?.store_name || `Store ${ss.store_id}`}: ${ss.stock_quantity}`).join(' | ') || '—');
+        return [
+          String(i + 1),
+          p.category?.cat_name || '-',
+          p.pro_title || '-',
+          p.pro_unit || '-',
+          formatNumber(qty),
+          breakdown,
+          formatCurrency(p.pro_cost_price),
+          formatCurrency(value),
+          status,
+        ];
+      });
+      const totalQty = products.reduce((s, p) => s + (selectedStore ? getStoreQty(p, selectedStore) : getTotalQty(p)), 0);
+      const totalValue = products.reduce((s, p) => {
+        const q = selectedStore ? getStoreQty(p, selectedStore) : getTotalQty(p);
+        return s + q * parseFloat(p.pro_cost_price || 0);
+      }, 0);
+      autoTable(doc, {
+        startY,
+        head: [['S#', 'Category', 'Item Name', 'Unit', 'Qty', 'Store Breakdown', 'Cost Rate', 'Value', 'Status']],
+        body,
+        foot: [[
+          { content: 'Grand Total', colSpan: 4, styles: { halign: 'right', fontStyle: 'bold' } },
+          { content: formatNumber(totalQty), styles: { halign: 'right', fontStyle: 'bold' } },
+          '',
+          '',
+          { content: formatCurrency(totalValue), styles: { halign: 'right', fontStyle: 'bold' } },
+          '',
+        ]],
+        theme: 'grid',
+        headStyles: { fillColor: [30, 41, 59], textColor: 255, fontSize: 8, fontStyle: 'bold' },
+        footStyles: { fillColor: [30, 41, 59], textColor: 255, fontSize: 8 },
+        bodyStyles: { fontSize: 8 },
+        styles: { cellPadding: 3, overflow: 'linebreak' },
+        columnStyles: {
+          0: { halign: 'center', cellWidth: 22 },
+          3: { halign: 'center', cellWidth: 30 },
+          4: { halign: 'right', cellWidth: 45 },
+          6: { halign: 'right', cellWidth: 55 },
+          7: { halign: 'right', cellWidth: 60 },
+          8: { halign: 'center', cellWidth: 55 },
+        },
+      });
+    } else if (activeTab === 'store-wise') {
+      const groups = getStoreWiseData();
+      if (groups.length === 0) {
+        doc.text('No store stock data found.', 30, startY);
+      } else {
+        let y = startY;
+        groups.forEach((g) => {
+          const body = g.products.map((p, i) => [
+            String(i + 1),
+            p.category?.cat_name || '-',
+            p.pro_title || '-',
+            p.pro_unit || '-',
+            formatNumber(p._storeQty),
+            formatCurrency(p.pro_cost_price),
+            formatCurrency(p._storeQty * parseFloat(p.pro_cost_price || 0)),
+          ]);
+          autoTable(doc, {
+            startY: y,
+            head: [[
+              { content: `${g.store.store_name} — ${g.products.length} items · Total Qty: ${formatNumber(g.totalQty)} · Value: Rs. ${formatCurrency(g.totalValue)}`, colSpan: 7, styles: { halign: 'left', fillColor: [67, 56, 202], textColor: 255, fontStyle: 'bold' } },
+            ], ['S#', 'Category', 'Item Name', 'Unit', 'Qty', 'Cost Rate', 'Value']],
+            body,
+            theme: 'grid',
+            headStyles: { fillColor: [226, 232, 240], textColor: 30, fontSize: 8, fontStyle: 'bold' },
+            bodyStyles: { fontSize: 8 },
+            styles: { cellPadding: 3 },
+            columnStyles: {
+              0: { halign: 'center', cellWidth: 22 },
+              3: { halign: 'center', cellWidth: 30 },
+              4: { halign: 'right', cellWidth: 55 },
+              5: { halign: 'right', cellWidth: 65 },
+              6: { halign: 'right', cellWidth: 75 },
+            },
+          });
+          y = (doc.lastAutoTable?.finalY || y) + 18;
+        });
+      }
+    } else if (activeTab === 'low-stock') {
+      const products = getLowStockData();
+      const body = products.map((p, i) => {
+        const qty = selectedStore ? getStoreQty(p, selectedStore) : getTotalQty(p);
+        const threshold = p.low_stock_quantity ?? 10;
+        const breakdown = p.store_stocks?.map(ss => `${ss.store?.store_name || `S${ss.store_id}`}: ${ss.stock_quantity}`).join(' | ') || '—';
+        return [
+          String(i + 1),
+          p.category?.cat_name || '-',
+          p.pro_title || '-',
+          p.pro_unit || '-',
+          formatNumber(qty),
+          formatNumber(threshold),
+          breakdown,
+          formatCurrency(p.pro_cost_price),
+          formatCurrency(qty * parseFloat(p.pro_cost_price || 0)),
+        ];
+      });
+      autoTable(doc, {
+        startY,
+        head: [['S#', 'Category', 'Item Name', 'Unit', 'Qty', 'Threshold', 'Store Breakdown', 'Cost Rate', 'Value']],
+        body: body.length ? body : [[{ content: 'No low stock items — all products are well stocked.', colSpan: 9, styles: { halign: 'center' } }]],
+        theme: 'grid',
+        headStyles: { fillColor: [217, 119, 6], textColor: 255, fontSize: 8, fontStyle: 'bold' },
+        bodyStyles: { fontSize: 8 },
+        styles: { cellPadding: 3 },
+      });
+    } else if (activeTab === 'low-stock-category') {
+      const groups = getLowStockByCategoryData();
+      if (groups.length === 0) {
+        doc.text('No low stock items in any category.', 30, startY);
+      } else {
+        let y = startY;
+        groups.forEach((g) => {
+          const catTotalQty = g.products.reduce((s, p) => s + p._qty, 0);
+          const catTotalValue = g.products.reduce((s, p) => s + p._qty * parseFloat(p.pro_cost_price || 0), 0);
+          const body = g.products.map((p, i) => {
+            const threshold = p.low_stock_quantity ?? 10;
+            const shortage = threshold - p._qty;
+            return [
+              String(i + 1),
+              p.pro_title || '-',
+              p.pro_unit || '-',
+              formatNumber(p._qty),
+              formatNumber(threshold),
+              formatNumber(shortage),
+              formatCurrency(p.pro_cost_price),
+              formatCurrency(p._qty * parseFloat(p.pro_cost_price || 0)),
+            ];
+          });
+          autoTable(doc, {
+            startY: y,
+            head: [[
+              { content: `${g.catName} — ${g.products.length} low-stock items · Qty: ${formatNumber(catTotalQty)} · Value: Rs. ${formatCurrency(catTotalValue)}`, colSpan: 8, styles: { halign: 'left', fillColor: [249, 115, 22], textColor: 255, fontStyle: 'bold' } },
+            ], ['S#', 'Item Name', 'Unit', 'Qty', 'Threshold', 'Shortage', 'Cost Rate', 'Value']],
+            body,
+            theme: 'grid',
+            headStyles: { fillColor: [254, 243, 199], textColor: 92, fontSize: 8, fontStyle: 'bold' },
+            bodyStyles: { fontSize: 8 },
+            styles: { cellPadding: 3 },
+          });
+          y = (doc.lastAutoTable?.finalY || y) + 18;
+        });
+      }
+    } else if (activeTab === 'low-stock-store') {
+      const groups = getLowStockStoreWiseData();
+      if (groups.length === 0) {
+        doc.text('No low stock items in any store.', 30, startY);
+      } else {
+        let y = startY;
+        groups.forEach((g) => {
+          const body = g.products.map((p, i) => [
+            String(i + 1),
+            p.category?.cat_name || '-',
+            p.pro_title || '-',
+            p.pro_unit || '-',
+            formatNumber(p._storeQty),
+            formatNumber(p.low_stock_quantity ?? 10),
+            formatCurrency(p.pro_cost_price),
+          ]);
+          autoTable(doc, {
+            startY: y,
+            head: [[
+              { content: `${g.store.store_name} — ${g.products.length} items need restocking`, colSpan: 7, styles: { halign: 'left', fillColor: [217, 119, 6], textColor: 255, fontStyle: 'bold' } },
+            ], ['S#', 'Category', 'Item Name', 'Unit', 'Store Qty', 'Min Threshold', 'Cost Rate']],
+            body,
+            theme: 'grid',
+            headStyles: { fillColor: [254, 243, 199], textColor: 92, fontSize: 8, fontStyle: 'bold' },
+            bodyStyles: { fontSize: 8 },
+            styles: { cellPadding: 3 },
+          });
+          y = (doc.lastAutoTable?.finalY || y) + 18;
+        });
+      }
+    }
+
+    const finalY = (doc.lastAutoTable?.finalY || startY) + 20;
+    addSummaryFooter(doc, Math.min(finalY, doc.internal.pageSize.getHeight() - 120));
+
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(120);
+      const ph = doc.internal.pageSize.getHeight();
+      const pw = doc.internal.pageSize.getWidth();
+      doc.text(`Page ${i} of ${pageCount}`, pw - 40, ph - 14, { align: 'right' });
+      doc.text('Ittefaq Iron Store — Stock Report', 30, ph - 14);
+    }
+
+    return doc;
+  };
+
+  const handleDownloadPdf = () => {
+    if (!reportData) return;
+    const doc = buildPdfForActiveTab();
+    const filename = `stock-report-${activeTab}-${new Date().toISOString().split('T')[0]}.pdf`;
+    doc.save(filename);
+  };
+
+  // ─── WhatsApp share ────────────────────────────────────────────────────────
+
+  const openWhatsAppModal = () => {
+    setWhatsAppError('');
+    setWhatsAppSuccess('');
+    setShowWhatsAppModal(true);
+  };
+
+  const handleSendWhatsApp = async () => {
+    if (!reportData) return;
+    const phone = (whatsAppPhone || '').trim();
+    if (!phone || phone.replace(/\D/g, '').length < 7) {
+      setWhatsAppError('Please enter a valid phone number (e.g. 03001234567).');
+      return;
+    }
+    try {
+      setWhatsAppSending(true);
+      setWhatsAppError('');
+      setWhatsAppSuccess('');
+
+      const doc = buildPdfForActiveTab();
+      const pdfBase64 = doc.output('datauristring');
+
+      const today = new Date().toLocaleDateString('en-GB');
+      const caption = `📦 Stock Report — ${activeTabLabel()}\n🗓️ ${today}\n${filterSummaryLines().join('\n') || ''}`.trim();
+
+      const res = await fetch('/api/whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64: pdfBase64,
+          phone,
+          caption,
+          bill: { sale_id: `stock-${Date.now()}` },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to send WhatsApp message');
+      }
+      setWhatsAppSuccess(`Sent to ${data.to || phone}. Status: ${data.status || 'queued'}`);
+    } catch (err) {
+      console.error(err);
+      setWhatsAppError(err.message || 'Failed to send WhatsApp message');
+    } finally {
+      setWhatsAppSending(false);
+    }
   };
 
   // ─── Price adjustment ──────────────────────────────────────────────────────
@@ -601,7 +942,13 @@ export default function StockReport() {
             </div>
             <div className="flex items-center space-x-2">
               <button onClick={handleExport} className="flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium transition-colors">
-                <Download className="w-4 h-4 mr-2" /> Export CSV
+                <Download className="w-4 h-4 mr-2" /> CSV
+              </button>
+              <button onClick={handleDownloadPdf} disabled={!reportData} className="flex items-center px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors">
+                <Download className="w-4 h-4 mr-2" /> PDF
+              </button>
+              <button onClick={openWhatsAppModal} disabled={!reportData} className="flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors">
+                <Send className="w-4 h-4 mr-2" /> WhatsApp PDF
               </button>
               <button onClick={() => window.print()} className="flex items-center px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors">
                 <Printer className="w-4 h-4 mr-2" /> Print
@@ -735,6 +1082,72 @@ export default function StockReport() {
           </div>
         )}
       </div>
+
+      {/* WhatsApp Share Modal */}
+      <Dialog
+        open={showWhatsAppModal}
+        onClose={() => !whatsAppSending && setShowWhatsAppModal(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: '12px' } }}
+      >
+        <DialogTitle sx={{ fontWeight: 'bold', bgcolor: '#ecfdf5', borderBottom: '2px solid #a7f3d0', display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Send className="w-5 h-5" style={{ color: '#16a34a' }} />
+          Send Stock Report to WhatsApp
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3 }}>
+          <Alert severity="info" sx={{ mb: 2, fontSize: '0.8rem' }}>
+            This will generate a PDF of the current view
+            (<strong>{activeTabLabel()}</strong>) using your selected filters and
+            send it to the given WhatsApp number.
+          </Alert>
+          <TextField
+            fullWidth
+            size="small"
+            label="WhatsApp Number"
+            placeholder="03001234567 or +923001234567"
+            value={whatsAppPhone}
+            onChange={(e) => setWhatsAppPhone(e.target.value)}
+            disabled={whatsAppSending}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Phone className="w-4 h-4 text-slate-400" />
+                </InputAdornment>
+              ),
+            }}
+            sx={{ mb: 2 }}
+          />
+          <Box sx={{ bgcolor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', p: 1.5, fontSize: '0.8rem' }}>
+            <div style={{ fontWeight: 600, color: '#334155', marginBottom: 4 }}>Filters included</div>
+            <div style={{ color: '#64748b' }}>
+              {filterSummaryLines().length > 0
+                ? filterSummaryLines().map((l, i) => <div key={i}>• {l}</div>)
+                : <div>• No filters applied (sending all items)</div>}
+            </div>
+          </Box>
+          {whatsAppError && <Alert severity="error" sx={{ mt: 2 }}>{whatsAppError}</Alert>}
+          {whatsAppSuccess && <Alert severity="success" sx={{ mt: 2 }}>{whatsAppSuccess}</Alert>}
+        </DialogContent>
+        <DialogActions sx={{ p: 2, borderTop: '1px solid #e5e7eb' }}>
+          <Button
+            onClick={() => { setShowWhatsAppModal(false); setWhatsAppError(''); setWhatsAppSuccess(''); }}
+            disabled={whatsAppSending}
+            variant="outlined"
+          >
+            Close
+          </Button>
+          <Button
+            onClick={handleSendWhatsApp}
+            disabled={whatsAppSending || !whatsAppPhone.trim()}
+            variant="contained"
+            startIcon={whatsAppSending ? <CircularProgress size={16} color="inherit" /> : <Send className="w-4 h-4" />}
+            sx={{ bgcolor: '#16a34a', '&:hover': { bgcolor: '#15803d' } }}
+          >
+            {whatsAppSending ? 'Sending...' : 'Send PDF'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Price Adjustment Modal */}
       <Dialog open={showAdjustmentModal} onClose={() => !adjustmentLoading && setShowAdjustmentModal(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: '12px' } }}>
