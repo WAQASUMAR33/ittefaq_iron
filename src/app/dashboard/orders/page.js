@@ -79,6 +79,20 @@ const fmtAmt = (val) => {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
+/** Use for MUI `type="number"` (editable) — no commas. Empty string for 0 keeps optional fields clear. */
+const toNumberInputValue = (val) => {
+  const n = parseFloat(val);
+  if (Number.isNaN(n) || n === 0) return '';
+  return n;
+};
+
+/** Use for disabled `type="number"` summary fields — always show a valid number (including 0). */
+const toReadOnlyNumberInput = (val) => {
+  const n = parseFloat(val);
+  if (Number.isNaN(n)) return 0;
+  return n;
+};
+
 function OrdersPageContent() {
   const searchParams = useSearchParams();
   const { requireAuth, authDialogOpen, handleAuthSuccess, handleAuthCancel } = usePinAuth();
@@ -3085,7 +3099,8 @@ function OrdersPageContent() {
                           fullWidth
                           size="small"
                           type="number"
-                          value={fmtAmt(paymentData.totalCashReceived)}
+                          value={toReadOnlyNumberInput(paymentData.totalCashReceived)}
+                          placeholder="0"
                           sx={{
                             bgcolor: '#f5f5f5',
                             '& .MuiInputBase-input': { padding: '8px', color: '#000' },
@@ -3129,15 +3144,16 @@ function OrdersPageContent() {
                   display: 'flex',
                   flexDirection: 'column'
                 }}>
-                  {/* TOTAL AMOUNT */}
+                  {/* Items total (products only) — value must be plain number, not fmtAmt, for type="number" */}
                   <Box sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Typography variant="body2" sx={{ fontWeight: 'medium', color: 'text.secondary', minWidth: '140px' }}>
-                      TOTAL AMOUNT
+                      ITEMS TOTAL
                     </Typography>
                     <TextField
                       size="small"
                       type="number"
-                      value={fmtAmt(calculateTotalAmount())}
+                      value={toReadOnlyNumberInput(calculateTotalAmount())}
+                      placeholder="0"
                       sx={{
                         bgcolor: 'white',
                         flex: 1,
@@ -3149,7 +3165,8 @@ function OrdersPageContent() {
                       }}
                       disabled
                       inputProps={{
-                        readOnly: true
+                        readOnly: true,
+                        step: 'any',
                       }}
                     />
                   </Box>
@@ -3207,6 +3224,34 @@ function OrdersPageContent() {
                       inputProps={{ step: 'any' }}
                       sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' }, flex: 1 }}
                       placeholder=" "
+                    />
+                  </Box>
+
+                  {/* Order total = items + labour + delivery/transport - discount (matches API total_amount) */}
+                  <Box sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'medium', color: 'text.secondary', minWidth: '140px' }}>
+                      ORDER TOTAL
+                    </Typography>
+                    <TextField
+                      size="small"
+                      type="number"
+                      value={toReadOnlyNumberInput(calculateGrandTotal())}
+                      placeholder="0"
+                      sx={{
+                        bgcolor: '#fff8e1',
+                        flex: 1,
+                        fontWeight: 700,
+                        '& .MuiInputBase-input': { padding: '8px', color: '#000', fontWeight: 700 },
+                        '& .MuiInputBase-input.Mui-disabled': {
+                          color: '#000',
+                          WebkitTextFillColor: '#000',
+                        },
+                      }}
+                      disabled
+                      inputProps={{
+                        readOnly: true,
+                        step: 'any',
+                      }}
                     />
                   </Box>
 

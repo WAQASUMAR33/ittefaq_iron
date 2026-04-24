@@ -33,13 +33,13 @@ async function getSpecialAccounts() {
   console.log('🔍 Category map:', categoryMap);
 
   // Now find accounts using these category IDs
-  const specialAccounts = await prisma.customer.findMany({
-    where: {
-      cus_category: {
-        in: Object.values(categoryMap)
-      }
-    }
-  });
+  const categoryIds = Object.values(categoryMap);
+  const specialAccounts =
+    categoryIds.length > 0
+      ? await prisma.customer.findMany({
+          where: { cus_category: { in: categoryIds } }
+        })
+      : [];
 
   console.log('🔍 Found special accounts:', specialAccounts.map(a => ({ id: a.cus_id, name: a.cus_name, category: a.cus_category })));
 
@@ -64,6 +64,62 @@ async function getSpecialAccounts() {
   });
 
   return accounts;
+}
+
+/**
+ * Find or create a default "Cash Account" customer (used for cash-in ledger on sales/orders).
+ * Matches purchases route behavior when paying cash to a supplier.
+ */
+async function findOrCreateCashAccount() {
+  const allCategories = await prisma.customerCategory.findMany();
+  let cashCatId = null;
+  for (const cat of allCategories) {
+    const lower = (cat.cus_cat_title || '').toLowerCase();
+    if (lower.includes('cash') && lower.includes('account')) {
+      cashCatId = cat.cus_cat_id;
+      break;
+    }
+  }
+  if (!cashCatId) {
+    const createdCat = await prisma.customerCategory.create({
+      data: { cus_cat_title: 'Cash Account' }
+    });
+    cashCatId = createdCat.cus_cat_id;
+  }
+
+  const existing = await prisma.customer.findFirst({ where: { cus_category: cashCatId } });
+  if (existing) return existing;
+
+  const allTypes = await prisma.customerType.findMany();
+  let cashType = allTypes.find(t => (t.cus_type_title || '').toLowerCase().includes('cash'));
+  if (!cashType) {
+    cashType = await prisma.customerType.create({ data: { cus_type_title: 'Cash' } });
+  }
+  const aCity = await prisma.city.findFirst();
+  const created = await prisma.customer.create({
+    data: {
+      cus_name: 'Cash Account',
+      cus_phone_no: '0000000000',
+      cus_address: 'Main Office',
+      cus_balance: 0,
+      cus_type: cashType.cus_type_id,
+      cus_category: cashCatId,
+      city_id: aCity ? aCity.city_id : null
+    }
+  });
+  console.log('✅ Created default Cash Account customer:', {
+    cus_id: created.cus_id,
+    cus_name: created.cus_name
+  });
+  return created;
+}
+
+/** Resolves getSpecialAccounts() and ensures a cash account customer exists for ledger / balance updates. */
+async function getSpecialAccountsForSale() {
+  const accounts = await getSpecialAccounts();
+  if (accounts.cash) return accounts;
+  const cash = await findOrCreateCashAccount();
+  return cash ? { ...accounts, cash } : accounts;
 }
 
 // GET - Fetch all sales with related data
@@ -643,6 +699,19 @@ export async function POST(request) {
     const isQuotation = bill_type === 'QUOTATION';
     const isOrder = bill_type === 'ORDER' || bill_type === 'ORDER_TRASH';
 
+    // When the client sends total `payment` but leaves cash_payment/bank_payment at 0, infer split from payment_type
+    const payValNorm = parseFloat(payment) || 0;
+    let eff_cash = parseFloat(cash_payment ?? 0) || 0;
+    let eff_bank = parseFloat(bank_payment ?? 0) || 0;
+    const payTypeNorm = String(payment_type || 'CASH').toUpperCase();
+    if (payValNorm > 0 && eff_cash === 0 && eff_bank === 0) {
+      if (payTypeNorm === 'BANK_TRANSFER' || payTypeNorm === 'CHEQUE') {
+        eff_bank = payValNorm;
+      } else {
+        eff_cash = payValNorm;
+      }
+    }
+
     // Stock validation removed - allow negative stock
     // if (!isQuotation) {
     // for (const detail of sale_details) {
@@ -657,7 +726,7 @@ export async function POST(request) {
     // }
 
     // Get special accounts BEFORE transaction (for better performance)
-    const specialAccounts = isQuotation ? null : await getSpecialAccounts();
+    const specialAccounts = isQuotation ? null : await getSpecialAccountsForSale();
 
     // Detect if this is a loaded order (order being converted to sale)
     // Check: (1) explicit flag, or (2) reference contains "Converted from Order"
@@ -717,8 +786,8 @@ export async function POST(request) {
             discount: Number(parseFloat(discount || 0).toFixed(2)),
             payment: Number(parseFloat(payment).toFixed(2)),
             payment_type,
-            cash_payment: Number(parseFloat(cash_payment || 0).toFixed(2)),
-            bank_payment: Number(parseFloat(bank_payment || 0).toFixed(2)),
+            cash_payment: Number(eff_cash.toFixed(2)),
+            bank_payment: Number(eff_bank.toFixed(2)),
             bank_title: bank_title || null,
             advance_payment: Number(parseFloat(advance_payment || 0).toFixed(2)),
             debit_account_id: debit_account_id || null,
@@ -746,7 +815,7 @@ export async function POST(request) {
             ) VALUES (
               ${cus_id}, ${Number(parseFloat(total_amount).toFixed(2))}, ${Number(parseFloat(discount || 0).toFixed(2))},
               ${Number(parseFloat(payment).toFixed(2))}, ${payment_type},
-              ${Number(parseFloat(cash_payment || 0).toFixed(2))}, ${Number(parseFloat(bank_payment || 0).toFixed(2))}, ${bank_title || null},
+              ${Number(eff_cash.toFixed(2))}, ${Number(eff_bank.toFixed(2))}, ${bank_title || null},
               ${Number(parseFloat(advance_payment || 0).toFixed(2))},
               ${debit_account_id || null}, ${credit_account_id || null},
               ${loader_id || null}, ${Number(parseFloat(labour_charges || 0).toFixed(2))}, ${Number(parseFloat(shipping_amount || 0).toFixed(2))},
@@ -899,8 +968,8 @@ export async function POST(request) {
         console.log(`Discount Already Applied: ${discount}`);
         console.log(`Bill Type: ${bill_type} (${isOrder ? 'ORDER' : 'REGULAR BILL'})`);
         console.log(`Is Loaded Order: ${actualIsLoadedOrder}`);
-        console.log(`Today's Payments: Cash=${parseFloat(cash_payment || 0)}, Bank=${parseFloat(bank_payment || 0)}, Advance=${parseFloat(advance_payment || 0)}`);
-        console.log(`Expected Final Balance: ${runningBalance + parseFloat(total_amount) - (parseFloat(cash_payment || 0) + parseFloat(bank_payment || 0) + parseFloat(advance_payment || 0))}`);
+        console.log(`Today's Payments: Cash=${eff_cash}, Bank=${eff_bank}, Advance=${parseFloat(advance_payment || 0)}`);
+        console.log(`Expected Final Balance: ${runningBalance + parseFloat(total_amount) - (eff_cash + eff_bank + parseFloat(advance_payment || 0))}`);
         console.log(`${'='.repeat(60)}\n`);
 
         // For loaded orders, SKIP the bill entry (already created when order was made)
@@ -940,8 +1009,8 @@ export async function POST(request) {
 
         // 2. Single combined payment entry to Customer Account (cash + bank + advance together)
         // IMPORTANT: For loaded orders, advance payment was already recorded when order was created
-        const cashAmount = parseFloat(cash_payment || 0);
-        const bankAmount = parseFloat(bank_payment || 0);
+        const cashAmount = eff_cash;
+        const bankAmount = eff_bank;
         const advancePaymentAmount = parseFloat(advance_payment || 0);
         const totalPaymentForCustomer = cashAmount + bankAmount + (!actualIsLoadedOrder ? advancePaymentAmount : 0);
 
@@ -982,7 +1051,7 @@ export async function POST(request) {
         // Always create ledger entry for bank payments
         let usedBankAccountId = null;  // Track which bank account is being used
 
-        if (parseFloat(bank_payment || 0) > 0) {
+        if (eff_bank > 0) {
           let bankAccountToUse = specialAccounts.bank;
 
           // If a specific bank_title is provided, find that specific bank account
@@ -1006,7 +1075,7 @@ export async function POST(request) {
               console.log(`⚠️ Bank "${bank_title}" not found, using generic Bank Account`);
             }
           } else {
-            console.log(`🏦 BANK PAYMENT DETECTED (using generic bank account): ${bank_payment}`);
+            console.log(`🏦 BANK PAYMENT DETECTED (using generic bank account): ${eff_bank}`);
           }
 
           if (bankAccountToUse) {
@@ -1016,14 +1085,14 @@ export async function POST(request) {
             const bankEntry = createLedgerEntry({
               cus_id: bankAccountToUse.cus_id,
               opening_balance: bankAccountToUse.cus_balance,
-              debit_amount: Number(parseFloat(bank_payment).toFixed(2)),
+              debit_amount: Number(eff_bank.toFixed(2)),
               credit_amount: 0,
               bill_no: sale.sale_id.toString(),
               trnx_type: 'BANK_TRANSFER',
               details: `Payment Received - ${isOrder ? 'ORDER' : (bill_type || 'BILL')} - ${customer?.cus_name || 'Customer'} - BANK Account: ${bankAccountToUse.cus_name} (Debit)`,
-              payments: Number(parseFloat(bank_payment).toFixed(2)),
+              payments: Number(eff_bank.toFixed(2)),
               cash_payment: 0,
-              bank_payment: Number(parseFloat(bank_payment).toFixed(2)),  // Mark as bank payment
+              bank_payment: Number(eff_bank.toFixed(2)),  // Mark as bank payment
               updated_by: validatedUpdatedBy
             });
             console.log(`🏦 Bank Ledger Entry: Opening=${bankEntry.opening_balance}, Debit=${bankEntry.debit_amount}, Closing=${bankEntry.closing_balance}`);
@@ -1034,25 +1103,29 @@ export async function POST(request) {
         // 4. Cash Account - DEBIT (when cash payment is received)
         // When cash payment is received, cash account balance INCREASES (debit increases asset)
         // Always create ledger entry for cash payments
-        if (parseFloat(cash_payment || 0) > 0 && specialAccounts.cash) {
-          console.log(`💵 CASH PAYMENT DETECTED: ${cash_payment}`);
+        if (eff_cash > 0 && specialAccounts.cash) {
+          console.log(`💵 CASH PAYMENT DETECTED: ${eff_cash}`);
           console.log(`💵 Cash Account Before: ID=${specialAccounts.cash.cus_id}, Name=${specialAccounts.cash.cus_name}, Balance=${specialAccounts.cash.cus_balance}`);
 
           const cashEntry = createLedgerEntry({
             cus_id: specialAccounts.cash.cus_id,
             opening_balance: specialAccounts.cash.cus_balance,
-            debit_amount: Number(parseFloat(cash_payment).toFixed(2)),
+            debit_amount: Number(eff_cash.toFixed(2)),
             credit_amount: 0,
             bill_no: sale.sale_id.toString(),
             trnx_type: 'CASH',
             details: `Payment Received - ${isOrder ? 'ORDER' : (bill_type || 'BILL')} - ${customer?.cus_name || 'Customer'} - CASH Account (Debit)`,
-            payments: Number(parseFloat(cash_payment).toFixed(2)),
-            cash_payment: Number(parseFloat(cash_payment).toFixed(2)),  // Mark as cash payment
+            payments: Number(eff_cash.toFixed(2)),
+            cash_payment: Number(eff_cash.toFixed(2)),  // Mark as cash payment
             bank_payment: 0,
             updated_by: validatedUpdatedBy
           });
           console.log(`💵 Cash Ledger Entry: Opening=${cashEntry.opening_balance}, Debit=${cashEntry.debit_amount}, Closing=${cashEntry.closing_balance}`);
           ledgerEntries.push(cashEntry);
+        } else if (eff_cash > 0) {
+          console.error(
+            '❌ Cash payment recorded but Cash Account is missing after auto-create — no cash-side ledger line was added. Check customers / customer_categories.'
+          );
         }
 
         // 5. Transporter Entry (if loader_id is provided - skip for now as Loader is not a customer)
@@ -1167,7 +1240,7 @@ export async function POST(request) {
             console.log(`Customer Previous Balance: ${customer.cus_balance}`);
             console.log(`Bill Type: ${bill_type}`);
             console.log(`Bill Amount (netTotal): ${netTotal}`);
-            console.log(`Payment Received - Cash: ${cash_payment}, Bank: ${bank_payment}, Advance: ${advance_payment}`);
+            console.log(`Payment Received - Cash: ${eff_cash}, Bank: ${eff_bank}, Advance: ${advance_payment}`);
             console.log(`Found ${customerLedgerEntries.length} ledger entries for customer`);
 
             // Show all customer ledger entries
@@ -1199,7 +1272,7 @@ export async function POST(request) {
         // Skip only if split payments explicitly handle cash separately (cash in debit_account_id)
         const cashHandledBysSplitPayment = split_payments && split_payments.some(sp => sp.debit_account_id === specialAccounts.cash?.cus_id);
 
-        if (parseFloat(cash_payment || 0) > 0 && specialAccounts.cash && !cashHandledBysSplitPayment) {
+        if (eff_cash > 0 && specialAccounts.cash && !cashHandledBysSplitPayment) {
           // Find the cash account ledger entry to get its closing balance
           const cashLedgerEntry = ledgerEntries.find(e => e.cus_id === specialAccounts.cash.cus_id);
           if (cashLedgerEntry) {
@@ -1213,7 +1286,7 @@ export async function POST(request) {
             });
             console.log(`💵 CASH ACCOUNT UPDATED: Balance now = ${cashLedgerEntry.closing_balance}`);
           }
-        } else if (parseFloat(cash_payment || 0) > 0 && cashHandledBysSplitPayment) {
+        } else if (eff_cash > 0 && cashHandledBysSplitPayment) {
           console.log(`💵 SKIPPING CASH BALANCE UPDATE: Split payments will handle it`);
         }
 
@@ -1222,7 +1295,7 @@ export async function POST(request) {
         // Skip only if split payments explicitly handle bank separately (bank in debit_account_id)
         const bankHandledBySplitPayment = split_payments && split_payments.some(sp => sp.debit_account_id === usedBankAccountId);
 
-        if (parseFloat(bank_payment || 0) > 0 && usedBankAccountId && !bankHandledBySplitPayment) {
+        if (eff_bank > 0 && usedBankAccountId && !bankHandledBySplitPayment) {
           // Find the bank account ledger entry - it will be the BANK_TRANSFER entry with bank_payment
           const bankLedgerEntry = ledgerEntries.find(e =>
             e.cus_id === usedBankAccountId && e.trnx_type === 'BANK_TRANSFER' && e.bank_payment > 0
@@ -1239,7 +1312,7 @@ export async function POST(request) {
             });
             console.log(`🏦 BANK ACCOUNT UPDATED: Balance now = ${bankLedgerEntry.closing_balance}`);
           }
-        } else if (parseFloat(bank_payment || 0) > 0 && bankHandledBySplitPayment) {
+        } else if (eff_bank > 0 && bankHandledBySplitPayment) {
           console.log(`🏦 SKIPPING BANK BALANCE UPDATE: Split payments will handle it`);
         }
 
@@ -1418,8 +1491,8 @@ export async function POST(request) {
       discount: parseFloat(discount || 0),
       shippingAmount: parseFloat(shipping_amount || 0),
       paymentReceived: parseFloat(payment),
-      cashPayment: parseFloat(cash_payment || 0),
-      bankPayment: parseFloat(bank_payment || 0),
+      cashPayment: eff_cash,
+      bankPayment: eff_bank,
       advancePayment: parseFloat(advance_payment || 0),
       newBalance: parseFloat(updatedCustomer?.cus_balance || 0),
       ledgerEntries: ledgerEntriesForReport,
@@ -1512,7 +1585,7 @@ export async function PUT(request) {
     const isQuotationFromBody = bill_type === 'QUOTATION';
 
     // Get special accounts BEFORE transaction (for better performance)
-    const specialAccounts = isQuotationFromBody ? null : await getSpecialAccounts();
+    const specialAccounts = isQuotationFromBody ? null : await getSpecialAccountsForSale();
 
     // Use transaction to ensure data consistency with increased timeout (30 seconds)
     const result = await prisma.$transaction(async (tx) => {
