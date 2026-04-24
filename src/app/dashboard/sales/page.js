@@ -920,6 +920,16 @@ function SalesPageContent() {
     return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
+  /** Same display name can exist for different accounts (e.g. cus_name "1781"); show id + category/type in the transport picker. */
+  const formatTransportAccountLabel = (account) => {
+    if (!account) return '';
+    const name = account.cus_name || '';
+    const cat = account.customer_category?.cus_cat_title || '';
+    const typ = account.customer_type?.cus_type_title || '';
+    const tail = [cat, typ].filter(Boolean).join(' · ');
+    return tail ? `${name} (#${account.cus_id}) — ${tail}` : `${name} (#${account.cus_id})`;
+  };
+
   const calculateTotalAmount = () => {
     const total = productTableData.reduce((total, product) => total + (parseFloat(product.amount) || 0), 0);
     return Number(total.toFixed(2));
@@ -1773,10 +1783,10 @@ function SalesPageContent() {
 
     const transport = {
       id: Date.now(),
-      name: selectedAccount ? selectedAccount.cus_name : 'Unknown Account',
+      name: selectedAccount ? formatTransportAccountLabel(selectedAccount) : 'Unknown Account',
       amount: 0, // Amount will be calculated from delivery charges
       accountId: newTransport.accountId,
-      accountName: selectedAccount ? selectedAccount.cus_name : 'Unknown Account'
+      accountName: selectedAccount ? formatTransportAccountLabel(selectedAccount) : 'Unknown Account'
     };
 
     setTransportOptions(prev => [...prev, transport]);
@@ -4258,10 +4268,14 @@ function SalesPageContent() {
                     <Autocomplete
                       size="small"
                       options={transportAccounts || []}
-                      getOptionLabel={(option) => option.cus_name || ''}
+                      getOptionLabel={(option) => formatTransportAccountLabel(option)}
                       value={transportAccounts.find(account => account.cus_id === newTransport.accountId) || null}
                       onChange={(event, newValue) => {
-                        setNewTransport(prev => ({ ...prev, accountId: newValue ? newValue.cus_id : '', accountName: newValue ? newValue.cus_name : '' }));
+                        setNewTransport((prev) => ({
+                          ...prev,
+                          accountId: newValue ? newValue.cus_id : '',
+                          accountName: newValue ? formatTransportAccountLabel(newValue) : '',
+                        }));
                       }}
                       isOptionEqualToValue={(option, value) => option.cus_id === value?.cus_id}
                       autoSelect={true}
