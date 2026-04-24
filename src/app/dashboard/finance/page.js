@@ -76,9 +76,9 @@ const fmtAmt = (val) => {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
-/** Auto description for IN / OUT payment modals: title, account, cash, bank+name, discount */
+/** Auto description for Receive / Pay payment modals: title, account, cash, bank+name, discount */
 const buildFinancePaymentDescription = (mode, accountName, cashAmount, bankAmount, bankAccountId, bankAccountsList, discountAmount) => {
-  const title = mode === 'RECEIVE' ? 'IN AMOUNT' : 'OUT AMOUNT';
+  const title = mode === 'RECEIVE' ? 'RECEIVE AMOUNT' : 'PAY AMOUNT';
   const head = `${title} — ${accountName || 'Account'}`;
   const bits = [head];
   const cash = parseFloat(cashAmount || 0);
@@ -452,13 +452,13 @@ export default function FinancePage() {
     parseFloat(receivePaymentData.cash_amount || 0) +
     parseFloat(receivePaymentData.bank_amount || 0) +
     parseFloat(receivePaymentData.discount || 0);
-  const receiveBalanceAfter = currentBalance - receiveTotalPreview;
+  const receiveBalanceAfter = currentBalance + receiveTotalPreview;
 
   const payTotalPreview =
     parseFloat(payPaymentData.cash_amount || 0) +
     parseFloat(payPaymentData.bank_amount || 0) +
     parseFloat(payPaymentData.discount || 0);
-  const payBalanceAfter = currentBalance + payTotalPreview;
+  const payBalanceAfter = currentBalance - payTotalPreview;
 
   const handleNewJournalEntry = () => {
     if (selectedCustomer) {
@@ -705,7 +705,7 @@ export default function FinancePage() {
 
         const bankAcc = bankAccounts.find(b => b.cus_id === parseInt(receivePaymentData.bank_account));
         const cashAcc = cashAccounts.find(c => c.cus_id === parseInt(receivePaymentData.cash_account));
-        const remainingBalance = previousBalance - totalAmount;
+        const remainingBalance = previousBalance + totalAmount;
 
         setPaymentReceiptData({
           type: 'RECEIVE',
@@ -788,7 +788,7 @@ export default function FinancePage() {
 
         const bankAcc = bankAccounts.find(b => b.cus_id === parseInt(payPaymentData.bank_account));
         const cashAcc = cashAccounts.find(c => c.cus_id === parseInt(payPaymentData.cash_account));
-        const remainingBalance = previousBalance + totalAmount;
+        const remainingBalance = previousBalance - totalAmount;
 
         setPaymentReceiptData({
           type: 'PAY',
@@ -846,16 +846,30 @@ export default function FinancePage() {
       const d = paymentReceiptData;
       const caption =
         d.type === 'PAY'
-          ? `OUT — Payment voucher PAY-${d.paymentId} — ${d.customer?.cus_name || ''}`
-          : `IN — Receipt voucher PAY-${d.paymentId} — ${d.customer?.cus_name || ''}`;
+          ? `Pay Amount — Payment voucher PAY-${d.paymentId} — ${d.customer?.cus_name || ''}`
+          : `Receive Amount — Receipt voucher PAY-${d.paymentId} — ${d.customer?.cus_name || ''}`;
+      const totalAmount = Number(d.totalAmount || 0);
+      const direction = d.type === 'PAY' ? 'PAY' : 'RECEIVE';
       const response = await fetch('/api/whatsapp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           imageBase64,
           phone: d.customer.cus_phone_no,
-          bill: { sale_id: d.paymentId, customer: d.customer },
+          bill: {
+            sale_id: d.paymentId,
+            customer: d.customer,
+            bill_type: d.type === 'PAY' ? 'FINANCE_OUT' : 'FINANCE_IN',
+            total_amount: totalAmount,
+          },
           caption,
+          templateKey: 'finance_receipt',
+          templateVariables: {
+            1: d.customer?.cus_name || 'Customer',
+            2: direction === 'PAY' ? 'Payment voucher (Pay Amount)' : 'Receipt voucher (Receive Amount)',
+            3: `PAY-${d.paymentId}`,
+            4: `PKR ${totalAmount.toLocaleString()} · ${d.date || new Date().toISOString().slice(0, 10)}`,
+          },
         }),
       });
       const result = await response.json();
@@ -1571,7 +1585,7 @@ export default function FinancePage() {
                           transition: 'all 0.2s'
                         }}
                       >
-                        In Amount
+                        Receive Amount
                       </Button>
                       <Button
                         variant="contained"
@@ -1595,7 +1609,7 @@ export default function FinancePage() {
                           transition: 'all 0.2s'
                         }}
                       >
-                        Out Amount
+                        Pay Amount
                       </Button>
                     </Box>
                   )}
@@ -2859,7 +2873,7 @@ export default function FinancePage() {
           px: 3,
           py: 2
         }}>
-          <Typography variant="h6" sx={{ fontWeight: 800 }}>IN AMOUNT</Typography>
+          <Typography variant="h6" sx={{ fontWeight: 800 }}>RECEIVE AMOUNT</Typography>
           <Typography variant="subtitle1" sx={{ fontWeight: 600, bgcolor: 'rgba(255,255,255,0.2)', px: 1.5, py: 0.5, borderRadius: 1 }}>
             Serial: #{ledgerEntries.length + 1}
           </Typography>
@@ -2890,10 +2904,10 @@ export default function FinancePage() {
             </Box>
             {receiveTotalPreview > 0 && (
               <Alert severity="info" sx={{ py: 0.5 }}>
-                <strong>After IN (receipt):</strong> account balance → PKR{' '}
+                <strong>After Receive Amount:</strong> account balance → PKR{' '}
                 {receiveBalanceAfter.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
                 <Typography component="span" variant="caption" display="block" color="text.secondary">
-                  IN applies a credit to this account (reduces the shown balance).
+                  Receive Amount credits the selected account (balance increases by the entered amount).
                 </Typography>
               </Alert>
             )}
@@ -3081,7 +3095,7 @@ export default function FinancePage() {
           px: 3,
           py: 2
         }}>
-          <Typography variant="h6" sx={{ fontWeight: 800 }}>OUT AMOUNT</Typography>
+          <Typography variant="h6" sx={{ fontWeight: 800 }}>PAY AMOUNT</Typography>
           <Typography variant="subtitle1" sx={{ fontWeight: 600, bgcolor: 'rgba(255,255,255,0.2)', px: 1.5, py: 0.5, borderRadius: 1 }}>
             Serial: #{ledgerEntries.length + 1}
           </Typography>
@@ -3112,10 +3126,10 @@ export default function FinancePage() {
             </Box>
             {payTotalPreview > 0 && (
               <Alert severity="info" sx={{ py: 0.5 }}>
-                <strong>After OUT (payment):</strong> account balance → PKR{' '}
+                <strong>After Pay Amount:</strong> account balance → PKR{' '}
                 {payBalanceAfter.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
                 <Typography component="span" variant="caption" display="block" color="text.secondary">
-                  OUT applies a debit to this account (increases the shown balance).
+                  Pay Amount debits the selected account (balance decreases by the entered amount).
                 </Typography>
               </Alert>
             )}

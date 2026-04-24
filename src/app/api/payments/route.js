@@ -158,10 +158,9 @@ export async function POST(request) {
       categoryMap[acc.cus_id] = acc.cus_category;
     });
 
-    // Bank (23) and Cash (24) are asset accounts — direction is opposite to customer/supplier
-    // PAY from bank = money OUT → CREDIT → balance decreases
-    // RECEIVE into bank = money IN → DEBIT → balance increases
-    // Customer/Supplier: always DEBIT → balance increases (debt reduces for both PAY and RECEIVE)
+    // Bank (23) and Cash (24) are asset accounts — same direction as customer/supplier now
+    // PAY (Pay Amount)    = money OUT → CREDIT → selected account balance decreases
+    // RECEIVE (Receive Amount) = money IN → DEBIT → selected account balance increases
     const BANK_CASH_CATEGORIES = [23, 24];
     const mainAccountIsBankOrCash = BANK_CASH_CATEGORIES.includes(categoryMap[parseInt(account_id)]);
 
@@ -252,10 +251,9 @@ export async function POST(request) {
         }
       const ledgerEntries = [];
 
-      // Main account ledger entry direction depends on account type and payment type:
-      // Bank/Cash account: PAY → CREDIT (money out); RECEIVE → DEBIT (money in)
-      // Customer/Supplier: PAY → CREDIT (we paid them, their balance/debt reduces)
-      //                    RECEIVE → CREDIT (they paid us, their balance/debt reduces)
+      // Main account ledger entry direction (same for all account types):
+      //   RECEIVE (Receive Amount) → DEBIT  → selected account balance increases
+      //   PAY     (Pay Amount)     → CREDIT → selected account balance decreases
       let mainDebitAmount = 0;
       let mainCreditAmount = 0;
       if (mainAccountIsBankOrCash) {
@@ -266,12 +264,12 @@ export async function POST(request) {
         }
       } else {
         // Customer/Supplier:
-        // RECEIVE (In Amount) → CREDIT → decreases balance (they paid us, debt reduces)
-        // PAY (Out Amount) → DEBIT → increases balance (we paid them, their credit increases)
+        // RECEIVE (Receive Amount) → DEBIT → increases balance of the selected account
+        // PAY (Pay Amount) → CREDIT → decreases balance of the selected account
         if (payment_type === 'RECEIVE') {
-          mainCreditAmount = parseFloat(total_amount);
-        } else {
           mainDebitAmount = parseFloat(total_amount);
+        } else {
+          mainCreditAmount = parseFloat(total_amount);
         }
       }
 
@@ -480,11 +478,11 @@ export async function DELETE(request) {
 
       let newBalance = parseFloat(currentCustomer.cus_balance || 0);
       if (payment.payment_type === 'RECEIVE') {
-        // RECEIVE (In Amount) added a CREDIT (decreased balance) → reverse by adding back
-        newBalance += parseFloat(payment.net_amount);
-      } else {
-        // PAY (Out Amount) added a DEBIT (increased balance) → reverse by subtracting
+        // RECEIVE (Receive Amount) added a DEBIT (increased balance) → reverse by subtracting
         newBalance -= parseFloat(payment.net_amount);
+      } else {
+        // PAY (Pay Amount) added a CREDIT (decreased balance) → reverse by adding back
+        newBalance += parseFloat(payment.net_amount);
       }
 
       await tx.customer.update({
