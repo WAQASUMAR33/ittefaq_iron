@@ -3086,7 +3086,14 @@ function OrdersPageContent() {
                           size="small"
                           type="number"
                           value={fmtAmt(paymentData.totalCashReceived)}
-                          sx={{ bgcolor: '#f5f5f5', '& .MuiInputBase-input': { padding: '8px' } }}
+                          sx={{
+                            bgcolor: '#f5f5f5',
+                            '& .MuiInputBase-input': { padding: '8px', color: '#000' },
+                            '& .MuiInputBase-input.Mui-disabled': {
+                              color: '#000',
+                              WebkitTextFillColor: '#000',
+                            },
+                          }}
                           disabled
                         />
                       </Box>
@@ -3131,7 +3138,15 @@ function OrdersPageContent() {
                       size="small"
                       type="number"
                       value={fmtAmt(calculateTotalAmount())}
-                      sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' }, flex: 1 }}
+                      sx={{
+                        bgcolor: 'white',
+                        flex: 1,
+                        '& .MuiInputBase-input': { padding: '8px', color: '#000' },
+                        '& .MuiInputBase-input.Mui-disabled': {
+                          color: '#000',
+                          WebkitTextFillColor: '#000',
+                        },
+                      }}
                       disabled
                       inputProps={{
                         readOnly: true
