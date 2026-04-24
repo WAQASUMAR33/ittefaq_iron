@@ -1636,7 +1636,12 @@ function SalesPageContent() {
           if (!n) return false;
           return n === 'transport' || n === 'transporter' || n === 'transporters';
         };
-        const isCargoLabel = (n) => n === 'cargo' || n === 'cargos';
+        /** Any field labeled Cargo excludes the account (avoids Cargo category + Transport type still appearing). */
+        const isCargoLabel = (n) => {
+          if (!n) return false;
+          if (n === 'cargo' || n === 'cargos') return true;
+          return n.split(/[\s/&,-]+/)[0] === 'cargo';
+        };
 
         const getCategoryTitle = (account) => {
           const emb = account.customer_category?.cus_cat_title;
@@ -1654,16 +1659,12 @@ function SalesPageContent() {
           return t?.cus_type_title ? norm(t.cus_type_title) : '';
         };
 
-        // Only Transport/Transporter on category or type; exclude Cargo unless the other field is already Transport
+        // Transport only: must have Transport/Transporter on category or type, and no Cargo on either field
         const transportAccountsData = accountsData.filter((account) => {
           const cat = getCategoryTitle(account);
           const typ = getTypeTitle(account);
-          const tCat = isTransportLabel(cat);
-          const tTyp = isTransportLabel(typ);
-          if (!tCat && !tTyp) return false;
-          if (isCargoLabel(cat) && !tTyp) return false;
-          if (isCargoLabel(typ) && !tCat) return false;
-          return true;
+          if (isCargoLabel(cat) || isCargoLabel(typ)) return false;
+          return isTransportLabel(cat) || isTransportLabel(typ);
         });
 
         // Batch state updates to avoid multiple re-renders
@@ -1690,12 +1691,12 @@ function SalesPageContent() {
     }
   };
 
-  // Update transport accounts when customers or categories change
+  // Update transport accounts when customers, categories, or types change (types required to resolve labels)
   useEffect(() => {
-    if (customers.length > 0 && customerCategories.length > 0 && !isRestoringScreen) {
+    if (customers.length > 0 && customerCategories.length > 0 && customerTypes.length > 0 && !isRestoringScreen) {
       fetchTransportAccounts(customers);
     }
-  }, [customers, customerCategories, isRestoringScreen]);
+  }, [customers, customerCategories, customerTypes, isRestoringScreen]);
 
   // Filter customers by category and type for bank accounts
   const filterBankAccountsByCategory = (customers, customerCategories, customerTypes) => {
