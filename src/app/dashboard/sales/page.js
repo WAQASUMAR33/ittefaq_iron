@@ -1627,17 +1627,24 @@ function SalesPageContent() {
           categoryMap.set(cat.cus_cat_id, cat.cus_cat_title.toLowerCase());
         });
 
-        // Filter accounts where category is "Transporter" - optimized
-        const transportAccountsData = accountsData.filter(account => {
-          const catTitle = categoryMap.get(account.cus_category);
-          if (catTitle) {
-            return catTitle.includes('transporter') || catTitle.includes('transport');
-          }
+        const norm = (s) => (s || '').trim().toLowerCase();
+        /** Category or type must be Transport/Transporter (not Cargo) */
+        const isTransportLabel = (label) => {
+          const n = norm(label);
+          return n === 'transport' || n === 'transporter' || n === 'transporters';
+        };
+        const getCategoryTitleLower = (account) => {
+          const fromMap = categoryMap.get(account.cus_category);
+          if (fromMap) return fromMap;
+          const c = customerCategories.find((cat) => cat.cus_cat_id === account.cus_category);
+          return c ? c.cus_cat_title.trim().toLowerCase() : '';
+        };
 
-          // Fallback to type or name if category not found
-          const typeTitle = (account.customer_type?.cus_type_title || '').toLowerCase();
-          const name = (account.cus_name || '').toLowerCase();
-          return typeTitle.includes('transport') || name.includes('transport');
+        // Transport dropdown: only accounts whose category or type is Transport/Transporter (exclude Cargo and loose name matches)
+        const transportAccountsData = accountsData.filter((account) => {
+          const catTitle = getCategoryTitleLower(account);
+          const typeTitle = (account.customer_type?.cus_type_title || '').trim().toLowerCase();
+          return isTransportLabel(catTitle) || isTransportLabel(typeTitle);
         });
 
         // Batch state updates to avoid multiple re-renders
