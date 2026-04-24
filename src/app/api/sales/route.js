@@ -949,14 +949,15 @@ export async function POST(request) {
           console.log(`\n💳 SKIPPING ADVANCE PAYMENT ENTRY: Loaded order with advance payment ${advancePaymentAmount} (already recorded in original order)`);
         }
 
-        // For ORDER type: skip customer account entry — only cash/bank account entries are created
-        if (totalPaymentForCustomer > 0 && !isOrder) {
+        // Customer account (credit) for all payments, including ORDERS — so advance/cash/bank show on the customer ledger
+        if (totalPaymentForCustomer > 0) {
           // Build payment description showing cash and bank breakdown
           const salePaymentParts = [];
           if (cashAmount > 0) salePaymentParts.push(`Cash: ${cashAmount}`);
           if (bankAmount > 0) salePaymentParts.push(`Bank (${bank_title || 'Bank Account'}): ${bankAmount}`);
           if (!actualIsLoadedOrder && advancePaymentAmount > 0) salePaymentParts.push(`Advance: ${advancePaymentAmount}`);
           const salePaymentDesc = salePaymentParts.length > 0 ? ` [${salePaymentParts.join(', ')}]` : '';
+          const billLabel = isOrder ? 'ORDER' : (bill_type || 'BILL');
 
           const paymentEntry = createLedgerEntry({
             cus_id,
@@ -965,7 +966,7 @@ export async function POST(request) {
             credit_amount: totalPaymentForCustomer,
             bill_no: sale.sale_id.toString(),
             trnx_type: 'SALE',
-            details: `Payment Received - ${bill_type || 'BILL'} - Customer Account (Credit)${salePaymentDesc}`,
+            details: `Payment Received - ${billLabel} - Customer Account (Credit)${salePaymentDesc}`,
             payments: totalPaymentForCustomer,
             cash_payment: cashAmount,
             bank_payment: bankAmount,
@@ -1019,7 +1020,7 @@ export async function POST(request) {
               credit_amount: 0,
               bill_no: sale.sale_id.toString(),
               trnx_type: 'BANK_TRANSFER',
-              details: `Payment Received - ${bill_type || 'BILL'} - ${customer?.cus_name || 'Customer'} - BANK Account: ${bankAccountToUse.cus_name} (Debit)`,
+              details: `Payment Received - ${isOrder ? 'ORDER' : (bill_type || 'BILL')} - ${customer?.cus_name || 'Customer'} - BANK Account: ${bankAccountToUse.cus_name} (Debit)`,
               payments: Number(parseFloat(bank_payment).toFixed(2)),
               cash_payment: 0,
               bank_payment: Number(parseFloat(bank_payment).toFixed(2)),  // Mark as bank payment
@@ -1044,7 +1045,7 @@ export async function POST(request) {
             credit_amount: 0,
             bill_no: sale.sale_id.toString(),
             trnx_type: 'CASH',
-            details: `Payment Received - ${bill_type || 'BILL'} - ${customer?.cus_name || 'Customer'} - CASH Account (Debit)`,
+            details: `Payment Received - ${isOrder ? 'ORDER' : (bill_type || 'BILL')} - ${customer?.cus_name || 'Customer'} - CASH Account (Debit)`,
             payments: Number(parseFloat(cash_payment).toFixed(2)),
             cash_payment: Number(parseFloat(cash_payment).toFixed(2)),  // Mark as cash payment
             bank_payment: 0,
@@ -1155,8 +1156,8 @@ export async function POST(request) {
 
           // Update customer balance to match the LAST customer ledger entry's closing balance
           // Find the LAST entry where cus_id matches the customer being invoiced
-          // For ORDER type: do not update customer balance (no debit/credit recorded against customer)
-          const customerLedgerEntries = !isOrder ? ledgerEntries.filter(e => e.cus_id === cus_id) : [];
+          // Use all customer (sale) ledger lines for this customer — including ORDER payment credits
+          const customerLedgerEntries = ledgerEntries.filter(e => e.cus_id === cus_id);
           if (customerLedgerEntries.length > 0) {
             const lastCustomerEntry = customerLedgerEntries[customerLedgerEntries.length - 1];
             const ledgerClosingBalance = parseFloat(lastCustomerEntry.closing_balance);

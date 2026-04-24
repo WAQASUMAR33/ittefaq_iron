@@ -153,6 +153,9 @@ export default function FinancePage() {
   // Purchase viewer state (opened when clicking the eye / Bill)
   const [viewingPurchase, setViewingPurchase] = useState(null);
   const [viewPurchaseDialogOpen, setViewPurchaseDialogOpen] = useState(false);
+  // Sale/Order/Quote invoice viewer (from ledger; numeric bill_no = sale_id)
+  const [viewingSale, setViewingSale] = useState(null);
+  const [viewSaleDialogOpen, setViewSaleDialogOpen] = useState(false);
 
   // Journal Form Data
   const [journalData, setJournalData] = useState({
@@ -260,6 +263,78 @@ export default function FinancePage() {
   };
 
   // Open purchase invoice (used by eye icon / Bill links)
+  const handleViewPaymentVoucher = async (paymentId) => {
+    if (!paymentId) return;
+    try {
+      const res = await fetch(`/api/payments?id=${paymentId}`);
+      if (!res.ok) {
+        console.warn('Payment not found:', paymentId);
+        return;
+      }
+      const p = await res.json();
+      const disc = parseFloat(p.discount_amount || 0);
+      const totalAmt = parseFloat(p.total_amount || 0);
+      const cashA = parseFloat(p.cash_amount || 0);
+      const bankA = parseFloat(p.bank_amount || 0);
+      const type = p.payment_type === 'PAY' ? 'PAY' : 'RECEIVE';
+      const acc = p.account;
+      // Approximate: prior balance and remaining at posting time are not stored
+      setPaymentReceiptData({
+        type,
+        viewOnly: true,
+        paymentId: p.payment_id,
+        date: p.payment_date ? new Date(p.payment_date).toLocaleDateString('en-GB') : '—',
+        time: p.created_at ? new Date(p.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : '—',
+        customer: acc,
+        previousBalance: null,
+        remainingBalance: null,
+        cashAmount: cashA,
+        bankAmount: bankA,
+        discountAmount: disc,
+        totalAmount: totalAmt,
+        bankAcc: p.bank_account,
+        cashAcc: p.cash_account,
+        description: p.description
+      });
+      setShowPaymentReceipt(true);
+    } catch (err) {
+      console.error('Error fetching payment for voucher view:', err);
+    }
+  };
+
+  const handleViewSale = async (saleId) => {
+    if (!saleId) return;
+    try {
+      const res = await fetch(`/api/sales?id=${saleId}`);
+      if (!res.ok) {
+        console.warn('Sale not found:', saleId);
+        return;
+      }
+      const sale = await res.json();
+      setViewingSale(sale);
+      setViewSaleDialogOpen(true);
+    } catch (err) {
+      console.error('Error fetching sale for viewer:', err);
+    }
+  };
+
+  const openDocumentFromLedgerEntry = (entry) => {
+    const ref = String(entry.bill_no || '');
+    if (!ref) return;
+    const payMatch = ref.match(/^PAY-(\d+)$/i);
+    if (payMatch) {
+      handleViewPaymentVoucher(parseInt(payMatch[1], 10));
+      return;
+    }
+    if (entry.trnx_type === 'PURCHASE' && /^\d+$/.test(ref)) {
+      handleViewPurchase(ref);
+      return;
+    }
+    if (/^\d+$/.test(ref)) {
+      handleViewSale(ref);
+    }
+  };
+
   const handleViewPurchase = async (billNo) => {
     if (!billNo) return;
     try {
@@ -1915,11 +1990,11 @@ export default function FinancePage() {
                                   {entry.details || 'General transaction'}
                                 </Typography>
 
-                                {(entry.bill_no && (entry.trnx_type === 'PURCHASE' || (/^\d+$/.test(String(entry.bill_no))))) && (
-                                  <Tooltip title="View invoice">
+                                {(entry.bill_no && (/^PAY-\d+$/i.test(String(entry.bill_no)) || entry.trnx_type === 'PURCHASE' || /^\d+$/.test(String(entry.bill_no)))) && (
+                                  <Tooltip title="View bill / sale / payment voucher">
                                     <IconButton
                                       size="small"
-                                      onClick={(e) => { e.stopPropagation(); handleViewPurchase(entry.bill_no); }}
+                                      onClick={(e) => { e.stopPropagation(); openDocumentFromLedgerEntry(entry); }}
                                       sx={{ p: 0.5 }}
                                     >
                                       <Eye size={14} />
@@ -3355,7 +3430,7 @@ export default function FinancePage() {
                 {/* Previous Balance */}
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1, borderBottom: '1px solid #eee', bgcolor: '#fafafa' }}>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>Previous Balance (سابقہ بقایا)</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{parseFloat(paymentReceiptData.previousBalance).toLocaleString('en-US', { minimumFractionDigits: 2 })}</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{paymentReceiptData.previousBalance == null ? '—' : parseFloat(paymentReceiptData.previousBalance).toLocaleString('en-US', { minimumFractionDigits: 2 })}</Typography>
                 </Box>
                 {paymentReceiptData.cashAmount > 0 && (
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1, borderBottom: '1px solid #eee' }}>
@@ -3384,8 +3459,8 @@ export default function FinancePage() {
                 {/* Remaining Balance */}
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1.5, bgcolor: '#1e293b' }}>
                   <Typography variant="body2" sx={{ fontWeight: 700, color: 'white' }}>Remaining Balance (کل بقایا)</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700, color: paymentReceiptData.remainingBalance > 0 ? '#fbbf24' : '#4ade80' }}>
-                    PKR {parseFloat(paymentReceiptData.remainingBalance).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: paymentReceiptData.remainingBalance == null ? '#e2e8f0' : (paymentReceiptData.remainingBalance > 0 ? '#fbbf24' : '#4ade80') }}>
+                    {paymentReceiptData.remainingBalance == null ? '—' : `PKR ${parseFloat(paymentReceiptData.remainingBalance).toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
                   </Typography>
                 </Box>
               </Box>
@@ -3423,7 +3498,7 @@ export default function FinancePage() {
             onClick={() => {
               if (!paymentReceiptData) return;
               const d = paymentReceiptData;
-              const fmt = (v) => parseFloat(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+              const fmt = (v) => (v == null || v === '' ? '—' : parseFloat(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
               const isRed = d.type === 'PAY';
               const accentColor = isRed ? '#ef4444' : '#16a34a';
 
@@ -3433,7 +3508,7 @@ export default function FinancePage() {
               if (d.bankAmount > 0) rows.push(`<tr><td style="padding:10px 14px;border-bottom:1px solid #e5e7eb">Bank${d.bankAcc ? ` (${d.bankAcc.cus_name})` : ''}</td><td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:right">${fmt(d.bankAmount)}</td></tr>`);
               if (d.discountAmount > 0) rows.push(`<tr><td style="padding:10px 14px;border-bottom:1px solid #e5e7eb">Discount</td><td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:right">${fmt(d.discountAmount)}</td></tr>`);
               rows.push(`<tr style="background:#f1f5f9"><td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-weight:700">Total Paid</td><td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:700">${fmt(d.totalAmount)}</td></tr>`);
-              rows.push(`<tr style="background:#1e293b"><td style="padding:12px 14px;color:white;font-weight:700">Remaining Balance (کل بقایا)</td><td style="padding:12px 14px;text-align:right;font-weight:700;color:${d.remainingBalance > 0 ? '#fbbf24' : '#4ade80'}">PKR ${fmt(d.remainingBalance)}</td></tr>`);
+              rows.push(`<tr style="background:#1e293b"><td style="padding:12px 14px;color:white;font-weight:700">Remaining Balance (کل بقایا)</td><td style="padding:12px 14px;text-align:right;font-weight:700;color:${d.remainingBalance == null ? '#e2e8f0' : (d.remainingBalance > 0 ? '#fbbf24' : '#4ade80')}">${d.remainingBalance == null ? '—' : `PKR ${fmt(d.remainingBalance)}`}</td></tr>`);
 
               const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Payment Receipt</title>
 <style>
@@ -3747,6 +3822,122 @@ export default function FinancePage() {
           <Button onClick={() => { setViewPurchaseDialogOpen(false); setViewingPurchase(null); }} sx={{ textTransform: 'none' }}>Close</Button>
           <Button startIcon={<Print />} onClick={() => handlePrintPurchaseReceipt('A4')} sx={{ textTransform: 'none' }}>Print A4</Button>
           <Button startIcon={<Print />} onClick={() => handlePrintPurchaseReceipt('THERMAL')} sx={{ textTransform: 'none' }}>Print Thermal</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Sale / Order / Bill invoice viewer (ledger eye → /api/sales?id=) */}
+      <Dialog
+        open={viewSaleDialogOpen}
+        onClose={() => { setViewSaleDialogOpen(false); setViewingSale(null); }}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 2, boxShadow: 3 } }}
+      >
+        <DialogTitle sx={{ bgcolor: 'secondary.main', color: 'white', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Receipt />
+          Sale {viewingSale?.bill_type ? `— ${viewingSale.bill_type}` : ''} #{viewingSale?.sale_id}
+        </DialogTitle>
+
+        <DialogContent sx={{ p: 2, bgcolor: '#f5f5f5', maxHeight: '80vh', overflow: 'auto' }}>
+          {viewingSale && (
+            <Box id="sale-invoice-ledger" sx={{ width: '100%', bgcolor: 'white', p: 3, mt: 2 }}>
+              <Box sx={{ textAlign: 'center', py: 2, borderBottom: '2px solid #000' }}>
+                <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1, fontFamily: 'Arial, sans-serif', direction: 'rtl' }}>
+                  اتفاق آئرن اینڈ سیمنٹ سٹور
+                </Typography>
+                <Typography variant="body2" sx={{ mb: 1, direction: 'rtl' }}>گجرات سرگودھا روڈ، پاہڑیانوالی</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, mt: 1 }}>
+                  {viewingSale.bill_type === 'ORDER' || viewingSale.bill_type === 'ORDER_TRASH' ? 'ORDER' : 'SALE INVOICE'}
+                </Typography>
+              </Box>
+
+              <Box sx={{ px: 3, py: 2, borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                <Box sx={{ flex: '1 1 50%', minWidth: 220 }}>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>Customer: <strong>{viewingSale.customer?.cus_name || 'N/A'}</strong></Typography>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>Phone: <strong>{viewingSale.customer?.cus_phone_no || 'N/A'}</strong></Typography>
+                </Box>
+                <Box sx={{ textAlign: 'right' }}>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>No: <strong>#{viewingSale.sale_id}</strong></Typography>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>Date: <strong>{viewingSale.created_at ? new Date(viewingSale.created_at).toLocaleString('en-GB') : '—'}</strong></Typography>
+                  <Typography variant="body2">Type: <strong>{viewingSale.bill_type || 'BILL'}</strong></Typography>
+                </Box>
+              </Box>
+
+              <Box sx={{ px: 3, py: 2 }}>
+                <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: '#5c6bc0' }}>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, border: '1px solid #bbb' }}>#</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, border: '1px solid #bbb' }}>Product</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, border: '1px solid #bbb' }} align="right">Qty</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, border: '1px solid #bbb' }} align="right">Rate</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, border: '1px solid #bbb' }} align="right">Amount</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {(viewingSale.sale_details && viewingSale.sale_details.length > 0) ? (
+                        viewingSale.sale_details.map((d, i) => (
+                          <TableRow key={d.sale_detail_id || i}>
+                            <TableCell sx={{ border: '1px solid #ddd' }}>{i + 1}</TableCell>
+                            <TableCell sx={{ border: '1px solid #ddd' }}>{d.product?.pro_title || d.pro_title || '—'}</TableCell>
+                            <TableCell sx={{ border: '1px solid #ddd' }} align="right">{d.qnty || 0}</TableCell>
+                            <TableCell sx={{ border: '1px solid #ddd' }} align="right">{fmtAmt(d.unit_rate || 0)}</TableCell>
+                            <TableCell sx={{ border: '1px solid #ddd' }} align="right">{fmtAmt(d.total_amount || 0)}</TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow><TableCell colSpan={5} align="center" sx={{ py: 2 }}>No line items</TableCell></TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+
+                <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', maxWidth: 400, ml: 'auto' }}>
+                  <Table size="small">
+                    <TableBody>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 'bold', border: '1px solid #ddd' }}>Products total</TableCell>
+                        <TableCell align="right" sx={{ border: '1px solid #ddd' }}>{fmtAmt(viewingSale.total_amount || 0)}</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 'bold', border: '1px solid #ddd' }}>Labour</TableCell>
+                        <TableCell align="right" sx={{ border: '1px solid #ddd' }}>{fmtAmt(viewingSale.labour_charges || 0)}</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 'bold', border: '1px solid #ddd' }}>Delivery / transport</TableCell>
+                        <TableCell align="right" sx={{ border: '1px solid #ddd' }}>{fmtAmt(viewingSale.shipping_amount || 0)}</TableCell>
+                      </TableRow>
+                      {parseFloat(viewingSale.discount || 0) > 0 && (
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 'bold', border: '1px solid #ddd' }}>Discount</TableCell>
+                          <TableCell align="right" sx={{ border: '1px solid #ddd' }}>-{fmtAmt(viewingSale.discount)}</TableCell>
+                        </TableRow>
+                      )}
+                      <TableRow sx={{ bgcolor: 'grey.100' }}>
+                        <TableCell sx={{ fontWeight: 'bold', border: '1px solid #ddd' }}>Payment (total)</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 'bold', border: '1px solid #ddd' }}>{fmtAmt(viewingSale.payment || 0)}</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 'bold', border: '1px solid #ddd' }}>Cash</TableCell>
+                        <TableCell align="right" sx={{ border: '1px solid #ddd' }}>{fmtAmt(viewingSale.cash_payment || 0)}</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 'bold', border: '1px solid #ddd' }}>Bank</TableCell>
+                        <TableCell align="right" sx={{ border: '1px solid #ddd' }}>{fmtAmt(viewingSale.bank_payment || 0)}</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+                {viewingSale.reference && (
+                  <Typography variant="body2" sx={{ mt: 2, color: 'text.secondary' }}>Notes: {viewingSale.reference}</Typography>
+                )}
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
+          <Button onClick={() => { setViewSaleDialogOpen(false); setViewingSale(null); }}>Close</Button>
         </DialogActions>
       </Dialog>
 
