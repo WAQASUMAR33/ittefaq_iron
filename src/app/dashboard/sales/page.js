@@ -1608,7 +1608,9 @@ function SalesPageContent() {
   }, [billType]);
 
   // Transport functions
-  const fetchTransportAccounts = async (providedCustomers = null) => {
+  /** @param {unknown} [categoriesForLookup] — pass fresh list from loadData to avoid empty state on first run */
+  /** @param {unknown} [typesForLookup] */
+  const fetchTransportAccounts = async (providedCustomers = null, categoriesForLookup, typesForLookup) => {
     try {
       let accountsData = providedCustomers;
 
@@ -1621,30 +1623,47 @@ function SalesPageContent() {
       }
 
       if (Array.isArray(accountsData)) {
-        // Create a category lookup map for faster filtering
+        const categorySource = Array.isArray(categoriesForLookup) ? categoriesForLookup : customerCategories;
+        const typeSource = Array.isArray(typesForLookup) ? typesForLookup : customerTypes;
+
         const categoryMap = new Map();
-        customerCategories.forEach(cat => {
-          categoryMap.set(cat.cus_cat_id, cat.cus_cat_title.toLowerCase());
+        categorySource.forEach((cat) => {
+          categoryMap.set(cat.cus_cat_id, (cat.cus_cat_title || '').trim().toLowerCase());
         });
 
         const norm = (s) => (s || '').trim().toLowerCase();
-        /** Category or type must be Transport/Transporter (not Cargo) */
-        const isTransportLabel = (label) => {
-          const n = norm(label);
+        const isTransportLabel = (n) => {
+          if (!n) return false;
           return n === 'transport' || n === 'transporter' || n === 'transporters';
         };
-        const getCategoryTitleLower = (account) => {
+        const isCargoLabel = (n) => n === 'cargo' || n === 'cargos';
+
+        const getCategoryTitle = (account) => {
+          const emb = account.customer_category?.cus_cat_title;
+          if (emb != null && String(emb).trim() !== '') return norm(emb);
           const fromMap = categoryMap.get(account.cus_category);
           if (fromMap) return fromMap;
-          const c = customerCategories.find((cat) => cat.cus_cat_id === account.cus_category);
-          return c ? c.cus_cat_title.trim().toLowerCase() : '';
+          const c = categorySource.find((x) => x.cus_cat_id === account.cus_category);
+          return c?.cus_cat_title ? norm(c.cus_cat_title) : '';
         };
 
-        // Transport dropdown: only accounts whose category or type is Transport/Transporter (exclude Cargo and loose name matches)
+        const getTypeTitle = (account) => {
+          const emb = account.customer_type?.cus_type_title;
+          if (emb != null && String(emb).trim() !== '') return norm(emb);
+          const t = typeSource.find((ty) => ty.cus_type_id === account.cus_type);
+          return t?.cus_type_title ? norm(t.cus_type_title) : '';
+        };
+
+        // Only Transport/Transporter on category or type; exclude Cargo unless the other field is already Transport
         const transportAccountsData = accountsData.filter((account) => {
-          const catTitle = getCategoryTitleLower(account);
-          const typeTitle = (account.customer_type?.cus_type_title || '').trim().toLowerCase();
-          return isTransportLabel(catTitle) || isTransportLabel(typeTitle);
+          const cat = getCategoryTitle(account);
+          const typ = getTypeTitle(account);
+          const tCat = isTransportLabel(cat);
+          const tTyp = isTransportLabel(typ);
+          if (!tCat && !tTyp) return false;
+          if (isCargoLabel(cat) && !tTyp) return false;
+          if (isCargoLabel(typ) && !tCat) return false;
+          return true;
         });
 
         // Batch state updates to avoid multiple re-renders
@@ -2057,12 +2076,16 @@ function SalesPageContent() {
         fetch('/api/subcategories')
       ]);
 
+      let customersArrayForRefetch = null;
+      let parsedCustomerCategories = null;
+      let parsedCustomerTypes = null;
+
       if (customersRes.ok) {
         const customersResponse = await customersRes.json();
         const customersData = customersResponse.value || customersResponse;
         const customersArray = Array.isArray(customersData) ? customersData : [];
+        customersArrayForRefetch = customersArray;
         setCustomers(customersArray);
-        fetchTransportAccounts(customersArray);
         fetchBankAccounts(customersArray);
       } else {
         console.error('❌ Customers API error:', customersRes.status);
@@ -2079,7 +2102,8 @@ function SalesPageContent() {
         const customerTypesResponse = await customerTypesRes.json();
         // Handle the API response format: {value: [...]}
         const customerTypesData = customerTypesResponse.value || customerTypesResponse;
-        setCustomerTypes(customerTypesData || []);
+        parsedCustomerTypes = Array.isArray(customerTypesData) ? customerTypesData : (customerTypesData || []);
+        setCustomerTypes(parsedCustomerTypes);
       } else {
         console.error('❌ Customer types API error:', customerTypesRes.status);
       }
@@ -2103,10 +2127,15 @@ function SalesPageContent() {
       }
       if (customerCategoriesRes.ok) {
         const customerCategoriesData = await customerCategoriesRes.json();
-        setCustomerCategories(customerCategoriesData || []);
+        parsedCustomerCategories = Array.isArray(customerCategoriesData) ? customerCategoriesData : (customerCategoriesData || []);
+        setCustomerCategories(parsedCustomerCategories);
       } else {
         console.error('❌ Customer categories API error:', customerCategoriesRes.status);
         setCustomerCategories([]);
+      }
+
+      if (customersArrayForRefetch && customersArrayForRefetch.length > 0) {
+        fetchTransportAccounts(customersArrayForRefetch, parsedCustomerCategories, parsedCustomerTypes);
       }
       if (citiesRes.ok) {
         const citiesData = await citiesRes.json();
