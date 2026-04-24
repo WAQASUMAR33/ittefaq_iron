@@ -457,9 +457,18 @@ export default function PurchaseReturnsPage() {
           imageBase64,
           bill: {
             ...returnItem,
-            customer
+            customer,
+            is_return: true,
+            bill_type: 'PURCHASE_RETURN',
           },
-          phone
+          phone,
+          templateKey: 'purchase_return_receipt',
+          templateVariables: {
+            1: customer?.cus_name || 'Supplier',
+            2: 'Purchase return receipt',
+            3: String(returnItem?.id || returnItem?.return_id || '—'),
+            4: `PKR ${Number(returnItem?.total_return_amount || 0).toLocaleString()} · ${new Date(returnItem?.return_date || Date.now()).toISOString().slice(0, 10)}`,
+          },
         })
       });
       const result = await response.json();

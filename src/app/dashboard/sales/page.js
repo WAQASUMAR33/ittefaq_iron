@@ -2170,13 +2170,24 @@ function SalesPageContent() {
       });
       const imageBase64 = canvas.toDataURL('image/png');
 
+      const isReturn = bill?.is_return || bill?.bill_type === 'SALE_RETURN';
+      const templateKey = isReturn ? 'sale_return_receipt' : 'sale_receipt';
+      const totalAmount = Number(bill?.total_amount || 0);
+      const today = new Date().toISOString().slice(0, 10);
       const response = await fetch('/api/whatsapp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           imageBase64,
           bill,
-          phone: customPhone || bill?.customer?.cus_phone_no
+          phone: customPhone || bill?.customer?.cus_phone_no,
+          templateKey,
+          templateVariables: {
+            1: bill?.customer?.cus_name || 'Customer',
+            2: isReturn ? 'Sale return receipt' : 'Sale receipt',
+            3: String(bill?.invoice_no || bill?.sale_id || '—'),
+            4: `PKR ${totalAmount.toLocaleString()} · ${today}`,
+          },
         })
       });
       const result = await response.json();

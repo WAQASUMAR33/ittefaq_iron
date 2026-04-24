@@ -536,6 +536,13 @@ export default function StockReport() {
           phone,
           caption,
           bill: { sale_id: `stock-${Date.now()}` },
+          templateKey: 'stock_report',
+          templateVariables: {
+            1: 'Manager',
+            2: 'Stock report',
+            3: activeTabLabel(),
+            4: new Date().toISOString().slice(0, 10),
+          },
         }),
       });
       const data = await res.json();

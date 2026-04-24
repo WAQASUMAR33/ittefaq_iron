@@ -450,13 +450,31 @@ function PurchasesPageContent() {
         logging: false
       });
       const imageBase64 = canvas.toDataURL('image/png');
+      const isReturn = bill?.is_return || bill?.bill_type === 'PURCHASE_RETURN';
+      const templateKey = isReturn ? 'purchase_return_receipt' : 'purchase_receipt';
+      const totalAmount = Number(bill?.total_amount || 0);
+      const counterpartyName =
+        bill?.supplier?.sup_name ||
+        bill?.customer?.cus_name ||
+        'Supplier';
+      const phoneToUse =
+        bill?.supplier?.sup_phone_no ||
+        bill?.customer?.cus_phone_no;
+      const today = new Date().toISOString().slice(0, 10);
       const response = await fetch('/api/whatsapp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           imageBase64,
           bill,
-          phone: bill?.customer?.cus_phone_no
+          phone: phoneToUse,
+          templateKey,
+          templateVariables: {
+            1: counterpartyName,
+            2: isReturn ? 'Purchase return receipt' : 'Purchase receipt',
+            3: String(bill?.invoice_no || bill?.sale_id || bill?.purchase_id || '—'),
+            4: `PKR ${totalAmount.toLocaleString()} · ${today}`,
+          },
         })
       });
       const result = await response.json();

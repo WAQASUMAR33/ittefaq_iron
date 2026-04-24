@@ -1948,13 +1948,22 @@ function OrdersPageContent() {
         logging: false
       });
       const imageBase64 = canvas.toDataURL('image/png');
+      const totalAmount = Number(bill?.total_amount || 0);
+      const today = new Date().toISOString().slice(0, 10);
       const response = await fetch('/api/whatsapp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           imageBase64,
           bill,
-          phone: bill?.customer?.cus_phone_no
+          phone: bill?.customer?.cus_phone_no,
+          templateKey: 'order_receipt',
+          templateVariables: {
+            1: bill?.customer?.cus_name || 'Customer',
+            2: 'Order receipt',
+            3: String(bill?.invoice_no || bill?.sale_id || '—'),
+            4: `PKR ${totalAmount.toLocaleString()} · ${today}`,
+          },
         })
       });
       const result = await response.json();

@@ -515,6 +515,13 @@ export default function StoreStockPage() {
           phone,
           caption,
           bill: { sale_id: `store-stock-${Date.now()}` },
+          templateKey: 'stock_report',
+          templateVariables: {
+            1: 'Manager',
+            2: 'Store stock report',
+            3: storeLabel,
+            4: `${filteredStoreStock.length} items · ${new Date().toISOString().slice(0, 10)}`,
+          },
         }),
       });
       const data = await res.json();

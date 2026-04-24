@@ -750,7 +750,15 @@ export default function CustomersPage() {
         body: JSON.stringify({
           imageBase64: pdfBase64,
           phone: whatsappPhone.trim(),
-          caption: `📋 Accounts List — Itefaq Iron & Cement Store\nTotal: ${filteredCustomers.length} accounts\nDate: ${new Date().toLocaleDateString()}`
+          caption: `📋 Accounts List — Itefaq Iron & Cement Store\nTotal: ${filteredCustomers.length} accounts\nDate: ${new Date().toLocaleDateString()}`,
+          bill: { sale_id: `customers-${Date.now()}` },
+          templateKey: 'customer_list',
+          templateVariables: {
+            1: 'Manager',
+            2: 'Accounts list',
+            3: `${filteredCustomers.length} accounts`,
+            4: new Date().toISOString().slice(0, 10),
+          },
         })
       });
       const data = await res.json();
