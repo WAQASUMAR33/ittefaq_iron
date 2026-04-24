@@ -581,16 +581,14 @@ function PurchasesPageContent() {
       setSuppliers(suppliers);
       setBankAccounts(bankAccounts);
 
-      // Compute cargo accounts — REQUIRE: category contains "transport" AND type contains "cargo"
+      // Compute cargo accounts — REQUIRE: customer type title equals "cargo"
       try {
-        const catMap = new Map(customerCategories.map(c => [c.cus_cat_id, (c.cus_cat_title || '').toLowerCase()]));
-        const typeMap = new Map(customerTypes.map(t => [t.cus_type_id, (t.cus_type_title || '').toLowerCase()]));
+        const typeMap = new Map(customerTypes.map(t => [t.cus_type_id, (t.cus_type_title || '').toLowerCase().trim()]));
         const cargo = customers.filter(cust => {
-          const catTitle = catMap.get(cust.cus_category) || '';
           const typeTitle = typeMap.get(cust.cus_type) || '';
-          return (catTitle.includes('transport') || catTitle.includes('transporter')) && typeTitle.includes('cargo');
+          return typeTitle === 'cargo';
         });
-        console.log(`🔍 Found ${cargo.length} cargo accounts (category contains 'transport' AND type contains 'cargo')`);
+        console.log(`🔍 Found ${cargo.length} cargo accounts (type === 'cargo')`);
         setCargoAccounts(cargo);
       } catch (err) {
         console.warn('Error computing cargo accounts', err);
