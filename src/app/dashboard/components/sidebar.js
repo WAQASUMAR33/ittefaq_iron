@@ -140,13 +140,21 @@ export default function Sidebar({
     { id: 'stores', name: 'Store Management', icon: StoreIcon, category: 'system', parent: 'System' },
     { id: 'store-stock', name: 'Store Stock', icon: InventoryIcon, category: 'system', parent: 'System' },
     { id: 'stock-transfer', name: 'Stock Transfer', icon: SwapHorizIcon, category: 'system', parent: 'System' },
-    { id: 'settings', name: 'Biometric Settings', icon: PersonIcon, category: 'system', parent: 'System' },
+    { id: 'settings', name: 'Biometric Settings', icon: PersonIcon, category: 'system', parent: 'System', adminOnly: true },
   ];
+
+  const roleName =
+    typeof user?.role === 'string'
+      ? user.role
+      : user?.role?.name || user?.role?.displayName || '';
+  const isAdmin = roleName === 'SUPER_ADMIN' || roleName === 'ADMIN';
+
+  const visibleMenuItems = menuItems.filter((item) => !item.adminOnly || isAdmin);
 
   const isSearching = searchQuery.trim().length > 0;
   const filteredItems = isSearching
-    ? menuItems.filter(item => item.name.toLowerCase().includes(searchQuery.toLowerCase()))
-    : menuItems;
+    ? visibleMenuItems.filter(item => item.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    : visibleMenuItems;
 
   const toggleDropdown = (category) => {
     setExpandedDropdowns(prev => ({
