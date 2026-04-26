@@ -972,8 +972,9 @@ export async function POST(request) {
         console.log(`Expected Final Balance: ${runningBalance + parseFloat(total_amount) - (eff_cash + eff_bank + parseFloat(advance_payment || 0))}`);
         console.log(`${'='.repeat(60)}\n`);
 
-        // For loaded orders, SKIP the bill entry (already created when order was made)
-        // For ORDER type, SKIP the debit entry — goods not yet dispatched, only advance payment matters
+        // ORDER: no full SALE debit (only payment credits). Regular BILL: full amount debit.
+        // Order → sale conversion: original ORDER never posted a full SALE debit; only the *remaining*
+        // (total not already prepaid on the order) should be debited here, so we don't double the bill.
         if (!actualIsLoadedOrder && !isOrder) {
           // Bill debit amount is the final amount (discount already applied)
           const debitAmount = parseFloat(total_amount);
@@ -1003,8 +1004,33 @@ export async function POST(request) {
           }
         } else if (isOrder) {
           console.log(`⏭️ SKIPPED: Debit entry for ORDER — only advance payment ledger will be created`);
-        } else {
-          console.log(`⏭️ SKIPPED: Bill entry creation for loaded order (already exists from original order)`);
+        } else if (actualIsLoadedOrder) {
+          const orderTotal = parseFloat(total_amount) || 0;
+          const orderPrepaid = Math.min(orderTotal, Math.max(0, parseFloat(advance_payment || 0) || 0));
+          const remainingForSale = Math.max(0, orderTotal - orderPrepaid);
+          if (remainingForSale > 0) {
+            let billDetails = `Sale Bill (order conversion) - ${bill_type || 'BILL'} - Customer Account (Debit) [order prepaid: ${orderPrepaid}]`;
+            if (parseFloat(discount || 0) > 0) {
+              billDetails += ` [Discount Applied: ${parseFloat(discount || 0)}]`;
+            }
+            const billEntry = createLedgerEntry({
+              cus_id,
+              opening_balance: runningBalance,
+              debit_amount: remainingForSale,
+              credit_amount: 0,
+              bill_no: sale.sale_id.toString(),
+              trnx_type: 'SALE',
+              details: billDetails,
+              payments: 0,
+              updated_by: validatedUpdatedBy
+            });
+            console.log(`📝 Bill Entry (order conversion, remaining only): Opening=${billEntry.opening_balance}, Debit=${billEntry.debit_amount}, Closing=${billEntry.closing_balance}`);
+            console.log(`   orderPrepaid=${orderPrepaid}, total_amount=${orderTotal}, remainingForSale=${remainingForSale}`);
+            ledgerEntries.push(billEntry);
+            runningBalance = billEntry.closing_balance;
+          } else {
+            console.log(`⏭️ SKIPPED: Sale debit (loaded order) — no remaining after order prepayment (total=${orderTotal}, prepaid=${orderPrepaid})`);
+          }
         }
 
         // 2. Single combined payment entry to Customer Account (cash + bank + advance together)

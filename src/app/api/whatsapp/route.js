@@ -25,16 +25,30 @@ import { v2 as cloudinary } from 'cloudinary';
 //   stock_report             → TWILIO_CONTENT_SID_STOCK_REPORT
 //   customer_list            → TWILIO_CONTENT_SID_CUSTOMER_LIST
 //
-// Template variable convention used by this API (configure your Twilio
-// templates to match):
-//   {{1}} = recipient / customer / supplier / user name
-//   {{2}} = reference number (invoice / order / payment id, or "—")
-//   {{3}} = amount or item count (human readable, e.g. "PKR 12,500" or "42 items")
-//   {{4}} = date (e.g. "2026-04-23")
+// Template variable convention (3-variable Media template — recommended):
+//   {{1}} = customer / counterparty name
+//   {{2}} = one line: "Flow label – ref <id> | PKR … · date" (or caption if no amount)
+//   {{3}} = receipt image URL (Media field only — set TWILIO_CONTENT_MEDIA_VAR=3)
 //
-// Templates should include a DOCUMENT (or IMAGE) header. We attach the
-// uploaded Cloudinary URL as `mediaUrl` on the message — Twilio accepts that
-// alongside `contentSid` and uses it to fill the template's media header.
+// Legacy 4th/5th variables: if TWILIO_CONTENT_MEDIA_VAR=4, amount text is copied to {{5}}.
+//
+// In LIVE mode, set `TWILIO_CONTENT_MEDIA_VAR` to the Media URL variable index.
+// Default is `3`. Set `TWILIO_CONTENT_MEDIA_VAR=` (empty) for text-only templates
+// that send the image in a follow-up message instead.
+//
+// In SANDBOX mode we still use `body` + `mediaUrl` (freeform).
+//
+// Media URL (Meta): do not use Media = `{{3}}` only — use a static prefix +
+//   https://res.cloudinary.com/CLOUD_NAME/image/upload/{{3}}?t=0
+// and this API sends {{3}} = path only (see `cloudinaryPathForMediaVariable`).
+// Set `TWILIO_WHATSAPP_MEDIA_PATH_ONLY=0` to pass the full URL in {{3}} (legacy).
+//
+// If your live template is **text only** (no `twilio/media` header variable),
+// variable `5` is ignored. We optionally send a **second** free-form message
+// with `mediaUrl` so the image still arrives in many cases (works best inside
+// the 24h user session). Set `TWILIO_WHATSAPP_DISABLE_IMAGE_FOLLOWUP=1` if you
+// use a template with a real dynamic media variable and the image is already
+// in the first message (avoids a duplicate image).
 
 const SANDBOX_FROM = 'whatsapp:+14155238886';
 
@@ -129,20 +143,32 @@ function buildDefaultVariables({ bill, caption, templateKey }) {
   const reference =
     bill?.invoice_no ||
     bill?.sale_id ||
+    bill?.return_id ||
     bill?.order_id ||
     bill?.payment_id ||
+    bill?.id ||
     '—';
-  const amountOrDetail =
-    bill?.total_amount != null
-      ? `PKR ${Number(bill.total_amount).toLocaleString()}`
-      : caption || '—';
   const date = new Date().toISOString().slice(0, 10);
+
+  const rawTotal =
+    bill?.total_amount != null && bill?.total_amount !== ''
+      ? bill.total_amount
+      : bill?.total_return_amount;
+
+  let amountOrDetail;
+  if (rawTotal != null && rawTotal !== '' && !Number.isNaN(Number(rawTotal))) {
+    amountOrDetail = `PKR ${Number(rawTotal).toLocaleString()}`;
+  } else if (caption) {
+    amountOrDetail = String(caption).replace(/\s+/g, ' ').trim().slice(0, 200);
+  } else {
+    amountOrDetail = '—';
+  }
+
+  const line2 = `${flowLabel} – ref ${String(reference)} | ${amountOrDetail} · ${date}`;
 
   return {
     1: String(customerName),
-    2: String(flowLabel),
-    3: String(reference),
-    4: `${amountOrDetail} · ${date}`,
+    2: String(line2),
   };
 }
 
@@ -153,6 +179,19 @@ function stringifyVariables(vars) {
     out[String(k)] = v == null ? '' : String(v);
   }
   return JSON.stringify(out);
+}
+
+/**
+ * Meta rejects Media URL fields that are only {{3}}. Twilio body must be like:
+ *   https://res.cloudinary.com/<cloud>/image/upload/{{3}}?t=0
+ * So variable {{3}} is only the path after /image/upload/ (not the full URL).
+ */
+function cloudinaryPathForMediaVariable(secureUrl) {
+  const s = String(secureUrl || '');
+  const marker = '/image/upload/';
+  const i = s.indexOf(marker);
+  if (i === -1) return s;
+  return s.slice(i + marker.length).split('?')[0] || s;
 }
 
 export async function POST(request) {
@@ -223,20 +262,22 @@ export async function POST(request) {
     const baseId = `receipt-${bill?.sale_id || Date.now()}`;
     const uploadOptions = {
       folder: 'ittefaq-receipts',
-      // For raw uploads, include the .pdf extension in the public_id so the
-      // resulting secure_url ends in `.pdf`. WhatsApp relies on the URL
-      // extension to determine media type for documents.
+      // PDF: include `.pdf` in public_id. PNG: use id *without* `.png` — adding
+      // `receipt-89.png` made Cloudinary emit URLs like `...receipt-89.png.png`.
       public_id: isPdf ? `${baseId}.pdf` : baseId,
       use_filename: false,
       unique_filename: false,
       overwrite: true,
-      resource_type: isPdf ? 'raw' : 'auto',
+      resource_type: isPdf ? 'raw' : 'image',
     };
 
     const uploadResult = await cloudinary.uploader.upload(sanitizedDataUri, uploadOptions);
     cloudinaryPublicId = uploadResult.public_id;
     cloudinaryResourceType = uploadResult.resource_type || (isPdf ? 'raw' : 'image');
-    const mediaUrl = uploadResult.secure_url;
+    let mediaUrl = uploadResult.secure_url;
+    if (typeof mediaUrl === 'string') {
+      mediaUrl = mediaUrl.replace(/\.png\.png/gi, '.png');
+    }
 
     const isReturn = bill?.is_return || bill?.bill_type === 'SALE_RETURN';
     const defaultCaption = isReturn
@@ -252,6 +293,8 @@ export async function POST(request) {
       ? { messagingServiceSid: MESSAGING_SERVICE_SID }
       : { from: FROM };
 
+    // Live: template variable for image URL (if any). Empty = all body vars stay text; image sent in 2nd message.
+    let mediaVarKey = '';
     let twilioPayload;
     if (mode === 'sandbox') {
       twilioPayload = {
@@ -280,10 +323,32 @@ export async function POST(request) {
         );
       }
 
-      // Always compute sane defaults; let caller overrides win per-key so a
-      // page can customise one variable without having to restate all four.
+      // Defaults: {{1}} name, {{2}} combined detail line. Caller may override 1–2.
       const defaults = buildDefaultVariables({ bill, caption, templateKey });
       const mergedVariables = { ...defaults, ...(rawTemplateVariables || {}) };
+      const rawMediaVar = process.env.TWILIO_CONTENT_MEDIA_VAR;
+      // Default `3` = third variable is the Media image URL (2 text + 1 image).
+      // Set env to empty string for text-only body + image follow-up message.
+      mediaVarKey =
+        rawMediaVar === undefined || rawMediaVar === null
+          ? '3'
+          : String(rawMediaVar).trim();
+      if (mediaVarKey === '4') {
+        const amountLine = mergedVariables['4'];
+        if (amountLine != null && String(amountLine).trim() !== '') {
+          mergedVariables['5'] = String(amountLine);
+        }
+      }
+      if (mediaVarKey) {
+        const usePathOnly =
+          process.env.TWILIO_WHATSAPP_MEDIA_PATH_ONLY !== '0' &&
+          process.env.TWILIO_WHATSAPP_MEDIA_PATH_ONLY !== 'false' &&
+          String(mediaUrl).includes('res.cloudinary.com') &&
+          String(mediaUrl).includes('/image/upload/');
+        mergedVariables[mediaVarKey] = usePathOnly
+          ? cloudinaryPathForMediaVariable(mediaUrl)
+          : String(mediaUrl);
+      }
       const templateVariables = stringifyVariables(mergedVariables);
 
       twilioPayload = {
@@ -291,10 +356,6 @@ export async function POST(request) {
         to: formattedTo,
         contentSid,
         contentVariables: templateVariables,
-        // Still attach the media URL so templates with a media header resolve
-        // to the uploaded file. Twilio ignores this if the template has no
-        // media header.
-        mediaUrl: [mediaUrl],
       };
 
       console.log(
@@ -302,6 +363,8 @@ export async function POST(request) {
         templateKey,
         '| contentSid:',
         contentSid,
+        '| mediaVarKey:',
+        mediaVarKey || '(none — no image variable)',
         '| vars:',
         templateVariables
       );
@@ -323,6 +386,57 @@ export async function POST(request) {
       result.errorMessage
     );
 
+    // Live: text-only templates have no image in the first (template) message.
+    // A follow-up with `mediaUrl` delivers the receipt image. If you bind the
+    // image in the template via `TWILIO_CONTENT_MEDIA_VAR`, do not send a
+    // duplicate (unless you force; see `TWILIO_WHATSAPP_FORCE_IMAGE_FOLLOWUP`).
+    let imageFollowUpSid = null;
+    let imageFollowUpError = null;
+    const followUpDisabled =
+      process.env.TWILIO_WHATSAPP_DISABLE_IMAGE_FOLLOWUP === '1' ||
+      process.env.TWILIO_WHATSAPP_DISABLE_IMAGE_FOLLOWUP === 'true';
+    const followUpOverride =
+      process.env.TWILIO_WHATSAPP_FORCE_IMAGE_FOLLOWUP === '1' ||
+      process.env.TWILIO_WHATSAPP_FORCE_IMAGE_FOLLOWUP === 'true';
+    const shouldSendImageFollowup =
+      mode === 'live' &&
+      !followUpDisabled &&
+      (!mediaVarKey || followUpOverride);
+    if (shouldSendImageFollowup) {
+      const followUpBody = (
+        (process.env.TWILIO_WHATSAPP_IMAGE_CAPTION || '').trim() ||
+        'Receipt'
+      ).slice(0, 1600);
+      const delayMs = Math.min(
+        10000,
+        Math.max(0, parseInt(process.env.TWILIO_WHATSAPP_FOLLOWUP_DELAY_MS || '800', 10) || 0)
+      );
+      if (delayMs > 0) {
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+      try {
+        const imgMsg = await client.messages.create({
+          ...senderFields,
+          to: formattedTo,
+          body: followUpBody,
+          mediaUrl: [mediaUrl],
+        });
+        imageFollowUpSid = imgMsg.sid;
+        console.log(
+          '✅ Image follow-up SID:',
+          imgMsg.sid,
+          '| Status:',
+          imgMsg.status
+        );
+      } catch (followErr) {
+        imageFollowUpError = followErr.message || String(followErr);
+        console.warn(
+          '⚠️ WhatsApp image follow-up failed (template media var, or outside 24h session):',
+          imageFollowUpError
+        );
+      }
+    }
+
     // Delete from Cloudinary after 5 minutes
     setTimeout(async () => {
       try {
@@ -340,6 +454,12 @@ export async function POST(request) {
       to: formattedTo,
       status: result.status,
       mode,
+      imageFollowUpSid: imageFollowUpSid || null,
+      imageFollowUpError: imageFollowUpError || null,
+      ...(mode === 'live' && {
+        contentTemplateNote:
+          'Use a 3-variable Media template: {{1}} name, {{2}} detail line, {{3}} image URL in the Media field only. Set TWILIO_CONTENT_MEDIA_VAR=3 (default) or empty for text + follow-up image.',
+      }),
     });
   } catch (error) {
     console.error('❌ WhatsApp send error:', error);

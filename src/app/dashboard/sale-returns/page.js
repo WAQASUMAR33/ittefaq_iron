@@ -713,12 +713,6 @@ export default function SaleReturnsPage() {
           },
           phone,
           templateKey: 'sale_return_receipt',
-          templateVariables: {
-            1: customer?.cus_name || 'Customer',
-            2: 'Sale return receipt',
-            3: String(returnItem?.return_id || '—'),
-            4: `PKR ${Number(returnItem?.total_amount || 0).toLocaleString()} · ${new Date(returnItem?.return_date || Date.now()).toISOString().slice(0, 10)}`,
-          },
         })
       });
       const result = await response.json();

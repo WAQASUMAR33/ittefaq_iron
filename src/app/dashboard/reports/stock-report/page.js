@@ -539,9 +539,7 @@ export default function StockReport() {
           templateKey: 'stock_report',
           templateVariables: {
             1: 'Manager',
-            2: 'Stock report',
-            3: activeTabLabel(),
-            4: new Date().toISOString().slice(0, 10),
+            2: `Stock report – ref ${activeTabLabel()} | ${new Date().toISOString().slice(0, 10)}`,
           },
         }),
       });

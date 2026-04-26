@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect, Fragment, useMemo } from 'react';
 import {
   Plus,
   Edit,
@@ -75,6 +75,45 @@ const fmtAmt = (val) => {
   if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
+
+/** Bank / Cash display amounts for a ledger row — must match the table body logic (finance ledger columns). */
+function getLedgerEntryBankCashForSummary(entry) {
+  const isDebit = parseFloat(entry.debit_amount) > 0;
+  const isCredit = parseFloat(entry.credit_amount) > 0;
+  const entryAmount = isDebit ? entry.debit_amount : entry.credit_amount;
+
+  let splitCashAmount = 0;
+  let splitBankAmount = 0;
+  let isSplitPayment = false;
+  if (entry.details) {
+    const splitMatch = entry.details.match(/\{\s*cash_amount:\s*([\d.]+),\s*bank_amount:\s*([\d.]+)\s*\}/);
+    if (splitMatch) {
+      splitCashAmount = parseFloat(splitMatch[1]);
+      splitBankAmount = parseFloat(splitMatch[2]);
+      isSplitPayment = true;
+    }
+  }
+  let bankAmount = parseFloat(entry.bank_payment || 0);
+  let cashAmount = parseFloat(entry.cash_payment || 0);
+  const isLabourOrDeliveryAccount =
+    /(labour|delivery|transport)/i.test(entry.customer?.cus_name || '') || /incity \(own\)/i.test(entry.details || '');
+
+  if (bankAmount === 0 && cashAmount === 0) {
+    if (isSplitPayment) {
+      bankAmount = splitBankAmount;
+      cashAmount = splitCashAmount;
+    } else if (!isLabourOrDeliveryAccount) {
+      if (entry.trnx_type === 'BANK_TRANSFER' || entry.trnx_type === 'CHEQUE') {
+        bankAmount = parseFloat(entryAmount || 0);
+        cashAmount = 0;
+      } else if (entry.trnx_type === 'CASH') {
+        bankAmount = 0;
+        cashAmount = parseFloat(entryAmount || 0);
+      }
+    }
+  }
+  return { bankAmount, cashAmount };
+}
 
 /** Auto description for Receive / Pay payment modals: title, account, cash, bank+name, discount */
 const buildFinancePaymentDescription = (mode, accountName, cashAmount, bankAmount, bankAccountId, bankAccountsList, discountAmount) => {
@@ -506,6 +545,24 @@ export default function FinancePage() {
     ...entry,
     sequentialId: index + 1
   }));
+
+  // Footer totals: same bank/cash rules as each row; balance = last visible row (matches BALANCE column)
+  const ledgerViewSummary = useMemo(() => {
+    let totalBank = 0;
+    let totalCash = 0;
+    for (const entry of finalLedgerEntries) {
+      const { bankAmount, cashAmount } = getLedgerEntryBankCashForSummary(entry);
+      totalBank += bankAmount;
+      totalCash += cashAmount;
+    }
+    // Closing balance: use the chronologically latest row in the current view (not the bottom table row, which depends on sort)
+    const byTime = [...finalLedgerEntries].sort(
+      (a, b) => new Date(a.created_at) - new Date(b.created_at)
+    );
+    const lastClosing =
+      byTime.length > 0 ? parseFloat(byTime[byTime.length - 1].closing_balance || 0) : 0;
+    return { totalBank, totalCash, lastClosing };
+  }, [finalLedgerEntries]);
 
   // Stats calculations - use filtered entries for accuracy when filters are applied
   const statsEntries = (selectedCustomer || searchTerm || selectedCategory || selectedSubCategory)
@@ -941,9 +998,7 @@ export default function FinancePage() {
           templateKey: 'finance_receipt',
           templateVariables: {
             1: d.customer?.cus_name || 'Customer',
-            2: direction === 'PAY' ? 'Payment voucher (Pay Amount)' : 'Receipt voucher (Receive Amount)',
-            3: `PAY-${d.paymentId}`,
-            4: `PKR ${totalAmount.toLocaleString()} · ${d.date || new Date().toISOString().slice(0, 10)}`,
+            2: `${direction === 'PAY' ? 'Payment voucher (Pay Amount)' : 'Receipt voucher (Receive Amount)'} – ref PAY-${d.paymentId} | PKR ${totalAmount.toLocaleString()} · ${d.date || new Date().toISOString().slice(0, 10)}`,
           },
         }),
       });
@@ -2134,65 +2189,59 @@ export default function FinancePage() {
                         );
                       })}
                       <TableRow sx={{ bgcolor: '#f9fafb', borderTop: 2, borderColor: '#374151' }}>
-                        <TableCell colSpan={4} sx={{ borderRight: 1, borderColor: '#e5e7eb', bgcolor: '#1f2937' }}>
+                        <TableCell colSpan={5} sx={{ borderRight: 1, borderColor: '#e5e7eb', bgcolor: '#1f2937' }}>
                           <Typography variant="h6" sx={{ fontWeight: 700, textAlign: 'center', color: 'white' }}>
                             TOTAL SUMMARY
                           </Typography>
                         </TableCell>
                         <TableCell sx={{ borderRight: 1, borderColor: '#e5e7eb', textAlign: 'right', bgcolor: '#f0f9ff' }}>
                           <Typography variant="body2" sx={{ fontWeight: 800, color: '#16a34a', fontFamily: 'monospace', fontSize: '1rem' }}>
-                            {finalLedgerEntries.reduce((sum, entry) => {
-                              let amount = 0;
-                              // Check for split payment in details first
-                              if (entry.details) {
-                                const splitMatch = entry.details.match(/\{\s*cash_amount:\s*([\d.]+),\s*bank_amount:\s*([\d.]+)\s*\}/);
-                                if (splitMatch) {
-                                  // This is a split payment, use bank amount
-                                  amount = parseFloat(splitMatch[2]) || 0;
-                                  return sum + amount;
-                                }
-                              }
-                              // Otherwise use trnx_type logic
-                              if (entry.trnx_type === 'BANK_TRANSFER' || entry.trnx_type === 'CHEQUE') {
-                                amount = parseFloat(entry.debit_amount || 0) + parseFloat(entry.credit_amount || 0);
-                              }
-                              return sum + amount;
-                            }, 0).toLocaleString('en-PK', {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2
-                            })}
+                            {finalLedgerEntries.length > 0
+                              ? ledgerViewSummary.totalBank.toLocaleString('en-PK', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2
+                                })
+                              : '—'}
                           </Typography>
                         </TableCell>
                         <TableCell sx={{ borderRight: 1, borderColor: '#e5e7eb', textAlign: 'right', bgcolor: '#fef2f2' }}>
                           <Typography variant="body2" sx={{ fontWeight: 800, color: '#dc2626', fontFamily: 'monospace', fontSize: '1rem' }}>
-                            {finalLedgerEntries.reduce((sum, entry) => {
-                              let amount = 0;
-                              // Check for split payment in details first
-                              if (entry.details) {
-                                const splitMatch = entry.details.match(/\{\s*cash_amount:\s*([\d.]+),\s*bank_amount:\s*([\d.]+)\s*\}/);
-                                if (splitMatch) {
-                                  // This is a split payment, use cash amount
-                                  amount = parseFloat(splitMatch[1]) || 0;
-                                  return sum + amount;
-                                }
-                              }
-                              // Otherwise use trnx_type logic
-                              if (entry.trnx_type === 'CASH') {
-                                amount = parseFloat(entry.debit_amount || 0) + parseFloat(entry.credit_amount || 0);
-                              }
-                              return sum + amount;
-                            }, 0).toLocaleString('en-PK', {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2
-                            })}
+                            {finalLedgerEntries.length > 0
+                              ? ledgerViewSummary.totalCash.toLocaleString('en-PK', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2
+                                })
+                              : '—'}
                           </Typography>
                         </TableCell>
                         <TableCell sx={{ textAlign: 'right', bgcolor: '#e0ffe0' }}>
-                          <Typography variant="body2" sx={{ fontWeight: 800, fontFamily: 'monospace', color: '#111827', fontSize: '1rem' }}>
-                            {currentBalance.toLocaleString('en-PK', {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2
-                            })}
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontWeight: 800,
+                              fontFamily: 'monospace',
+                              color: finalLedgerEntries.length
+                                ? ledgerViewSummary.lastClosing >= 0
+                                  ? '#16a34a'
+                                  : '#dc2626'
+                                : '#111827',
+                              fontSize: '1rem',
+                              bgcolor: finalLedgerEntries.length
+                                ? ledgerViewSummary.lastClosing >= 0
+                                  ? '#e0ffe0'
+                                  : '#ffcccc'
+                                : 'transparent',
+                              px: 1,
+                              py: 0.5,
+                              borderRadius: 1
+                            }}
+                          >
+                            {finalLedgerEntries.length > 0
+                              ? ledgerViewSummary.lastClosing.toLocaleString('en-PK', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2
+                                })
+                              : '—'}
                           </Typography>
                         </TableCell>
                       </TableRow>

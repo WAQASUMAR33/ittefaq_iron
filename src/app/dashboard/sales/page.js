@@ -2201,26 +2201,87 @@ function SalesPageContent() {
     try {
       setIsSendingWhatsApp(true);
 
-      // Capture the receipt preview div as an image
+      // Capture the compact receipt (summary image), not the full on-screen A4 with line items.
+      // MUI Dialog uses transforms; off-screen / fixed nodes often become 0×0 to html2canvas.
+      // Clone to document.body, capture, remove — same pattern as reliable receipt exports.
       const html2canvas = (await import('html2canvas')).default;
-      const receiptEl = document.getElementById('receipt-preview');
-      if (!receiptEl) {
+      const sourceEl =
+        document.getElementById('receipt-whatsapp-capture') ||
+        document.getElementById('receipt-preview');
+      if (!sourceEl) {
         showSnackbar('❌ Receipt preview not found', 'error');
         return;
       }
 
-      const canvas = await html2canvas(receiptEl, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false
-      });
+      const w = Math.max(
+        sourceEl.offsetWidth || 0,
+        sourceEl.scrollWidth || 0,
+        302
+      );
+      const h = Math.max(
+        sourceEl.offsetHeight || 0,
+        sourceEl.scrollHeight || 0,
+        1
+      );
+      const rect = sourceEl.getBoundingClientRect();
+      const needsClone =
+        sourceEl.id === 'receipt-whatsapp-capture' || rect.width < 4 || rect.height < 4;
+
+      let canvas;
+      if (needsClone) {
+        const clone = sourceEl.cloneNode(true);
+        clone.removeAttribute('id');
+        clone.setAttribute('data-receipt-capture', '1');
+        const cloneH = Math.max(h, 200);
+        Object.assign(clone.style, {
+          position: 'fixed',
+          left: '0',
+          top: '0',
+          zIndex: '2147483647',
+          width: `${w}px`,
+          minHeight: `${cloneH}px`,
+          maxWidth: '400px',
+          backgroundColor: '#ffffff',
+          boxSizing: 'border-box',
+        });
+        document.body.appendChild(clone);
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        try {
+          await new Promise((r) => setTimeout(r, 50));
+          canvas = await html2canvas(clone, {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: '#ffffff',
+            logging: false,
+          });
+        } finally {
+          if (clone.parentNode) {
+            clone.parentNode.removeChild(clone);
+          }
+        }
+      } else {
+        canvas = await html2canvas(sourceEl, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+        });
+      }
+      if (!canvas || canvas.width < 2 || canvas.height < 2) {
+        const fallback = document.getElementById('receipt-preview');
+        if (fallback) {
+          canvas = await html2canvas(fallback, {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: '#ffffff',
+            logging: false,
+          });
+        }
+      }
       const imageBase64 = canvas.toDataURL('image/png');
 
       const isReturn = bill?.is_return || bill?.bill_type === 'SALE_RETURN';
       const templateKey = isReturn ? 'sale_return_receipt' : 'sale_receipt';
-      const totalAmount = Number(bill?.total_amount || 0);
-      const today = new Date().toISOString().slice(0, 10);
       const response = await fetch('/api/whatsapp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2229,12 +2290,6 @@ function SalesPageContent() {
           bill,
           phone: customPhone || bill?.customer?.cus_phone_no,
           templateKey,
-          templateVariables: {
-            1: bill?.customer?.cus_name || 'Customer',
-            2: isReturn ? 'Sale return receipt' : 'Sale receipt',
-            3: String(bill?.invoice_no || bill?.sale_id || '—'),
-            4: `PKR ${totalAmount.toLocaleString()} · ${today}`,
-          },
         })
       });
       const result = await response.json();
@@ -5308,6 +5363,141 @@ function SalesPageContent() {
           </DialogTitle>
           <DialogContent sx={{ p: 0, bgcolor: 'white' }}>
             {currentBillData && (
+              <>
+                {/* Off-screen: WhatsApp image = receipt-style summary (no product line list) */}
+                <Box
+                  id="receipt-whatsapp-capture"
+                  aria-hidden
+                  sx={{
+                    // Kept off-screen; capture uses clone to document.body in handleSendWhatsApp.
+                    position: 'fixed',
+                    left: '-10000px',
+                    top: 0,
+                    width: '80mm',
+                    minWidth: 302,
+                    maxWidth: 360,
+                    bgcolor: '#ffffff',
+                    p: 1.25,
+                    fontFamily: 'Arial, sans-serif',
+                    boxSizing: 'border-box',
+                    color: '#000',
+                  }}
+                >
+                  <Box sx={{ textAlign: 'center', pb: 1, borderBottom: '1px solid #000' }}>
+                    <Typography sx={{ fontSize: '12px', fontWeight: 'bold' }}>اتفاق آئرن اینڈ سیمنٹ سٹور</Typography>
+                    <Typography sx={{ fontSize: '10px' }}>گجرات سرگودھا روڈ، پاہڑیانوالی</Typography>
+                    <Typography sx={{ fontSize: '10px' }}>Ph: 0346-7560306, 0300-7560306</Typography>
+                    <Typography
+                      sx={{
+                        mt: 0.5,
+                        fontSize: '11px',
+                        fontWeight: 'bold',
+                        color: currentBillData?.is_return ? '#c62828' : '#000',
+                      }}
+                    >
+                      {currentBillData?.is_return ? 'SALE RETURN' : 'SALE RECEIPT'}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ py: 1 }}>
+                    <Typography sx={{ fontSize: '10px' }}>Inv#: #{currentBillData.sale_id || currentBillData?.return_id}</Typography>
+                    <Typography sx={{ fontSize: '10px' }}>Type: {currentBillData.bill_type || 'BILL'}</Typography>
+                    <Typography sx={{ fontSize: '10px' }}>
+                      Date: {new Date(currentBillData.created_at).toLocaleDateString('en-GB')}
+                    </Typography>
+                    <Typography sx={{ fontSize: '10px' }}>
+                      Time:{' '}
+                      {new Date(currentBillData.created_at).toLocaleTimeString('en-US', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: true,
+                      })}
+                    </Typography>
+                    <Typography sx={{ fontSize: '10px' }}>Cust: {currentBillData.customer?.cus_name || 'N/A'}</Typography>
+                  </Box>
+                  <Box
+                    sx={{
+                      borderTop: '1px dashed #000',
+                      borderBottom: '1px dashed #000',
+                      py: 0.75,
+                      textAlign: 'center',
+                    }}
+                  >
+                    <Typography sx={{ fontSize: '10px' }}>
+                      {currentBillData?.is_return ? 'Return lines' : 'Line items'}:{' '}
+                      {Array.isArray(currentBillData.sale_details) ? currentBillData.sale_details.length : 0}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ pt: 1 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography sx={{ fontSize: '10px' }}>Subtotal</Typography>
+                      <Typography sx={{ fontSize: '10px' }}>
+                        {fmtAmt(
+                          parseFloat(currentBillData.total_amount || 0) -
+                            parseFloat(currentBillData.labour_charges || currentBillData.labour || 0) -
+                            parseFloat(currentBillData.shipping_amount || 0) +
+                            parseFloat(currentBillData.discount || 0)
+                        )}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography sx={{ fontSize: '10px' }}>Discount</Typography>
+                      <Typography sx={{ fontSize: '10px' }}>{fmtAmt(currentBillData.discount)}</Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography sx={{ fontSize: '10px' }}>Shipping</Typography>
+                      <Typography sx={{ fontSize: '10px' }}>{fmtAmt(currentBillData.shipping_amount)}</Typography>
+                    </Box>
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        fontWeight: 'bold',
+                        borderTop: '1px dashed #000',
+                        mt: 0.5,
+                        pt: 0.5,
+                      }}
+                    >
+                      <Typography sx={{ fontSize: '11px' }}>Grand Total</Typography>
+                      <Typography sx={{ fontSize: '11px' }}>{fmtAmt(currentBillData.total_amount)}</Typography>
+                    </Box>
+                    {parseFloat(currentBillData.cash_payment || 0) > 0 && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography sx={{ fontSize: '10px' }}>Cash Payment</Typography>
+                        <Typography sx={{ fontSize: '10px' }}>{fmtAmt(currentBillData.cash_payment)}</Typography>
+                      </Box>
+                    )}
+                    {parseFloat(currentBillData.bank_payment || 0) > 0 && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography sx={{ fontSize: '10px' }}>
+                          Bank ({currentBillData.bank_title || 'Bank'})
+                        </Typography>
+                        <Typography sx={{ fontSize: '10px' }}>{fmtAmt(currentBillData.bank_payment)}</Typography>
+                      </Box>
+                    )}
+                    {parseFloat(currentBillData.advance_payment || 0) > 0 && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography sx={{ fontSize: '10px' }}>Advance</Typography>
+                        <Typography sx={{ fontSize: '10px' }}>{fmtAmt(currentBillData.advance_payment)}</Typography>
+                      </Box>
+                    )}
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
+                      <Typography sx={{ fontSize: '10px' }}>Total Paid</Typography>
+                      <Typography sx={{ fontSize: '10px' }}>{fmtAmt(currentBillData.payment)}</Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography sx={{ fontSize: '10px' }}>Balance</Typography>
+                      <Typography sx={{ fontSize: '10px' }}>
+                        {fmtAmt(
+                          parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)
+                        )}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Box sx={{ textAlign: 'center', borderTop: '1px solid #000', mt: 1, pt: 1 }}>
+                    <Typography sx={{ fontSize: '9px' }}>Thank you for your business!</Typography>
+                  </Box>
+                </Box>
+
               <Box id="receipt-preview" sx={{ width: '100%', bgcolor: 'white', p: 3 }}>
                 {/* Company Header */}
                 <Box sx={{ textAlign: 'center', py: 2, borderBottom: '2px solid #000' }}>
@@ -5641,6 +5831,7 @@ function SalesPageContent() {
                   </Box>
                 </Box>
               </Box>
+              </>
             )}
           </DialogContent>
           <DialogActions sx={{ p: 3, bgcolor: 'grey.50', borderTop: '1px solid #e0e0e0' }} className="no-print">

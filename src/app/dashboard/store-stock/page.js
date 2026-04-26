@@ -518,9 +518,7 @@ export default function StoreStockPage() {
           templateKey: 'stock_report',
           templateVariables: {
             1: 'Manager',
-            2: 'Store stock report',
-            3: storeLabel,
-            4: `${filteredStoreStock.length} items · ${new Date().toISOString().slice(0, 10)}`,
+            2: `Store stock report – ref ${storeLabel} | ${filteredStoreStock.length} items · ${new Date().toISOString().slice(0, 10)}`,
           },
         }),
       });

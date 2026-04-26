@@ -1359,6 +1359,7 @@ async function getItemSaleReport(startDate, endDate, proId) {
       purchaseQty: parseFloat(d.qnty || 0),
       purchaseReturnQty: 0,
       saleQty: 0,
+      orderQty: 0,
       saleReturnQty: 0,
       amount: parseFloat(d.net_total || 0),
     });
@@ -1375,6 +1376,7 @@ async function getItemSaleReport(startDate, endDate, proId) {
       purchaseQty: 0,
       purchaseReturnQty: parseFloat(d.return_quantity || 0),
       saleQty: 0,
+      orderQty: 0,
       saleReturnQty: 0,
       amount: parseFloat(d.return_amount || 0),
     });
@@ -1392,12 +1394,17 @@ async function getItemSaleReport(startDate, endDate, proId) {
       purchaseQty: 0,
       purchaseReturnQty: parseFloat(d.qnty || 0),
       saleQty: 0,
+      orderQty: 0,
       saleReturnQty: 0,
       amount: parseFloat(d.net_total || 0),
     });
   });
 
+  // Sale column qty: BILL (confirmed) only; ORDER lines keep stock via orderQty (not shown in Sale col)
   sales.forEach(d => {
+    const bt = d.sale?.bill_type;
+    const q = parseFloat(d.qnty || 0);
+    const isBill = bt === 'BILL';
     rows.push({
       date: d.sale?.created_at,
       type: 'SALE',
@@ -1406,7 +1413,8 @@ async function getItemSaleReport(startDate, endDate, proId) {
       billNo: `Bill-${d.sale?.sale_id}`,
       purchaseQty: 0,
       purchaseReturnQty: 0,
-      saleQty: parseFloat(d.qnty || 0),
+      saleQty: isBill ? q : 0,
+      orderQty: isBill ? 0 : q,
       saleReturnQty: 0,
       amount: parseFloat(d.net_total || 0),
     });
@@ -1423,6 +1431,7 @@ async function getItemSaleReport(startDate, endDate, proId) {
       purchaseQty: 0,
       purchaseReturnQty: 0,
       saleQty: 0,
+      orderQty: 0,
       saleReturnQty: parseFloat(d.qnty || 0),
       amount: parseFloat(d.net_total || 0),
     });
@@ -1485,7 +1494,8 @@ async function getItemSaleReport(startDate, endDate, proId) {
   let running = openingStock;
   const finalRows = rows.map(r => {
     const preStock = running;
-    running = running + r.purchaseQty - r.purchaseReturnQty - r.saleQty + r.saleReturnQty;
+    const outSale = (r.saleQty || 0) + (r.orderQty || 0);
+    running = running + r.purchaseQty - r.purchaseReturnQty - outSale + r.saleReturnQty;
     return { ...r, preStock, updatedStock: running };
   });
 

@@ -755,9 +755,7 @@ export default function CustomersPage() {
           templateKey: 'customer_list',
           templateVariables: {
             1: 'Manager',
-            2: 'Accounts list',
-            3: `${filteredCustomers.length} accounts`,
-            4: new Date().toISOString().slice(0, 10),
+            2: `Accounts list – ref ${filteredCustomers.length} accounts | ${new Date().toISOString().slice(0, 10)}`,
           },
         })
       });
