@@ -5,6 +5,7 @@ import { ArrowLeft, Download, Printer, Search, ShoppingCart, TrendingUp } from '
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Box, Typography, Table as MuiTable, TableBody as MuiTableBody, TableCell as MuiTableCell, TableContainer as MuiTableContainer, TableHead as MuiTableHead, TableRow as MuiTableRow, Paper } from '@mui/material';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
+import ReportPageHeader from '../../components/report-page-header';
 
 const fmtAmt = (val) => {
   const n = parseFloat(val || 0);
@@ -456,6 +457,13 @@ export default function SaleReport() {
           {reportData ? (
             <div className="flex-1 overflow-auto p-4 print:p-0 print:overflow-visible">
               <div className="max-w-[1400px] mx-auto">
+              <ReportPageHeader
+                reportTitle="SALES REGISTER"
+                metaLines={[
+                  `Period: ${formatDate(startDate)} to ${formatDate(endDate)}`,
+                  `Generated: ${new Date().toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}`,
+                ]}
+              />
               {/* Selected Sale Summary (shows when a sale is selected) */}
               {selectedSale && (
                 <div className="mb-4 bg-white border border-slate-300 rounded-lg p-3 print:hidden">

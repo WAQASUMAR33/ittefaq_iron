@@ -140,7 +140,7 @@ const STYLES = {
 
 export default function PurchaseReturnsPage() {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true, defaultMatches: false });
 
   // PIN auth
   const { requireAuth, authDialogOpen, handleAuthSuccess, handleAuthCancel } = usePinAuth();

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { ArrowLeft, Download, Printer, Search, Package, AlertTriangle, XCircle, RefreshCw, Store, BarChart2, Send, Phone } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
+import ReportPageHeader from '../../components/report-page-header';
 import {
   Autocomplete, TextField, InputAdornment, Dialog, DialogTitle, DialogContent,
   DialogActions, Button, Box, Alert, Tab, Tabs, Chip, CircularProgress
@@ -1087,7 +1088,7 @@ export default function StockReport() {
 
   return (
     <DashboardLayout>
-      <div className="h-full flex flex-col bg-white overflow-hidden">
+      <div className="h-full flex flex-col bg-white overflow-hidden print:overflow-visible">
 
         {/* Header */}
         <div className="flex-shrink-0 bg-gradient-to-r from-purple-700 to-purple-900 text-white px-6 py-4 print:hidden">
@@ -1217,7 +1218,7 @@ export default function StockReport() {
 
         {/* Content */}
         {reportData ? (
-          <div className="flex-1 overflow-auto p-4">
+          <div className="flex-1 overflow-auto p-4 print:p-2 print:overflow-visible">
             <div className="max-w-[1500px] mx-auto">
               {loading && (
                 <div className="flex items-center justify-center py-8 text-slate-500 text-sm gap-2">
@@ -1226,6 +1227,13 @@ export default function StockReport() {
               )}
               {!loading && (
                 <>
+                  <ReportPageHeader
+                    reportTitle={`STOCK REPORT — ${activeTabLabel().toUpperCase()}`}
+                    metaLines={[
+                      ...filterSummaryLines(),
+                      `Generated: ${new Date().toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}`,
+                    ]}
+                  />
                   {activeTab === 'all' && renderAllStock()}
                   {activeTab === 'store-wise' && renderStoreWise()}
                   {activeTab === 'low-stock' && renderLowStock()}

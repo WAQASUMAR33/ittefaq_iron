@@ -2,7 +2,8 @@ import { Poppins } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import CustomThemeProvider from "./providers/theme-provider";
-import { AppRouterCacheProvider } from "@mui/material-nextjs/v15-appRouter";
+import { AppRouterCacheProvider } from "@mui/material-nextjs/v16-appRouter";
+import ChunkErrorRecovery from "./components/chunk-error-recovery";
 
 const poppins = Poppins({
   variable: "--font-poppins",
@@ -24,6 +25,7 @@ export default function RootLayout({ children }) {
         className={`${poppins.variable} antialiased`}
         suppressHydrationWarning={true}
       >
+        <ChunkErrorRecovery />
         <Script src="/websdk.client.js" strategy="beforeInteractive" />
         <AppRouterCacheProvider>
           <CustomThemeProvider>

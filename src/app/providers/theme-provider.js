@@ -30,17 +30,17 @@ const theme = createTheme({
 export default function CustomThemeProvider({ children }) {
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Prevent ArrowUp and ArrowDown from changing numeric values
-      if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && e.target.type === 'number') {
+      const t = e.target;
+      if (!t || typeof t.type !== 'string') return;
+      if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && t.type === 'number') {
         e.preventDefault();
       }
     };
 
     const handleWheel = (e) => {
-      // Prevent mouse wheel from changing numeric values when focused
-      if (e.target.type === 'number') {
-        e.target.blur();
-      }
+      const t = e.target;
+      if (!t || typeof t.type !== 'string' || t.type !== 'number') return;
+      if (typeof t.blur === 'function') t.blur();
     };
 
     window.addEventListener('keydown', handleKeyDown);

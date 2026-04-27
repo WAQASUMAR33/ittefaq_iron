@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
+import ReportPageHeader from '../../components/report-page-header';
 import { Autocomplete, TextField, InputAdornment } from '@mui/material';
 
 const fmtAmt = (val) => {
@@ -239,6 +240,15 @@ export default function SupplierLedgerReport() {
         {/* Report Content */}
         {reportData && (
           <div className="flex-1 overflow-y-auto">
+            <div className="max-w-7xl mx-auto px-4 pt-2 print:px-0">
+              <ReportPageHeader
+                reportTitle="SUPPLIER LEDGER"
+                metaLines={[
+                  `Period: ${new Date(startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} to ${new Date(endDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`,
+                  `Generated: ${new Date().toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}`,
+                ]}
+              />
+            </div>
             {/* Header Section */}
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6 mb-6 print:shadow-none print:border-0 print:rounded-0">
               <div className="mb-6">

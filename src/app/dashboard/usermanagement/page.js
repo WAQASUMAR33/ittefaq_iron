@@ -1,12 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Plus, Edit, Trash2, Check, X, Mail, Lock, User, Shield, Clock } from 'lucide-react';
 import DashboardLayout from '../components/dashboard-layout';
+import { getStaffRoleName, isAdminRole } from '@/lib/staff-access';
 
 export default function UserManagementPage() {
+  const router = useRouter();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [allowed, setAllowed] = useState(false);
 
   const [showUserForm, setShowUserForm] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
@@ -25,10 +29,29 @@ export default function UserManagementPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [verifiedFilter, setVerifiedFilter] = useState('all');
 
+  useEffect(() => {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+    if (!raw) {
+      router.push('/login');
+      return;
+    }
+    try {
+      const u = JSON.parse(raw);
+      if (!isAdminRole(getStaffRoleName(u))) {
+        router.replace('/dashboard?access=denied');
+        return;
+      }
+      setAllowed(true);
+    } catch {
+      router.push('/login');
+    }
+  }, [router]);
+
   // Load users from API
   useEffect(() => {
+    if (!allowed) return;
     fetchUsers();
-  }, []);
+  }, [allowed]);
 
   const fetchUsers = async () => {
     try {
@@ -258,6 +281,16 @@ export default function UserManagementPage() {
     setStatusFilter('all');
     setVerifiedFilter('all');
   };
+
+  if (!allowed) {
+    return (
+      <DashboardLayout>
+        <div className="min-h-screen flex items-center justify-center bg-white">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600" />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   if (loading) {
     return (

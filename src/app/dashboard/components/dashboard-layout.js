@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
+import StaffPathGuard from './staff-path-guard';
 import {
   Box,
   CircularProgress,
@@ -101,7 +102,7 @@ export default function DashboardLayout({ children }) {
   };
 
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('lg'));
+  const isMobile = useMediaQuery(theme.breakpoints.down('lg'), { noSsr: true, defaultMatches: false });
 
   const sidebarWidth = (!isMobile && collapsed) ? COLLAPSED_WIDTH : EXPANDED_WIDTH;
 
@@ -115,6 +116,11 @@ export default function DashboardLayout({ children }) {
 
   return (
     <>
+    {isClient && user && (
+      <Suspense fallback={null}>
+        <StaffPathGuard user={user} isClient={isClient} />
+      </Suspense>
+    )}
     <style>{`
       @media print {
         .no-print { display: none !important; }

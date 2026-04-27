@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
+import ReportPageHeader from '../../components/report-page-header';
 
 export default function ItemSaleReport() {
   const router = useRouter();
@@ -243,11 +244,16 @@ export default function ItemSaleReport() {
               </button>
             </div>
 
-            {/* Print header */}
-            <div className="print-header" style={{ textAlign: 'center', padding: '6px 0 2px' }}>
-              <div style={{ fontWeight: 700, fontSize: 15 }}>Item Stock Ledger</div>
-              {selectedProduct && <div style={{ fontSize: 13, marginTop: 2 }}>{selectedProduct.pro_title}</div>}
-              <div style={{ fontSize: 12, marginTop: 2 }}>From: {startDate} &nbsp;&nbsp; To: {endDate}</div>
+            {/* Letterhead: visible in print; hidden on screen via CSS */}
+            <div className="print-header px-2">
+              <ReportPageHeader
+                reportTitle="ITEM STOCK LEDGER"
+                metaLines={[
+                  selectedProduct ? `Item: ${selectedProduct.pro_title}` : null,
+                  `Period: ${startDate} to ${endDate}`,
+                ]}
+                className="!mb-2"
+              />
             </div>
 
             {/* Table */}

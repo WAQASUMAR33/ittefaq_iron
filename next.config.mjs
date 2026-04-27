@@ -11,6 +11,20 @@ const webSdkShimTurbopack = "./src/lib/websdk-shim.js";
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   serverExternalPackages: ['@prisma/client'],
+  // Do not long-cache document responses: after a deploy, old HTML must not
+  // reference removed /_next/static/chunks/*.js (→ 404, ChunkLoadError).
+  // /_next/static/* is still emitted with immutable hashes (browser cache OK for those).
+  async headers() {
+    const noHtmlCache = {
+      key: "Cache-Control",
+      value: "no-store, no-cache, must-revalidate, max-age=0",
+    };
+    return [
+      { source: "/", headers: [noHtmlCache] },
+      { source: "/login", headers: [noHtmlCache] },
+      { source: "/dashboard/:path*", headers: [noHtmlCache] },
+    ];
+  },
   // Next 16+ uses Turbopack by default for `next dev` / `next build`; webpack
   // aliases do not apply unless you pass `--webpack`.
   turbopack: {

@@ -26,7 +26,7 @@ export default function Header({ sidebarOpen, setSidebarOpen, activeTab, user })
           </button>
           <div>
             <h2 className="text-2xl font-bold text-gray-900 capitalize">
-              {activeTab === 'customers' ? 'Account' : activeTab.replace('-', ' ')}
+              {activeTab === 'customers' ? 'Account' : String(activeTab || 'dashboard').replace(/-/g, ' ')}
             </h2>
             <p className="text-sm text-gray-500 font-medium">
               {currentDate || 'Loading...'}

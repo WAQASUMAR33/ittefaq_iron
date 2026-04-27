@@ -54,6 +54,7 @@ import {
   Menu as MenuIcon,
   ListAlt as ListAltIcon
 } from '@mui/icons-material';
+import { isAdminRole as isAdminRoleName, getStaffRoleName, SALESMAN_ALLOWED_MENU_IDS } from '@/lib/staff-access';
 
 const COLLAPSED_WIDTH = 64;
 const EXPANDED_WIDTH = 320;
@@ -143,13 +144,16 @@ export default function Sidebar({
     { id: 'settings', name: 'Biometric Settings', icon: PersonIcon, category: 'system', parent: 'System', adminOnly: true },
   ];
 
-  const roleName =
-    typeof user?.role === 'string'
-      ? user.role
-      : user?.role?.name || user?.role?.displayName || '';
-  const isAdmin = roleName === 'SUPER_ADMIN' || roleName === 'ADMIN';
+  const roleName = getStaffRoleName(user);
+  const isAdmin = isAdminRoleName(roleName);
 
-  const visibleMenuItems = menuItems.filter((item) => !item.adminOnly || isAdmin);
+  const visibleMenuItems = menuItems.filter((item) => {
+    if (item.adminOnly && !isAdmin) return false;
+    if (isAdmin) return true;
+    if (roleName === 'SALESMAN') return SALESMAN_ALLOWED_MENU_IDS.has(item.id);
+    // Unknown / non-admin: same limited menu as salesman
+    return SALESMAN_ALLOWED_MENU_IDS.has(item.id);
+  });
 
   const isSearching = searchQuery.trim().length > 0;
   const filteredItems = isSearching
@@ -269,14 +273,14 @@ export default function Sidebar({
   };
 
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('lg'));
+  const isMobile = useMediaQuery(theme.breakpoints.down('lg'), { noSsr: true, defaultMatches: false });
 
   const drawerWidth = collapsed && !isMobile ? COLLAPSED_WIDTH : EXPANDED_WIDTH;
   const isCollapsed = collapsed && !isMobile;
 
   const renderMenuSection = (category, title, IconComponent) => {
     const items = filteredItems.filter(item => item.category === category);
-    if (isSearching && items.length === 0) return null;
+    if (items.length === 0) return null;
     const isExpanded = isCollapsed ? false : (isSearching ? true : expandedDropdowns[category]);
 
     if (isCollapsed) {
@@ -466,7 +470,7 @@ export default function Sidebar({
       <Box sx={{ flex: 1, overflow: 'auto', p: isCollapsed ? 0.5 : 2 }}>
         <List disablePadding>
           {/* Overview section */}
-          {(!isSearching || filteredItems.some(i => i.category === 'main')) && (
+          {filteredItems.some(i => i.category === 'main') && (
             <Box sx={{ mb: isCollapsed ? 0 : 2 }}>
               {!isCollapsed && (
                 <Typography variant="overline" sx={{
@@ -544,7 +548,7 @@ export default function Sidebar({
           {renderMenuSection('reports', 'Reports', DashboardIcon)}
 
           {/* System section */}
-          {(!isSearching || filteredItems.some(i => i.category === 'system')) && (
+          {filteredItems.some(i => i.category === 'system') && (
             <Box sx={{ mb: 2 }}>
               {!isCollapsed && (
                 <Typography variant="overline" sx={{
