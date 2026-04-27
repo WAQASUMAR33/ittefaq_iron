@@ -115,6 +115,19 @@ function getLedgerEntryBankCashForSummary(entry) {
   return { bankAmount, cashAmount };
 }
 
+/**
+ * Sales ORDER “memo” lines on the customer: equal debit & credit, only for display.
+ * They duplicate the economic cash/bank rows — exclude from summary debit/credit and bank/cash footers
+ * so totals match “customer paid X + cash/bank received X” without double-counting.
+ */
+function isOrderCustomerMemoLedgerEntry(entry) {
+  const det = entry.details || '';
+  if (!det.includes('no receivable change')) return false;
+  const d = parseFloat(entry.debit_amount || 0);
+  const c = parseFloat(entry.credit_amount || 0);
+  return d > 0 && c > 0 && Math.abs(d - c) < 0.02;
+}
+
 /** Auto description for Receive / Pay payment modals: title, account, cash, bank+name, discount */
 const buildFinancePaymentDescription = (mode, accountName, cashAmount, bankAmount, bankAccountId, bankAccountsList, discountAmount) => {
   const title = mode === 'RECEIVE' ? 'RECEIVE AMOUNT' : 'PAY AMOUNT';
@@ -551,6 +564,7 @@ export default function FinancePage() {
     let totalBank = 0;
     let totalCash = 0;
     for (const entry of finalLedgerEntries) {
+      if (isOrderCustomerMemoLedgerEntry(entry)) continue;
       const { bankAmount, cashAmount } = getLedgerEntryBankCashForSummary(entry);
       totalBank += bankAmount;
       totalCash += cashAmount;
@@ -559,8 +573,10 @@ export default function FinancePage() {
     const byTime = [...finalLedgerEntries].sort(
       (a, b) => new Date(a.created_at) - new Date(b.created_at)
     );
+    const nonMemo = byTime.filter((e) => !isOrderCustomerMemoLedgerEntry(e));
+    const lastForBalance = nonMemo.length > 0 ? nonMemo[nonMemo.length - 1] : byTime[byTime.length - 1];
     const lastClosing =
-      byTime.length > 0 ? parseFloat(byTime[byTime.length - 1].closing_balance || 0) : 0;
+      lastForBalance != null ? parseFloat(lastForBalance.closing_balance || 0) : 0;
     return { totalBank, totalCash, lastClosing };
   }, [finalLedgerEntries]);
 
@@ -569,9 +585,10 @@ export default function FinancePage() {
     ? filteredLedgerEntries
     : ledgerEntries;
 
-  const totalDebit = statsEntries.reduce((sum, entry) => sum + parseFloat(entry.debit_amount || 0), 0);
-  const totalCredit = statsEntries.reduce((sum, entry) => sum + parseFloat(entry.credit_amount || 0), 0);
-  const totalPayments = statsEntries.reduce((sum, entry) => sum + parseFloat(entry.payments || 0), 0);
+  const statsEntriesForTotals = statsEntries.filter((e) => !isOrderCustomerMemoLedgerEntry(e));
+  const totalDebit = statsEntriesForTotals.reduce((sum, entry) => sum + parseFloat(entry.debit_amount || 0), 0);
+  const totalCredit = statsEntriesForTotals.reduce((sum, entry) => sum + parseFloat(entry.credit_amount || 0), 0);
+  const totalPayments = statsEntriesForTotals.reduce((sum, entry) => sum + parseFloat(entry.payments || 0), 0);
 
   // Get the most accurate current balance: 
   // 1. For a selected customer, use their direct balance from the customer record

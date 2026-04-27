@@ -2719,6 +2719,8 @@ function SalesPageContent() {
         sourceOrderId: orderData.sale_id // Store original order ID
       }));
 
+      setLoadedOrderId(orderData.sale_id);
+
       showSnackbar(`Order loaded successfully! Advance payment: ${orderPayment.toFixed(2)}`, 'success');
       setOrderSearchTerm(''); // Clear search field
 

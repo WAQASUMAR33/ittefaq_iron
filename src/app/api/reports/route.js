@@ -620,16 +620,26 @@ async function getCashReport(startDate, endDate) {
     }
   });
 
-  // Calculate summary
+  // Exclude ORDER customer memo lines (equal D/C, no receivable) — not real cash movement for the cash book
+  const isCashBankMemo = (l) => {
+    const det = l.details || '';
+    if (!det.includes('no receivable change')) return false;
+    const d = parseFloat(l.debit_amount || 0);
+    const c = parseFloat(l.credit_amount || 0);
+    return d > 0 && c > 0 && Math.abs(d - c) < 0.02;
+  };
+  const ledgerEntriesForSummary = ledgerEntries.filter((l) => !isCashBankMemo(l));
+
+  // Cash account (asset): debit = money IN, credit = money OUT
   const summary = {
-    totalLedgerEntries: ledgerEntries.length,
-    totalLedgerDebit: ledgerEntries.reduce((sum, l) => sum + parseFloat(l.debit_amount), 0),
-    totalLedgerCredit: ledgerEntries.reduce((sum, l) => sum + parseFloat(l.credit_amount), 0),
+    totalLedgerEntries: ledgerEntriesForSummary.length,
+    totalLedgerDebit: ledgerEntriesForSummary.reduce((sum, l) => sum + parseFloat(l.debit_amount), 0),
+    totalLedgerCredit: ledgerEntriesForSummary.reduce((sum, l) => sum + parseFloat(l.credit_amount), 0),
     totalCashSales: cashSales.reduce((sum, s) => sum + parseFloat(s.payment), 0),
     totalCashPurchases: cashPurchases.reduce((sum, p) => sum + parseFloat(p.payment), 0),
     totalExpenses: expenses.reduce((sum, e) => sum + parseFloat(e.exp_amount), 0),
-    cashIn: ledgerEntries.reduce((sum, l) => sum + parseFloat(l.credit_amount), 0) + cashSales.reduce((sum, s) => sum + parseFloat(s.payment), 0),
-    cashOut: ledgerEntries.reduce((sum, l) => sum + parseFloat(l.debit_amount), 0) + cashPurchases.reduce((sum, p) => sum + parseFloat(p.payment), 0) + expenses.reduce((sum, e) => sum + parseFloat(e.exp_amount), 0)
+    cashIn: ledgerEntriesForSummary.reduce((sum, l) => sum + parseFloat(l.debit_amount), 0) + cashSales.reduce((sum, s) => sum + parseFloat(s.payment), 0),
+    cashOut: ledgerEntriesForSummary.reduce((sum, l) => sum + parseFloat(l.credit_amount), 0) + cashPurchases.reduce((sum, p) => sum + parseFloat(p.payment), 0) + expenses.reduce((sum, e) => sum + parseFloat(e.exp_amount), 0)
   };
 
   return NextResponse.json({
@@ -727,15 +737,24 @@ async function getBankReport(startDate, endDate) {
     }
   });
 
-  // Calculate summary
+  const isBankMemo = (l) => {
+    const det = l.details || '';
+    if (!det.includes('no receivable change')) return false;
+    const d = parseFloat(l.debit_amount || 0);
+    const c = parseFloat(l.credit_amount || 0);
+    return d > 0 && c > 0 && Math.abs(d - c) < 0.02;
+  };
+  const ledgerEntriesForSummary = ledgerEntries.filter((l) => !isBankMemo(l));
+
+  // Bank account (asset): debit = deposit (in), credit = withdrawal (out)
   const summary = {
-    totalLedgerEntries: ledgerEntries.length,
-    totalLedgerDebit: ledgerEntries.reduce((sum, l) => sum + parseFloat(l.debit_amount), 0),
-    totalLedgerCredit: ledgerEntries.reduce((sum, l) => sum + parseFloat(l.credit_amount), 0),
+    totalLedgerEntries: ledgerEntriesForSummary.length,
+    totalLedgerDebit: ledgerEntriesForSummary.reduce((sum, l) => sum + parseFloat(l.debit_amount), 0),
+    totalLedgerCredit: ledgerEntriesForSummary.reduce((sum, l) => sum + parseFloat(l.credit_amount), 0),
     totalBankSales: bankSales.reduce((sum, s) => sum + parseFloat(s.payment), 0),
     totalBankPurchases: bankPurchases.reduce((sum, p) => sum + parseFloat(p.payment), 0),
-    bankIn: ledgerEntries.reduce((sum, l) => sum + parseFloat(l.credit_amount), 0) + bankSales.reduce((sum, s) => sum + parseFloat(s.payment), 0),
-    bankOut: ledgerEntries.reduce((sum, l) => sum + parseFloat(l.debit_amount), 0) + bankPurchases.reduce((sum, p) => sum + parseFloat(p.payment), 0)
+    bankIn: ledgerEntriesForSummary.reduce((sum, l) => sum + parseFloat(l.debit_amount), 0) + bankSales.reduce((sum, s) => sum + parseFloat(s.payment), 0),
+    bankOut: ledgerEntriesForSummary.reduce((sum, l) => sum + parseFloat(l.credit_amount), 0) + bankPurchases.reduce((sum, p) => sum + parseFloat(p.payment), 0)
   };
 
   return NextResponse.json({

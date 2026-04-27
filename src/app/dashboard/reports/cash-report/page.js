@@ -12,6 +12,17 @@ const fmtAmt = (val) => {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
+function excludeMemoFromBankCashSummary(entries) {
+  return entries.filter((e) => {
+    const det = e.details || '';
+    if (!det.includes('no receivable change')) return true;
+    const d = parseFloat(e.debit_amount || 0);
+    const c = parseFloat(e.credit_amount || 0);
+    if (d > 0 && c > 0 && Math.abs(d - c) < 0.02) return false;
+    return true;
+  });
+}
+
 export default function CashReport() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -104,10 +115,11 @@ export default function CashReport() {
             filteredData.cashPurchases = filteredData.cashPurchases.filter(p => p.payment_type === 'BANK_TRANSFER' || p.bank_payment > 0);
           }
         }
+        const forSum = excludeMemoFromBankCashSummary(filteredData.ledgerEntries);
         filteredData.summary = {
           ...data.summary,
-          totalLedgerDebit: filteredData.ledgerEntries.reduce((sum, l) => sum + parseFloat(l.debit_amount || 0), 0),
-          totalLedgerCredit: filteredData.ledgerEntries.reduce((sum, l) => sum + parseFloat(l.credit_amount || 0), 0),
+          totalLedgerDebit: forSum.reduce((sum, l) => sum + parseFloat(l.debit_amount || 0), 0),
+          totalLedgerCredit: forSum.reduce((sum, l) => sum + parseFloat(l.credit_amount || 0), 0),
           totalCashSales: filteredData.cashSales.reduce((sum, s) => sum + parseFloat(s.payment || 0), 0),
           totalCashPurchases: filteredData.cashPurchases.reduce((sum, p) => sum + parseFloat(p.payment || 0), 0),
         };
@@ -145,8 +157,11 @@ export default function CashReport() {
     a.click();
   };
 
-  const netCashFlow = (reportData?.summary?.totalLedgerCredit || 0) + (reportData?.summary?.totalCashSales || 0) -
-    (reportData?.summary?.totalLedgerDebit || 0) - (reportData?.summary?.totalCashPurchases || 0);
+  const netCashFlow =
+    (parseFloat(reportData?.summary?.totalLedgerDebit || 0) -
+      parseFloat(reportData?.summary?.totalLedgerCredit || 0) +
+      parseFloat(reportData?.summary?.totalCashSales || 0) -
+      parseFloat(reportData?.summary?.totalCashPurchases || 0));
 
   return (
     <DashboardLayout>
@@ -306,14 +321,14 @@ export default function CashReport() {
                         <p className="text-xs font-semibold text-green-600 uppercase tracking-wide">Cash Received</p>
                         <TrendingUp className="w-4 h-4 text-green-500" />
                       </div>
-                      <p className="text-xl font-bold text-green-800 mt-1">Rs. {formatCurrency(reportData.summary.totalLedgerCredit)}</p>
+                      <p className="text-xl font-bold text-green-800 mt-1">Rs. {formatCurrency(reportData.summary.totalLedgerDebit)}</p>
                     </div>
                     <div className="bg-gradient-to-br from-red-50 to-red-100 border border-red-200 rounded-xl p-4">
                       <div className="flex items-center justify-between">
                         <p className="text-xs font-semibold text-red-600 uppercase tracking-wide">Cash Paid</p>
                         <TrendingDown className="w-4 h-4 text-red-500" />
                       </div>
-                      <p className="text-xl font-bold text-red-800 mt-1">Rs. {formatCurrency(reportData.summary.totalLedgerDebit)}</p>
+                      <p className="text-xl font-bold text-red-800 mt-1">Rs. {formatCurrency(reportData.summary.totalLedgerCredit)}</p>
                     </div>
                     <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl p-4">
                       <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Cash Sales</p>
@@ -340,9 +355,9 @@ export default function CashReport() {
                     </tr>
                     <tr className="border-b border-black">
                       <td className="p-2 font-semibold border-r border-black">Total Cash Received:</td>
-                      <td className="p-2 text-right border-r border-black">{formatCurrency(reportData.summary.totalLedgerCredit)}</td>
+                      <td className="p-2 text-right border-r border-black">{formatCurrency(reportData.summary.totalLedgerDebit)}</td>
                       <td className="p-2 font-semibold border-r border-black">Total Cash Paid:</td>
-                      <td className="p-2 text-right">{formatCurrency(reportData.summary.totalLedgerDebit)}</td>
+                      <td className="p-2 text-right">{formatCurrency(reportData.summary.totalLedgerCredit)}</td>
                     </tr>
                     <tr>
                       <td className="p-2 font-semibold border-r border-black">Cash Sales:</td>
@@ -429,10 +444,10 @@ export default function CashReport() {
                   </tbody>
                   <tfoot>
                     <tr className="bg-slate-800 text-white font-bold print:bg-gray-200 print:text-black">
-                      <td colSpan="4" className="px-3 py-3 text-right uppercase text-xs tracking-wider border-r border-slate-600 print:border-black">Grand Total</td>
+                      <td colSpan="5" className="px-3 py-3 text-right uppercase text-xs tracking-wider border-r border-slate-600 print:border-black">Grand Total</td>
                       <td className="px-3 py-3 text-right border-r border-slate-600 print:border-black tabular-nums">{formatCurrency(reportData.summary.totalLedgerDebit)}</td>
                       <td className="px-3 py-3 text-right border-r border-slate-600 print:border-black tabular-nums">{formatCurrency(reportData.summary.totalLedgerCredit)}</td>
-                      <td className="px-3 py-3"></td>
+                      <td className="px-3 py-3 text-right tabular-nums print:text-black">{formatCurrency(netCashFlow)}</td>
                     </tr>
                   </tfoot>
                 </table>

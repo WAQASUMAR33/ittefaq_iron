@@ -12,6 +12,18 @@ const fmtAmt = (val) => {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
+/** ORDER memo lines (equal D/C) — exclude from summary totals; columns still use D=deposit in, C=withdrawal out. */
+function excludeMemoFromBankCashSummary(entries) {
+  return entries.filter((e) => {
+    const det = e.details || '';
+    if (!det.includes('no receivable change')) return true;
+    const d = parseFloat(e.debit_amount || 0);
+    const c = parseFloat(e.credit_amount || 0);
+    if (d > 0 && c > 0 && Math.abs(d - c) < 0.02) return false;
+    return true;
+  });
+}
+
 export default function BankReport() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -79,11 +91,12 @@ export default function BankReport() {
           filteredData.bankSales = filteredData.bankSales.filter(s => s.customer?.cus_id === parseInt(selectedAccount));
           filteredData.bankPurchases = filteredData.bankPurchases.filter(p => p.customer?.cus_id === parseInt(selectedAccount));
         }
+        const forSum = excludeMemoFromBankCashSummary(filteredData.ledgerEntries);
         filteredData.summary = {
           ...data.summary,
-          totalLedgerEntries: filteredData.ledgerEntries.length,
-          totalLedgerDebit: filteredData.ledgerEntries.reduce((sum, l) => sum + parseFloat(l.debit_amount || 0), 0),
-          totalLedgerCredit: filteredData.ledgerEntries.reduce((sum, l) => sum + parseFloat(l.credit_amount || 0), 0),
+          totalLedgerEntries: forSum.length,
+          totalLedgerDebit: forSum.reduce((sum, l) => sum + parseFloat(l.debit_amount || 0), 0),
+          totalLedgerCredit: forSum.reduce((sum, l) => sum + parseFloat(l.credit_amount || 0), 0),
           totalBankSales: filteredData.bankSales.reduce((sum, s) => sum + parseFloat(s.payment || 0), 0),
           totalBankPurchases: filteredData.bankPurchases.reduce((sum, p) => sum + parseFloat(p.payment || 0), 0),
         };
@@ -112,7 +125,9 @@ export default function BankReport() {
     csv += 'BANK LEDGER ENTRIES\n';
     csv += 'S.No,Date,Account,Description,Withdrawal,Deposit,Balance\n';
     reportData.ledgerEntries.forEach((e, i) => {
-      csv += `${i + 1},${formatDate(e.created_at)},${e.customer?.cus_name || '-'},${e.details || ''},${formatCurrency(e.debit_amount)},${formatCurrency(e.credit_amount)},${formatCurrency(e.closing_balance)}\n`;
+      const w = parseFloat(e.credit_amount || 0);
+      const d = parseFloat(e.debit_amount || 0);
+      csv += `${i + 1},${formatDate(e.created_at)},${e.customer?.cus_name || '-'},${e.details || ''},${w > 0 ? formatCurrency(w) : ''},${d > 0 ? formatCurrency(d) : ''},${formatCurrency(e.closing_balance)}\n`;
     });
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -122,7 +137,13 @@ export default function BankReport() {
     a.click();
   };
 
-  const netFlow = reportData ? ((reportData.summary.totalLedgerCredit || 0) + (reportData.summary.totalBankSales || 0) - (reportData.summary.totalLedgerDebit || 0) - (reportData.summary.totalBankPurchases || 0)) : 0;
+  // Bank (asset): deposits = debits, withdrawals = credits; net ≈ debits - credits + sales - purchases
+  const netFlow = reportData
+    ? (parseFloat(reportData.summary.totalLedgerDebit || 0) -
+        parseFloat(reportData.summary.totalLedgerCredit || 0) +
+        parseFloat(reportData.summary.totalBankSales || 0) -
+        parseFloat(reportData.summary.totalBankPurchases || 0))
+    : 0;
 
   return (
     <DashboardLayout>
@@ -251,14 +272,14 @@ export default function BankReport() {
                     <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wide">Deposits</p>
                     <ArrowDownLeft className="w-4 h-4 text-emerald-500" />
                   </div>
-                  <p className="text-2xl font-bold text-emerald-800 mt-1">Rs. {formatCurrency(reportData.summary.totalLedgerCredit)}</p>
+                  <p className="text-2xl font-bold text-emerald-800 mt-1">Rs. {formatCurrency(reportData.summary.totalLedgerDebit)}</p>
                 </div>
                 <div className="bg-gradient-to-br from-red-50 to-red-100 border border-red-200 rounded-xl p-4">
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-semibold text-red-600 uppercase tracking-wide">Withdrawals</p>
                     <ArrowUpRight className="w-4 h-4 text-red-500" />
                   </div>
-                  <p className="text-2xl font-bold text-red-800 mt-1">Rs. {formatCurrency(reportData.summary.totalLedgerDebit)}</p>
+                  <p className="text-2xl font-bold text-red-800 mt-1">Rs. {formatCurrency(reportData.summary.totalLedgerCredit)}</p>
                 </div>
                 <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl p-4">
                   <div className="flex items-center justify-between">
@@ -282,13 +303,13 @@ export default function BankReport() {
                   <tbody>
                     <tr className="border-b border-gray-400">
                       <td className="px-4 py-2 font-medium border-r border-gray-400">Total Deposits:</td>
-                      <td className="px-4 py-2 text-right font-bold border-r border-gray-400">{formatCurrency(reportData.summary.totalLedgerCredit)}</td>
+                      <td className="px-4 py-2 text-right font-bold border-r border-gray-400">{formatCurrency(reportData.summary.totalLedgerDebit)}</td>
                       <td className="px-4 py-2 font-medium border-r border-gray-400">Bank Sales:</td>
                       <td className="px-4 py-2 text-right font-bold">{formatCurrency(reportData.summary.totalBankSales)}</td>
                     </tr>
                     <tr className="border-b border-gray-400">
                       <td className="px-4 py-2 font-medium border-r border-gray-400">Total Withdrawals:</td>
-                      <td className="px-4 py-2 text-right font-bold border-r border-gray-400">{formatCurrency(reportData.summary.totalLedgerDebit)}</td>
+                      <td className="px-4 py-2 text-right font-bold border-r border-gray-400">{formatCurrency(reportData.summary.totalLedgerCredit)}</td>
                       <td className="px-4 py-2 font-medium border-r border-gray-400">Bank Purchases:</td>
                       <td className="px-4 py-2 text-right font-bold">{formatCurrency(reportData.summary.totalBankPurchases)}</td>
                     </tr>
@@ -343,25 +364,27 @@ export default function BankReport() {
                             </td>
                           );
                         })()}
-                        <td className={`px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums ${parseFloat(entry.debit_amount) > 0 ? 'text-red-600 font-semibold print:text-black' : 'text-slate-400'}`}>
-                          {parseFloat(entry.debit_amount) > 0 ? formatCurrency(entry.debit_amount) : '-'}
-                        </td>
-                        <td className={`px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums ${parseFloat(entry.credit_amount) > 0 ? 'text-emerald-600 font-semibold print:text-black' : 'text-slate-400'}`}>
+                        {/* Withdrawal = credit (money out of bank); Deposit = debit (money in) */}
+                        <td className={`px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums ${parseFloat(entry.credit_amount) > 0 ? 'text-red-600 font-semibold print:text-black' : 'text-slate-400'}`}>
                           {parseFloat(entry.credit_amount) > 0 ? formatCurrency(entry.credit_amount) : '-'}
+                        </td>
+                        <td className={`px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums ${parseFloat(entry.debit_amount) > 0 ? 'text-emerald-600 font-semibold print:text-black' : 'text-slate-400'}`}>
+                          {parseFloat(entry.debit_amount) > 0 ? formatCurrency(entry.debit_amount) : '-'}
                         </td>
                         <td className="px-3 py-2.5 text-right font-semibold text-slate-900 tabular-nums">{formatCurrency(entry.closing_balance)}</td>
                       </tr>
                     ))}
                     {reportData.ledgerEntries.length === 0 && (
-                      <tr><td colSpan="7" className="px-6 py-12 text-center text-slate-500">No bank transactions found for the selected period</td></tr>
+                      <tr><td colSpan="8" className="px-6 py-12 text-center text-slate-500">No bank transactions found for the selected period</td></tr>
                     )}
                   </tbody>
                   <tfoot>
                     <tr className="bg-slate-800 text-white font-bold print:bg-gray-200 print:text-black">
                       <td colSpan="4" className="px-3 py-3 text-right uppercase text-xs tracking-wider border-r border-slate-600 print:border-black">Grand Total</td>
-                      <td className="px-3 py-3 text-right border-r border-slate-600 print:border-black tabular-nums">{formatCurrency(reportData.summary.totalLedgerDebit)}</td>
-                      <td className="px-3 py-3 text-right border-r border-slate-600 print:border-black tabular-nums">{formatCurrency(reportData.summary.totalLedgerCredit)}</td>
-                      <td className="px-3 py-3 text-right tabular-nums">{formatCurrency(netFlow)}</td>
+                      <td className="px-3 py-3 border-r border-slate-600 print:border-black" />
+                      <td className="px-3 py-3 text-right border-r border-slate-600 print:border-black tabular-nums text-red-200 print:text-black">{formatCurrency(reportData.summary.totalLedgerCredit)}</td>
+                      <td className="px-3 py-3 text-right border-r border-slate-600 print:border-black tabular-nums text-emerald-200 print:text-black">{formatCurrency(reportData.summary.totalLedgerDebit)}</td>
+                      <td className="px-3 py-3 text-right tabular-nums print:text-black">{formatCurrency(netFlow)}</td>
                     </tr>
                   </tfoot>
                 </table>

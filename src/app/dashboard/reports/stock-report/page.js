@@ -32,7 +32,7 @@ export default function StockReport() {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Active tab
-  const [activeTab, setActiveTab] = useState('all');
+  const [activeTab, setActiveTab] = useState('store-wise');
 
   // Price adjustment modal
   const [showAdjustmentModal, setShowAdjustmentModal] = useState(false);
@@ -80,17 +80,36 @@ export default function StockReport() {
   };
 
   const formatCurrency = (v) => (parseFloat(v) || 0).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const formatNumber = (v) => (v || 0).toLocaleString('en-PK');
+  /** Integer / count formatting */
+  const formatNumber = (v) => {
+    const n = parseInt(String(v ?? '0'), 10);
+    if (Number.isNaN(n)) return '0';
+    return n.toLocaleString('en-PK', { maximumFractionDigits: 0 });
+  };
+  /**
+   * Stock quantities (Prisma Decimal / floats): no leading zeros, max 4 decimals, trim float noise.
+   */
+  const formatQty = (v) => {
+    const n = parseFloat(String(v ?? '0').replace(/,/g, ''));
+    if (Number.isNaN(n)) return '0';
+    const r = Math.round(n * 10000) / 10000;
+    if (Math.abs(r) < 1e-10) return '0';
+    if (Math.abs(r - Math.round(r)) < 1e-6) {
+      return Math.round(r).toLocaleString('en-PK', { maximumFractionDigits: 0 });
+    }
+    const t = Math.round(r * 10000) / 10000;
+    return t.toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 4 });
+  };
 
   // ─── Filtering helpers ─────────────────────────────────────────────────────
 
   const getStoreQty = (product, storeId) => {
-    const ss = product.store_stocks?.find(s => s.store_id === parseInt(storeId));
-    return ss?.stock_quantity || 0;
+    const ss = product.store_stocks?.find(s => s.store_id === parseInt(storeId, 10));
+    return parseFloat(String(ss?.stock_quantity ?? 0)) || 0;
   };
 
   const getTotalQty = (product) =>
-    product.store_stocks?.reduce((s, ss) => s + (ss.stock_quantity || 0), 0) || 0;
+    (product.store_stocks?.reduce((s, ss) => s + (parseFloat(String(ss.stock_quantity ?? 0)) || 0), 0)) || 0;
 
   const isLowStock = (product, storeId = null) => {
     const threshold = product.low_stock_quantity ?? 10;
@@ -196,20 +215,135 @@ export default function StockReport() {
 
   const summary = getSummary();
 
+  /**
+   * One combined list: one row per (item × store) with a Store column (no per-store table columns / separate store blocks).
+   */
+  const getCombinedAllStockRows = (products) => {
+    if (!products?.length) return [];
+    const sorted = [...stores].sort((a, b) => (a.store_name || '').localeCompare(b.store_name || ''));
+
+    if (selectedStore) {
+      const st = stores.find(s => s.storeid === parseInt(String(selectedStore), 10));
+      const name = st?.store_name || '—';
+      return products.map(p => ({
+        key: `r-${p.pro_id}-s${selectedStore}`,
+        product: p,
+        storeName: name,
+        storeId: parseInt(String(selectedStore), 10),
+        qty: getStoreQty(p, selectedStore),
+      }));
+    }
+
+    if (sorted.length > 0) {
+      const rows = [];
+      for (const p of products) {
+        const totalQ = getTotalQty(p);
+        if (totalQ === 0) {
+          rows.push({ key: `r-${p.pro_id}-zero`, product: p, storeName: '—', storeId: null, qty: 0 });
+          continue;
+        }
+        for (const st of sorted) {
+          const q = getStoreQty(p, st.storeid);
+          if (q > 0) {
+            rows.push({
+              key: `r-${p.pro_id}-s${st.storeid}`,
+              product: p,
+              storeName: st.store_name,
+              storeId: st.storeid,
+              qty: q,
+            });
+          }
+        }
+      }
+      return rows;
+    }
+
+    const rows = [];
+    for (const p of products) {
+      const list = p.store_stocks || [];
+      const totalQ = getTotalQty(p);
+      if (list.length) {
+        if (totalQ === 0) {
+          rows.push({ key: `r-${p.pro_id}-zero`, product: p, storeName: '—', storeId: null, qty: 0 });
+          continue;
+        }
+        for (const s of list) {
+          const q = parseFloat(String(s.stock_quantity ?? 0)) || 0;
+          if (q > 0) {
+            rows.push({
+              key: `r-${p.pro_id}-ss${s.store_id}`,
+              product: p,
+              storeName: s.store?.store_name || `Store ${s.store_id}`,
+              storeId: s.store_id,
+              qty: q,
+            });
+          }
+        }
+      } else {
+        rows.push({ key: `r-${p.pro_id}-nos`, product: p, storeName: '—', storeId: null, qty: getTotalQty(p) });
+      }
+    }
+    return rows;
+  };
+
+  const sortCombinedAllStockRows = (rows) => {
+    const cat = (p) => p?.category?.cat_name || '';
+    const byStore = (a, b) => {
+      if (a.storeName === '—' && b.storeName !== '—') return 1;
+      if (b.storeName === '—' && a.storeName !== '—') return -1;
+      return (a.storeName || '').localeCompare(b.storeName || '', undefined, { sensitivity: 'base' });
+    };
+    return [...rows].sort((a, b) => {
+      const s1 = byStore(a, b);
+      if (s1 !== 0) return s1;
+      const c1 = cat(a.product).localeCompare(cat(b.product), undefined, { sensitivity: 'base' });
+      if (c1 !== 0) return c1;
+      return (a.product.pro_title || '').localeCompare(b.product.pro_title || '', undefined, { sensitivity: 'base' });
+    });
+  };
+
+  const getStoreWiseCombinedRows = () => {
+    const groups = getStoreWiseData();
+    return groups.flatMap(({ store, products }) =>
+      products.map(p => ({
+        key: `sw-${p.pro_id}-s${store.storeid}`,
+        product: p,
+        storeName: store.store_name,
+        storeId: store.storeid,
+        qty: p._storeQty,
+      }))
+    );
+  };
+
+  const sortStoreWiseRows = (rows) => {
+    const cat = (p) => p?.category?.cat_name || '';
+    return [...rows].sort((a, b) => {
+      const n = (a.storeName || '').localeCompare(b.storeName || '', undefined, { sensitivity: 'base' });
+      if (n !== 0) return n;
+      const c1 = cat(a.product).localeCompare(cat(b.product), undefined, { sensitivity: 'base' });
+      if (c1 !== 0) return c1;
+      return (a.product.pro_title || '').localeCompare(b.product.pro_title || '', undefined, { sensitivity: 'base' });
+    });
+  };
+
   // ─── Export ────────────────────────────────────────────────────────────────
 
   const handleExport = () => {
     if (!reportData) return;
     const products = getAllStockData();
-    let csv = 'STOCK REPORT\n';
+    const rawRows = sortCombinedAllStockRows(getCombinedAllStockRows(products));
+    let csv = 'STOCK REPORT (combined by store)\n';
     csv += `Generated: ${new Date().toLocaleDateString('en-GB')}\n\n`;
-    csv += 'S.No,Category,Item Name,Unit,Total Qty,Cost Rate,Stock Value,Low Stock Threshold,Status\n';
-    products.forEach((p, i) => {
-      const qty = selectedStore ? getStoreQty(p, selectedStore) : getTotalQty(p);
+    csv += 'S.No,Store,Category,Item Name,Unit,Qty,Cost Rate,Line Value,Low Stock Threshold,Status\n';
+    rawRows.forEach((row, i) => {
+      const p = row.product;
+      const qty = row.qty;
       const val = qty * parseFloat(p.pro_cost_price || 0);
       const threshold = p.low_stock_quantity ?? 10;
       const status = qty === 0 ? 'Out of Stock' : qty <= threshold ? 'Low Stock' : 'In Stock';
-      csv += `${i + 1},${p.category?.cat_name || ''},${p.pro_title},${p.pro_unit || ''},${qty},${formatCurrency(p.pro_cost_price)},${formatCurrency(val)},${threshold},${status}\n`;
+      const storeEsc = (row.storeName || '').replace(/"/g, '""');
+      const titleEsc = (p.pro_title || '').replace(/"/g, '""');
+      csv += `${i + 1},"${storeEsc}",${p.category?.cat_name || ''},"${titleEsc}",${p.pro_unit || ''},${formatQty(qty)},${formatCurrency(p.pro_cost_price)},${formatCurrency(val)},${threshold},${status}\n`;
     });
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -277,7 +411,7 @@ export default function StockReport() {
       head: [['Total Items', 'Total Qty', 'Stock Value (Rs.)', 'Low Stock', 'Out of Stock']],
       body: [[
         formatNumber(summary.total),
-        formatNumber(summary.totalQty),
+        formatQty(summary.totalQty),
         formatCurrency(summary.totalValue),
         String(summary.lowStock),
         String(summary.outOfStock),
@@ -293,44 +427,38 @@ export default function StockReport() {
     const { doc, startY } = startPdf();
 
     if (activeTab === 'all') {
-      const products = getAllStockData();
-      const body = products.map((p, i) => {
-        const qty = selectedStore ? getStoreQty(p, selectedStore) : getTotalQty(p);
+      const rawRows = sortCombinedAllStockRows(getCombinedAllStockRows(getAllStockData()));
+      const body = rawRows.map((row, i) => {
+        const p = row.product;
+        const qty = row.qty;
         const threshold = p.low_stock_quantity ?? 10;
         const status = qty < 0 ? 'Negative' : qty === 0 ? 'Out of Stock' : qty <= threshold ? 'Low Stock' : 'In Stock';
         const value = qty * parseFloat(p.pro_cost_price || 0);
-        const breakdown = selectedStore
-          ? `${stores.find(s => s.storeid === parseInt(selectedStore))?.store_name || ''}: ${getStoreQty(p, selectedStore)}`
-          : (p.store_stocks?.map(ss => `${ss.store?.store_name || `Store ${ss.store_id}`}: ${ss.stock_quantity}`).join(' | ') || '—');
         return [
           String(i + 1),
           p.category?.cat_name || '-',
           p.pro_title || '-',
           p.pro_unit || '-',
-          formatNumber(qty),
-          breakdown,
+          row.storeName || '—',
+          formatQty(qty),
           formatCurrency(p.pro_cost_price),
           formatCurrency(value),
           status,
         ];
       });
-      const totalQty = products.reduce((s, p) => s + (selectedStore ? getStoreQty(p, selectedStore) : getTotalQty(p)), 0);
-      const totalValue = products.reduce((s, p) => {
-        const q = selectedStore ? getStoreQty(p, selectedStore) : getTotalQty(p);
-        return s + q * parseFloat(p.pro_cost_price || 0);
-      }, 0);
+      const totalQty = rawRows.reduce((s, r) => s + r.qty, 0);
+      const totalValue = rawRows.reduce((s, r) => s + r.qty * parseFloat(r.product.pro_cost_price || 0), 0);
       autoTable(doc, {
         startY,
-        head: [['S#', 'Category', 'Item Name', 'Unit', 'Qty', 'Store Breakdown', 'Cost Rate', 'Value', 'Status']],
-        body,
-        foot: [[
-          { content: 'Grand Total', colSpan: 4, styles: { halign: 'right', fontStyle: 'bold' } },
-          { content: formatNumber(totalQty), styles: { halign: 'right', fontStyle: 'bold' } },
-          '',
+        head: [['S#', 'Category', 'Item Name', 'Unit', 'Store', 'Qty', 'Cost Rate', 'Value', 'Status']],
+        body: body.length ? body : [[{ content: 'No products match the current filters.', colSpan: 9, styles: { halign: 'center' } }]],
+        foot: body.length ? [[
+          { content: 'Grand Total', colSpan: 5, styles: { halign: 'right', fontStyle: 'bold' } },
+          { content: formatQty(totalQty), styles: { halign: 'right', fontStyle: 'bold' } },
           '',
           { content: formatCurrency(totalValue), styles: { halign: 'right', fontStyle: 'bold' } },
           '',
-        ]],
+        ]] : undefined,
         theme: 'grid',
         headStyles: { fillColor: [30, 41, 59], textColor: 255, fontSize: 8, fontStyle: 'bold' },
         footStyles: { fillColor: [30, 41, 59], textColor: 255, fontSize: 8 },
@@ -339,47 +467,63 @@ export default function StockReport() {
         columnStyles: {
           0: { halign: 'center', cellWidth: 22 },
           3: { halign: 'center', cellWidth: 30 },
-          4: { halign: 'right', cellWidth: 45 },
+          4: { halign: 'left', cellWidth: 70 },
+          5: { halign: 'right', cellWidth: 45 },
           6: { halign: 'right', cellWidth: 55 },
           7: { halign: 'right', cellWidth: 60 },
           8: { halign: 'center', cellWidth: 55 },
         },
       });
     } else if (activeTab === 'store-wise') {
-      const groups = getStoreWiseData();
-      if (groups.length === 0) {
+      const rawRows = sortStoreWiseRows(getStoreWiseCombinedRows());
+      if (rawRows.length === 0) {
         doc.text('No store stock data found.', 30, startY);
       } else {
-        let y = startY;
-        groups.forEach((g) => {
-          const body = g.products.map((p, i) => [
+        const body = rawRows.map((row, i) => {
+          const p = row.product;
+          const qty = row.qty;
+          const threshold = p.low_stock_quantity ?? 10;
+          const status = qty < 0 ? 'Negative' : qty === 0 ? 'Out of Stock' : qty <= threshold ? 'Low Stock' : 'In Stock';
+          const value = qty * parseFloat(p.pro_cost_price || 0);
+          return [
             String(i + 1),
             p.category?.cat_name || '-',
             p.pro_title || '-',
             p.pro_unit || '-',
-            formatNumber(p._storeQty),
+            row.storeName || '—',
+            formatQty(qty),
             formatCurrency(p.pro_cost_price),
-            formatCurrency(p._storeQty * parseFloat(p.pro_cost_price || 0)),
-          ]);
-          autoTable(doc, {
-            startY: y,
-            head: [[
-              { content: `${g.store.store_name} — ${g.products.length} items · Total Qty: ${formatNumber(g.totalQty)} · Value: Rs. ${formatCurrency(g.totalValue)}`, colSpan: 7, styles: { halign: 'left', fillColor: [67, 56, 202], textColor: 255, fontStyle: 'bold' } },
-            ], ['S#', 'Category', 'Item Name', 'Unit', 'Qty', 'Cost Rate', 'Value']],
-            body,
-            theme: 'grid',
-            headStyles: { fillColor: [226, 232, 240], textColor: 30, fontSize: 8, fontStyle: 'bold' },
-            bodyStyles: { fontSize: 8 },
-            styles: { cellPadding: 3 },
-            columnStyles: {
-              0: { halign: 'center', cellWidth: 22 },
-              3: { halign: 'center', cellWidth: 30 },
-              4: { halign: 'right', cellWidth: 55 },
-              5: { halign: 'right', cellWidth: 65 },
-              6: { halign: 'right', cellWidth: 75 },
-            },
-          });
-          y = (doc.lastAutoTable?.finalY || y) + 18;
+            formatCurrency(value),
+            status,
+          ];
+        });
+        const totalQty = rawRows.reduce((s, r) => s + r.qty, 0);
+        const totalValue = rawRows.reduce((s, r) => s + r.qty * parseFloat(r.product.pro_cost_price || 0), 0);
+        autoTable(doc, {
+          startY,
+          head: [['S#', 'Category', 'Item Name', 'Unit', 'Store', 'Qty', 'Cost Rate', 'Value', 'Status']],
+          body,
+          foot: [[
+            { content: 'Grand Total', colSpan: 5, styles: { halign: 'right', fontStyle: 'bold' } },
+            { content: formatQty(totalQty), styles: { halign: 'right', fontStyle: 'bold' } },
+            '',
+            { content: formatCurrency(totalValue), styles: { halign: 'right', fontStyle: 'bold' } },
+            '',
+          ]],
+          theme: 'grid',
+          headStyles: { fillColor: [67, 56, 202], textColor: 255, fontSize: 8, fontStyle: 'bold' },
+          footStyles: { fillColor: [30, 41, 59], textColor: 255, fontSize: 8 },
+          bodyStyles: { fontSize: 8 },
+          styles: { cellPadding: 3, overflow: 'linebreak' },
+          columnStyles: {
+            0: { halign: 'center', cellWidth: 22 },
+            3: { halign: 'center', cellWidth: 30 },
+            4: { halign: 'left', cellWidth: 70 },
+            5: { halign: 'right', cellWidth: 45 },
+            6: { halign: 'right', cellWidth: 55 },
+            7: { halign: 'right', cellWidth: 60 },
+            8: { halign: 'center', cellWidth: 55 },
+          },
         });
       }
     } else if (activeTab === 'low-stock') {
@@ -387,14 +531,14 @@ export default function StockReport() {
       const body = products.map((p, i) => {
         const qty = selectedStore ? getStoreQty(p, selectedStore) : getTotalQty(p);
         const threshold = p.low_stock_quantity ?? 10;
-        const breakdown = p.store_stocks?.map(ss => `${ss.store?.store_name || `S${ss.store_id}`}: ${ss.stock_quantity}`).join(' | ') || '—';
+        const breakdown = p.store_stocks?.map(ss => `${ss.store?.store_name || `S${ss.store_id}`}: ${formatQty(ss.stock_quantity)}`).join(' | ') || '—';
         return [
           String(i + 1),
           p.category?.cat_name || '-',
           p.pro_title || '-',
           p.pro_unit || '-',
-          formatNumber(qty),
-          formatNumber(threshold),
+          formatQty(qty),
+          formatQty(threshold),
           breakdown,
           formatCurrency(p.pro_cost_price),
           formatCurrency(qty * parseFloat(p.pro_cost_price || 0)),
@@ -425,9 +569,9 @@ export default function StockReport() {
               String(i + 1),
               p.pro_title || '-',
               p.pro_unit || '-',
-              formatNumber(p._qty),
-              formatNumber(threshold),
-              formatNumber(shortage),
+              formatQty(p._qty),
+              formatQty(threshold),
+              formatQty(shortage),
               formatCurrency(p.pro_cost_price),
               formatCurrency(p._qty * parseFloat(p.pro_cost_price || 0)),
             ];
@@ -435,7 +579,7 @@ export default function StockReport() {
           autoTable(doc, {
             startY: y,
             head: [[
-              { content: `${g.catName} — ${g.products.length} low-stock items · Qty: ${formatNumber(catTotalQty)} · Value: Rs. ${formatCurrency(catTotalValue)}`, colSpan: 8, styles: { halign: 'left', fillColor: [249, 115, 22], textColor: 255, fontStyle: 'bold' } },
+              { content: `${g.catName} — ${g.products.length} low-stock items · Qty: ${formatQty(catTotalQty)} · Value: Rs. ${formatCurrency(catTotalValue)}`, colSpan: 8, styles: { halign: 'left', fillColor: [249, 115, 22], textColor: 255, fontStyle: 'bold' } },
             ], ['S#', 'Item Name', 'Unit', 'Qty', 'Threshold', 'Shortage', 'Cost Rate', 'Value']],
             body,
             theme: 'grid',
@@ -458,8 +602,8 @@ export default function StockReport() {
             p.category?.cat_name || '-',
             p.pro_title || '-',
             p.pro_unit || '-',
-            formatNumber(p._storeQty),
-            formatNumber(p.low_stock_quantity ?? 10),
+            formatQty(p._storeQty),
+            formatQty(p.low_stock_quantity ?? 10),
             formatCurrency(p.pro_cost_price),
           ]);
           autoTable(doc, {
@@ -603,65 +747,72 @@ export default function StockReport() {
 
   const renderAllStock = () => {
     const products = getAllStockData();
+    const rawRows = sortCombinedAllStockRows(getCombinedAllStockRows(products));
+    const grandTotalQty = rawRows.reduce((s, r) => s + r.qty, 0);
+    const grandTotalValue = rawRows.reduce((s, r) => s + r.qty * parseFloat(r.product.pro_cost_price || 0), 0);
+    const filterLabel = selectedStore
+      ? stores.find(s => s.storeid === parseInt(String(selectedStore), 10))?.store_name
+      : null;
+
     return (
       <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-slate-800 text-white">
-              <th className="px-3 py-3 text-left text-xs font-bold uppercase border-r border-slate-600 w-10">S#</th>
-              <th className="px-3 py-3 text-left text-xs font-bold uppercase border-r border-slate-600">Category</th>
-              <th className="px-3 py-3 text-left text-xs font-bold uppercase border-r border-slate-600">Item Name</th>
-              <th className="px-3 py-3 text-center text-xs font-bold uppercase border-r border-slate-600 w-14">Unit</th>
-              <th className="px-3 py-3 text-right text-xs font-bold uppercase border-r border-slate-600 w-24">Total Qty</th>
-              <th className="px-3 py-3 text-left text-xs font-bold uppercase border-r border-slate-600">Store Breakdown</th>
-              <th className="px-3 py-3 text-right text-xs font-bold uppercase border-r border-slate-600 w-28">Cost Rate</th>
-              <th className="px-3 py-3 text-right text-xs font-bold uppercase border-r border-slate-600 w-28">Stock Value</th>
-              <th className="px-3 py-3 text-center text-xs font-bold uppercase w-24">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {products.length === 0 ? (
-              <tr><td colSpan={9} className="py-10 text-center text-slate-400">No products found</td></tr>
-            ) : products.map((p, i) => {
-              const qty = selectedStore ? getStoreQty(p, selectedStore) : getTotalQty(p);
-              const storeBreakdown = selectedStore
-                ? `${stores.find(s => s.storeid === parseInt(selectedStore))?.store_name || ''}: ${getStoreQty(p, selectedStore)}`
-                : (p.store_stocks?.map(ss => `${ss.store?.store_name || `Store ${ss.store_id}`}: ${ss.stock_quantity}`).join(' | ') || '—');
-              return (
-                <tr key={p.pro_id} className={`${rowBg(p, selectedStore || null, i)} hover:brightness-95 transition-all`}>
-                  <td className="px-3 py-2 text-slate-500 border-r border-slate-100 text-xs">{i + 1}</td>
-                  <td className="px-3 py-2 text-slate-600 border-r border-slate-100 text-xs">{p.category?.cat_name}</td>
-                  <td className="px-3 py-2 font-semibold text-slate-900 border-r border-slate-100">{p.pro_title}</td>
-                  <td className="px-3 py-2 text-center text-slate-600 border-r border-slate-100 text-xs">{p.pro_unit || '—'}</td>
-                  <td className={`px-3 py-2 text-right font-bold border-r border-slate-100 tabular-nums ${qty <= 0 ? 'text-red-600' : qty <= (p.low_stock_quantity ?? 10) ? 'text-amber-600' : 'text-slate-900'}`}>{formatNumber(qty)}</td>
-                  <td className="px-3 py-2 text-slate-500 text-xs border-r border-slate-100">{storeBreakdown}</td>
-                  <td className="px-3 py-2 text-right text-slate-700 border-r border-slate-100 tabular-nums">{formatCurrency(p.pro_cost_price)}</td>
-                  <td className="px-3 py-2 text-right font-semibold text-slate-900 border-r border-slate-100 tabular-nums">{formatCurrency(qty * parseFloat(p.pro_cost_price || 0))}</td>
-                  <td className="px-3 py-2 text-center">{statusBadge(p, selectedStore || null)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-          {products.length > 0 && (
-            <tfoot>
-              <tr className="bg-slate-800 text-white font-bold">
-                <td colSpan={4} className="px-3 py-3 text-right text-xs uppercase border-r border-slate-600">Grand Total</td>
-                <td className="px-3 py-3 text-right tabular-nums border-r border-slate-600">
-                  {formatNumber(products.reduce((s, p) => s + (selectedStore ? getStoreQty(p, selectedStore) : getTotalQty(p)), 0))}
-                </td>
-                <td className="px-3 py-3 border-r border-slate-600"></td>
-                <td className="px-3 py-3 border-r border-slate-600"></td>
-                <td className="px-3 py-3 text-right tabular-nums border-r border-slate-600">
-                  {formatCurrency(products.reduce((s, p) => {
-                    const q = selectedStore ? getStoreQty(p, selectedStore) : getTotalQty(p);
-                    return s + q * parseFloat(p.pro_cost_price || 0);
-                  }, 0))}
-                </td>
-                <td className="px-3 py-3"></td>
+        <div className="px-3 py-2 bg-slate-100 border-b border-slate-200 text-xs text-slate-600 print:hidden">
+          <strong>Combined by store</strong> — one row per item and location. <strong>Qty</strong> is for that store only
+          {filterLabel ? <span> (filter: <strong>{filterLabel}</strong>)</span> : null}.
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[880px]">
+            <thead>
+              <tr className="bg-slate-800 text-white">
+                <th className="px-2 py-2.5 text-left text-xs font-bold uppercase border-r border-slate-600 w-9">S#</th>
+                <th className="px-2 py-2.5 text-left text-xs font-bold uppercase border-r border-slate-600 min-w-[88px]">Category</th>
+                <th className="px-2 py-2.5 text-left text-xs font-bold uppercase border-r border-slate-600 min-w-[120px]">Item</th>
+                <th className="px-2 py-2.5 text-center text-xs font-bold uppercase border-r border-slate-600 w-12">Unit</th>
+                <th className="px-2 py-2.5 text-left text-xs font-bold uppercase border-r border-slate-600 min-w-[100px]">Store</th>
+                <th className="px-2 py-2.5 text-right text-xs font-bold uppercase border-r border-slate-600 w-24">Qty</th>
+                <th className="px-2 py-2.5 text-right text-xs font-bold uppercase border-r border-slate-600 w-24">Cost</th>
+                <th className="px-2 py-2.5 text-right text-xs font-bold uppercase border-r border-slate-600 w-24">Value</th>
+                <th className="px-2 py-2.5 text-center text-xs font-bold uppercase w-20">Status</th>
               </tr>
-            </tfoot>
-          )}
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {rawRows.length === 0 ? (
+                <tr><td colSpan={9} className="py-10 text-center text-slate-400">No products found</td></tr>
+              ) : rawRows.map((row, i) => {
+                const p = row.product;
+                const q = row.qty;
+                return (
+                  <tr key={row.key} className={`${rowBg(p, row.storeId, i)} hover:brightness-95 transition-all`}>
+                    <td className="px-2 py-2 text-slate-500 border-r border-slate-100 text-xs">{i + 1}</td>
+                    <td className="px-2 py-2 text-slate-600 border-r border-slate-100 text-xs max-w-[100px] truncate">{p.category?.cat_name}</td>
+                    <td className="px-2 py-2 font-semibold text-slate-900 border-r border-slate-100 text-xs max-w-[220px]">{p.pro_title}</td>
+                    <td className="px-2 py-2 text-center text-slate-600 border-r border-slate-100 text-xs">{p.pro_unit || '—'}</td>
+                    <td className="px-2 py-2 text-slate-700 border-r border-slate-100 text-xs font-medium max-w-[140px] truncate" title={row.storeName || ''}>
+                      {row.storeName}
+                    </td>
+                    <td className={`px-2 py-2 text-right font-bold border-r border-slate-100 tabular-nums text-xs ${q <= 0 ? 'text-red-600' : q <= (p.low_stock_quantity ?? 10) ? 'text-amber-600' : 'text-slate-900'}`}>
+                      {formatQty(q)}
+                    </td>
+                    <td className="px-2 py-2 text-right text-slate-700 border-r border-slate-100 tabular-nums text-xs">{formatCurrency(p.pro_cost_price)}</td>
+                    <td className="px-2 py-2 text-right font-semibold text-slate-900 border-r border-slate-100 tabular-nums text-xs">{formatCurrency(q * parseFloat(p.pro_cost_price || 0))}</td>
+                    <td className="px-2 py-2 text-center text-xs">{statusBadge(p, row.storeId)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            {rawRows.length > 0 && (
+              <tfoot>
+                <tr className="bg-slate-800 text-white font-bold text-xs">
+                  <td colSpan={5} className="px-2 py-2.5 text-right uppercase border-r border-slate-600">Grand total (lines above)</td>
+                  <td className="px-2 py-2.5 text-right tabular-nums border-r border-slate-600">{formatQty(grandTotalQty)}</td>
+                  <td className="px-2 py-2.5 border-r border-slate-600" />
+                  <td className="px-2 py-2.5 text-right tabular-nums border-r border-slate-600">{formatCurrency(grandTotalValue)}</td>
+                  <td className="px-2 py-2.5" />
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
       </div>
     );
   };
@@ -669,62 +820,70 @@ export default function StockReport() {
   // ─── Table: Store Wise ─────────────────────────────────────────────────────
 
   const renderStoreWise = () => {
-    const groups = getStoreWiseData();
-    if (groups.length === 0) return <div className="py-16 text-center text-slate-400">No store stock data found</div>;
+    const rawRows = sortStoreWiseRows(getStoreWiseCombinedRows());
+    if (rawRows.length === 0) return <div className="py-16 text-center text-slate-400">No store stock data found</div>;
+    const lineQty = rawRows.reduce((s, r) => s + r.qty, 0);
+    const lineValue = rawRows.reduce((s, r) => s + r.qty * parseFloat(r.product.pro_cost_price || 0), 0);
+
     return (
-      <div className="space-y-6">
-        {groups.map(({ store, products, totalQty, totalValue }) => (
-          <div key={store.storeid} className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-            <div className="bg-indigo-700 text-white px-4 py-2.5 flex items-center justify-between">
-              <div className="flex items-center gap-2 font-bold text-base">
-                <Store className="w-4 h-4" />
-                {store.store_name}
-              </div>
-              <div className="flex gap-4 text-sm text-indigo-100">
-                <span>{products.length} items</span>
-                <span>Total Qty: <strong className="text-white">{formatNumber(totalQty)}</strong></span>
-                <span>Value: <strong className="text-white">Rs. {formatCurrency(totalValue)}</strong></span>
-              </div>
-            </div>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-slate-100 text-slate-700">
-                  <th className="px-3 py-2 text-left text-xs font-bold uppercase border-r border-slate-200 w-10">S#</th>
-                  <th className="px-3 py-2 text-left text-xs font-bold uppercase border-r border-slate-200">Category</th>
-                  <th className="px-3 py-2 text-left text-xs font-bold uppercase border-r border-slate-200">Item Name</th>
-                  <th className="px-3 py-2 text-center text-xs font-bold uppercase border-r border-slate-200 w-14">Unit</th>
-                  <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-slate-200 w-24">Qty (Store)</th>
-                  <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-slate-200 w-28">Cost Rate</th>
-                  <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-slate-200 w-28">Value</th>
-                  <th className="px-3 py-2 text-center text-xs font-bold uppercase w-24">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {products.map((p, i) => (
-                  <tr key={p.pro_id} className={`${rowBg(p, store.storeid, i)} hover:brightness-95`}>
+      <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+        <div className="bg-indigo-700 text-white px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-sm">
+          <div className="flex items-center gap-2 font-bold text-base">
+            <Store className="w-4 h-4" />
+            Store-wise stock (single table)
+          </div>
+          <div className="flex gap-4 text-indigo-100">
+            <span><strong className="text-white">{rawRows.length}</strong> line{rawRows.length !== 1 ? 's' : ''}</span>
+            <span>Total Qty: <strong className="text-white">{formatQty(lineQty)}</strong></span>
+            <span>Value: <strong className="text-white">Rs. {formatCurrency(lineValue)}</strong></span>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[880px]">
+            <thead>
+              <tr className="bg-slate-100 text-slate-700">
+                <th className="px-3 py-2 text-left text-xs font-bold uppercase border-r border-slate-200 w-10">S#</th>
+                <th className="px-3 py-2 text-left text-xs font-bold uppercase border-r border-slate-200">Category</th>
+                <th className="px-3 py-2 text-left text-xs font-bold uppercase border-r border-slate-200 min-w-[120px]">Item Name</th>
+                <th className="px-3 py-2 text-center text-xs font-bold uppercase border-r border-slate-200 w-14">Unit</th>
+                <th className="px-3 py-2 text-left text-xs font-bold uppercase border-r border-slate-200 min-w-[100px]">Store</th>
+                <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-slate-200 w-24">Qty</th>
+                <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-slate-200 w-28">Cost Rate</th>
+                <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-slate-200 w-28">Value</th>
+                <th className="px-3 py-2 text-center text-xs font-bold uppercase w-24">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {rawRows.map((row, i) => {
+                const p = row.product;
+                return (
+                  <tr key={row.key} className={`${rowBg(p, row.storeId, i)} hover:brightness-95`}>
                     <td className="px-3 py-2 text-slate-400 border-r border-slate-100 text-xs">{i + 1}</td>
                     <td className="px-3 py-2 text-slate-500 border-r border-slate-100 text-xs">{p.category?.cat_name}</td>
                     <td className="px-3 py-2 font-semibold text-slate-900 border-r border-slate-100">{p.pro_title}</td>
                     <td className="px-3 py-2 text-center text-slate-500 border-r border-slate-100 text-xs">{p.pro_unit || '—'}</td>
-                    <td className={`px-3 py-2 text-right font-bold border-r border-slate-100 tabular-nums ${p._storeQty <= (p.low_stock_quantity ?? 10) ? 'text-amber-600' : 'text-slate-900'}`}>{formatNumber(p._storeQty)}</td>
+                    <td className="px-3 py-2 text-indigo-900 border-r border-slate-100 text-xs font-medium max-w-[160px] truncate" title={row.storeName || ''}>
+                      {row.storeName}
+                    </td>
+                    <td className={`px-3 py-2 text-right font-bold border-r border-slate-100 tabular-nums ${p._storeQty <= (p.low_stock_quantity ?? 10) ? 'text-amber-600' : 'text-slate-900'}`}>{formatQty(p._storeQty)}</td>
                     <td className="px-3 py-2 text-right text-slate-700 border-r border-slate-100 tabular-nums">{formatCurrency(p.pro_cost_price)}</td>
                     <td className="px-3 py-2 text-right font-semibold border-r border-slate-100 tabular-nums">{formatCurrency(p._storeQty * parseFloat(p.pro_cost_price || 0))}</td>
-                    <td className="px-3 py-2 text-center">{statusBadge(p, store.storeid)}</td>
+                    <td className="px-3 py-2 text-center">{statusBadge(p, row.storeId)}</td>
                   </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="bg-indigo-50 font-semibold text-indigo-900">
-                  <td colSpan={4} className="px-3 py-2 text-right text-xs uppercase border-r border-slate-200">Store Total</td>
-                  <td className="px-3 py-2 text-right tabular-nums border-r border-slate-200">{formatNumber(totalQty)}</td>
-                  <td className="px-3 py-2 border-r border-slate-200"></td>
-                  <td className="px-3 py-2 text-right tabular-nums border-r border-slate-200">{formatCurrency(totalValue)}</td>
-                  <td className="px-3 py-2"></td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        ))}
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="bg-indigo-50 font-semibold text-indigo-900">
+                <td colSpan={5} className="px-3 py-2 text-right text-xs uppercase border-r border-slate-200">Grand total</td>
+                <td className="px-3 py-2 text-right tabular-nums border-r border-slate-200">{formatQty(lineQty)}</td>
+                <td className="px-3 py-2 border-r border-slate-200" />
+                <td className="px-3 py-2 text-right tabular-nums border-r border-slate-200">{formatCurrency(lineValue)}</td>
+                <td className="px-3 py-2" />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
       </div>
     );
   };
@@ -759,15 +918,15 @@ export default function StockReport() {
             ) : products.map((p, i) => {
               const qty = selectedStore ? getStoreQty(p, selectedStore) : getTotalQty(p);
               const threshold = p.low_stock_quantity ?? 10;
-              const storeBreakdown = p.store_stocks?.map(ss => `${ss.store?.store_name || `S${ss.store_id}`}: ${ss.stock_quantity}`).join(' | ') || '—';
+              const storeBreakdown = p.store_stocks?.map(ss => `${ss.store?.store_name || `S${ss.store_id}`}: ${formatQty(ss.stock_quantity)}`).join(' | ') || '—';
               return (
                 <tr key={p.pro_id} className={`bg-amber-50 hover:bg-amber-100 transition-colors`}>
                   <td className="px-3 py-2 text-amber-500 border-r border-amber-100 text-xs">{i + 1}</td>
                   <td className="px-3 py-2 text-slate-600 border-r border-amber-100 text-xs">{p.category?.cat_name}</td>
                   <td className="px-3 py-2 font-semibold text-slate-900 border-r border-amber-100">{p.pro_title}</td>
                   <td className="px-3 py-2 text-center text-slate-500 border-r border-amber-100 text-xs">{p.pro_unit || '—'}</td>
-                  <td className="px-3 py-2 text-right font-bold text-amber-700 border-r border-amber-100 tabular-nums">{formatNumber(qty)}</td>
-                  <td className="px-3 py-2 text-right text-slate-500 border-r border-amber-100 tabular-nums">{formatNumber(threshold)}</td>
+                  <td className="px-3 py-2 text-right font-bold text-amber-700 border-r border-amber-100 tabular-nums">{formatQty(qty)}</td>
+                  <td className="px-3 py-2 text-right text-slate-500 border-r border-amber-100 tabular-nums">{formatQty(threshold)}</td>
                   <td className="px-3 py-2 text-slate-500 text-xs border-r border-amber-100">{storeBreakdown}</td>
                   <td className="px-3 py-2 text-right text-slate-700 border-r border-amber-100 tabular-nums">{formatCurrency(p.pro_cost_price)}</td>
                   <td className="px-3 py-2 text-right font-semibold text-slate-900 tabular-nums">{formatCurrency(qty * parseFloat(p.pro_cost_price || 0))}</td>
@@ -820,8 +979,8 @@ export default function StockReport() {
                     <td className="px-3 py-2 text-slate-500 border-r border-amber-100 text-xs">{p.category?.cat_name}</td>
                     <td className="px-3 py-2 font-semibold text-slate-900 border-r border-amber-100">{p.pro_title}</td>
                     <td className="px-3 py-2 text-center text-slate-500 border-r border-amber-100 text-xs">{p.pro_unit || '—'}</td>
-                    <td className="px-3 py-2 text-right font-bold text-amber-700 border-r border-amber-100 tabular-nums">{formatNumber(p._storeQty)}</td>
-                    <td className="px-3 py-2 text-right text-slate-500 border-r border-amber-100 tabular-nums">{formatNumber(p.low_stock_quantity ?? 10)}</td>
+                    <td className="px-3 py-2 text-right font-bold text-amber-700 border-r border-amber-100 tabular-nums">{formatQty(p._storeQty)}</td>
+                    <td className="px-3 py-2 text-right text-slate-500 border-r border-amber-100 tabular-nums">{formatQty(p.low_stock_quantity ?? 10)}</td>
                     <td className="px-3 py-2 text-right text-slate-700 tabular-nums">{formatCurrency(p.pro_cost_price)}</td>
                   </tr>
                 ))}
@@ -867,7 +1026,7 @@ export default function StockReport() {
                 </div>
                 <div className="flex gap-4 text-sm text-amber-100">
                   <span>{products.length} low-stock item{products.length !== 1 ? 's' : ''}</span>
-                  <span>Qty: <strong className="text-white">{formatNumber(catTotalQty)}</strong></span>
+                  <span>Qty: <strong className="text-white">{formatQty(catTotalQty)}</strong></span>
                   <span>Value: <strong className="text-white">Rs. {formatCurrency(catTotalValue)}</strong></span>
                 </div>
               </div>
@@ -890,16 +1049,16 @@ export default function StockReport() {
                     const threshold = p.low_stock_quantity ?? 10;
                     const shortage = threshold - p._qty;
                     const storeBreakdown = p.store_stocks?.map(ss =>
-                      `${ss.store?.store_name || `S${ss.store_id}`}: ${ss.stock_quantity}`
+                      `${ss.store?.store_name || `S${ss.store_id}`}: ${formatQty(ss.stock_quantity)}`
                     ).join(' | ') || '—';
                     return (
                       <tr key={p.pro_id} className="bg-amber-50 hover:bg-amber-100 transition-colors">
                         <td className="px-3 py-2 text-amber-400 border-r border-amber-100 text-xs">{i + 1}</td>
                         <td className="px-3 py-2 font-semibold text-slate-900 border-r border-amber-100">{p.pro_title}</td>
                         <td className="px-3 py-2 text-center text-slate-500 border-r border-amber-100 text-xs">{p.pro_unit || '—'}</td>
-                        <td className="px-3 py-2 text-right font-bold text-amber-700 border-r border-amber-100 tabular-nums">{formatNumber(p._qty)}</td>
-                        <td className="px-3 py-2 text-right text-slate-500 border-r border-amber-100 tabular-nums">{formatNumber(threshold)}</td>
-                        <td className="px-3 py-2 text-right font-bold text-red-600 border-r border-amber-100 tabular-nums">{formatNumber(shortage)}</td>
+                        <td className="px-3 py-2 text-right font-bold text-amber-700 border-r border-amber-100 tabular-nums">{formatQty(p._qty)}</td>
+                        <td className="px-3 py-2 text-right text-slate-500 border-r border-amber-100 tabular-nums">{formatQty(threshold)}</td>
+                        <td className="px-3 py-2 text-right font-bold text-red-600 border-r border-amber-100 tabular-nums">{formatQty(shortage)}</td>
                         <td className="px-3 py-2 text-slate-500 text-xs border-r border-amber-100">{storeBreakdown}</td>
                         <td className="px-3 py-2 text-right text-slate-700 border-r border-amber-100 tabular-nums">{formatCurrency(p.pro_cost_price)}</td>
                         <td className="px-3 py-2 text-right font-semibold text-slate-900 tabular-nums">{formatCurrency(p._qty * parseFloat(p.pro_cost_price || 0))}</td>
@@ -910,7 +1069,7 @@ export default function StockReport() {
                 <tfoot>
                   <tr className="bg-amber-100 font-semibold text-amber-900">
                     <td colSpan={3} className="px-3 py-2 text-right text-xs uppercase border-r border-amber-200">Category Total</td>
-                    <td className="px-3 py-2 text-right tabular-nums border-r border-amber-200">{formatNumber(catTotalQty)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums border-r border-amber-200">{formatQty(catTotalQty)}</td>
                     <td colSpan={3} className="px-3 py-2 border-r border-amber-200"></td>
                     <td className="px-3 py-2 border-r border-amber-200"></td>
                     <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(catTotalValue)}</td>
@@ -976,7 +1135,7 @@ export default function StockReport() {
             </div>
             <div className="bg-white border border-blue-200 rounded-lg p-3 text-center">
               <p className="text-xs font-semibold text-blue-600 uppercase">Total Qty</p>
-              <p className="text-2xl font-bold text-blue-800">{formatNumber(summary.totalQty)}</p>
+              <p className="text-2xl font-bold text-blue-800">{formatQty(summary.totalQty)}</p>
             </div>
             <div className="bg-white border border-emerald-200 rounded-lg p-3 text-center">
               <p className="text-xs font-semibold text-emerald-600 uppercase">Stock Value</p>

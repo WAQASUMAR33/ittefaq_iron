@@ -14,6 +14,7 @@
     "start": "next start",
     "lint": "next lint",
     "db:reset": "prisma db push --force-reset && node prisma/seed-admin.js",
+    "db:wipe-transactions": "node scripts/reset-financial-transactions.js",
     "generate": "prisma generate",
     "postinstall": "prisma generate"
   },
