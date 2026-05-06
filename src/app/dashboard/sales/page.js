@@ -32,6 +32,8 @@ import {
   Snackbar,
   CircularProgress,
   Tooltip,
+  Popper,
+  Fade,
   Avatar,
   Select,
   MenuItem,
@@ -104,6 +106,8 @@ function SalesPageContent() {
   const [viewBillDialog, setViewBillDialog] = useState(false);
   const [selectedBill, setSelectedBill] = useState(null);
   const [currentView, setCurrentView] = useState('list');
+  const [hoveredSale, setHoveredSale] = useState(null);
+  const [hoverAnchorEl, setHoverAnchorEl] = useState(null);
 
   // Screen Stack State
   const [screenStack, setScreenStack] = useState([]);
@@ -6873,89 +6877,13 @@ function SalesPageContent() {
                   ) : (
                     filteredSales.map((sale) => {
                       const balance = parseFloat(sale.total_amount) - parseFloat(sale.discount || 0) + parseFloat(sale.shipping_amount || 0) - parseFloat(sale.payment || 0);
-                      const hoverCard = (
-                        <Box sx={{ p: 1.5, minWidth: 280, maxWidth: 360 }}>
-                          {/* Header */}
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5, pb: 1, borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
-                            <Typography sx={{ fontWeight: 800, fontSize: '1rem', color: '#fff' }}>
-                              {getBillDisplayNo(sale)}
-                            </Typography>
-                            <Chip label={sale.bill_type || 'BILL'} size="small" sx={{ bgcolor: 'rgba(255,255,255,0.15)', color: '#fff', fontWeight: 700, fontSize: '0.7rem', height: 20 }} />
-                          </Box>
-                          {/* Customer */}
-                          <Box sx={{ mb: 1 }}>
-                            <Typography sx={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.7)' }}>Customer</Typography>
-                            <Typography sx={{ fontWeight: 700, fontSize: '0.88rem', color: '#fff' }}>{sale.customer?.cus_name || 'N/A'}</Typography>
-                            {sale.customer?.cus_phone_no && <Typography sx={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)' }}>{sale.customer.cus_phone_no}</Typography>}
-                          </Box>
-                          {/* Date & Reference */}
-                          <Box sx={{ display: 'flex', gap: 2, mb: 1.5 }}>
-                            <Box>
-                              <Typography sx={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)' }}>Date</Typography>
-                              <Typography sx={{ fontSize: '0.82rem', color: '#fff' }}>{new Date(sale.created_at).toLocaleDateString('en-PK')}</Typography>
-                            </Box>
-                            {sale.reference && (
-                              <Box>
-                                <Typography sx={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)' }}>Reference</Typography>
-                                <Typography sx={{ fontSize: '0.82rem', color: '#fff' }}>{sale.reference}</Typography>
-                              </Box>
-                            )}
-                          </Box>
-                          {/* Items */}
-                          {sale.sale_details?.length > 0 && (
-                            <Box sx={{ mb: 1.5, bgcolor: 'rgba(255,255,255,0.08)', borderRadius: 1, p: 1 }}>
-                              {sale.sale_details.slice(0, 4).map((d, i) => (
-                                <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.25 }}>
-                                  <Typography sx={{ fontSize: '0.76rem', color: 'rgba(255,255,255,0.85)', flex: 1 }} noWrap>{d.product?.pro_title || `Item ${i + 1}`}</Typography>
-                                  <Typography sx={{ fontSize: '0.76rem', color: 'rgba(255,255,255,0.6)', ml: 1, whiteSpace: 'nowrap' }}>{d.qnty} × {parseFloat(d.unit_rate || 0).toFixed(0)}</Typography>
-                                </Box>
-                              ))}
-                              {sale.sale_details.length > 4 && (
-                                <Typography sx={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', mt: 0.5 }}>+{sale.sale_details.length - 4} more items</Typography>
-                              )}
-                            </Box>
-                          )}
-                          {/* Amounts */}
-                          <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.15)', pt: 1 }}>
-                            {[
-                              { label: 'Total', value: parseFloat(sale.total_amount || 0), bold: false },
-                              ...(parseFloat(sale.discount || 0) > 0 ? [{ label: 'Discount', value: -parseFloat(sale.discount), bold: false }] : []),
-                              ...(parseFloat(sale.shipping_amount || 0) > 0 ? [{ label: 'Delivery', value: parseFloat(sale.shipping_amount), bold: false }] : []),
-                              { label: 'Paid', value: parseFloat(sale.payment || 0), bold: false },
-                              { label: 'Balance', value: balance, bold: true },
-                            ].map((row, i) => (
-                              <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <Typography sx={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.65)' }}>{row.label}</Typography>
-                                <Typography sx={{ fontSize: '0.78rem', fontWeight: row.bold ? 800 : 500, color: row.label === 'Balance' ? (balance > 0 ? '#ff8a80' : balance < 0 ? '#69f0ae' : 'rgba(255,255,255,0.6)') : '#fff' }}>
-                                  {row.value.toFixed(2)}
-                                </Typography>
-                              </Box>
-                            ))}
-                          </Box>
-                        </Box>
-                      );
                       return (
-                        <Tooltip
+                        <TableRow
                           key={sale.sale_id}
-                          title={hoverCard}
-                          placement="right"
-                          arrow
-                          enterDelay={300}
-                          leaveDelay={0}
-                          componentsProps={{
-                            tooltip: {
-                              sx: {
-                                bgcolor: '#1e293b',
-                                borderRadius: 2,
-                                boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-                                p: 0,
-                                maxWidth: 380,
-                                '& .MuiTooltip-arrow': { color: '#1e293b' }
-                              }
-                            }
-                          }}
+                          onMouseEnter={(e) => { setHoveredSale(sale); setHoverAnchorEl(e.currentTarget); }}
+                          onMouseLeave={() => { setHoveredSale(null); setHoverAnchorEl(null); }}
+                          sx={{ '&:hover': { bgcolor: '#f1f5f9', cursor: 'pointer' }, transition: 'background 0.15s' }}
                         >
-                        <TableRow sx={{ '&:hover': { bgcolor: '#f1f5f9', cursor: 'pointer' }, transition: 'background 0.15s' }} key={sale.sale_id}>
                           <TableCell sx={{ fontWeight: 'medium' }}>{getBillDisplayNo(sale)}</TableCell>
                           <TableCell>{sale.customer?.cus_name || 'N/A'}</TableCell>
                           <TableCell sx={{ color: 'text.secondary', fontSize: '0.85rem' }}>{sale.reference || '—'}</TableCell>
@@ -7024,7 +6952,6 @@ function SalesPageContent() {
                             </IconButton>
                           </TableCell>
                         </TableRow>
-                        </Tooltip>
                       );
                     })
                   )}
@@ -7034,6 +6961,133 @@ function SalesPageContent() {
           </Card>
         </Stack>
       </Container>
+
+      {/* Bill Quick-View Hover Card */}
+      <Popper
+        open={Boolean(hoveredSale && hoverAnchorEl)}
+        anchorEl={hoverAnchorEl}
+        placement="right-start"
+        transition
+        style={{ zIndex: 9999 }}
+        modifiers={[{ name: 'offset', options: { offset: [0, 12] } }]}
+      >
+        {({ TransitionProps }) => (
+          <Fade {...TransitionProps} timeout={180}>
+            <Paper elevation={12} sx={{
+              width: 480,
+              borderRadius: 3,
+              overflow: 'hidden',
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
+              pointerEvents: 'none'
+            }}>
+              {hoveredSale && (() => {
+                const s = hoveredSale;
+                const bal = parseFloat(s.total_amount) - parseFloat(s.discount || 0) + parseFloat(s.shipping_amount || 0) - parseFloat(s.payment || 0);
+                return (
+                  <>
+                    {/* Header */}
+                    <Box sx={{
+                      background: s.bill_type === 'SALE_RETURN'
+                        ? 'linear-gradient(135deg,#c62828,#ef5350)'
+                        : s.bill_type === 'ORDER'
+                          ? 'linear-gradient(135deg,#1565c0,#42a5f5)'
+                          : 'linear-gradient(135deg,#1e3a5f,#2563eb)',
+                      px: 3, py: 2,
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+                    }}>
+                      <Box>
+                        <Typography sx={{ fontWeight: 900, fontSize: '1.4rem', color: '#fff', letterSpacing: 0.5 }}>
+                          {getBillDisplayNo(s)}
+                        </Typography>
+                        <Typography sx={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.75)', mt: 0.25 }}>
+                          {new Date(s.created_at).toLocaleDateString('en-PK', { day: 'numeric', month: 'long', year: 'numeric' })}
+                        </Typography>
+                      </Box>
+                      <Chip
+                        label={s.bill_type || 'BILL'}
+                        sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: '#fff', fontWeight: 800, fontSize: '0.8rem', height: 28 }}
+                      />
+                    </Box>
+
+                    <Box sx={{ p: 2.5 }}>
+                      {/* Customer Row */}
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2, p: 1.5, bgcolor: '#f8fafc', borderRadius: 2 }}>
+                        <Avatar sx={{ bgcolor: '#2563eb', width: 40, height: 40, fontSize: '1rem', fontWeight: 800 }}>
+                          {s.customer?.cus_name?.[0]?.toUpperCase() || '?'}
+                        </Avatar>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography sx={{ fontWeight: 700, fontSize: '1rem', color: '#1e293b' }}>{s.customer?.cus_name || 'N/A'}</Typography>
+                          {s.customer?.cus_phone_no && (
+                            <Typography sx={{ fontSize: '0.8rem', color: '#64748b' }}>{s.customer.cus_phone_no}</Typography>
+                          )}
+                        </Box>
+                        {s.reference && (
+                          <Box sx={{ textAlign: 'right' }}>
+                            <Typography sx={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>Ref</Typography>
+                            <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: '#475569' }}>{s.reference}</Typography>
+                          </Box>
+                        )}
+                      </Box>
+
+                      {/* Items Table */}
+                      {s.sale_details?.length > 0 && (
+                        <Box sx={{ mb: 2 }}>
+                          <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.8, mb: 0.75 }}>Items</Typography>
+                          <Box sx={{ border: '1px solid #e2e8f0', borderRadius: 1.5, overflow: 'hidden' }}>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto', bgcolor: '#f1f5f9', px: 1.5, py: 0.75, gap: 1 }}>
+                              {['Product', 'Qty', 'Amount'].map(h => (
+                                <Typography key={h} sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>{h}</Typography>
+                              ))}
+                            </Box>
+                            {s.sale_details.slice(0, 6).map((d, i) => (
+                              <Box key={i} sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto', px: 1.5, py: 0.6, gap: 1, borderTop: '1px solid #f1f5f9', '&:nth-of-type(even)': { bgcolor: '#fafafa' } }}>
+                                <Typography sx={{ fontSize: '0.82rem', color: '#334155', fontWeight: 500 }} noWrap>{d.product?.pro_title || `Item ${i + 1}`}</Typography>
+                                <Typography sx={{ fontSize: '0.82rem', color: '#64748b', textAlign: 'right' }}>{d.qnty}</Typography>
+                                <Typography sx={{ fontSize: '0.82rem', color: '#1e293b', fontWeight: 600, textAlign: 'right' }}>{parseFloat(d.total_amount || 0).toFixed(0)}</Typography>
+                              </Box>
+                            ))}
+                            {s.sale_details.length > 6 && (
+                              <Box sx={{ px: 1.5, py: 0.5, bgcolor: '#f8fafc', borderTop: '1px solid #f1f5f9' }}>
+                                <Typography sx={{ fontSize: '0.72rem', color: '#94a3b8' }}>+{s.sale_details.length - 6} more items</Typography>
+                              </Box>
+                            )}
+                          </Box>
+                        </Box>
+                      )}
+
+                      {/* Financial Summary */}
+                      <Box sx={{ bgcolor: '#f8fafc', borderRadius: 2, p: 1.5 }}>
+                        {[
+                          { label: 'Sub Total', value: parseFloat(s.total_amount || 0), color: '#334155' },
+                          ...(parseFloat(s.discount || 0) > 0 ? [{ label: 'Discount', value: -parseFloat(s.discount), color: '#16a34a' }] : []),
+                          ...(parseFloat(s.shipping_amount || 0) > 0 ? [{ label: 'Delivery', value: parseFloat(s.shipping_amount), color: '#334155' }] : []),
+                          { label: 'Paid', value: parseFloat(s.payment || 0), color: '#2563eb' },
+                        ].map((row, i) => (
+                          <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.4 }}>
+                            <Typography sx={{ fontSize: '0.82rem', color: '#64748b' }}>{row.label}</Typography>
+                            <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: row.color }}>{row.value.toFixed(2)}</Typography>
+                          </Box>
+                        ))}
+                        <Divider sx={{ my: 1 }} />
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Typography sx={{ fontWeight: 800, fontSize: '0.95rem', color: '#1e293b' }}>Balance</Typography>
+                          <Typography sx={{
+                            fontWeight: 900, fontSize: '1.1rem',
+                            color: bal > 0 ? '#dc2626' : bal < 0 ? '#16a34a' : '#94a3b8'
+                          }}>
+                            {bal.toFixed(2)}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Box>
+                  </>
+                );
+              })()}
+            </Paper>
+          </Fade>
+        )}
+      </Popper>
     </DashboardLayout>
   );
 
