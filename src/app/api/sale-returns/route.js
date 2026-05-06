@@ -221,8 +221,8 @@ export async function POST(request) {
     const labourChargesAmount = parseFloat(labour_charges || 0);
     const shippingAmount = parseFloat(shipping_amount || 0);
 
-    // Grand Total = Product Total - Discount + Labour + Shipping
-    const grandTotal = computedTotal - discountAmount + labourChargesAmount + shippingAmount;
+    // Grand Total = Product Total - Discount - Delivery Charges - Labour Charges
+    const grandTotal = computedTotal - discountAmount - labourChargesAmount - shippingAmount;
     const refundAmount = parseFloat(payment || 0); // Amount being refunded to customer
     const cashRefund = parseFloat(cash_return || 0);
     const bankRefund = parseFloat(bank_return || 0);
@@ -362,7 +362,7 @@ export async function POST(request) {
             closing_balance: customer.cus_balance - grandTotal,
             bill_no: saleReturn.return_id.toString(),
             trnx_type: 'SALE_RETURN',
-            details: `Sale Return - Product: ${computedTotal}, Labour: ${labourChargesAmount}, Delivery: ${shippingAmount}, Discount: -${discountAmount}, Grand Total: ${grandTotal}`,
+            details: `Sale Return - Product: ${computedTotal}, Delivery: -${shippingAmount}, Labour: -${labourChargesAmount}, Discount: -${discountAmount}, Net: ${grandTotal}`,
             payments: 0,
             updated_by
           }

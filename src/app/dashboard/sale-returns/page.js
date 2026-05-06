@@ -180,6 +180,7 @@ export default function SaleReturnsPage() {
     payment_type: 'CASH',
     loader_id: '',
     shipping_amount: 0,
+    labour_charges: 0,
     notes: '',
     manual_sale_inv: ''
   });
@@ -590,6 +591,7 @@ export default function SaleReturnsPage() {
           payment_type: 'CASH',
           loader_id: '',
           shipping_amount: 0,
+          labour_charges: 0,
           notes: '',
           manual_sale_inv: ''
         });
@@ -635,6 +637,7 @@ export default function SaleReturnsPage() {
       payment_type: saleReturn.payment_type || 'CASH',
       loader_id: saleReturn.loader_id || '',
       shipping_amount: parseFloat(saleReturn.shipping_amount) || 0,
+      labour_charges: parseFloat(saleReturn.labour_charges) || 0,
       notes: saleReturn.reference || '',
       manual_sale_inv: saleReturn.manual_sale_inv || ''
     });
@@ -1111,7 +1114,7 @@ export default function SaleReturnsPage() {
                     {editingReturn ? 'Update Sale Return' : 'New Sale Return'}
                   </Typography>
                   <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                    {editingReturn ? `Editing invoice INV-R-${editingReturn.return_id}` : 'Select a sale or add products manually to process a return'}
+                    {editingReturn ? `Editing invoice INV-R-${editingReturn.return_id}` : 'No bill needed — select a customer and add any items to process a general return'}
                   </Typography>
                 </Box>
                 <Box sx={{ flexGrow: 1 }} />
@@ -1273,8 +1276,8 @@ export default function SaleReturnsPage() {
                       <Typography variant="h6" sx={{ fontWeight: '700' }}>Loader & Logistics Impact</Typography>
                     </Box>
                     <CardContent sx={{ p: 4 }}>
-                      <Grid container spacing={4}>
-                        <Grid item xs={12} md={6}>
+                      <Grid container spacing={3}>
+                        <Grid item xs={12} md={4}>
                           <Autocomplete
                             options={loaders}
                             getOptionLabel={(o) => `${o.loader_name} (${o.loader_number})`}
@@ -1284,16 +1287,30 @@ export default function SaleReturnsPage() {
                             autoHighlight={true}
                             openOnFocus={true}
                             selectOnFocus={true}
-                            renderInput={(params) => <TextField {...params} label="Affected Loader" onFocus={(e) => e.target.select()} sx={STYLES.input} />}
+                            renderInput={(params) => <TextField {...params} label="Affected Loader (optional)" onFocus={(e) => e.target.select()} sx={STYLES.input} />}
                           />
                         </Grid>
-                        <Grid item xs={12} md={6}>
+                        <Grid item xs={12} md={4}>
                           <TextField
                             fullWidth
                             type="number"
-                            label="Shipping Deduction Amount"
+                            label="Delivery Charges (Deducted)"
                             value={formData.shipping_amount}
                             onChange={(e) => setFormData(p => ({ ...p, shipping_amount: parseFloat(e.target.value) || 0 }))}
+                            onFocus={(e) => e.target.select()}
+                            sx={STYLES.input}
+                            InputProps={{
+                              startAdornment: <InputAdornment position="start">PKR</InputAdornment>
+                            }}
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={4}>
+                          <TextField
+                            fullWidth
+                            type="number"
+                            label="Labour Charges (Deducted)"
+                            value={formData.labour_charges}
+                            onChange={(e) => setFormData(p => ({ ...p, labour_charges: parseFloat(e.target.value) || 0 }))}
                             onFocus={(e) => e.target.select()}
                             sx={STYLES.input}
                             InputProps={{
@@ -1562,10 +1579,18 @@ export default function SaleReturnsPage() {
                                 <Typography color="text.secondary">Return Subtotal</Typography>
                                 <Typography sx={{ fontWeight: '700' }}>PKR {fmtAmt(formData.total_return_amount)}</Typography>
                               </Box>
-                              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <Typography color="text.secondary">Loader Deduction</Typography>
-                                <Typography sx={{ fontWeight: '700', color: 'secondary.main' }}>- PKR {fmtAmt(formData.shipping_amount)}</Typography>
-                              </Box>
+                              {formData.shipping_amount > 0 && (
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                  <Typography color="text.secondary">Delivery Charges</Typography>
+                                  <Typography sx={{ fontWeight: '700', color: 'error.main' }}>- PKR {fmtAmt(formData.shipping_amount)}</Typography>
+                                </Box>
+                              )}
+                              {formData.labour_charges > 0 && (
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                  <Typography color="text.secondary">Labour Charges</Typography>
+                                  <Typography sx={{ fontWeight: '700', color: 'error.main' }}>- PKR {fmtAmt(formData.labour_charges)}</Typography>
+                                </Box>
+                              )}
                               <Divider />
                               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <Box>
@@ -1573,7 +1598,7 @@ export default function SaleReturnsPage() {
                                   <Typography variant="caption" color="text.secondary">Adjusted customer balance</Typography>
                                 </Box>
                                 <Typography variant="h5" sx={{ fontWeight: '900', color: 'error.main' }}>
-                                  PKR {parseFloat(formData.total_return_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                  PKR {fmtAmt(Math.max(0, formData.total_return_amount - formData.shipping_amount - formData.labour_charges))}
                                 </Typography>
                               </Box>
                               <Button
