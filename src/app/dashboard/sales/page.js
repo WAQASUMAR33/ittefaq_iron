@@ -6844,6 +6844,7 @@ function SalesPageContent() {
                   <TableRow>
                     <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Sale ID</TableCell>
                     <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Customer</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Reference</TableCell>
                     <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Total Amount</TableCell>
                     <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Discount</TableCell>
                     <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Shipping</TableCell>
@@ -6857,7 +6858,7 @@ function SalesPageContent() {
                 <TableBody>
                   {filteredSales.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} align="center">
+                      <TableCell colSpan={11} align="center">
                         <Box sx={{ py: 8, textAlign: 'center' }}>
                           <ShoppingCartIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
                           <Typography variant="h6" color="text.secondary" gutterBottom>
@@ -6876,6 +6877,7 @@ function SalesPageContent() {
                         <TableRow key={sale.sale_id} sx={{ '&:hover': { bgcolor: '#f8f9fa' } }}>
                           <TableCell sx={{ fontWeight: 'medium' }}>{getBillDisplayNo(sale)}</TableCell>
                           <TableCell>{sale.customer?.cus_name || 'N/A'}</TableCell>
+                          <TableCell sx={{ color: 'text.secondary', fontSize: '0.85rem' }}>{sale.reference || '—'}</TableCell>
                           <TableCell sx={{ fontWeight: 'bold' }}>{parseFloat(sale.total_amount).toFixed(2)}</TableCell>
                           <TableCell>{parseFloat(sale.discount || 0).toFixed(2)}</TableCell>
                           <TableCell>{parseFloat(sale.shipping_amount || 0).toFixed(2)}</TableCell>
