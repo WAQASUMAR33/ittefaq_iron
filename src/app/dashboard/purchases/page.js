@@ -3870,16 +3870,19 @@ function PurchasesPageContent() {
                                     value={detail.qnty}
                                     onChange={(e) => {
                                       const newQuantity = e.target.value;
-                                      const updatedDetails = formData.purchase_details.map((d, i) =>
-                                        i === index
-                                          ? {
-                                            ...d,
-                                            qnty: newQuantity,
-                                            total_amount: (parseFloat(newQuantity) * parseFloat(d.crate || d.unit_rate || 0)).toFixed(2)
-                                          }
-                                          : d
-                                      );
-                                      setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
+                                      setFormData(prev => {
+                                        const baseUpdated = prev.purchase_details.map((d, i) =>
+                                          i === index
+                                            ? {
+                                              ...d,
+                                              qnty: newQuantity,
+                                              total_amount: (parseFloat(newQuantity) * parseFloat(d.crate || d.unit_rate || 0)).toFixed(2)
+                                            }
+                                            : d
+                                        );
+                                        const updatedDetails = recomputeDistributedCosts(baseUpdated, getDistributionParams(prev));
+                                        return { ...prev, purchase_details: updatedDetails };
+                                      });
                                     }}
                                     inputProps={{ min: 0, step: "any" }}
                                     size="small"
@@ -3892,21 +3895,23 @@ function PurchasesPageContent() {
                                     value={detail.crate || detail.unit_rate || '0'}
                                     onChange={(e) => {
                                       const newCrate = e.target.value;
-                                      const baseUpdated = formData.purchase_details.map((d, i) =>
-                                        i === index
-                                          ? {
-                                            ...d,
-                                            crate: newCrate,
-                                            original_crate: newCrate, // keep baseline in sync with manual edits
-                                            cost_rate: newCrate,
-                                            original_cost_rate: newCrate, // sync cost rate with purchase rate
-                                            total_amount: (parseFloat(d.qnty) * parseFloat(newCrate)).toFixed(2)
-                                          }
-                                          : d
-                                      );
-                                      // Re-distribute charges on top of new base cost rate
-                                      const updatedDetails = recomputeDistributedCosts(baseUpdated);
-                                      setFormData(prev => ({ ...prev, purchase_details: updatedDetails }));
+                                      setFormData(prev => {
+                                        const baseUpdated = prev.purchase_details.map((d, i) =>
+                                          i === index
+                                            ? {
+                                              ...d,
+                                              crate: newCrate,
+                                              original_crate: newCrate,
+                                              cost_rate: newCrate,
+                                              original_cost_rate: newCrate,
+                                              total_amount: (parseFloat(d.qnty) * parseFloat(newCrate)).toFixed(2)
+                                            }
+                                            : d
+                                        );
+                                        // Re-distribute charges on top of new base cost rate
+                                        const updatedDetails = recomputeDistributedCosts(baseUpdated, getDistributionParams(prev));
+                                        return { ...prev, purchase_details: updatedDetails };
+                                      });
                                     }}
                                     inputProps={{ min: 0, step: "any" }}
                                     size="small"
