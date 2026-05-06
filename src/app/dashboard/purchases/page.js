@@ -874,7 +874,7 @@ function PurchasesPageContent() {
     const outDeliveryNum = parseFloat(outDelivery || 0);
     const cargoTotal = includeCargo ? (outLabourNum + outDeliveryNum) : 0;
 
-    // Labour distribution: ONLY the labour_amount field — transport/delivery/fare are separate expenses
+    // Labour + Delivery distribution: labourAmount already includes transport_amount (delivery charges)
     const labourTotal = includeLabour ? parseFloat(labourAmount || 0) : 0;
     const incityTotal = includeIncity ? parseFloat(incityAmount || 0) : 0;
 
@@ -904,9 +904,10 @@ function PurchasesPageContent() {
   };
 
   // Helper: build distribution params from a formData snapshot (prev or current)
+  // labourAmount = labour_amount + transport_amount (delivery charges) combined
   const getDistributionParams = (fd, overrides = {}) => ({
     includeLabour: fd.include_labour,
-    labourAmount: fd.labour_amount,
+    labourAmount: parseFloat(fd.labour_amount || 0) + parseFloat(fd.transport_amount || 0),
     includeIncity: fd.include_incity,
     incityAmount: parseFloat(fd.incity_own_labour || 0) + parseFloat(fd.incity_own_delivery || 0),
     includeCargo: fd.include_cargo_in_costprice,
@@ -915,9 +916,9 @@ function PurchasesPageContent() {
     ...overrides
   });
 
-  // Function to handle labour charges distribution (now independent)
-  const handleLabourDistribution = (includeLabour, labourAmount, purchaseDetails, fd = formData) => {
-    return recomputeDistributedCosts(purchaseDetails, getDistributionParams(fd, { includeLabour, labourAmount }));
+  // Distribute labour + delivery charges to cost price. labourAmount comes from getDistributionParams (labour + transport combined).
+  const handleLabourDistribution = (includeLabour, purchaseDetails, fd = formData) => {
+    return recomputeDistributedCosts(purchaseDetails, getDistributionParams(fd, { includeLabour }));
   };
 
   // Function to handle Incity charges distribution (independent)
@@ -1183,10 +1184,9 @@ function PurchasesPageContent() {
     setFormData(prev => {
       const updatedPurchaseDetails = [...prev.purchase_details, newDetail];
 
-      // Apply labour distribution if checkbox is checked
+      // Apply labour + delivery distribution if checkbox is checked
       const finalPurchaseDetails = handleLabourDistribution(
         prev.include_labour,
-        prev.labour_amount,
         updatedPurchaseDetails,
         prev
       );
@@ -4438,9 +4438,13 @@ function PurchasesPageContent() {
                         onChange={(e) => {
                           const newTransport = e.target.value;
                           setFormData(prev => {
-                            // transport_amount is a separate expense; labour distribution only uses labour_amount
-                            // no cost_rate recalculation needed here
-                            return { ...prev, transport_amount: newTransport };
+                            const updatedDetails = recomputeDistributedCosts(
+                              prev.purchase_details,
+                              getDistributionParams(prev, {
+                                labourAmount: parseFloat(prev.labour_amount || 0) + parseFloat(newTransport || 0)
+                              })
+                            );
+                            return { ...prev, transport_amount: newTransport, purchase_details: updatedDetails };
                           });
                         }}
                         onFocus={(e) => e.target.select()}
@@ -4463,11 +4467,11 @@ function PurchasesPageContent() {
                         onChange={(e) => {
                           const newLabourAmount = e.target.value;
                           setFormData(prev => {
-                            const updatedDetails = handleLabourDistribution(
-                              prev.include_labour,
-                              newLabourAmount,
+                            const updatedDetails = recomputeDistributedCosts(
                               prev.purchase_details,
-                              prev
+                              getDistributionParams(prev, {
+                                labourAmount: parseFloat(newLabourAmount || 0) + parseFloat(prev.transport_amount || 0)
+                              })
                             );
                             return {
                               ...prev,
@@ -4495,11 +4499,9 @@ function PurchasesPageContent() {
                           setFormData(prev => {
                             const updatedDetails = handleLabourDistribution(
                               newIncludeLabour,
-                              prev.labour_amount,
                               prev.purchase_details,
                               prev
                             );
-                            console.log('🔧 Updated details:', updatedDetails);
                             return {
                               ...prev,
                               include_labour: newIncludeLabour,

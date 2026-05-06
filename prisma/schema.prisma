@@ -310,6 +310,7 @@ model Sale {
   shipping_amount   Float          @default(0)
   labour_charges    Float          @default(0)
   bill_type         BillType
+  bill_number       Int?
   reference         String?
   updated_by        Int?
   created_at        DateTime       @default(now())

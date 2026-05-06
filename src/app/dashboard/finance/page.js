@@ -559,15 +559,25 @@ export default function FinancePage() {
     sequentialId: index + 1
   }));
 
-  // Footer totals: same bank/cash rules as each row; balance = last visible row (matches BALANCE column)
+  // Bill amount per bill_no = sum of SALE-type debit entries only (excludes CASH/BANK_TRANSFER account entries)
+  const billAmountMap = useMemo(() => {
+    const map = {};
+    for (const e of finalLedgerEntries) {
+      if (!e.bill_no) continue;
+      if (e.trnx_type !== 'SALE') continue;
+      map[e.bill_no] = (map[e.bill_no] || 0) + parseFloat(e.debit_amount || 0);
+    }
+    return map;
+  }, [finalLedgerEntries]);
+
+  // Footer totals: debit/credit from ledger entry amounts; balance = last visible row (matches BALANCE column)
   const ledgerViewSummary = useMemo(() => {
-    let totalBank = 0;
-    let totalCash = 0;
+    let totalDebit = 0;
+    let totalCredit = 0;
     for (const entry of finalLedgerEntries) {
       if (isOrderCustomerMemoLedgerEntry(entry)) continue;
-      const { bankAmount, cashAmount } = getLedgerEntryBankCashForSummary(entry);
-      totalBank += bankAmount;
-      totalCash += cashAmount;
+      totalDebit += parseFloat(entry.debit_amount || 0);
+      totalCredit += parseFloat(entry.credit_amount || 0);
     }
     // Closing balance: use the chronologically latest row in the current view (not the bottom table row, which depends on sort)
     const byTime = [...finalLedgerEntries].sort(
@@ -577,7 +587,7 @@ export default function FinancePage() {
     const lastForBalance = nonMemo.length > 0 ? nonMemo[nonMemo.length - 1] : byTime[byTime.length - 1];
     const lastClosing =
       lastForBalance != null ? parseFloat(lastForBalance.closing_balance || 0) : 0;
-    return { totalBank, totalCash, lastClosing };
+    return { totalDebit, totalCredit, lastClosing };
   }, [finalLedgerEntries]);
 
   // Stats calculations - use filtered entries for accuracy when filters are applied
@@ -1881,7 +1891,7 @@ export default function FinancePage() {
                             letterSpacing: 0.5
                           }}
                         >
-                          BANK (PKR)
+                          DEBIT (PKR)
                         </TableCell>
                         <TableCell
                           sx={{
@@ -1896,7 +1906,7 @@ export default function FinancePage() {
                             letterSpacing: 0.5
                           }}
                         >
-                          CASH (PKR)
+                          CREDIT (PKR)
                         </TableCell>
                         <TableCell
                           sx={{
@@ -2082,42 +2092,32 @@ export default function FinancePage() {
                               )}
                             </TableCell>
 
-                            {/* BILL (show bill number; if this is a purchase debit show the amount too) */}
+                            {/* BILL — show total bill amount (sum of all debits for this bill_no) */}
                             <TableCell
                               sx={{
                                 borderRight: 1,
                                 borderColor: 'divider',
                                 minWidth: 160,
+                                textAlign: 'right',
                                 bgcolor: rowBgColor
                               }}
                             >
-                              {(() => {
-                                const firstIndex = finalLedgerEntries.findIndex(e => e.bill_no === entry.bill_no && ((e.cus_id || e.customer?.cus_id) === (entry.cus_id || entry.customer?.cus_id)));
-                                const isFirstBill = entry.bill_no && firstIndex === index;
-
-                                // Hide bill for the first ledger row when that row represents a Cash or Bank account
-                                const acctName = (entry.customer?.cus_name || '').toLowerCase();
-                                const isCashOrBankAccount = acctName.includes('cash') || acctName.includes('bank');
-
-                                if (!entry.bill_no) return (<Typography variant="body2" sx={{ color: '#6b7280' }}>-</Typography>);
-
-                                // If this is the first bill row but belongs to Cash/Bank account, don't show the bill here
-                                if (isFirstBill && isCashOrBankAccount) return (<Typography variant="body2" sx={{ color: '#6b7280' }}>-</Typography>);
-
-                                if (!isFirstBill) return '';
-
-                                return (
-                                  <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                                    Bill: {entry.bill_no}{' '}
-                                    {((entry.trnx_type === 'PURCHASE' && parseFloat(entry.debit_amount || 0) > 0) || (/incity \(own\) - (labour|delivery)/i).test(entry.details || '')) ? (
-                                      `— ${parseFloat(entry.debit_amount).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                                    ) : ''}
-                                  </Typography>
-                                );
-                              })()}
+                              {entry.bill_no && billAmountMap[entry.bill_no] > 0 ? (
+                                <Typography
+                                  variant="body2"
+                                  sx={{ fontWeight: 700, color: entryTypeColor, fontFamily: 'monospace', fontSize: '0.95rem' }}
+                                >
+                                  {billAmountMap[entry.bill_no].toLocaleString('en-PK', {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2
+                                  })}
+                                </Typography>
+                              ) : (
+                                <Typography variant="body2" sx={{ color: '#d1d5db', fontWeight: 500 }}>-</Typography>
+                              )}
                             </TableCell>
 
-                            {/* Bank Amount */}
+                            {/* Debit Amount */}
                             <TableCell
                               sx={{
                                 borderRight: 1,
@@ -2127,17 +2127,17 @@ export default function FinancePage() {
                                 fontWeight: 700
                               }}
                             >
-                              {parseFloat(bankAmount) > 0 ? (
+                              {parseFloat(entry.debit_amount) > 0 ? (
                                 <Typography
                                   variant="body2"
                                   sx={{
                                     fontWeight: 700,
-                                    color: entryTypeColor,
+                                    color: '#16a34a',
                                     fontFamily: 'monospace',
                                     fontSize: '0.95rem'
                                   }}
                                 >
-                                  {parseFloat(bankAmount).toLocaleString('en-PK', {
+                                  {parseFloat(entry.debit_amount).toLocaleString('en-PK', {
                                     minimumFractionDigits: 2,
                                     maximumFractionDigits: 2
                                   })}
@@ -2149,7 +2149,7 @@ export default function FinancePage() {
                               )}
                             </TableCell>
 
-                            {/* Cash Amount */}
+                            {/* Credit Amount */}
                             <TableCell
                               sx={{
                                 borderRight: 1,
@@ -2159,17 +2159,17 @@ export default function FinancePage() {
                                 fontWeight: 700
                               }}
                             >
-                              {parseFloat(cashAmount) > 0 ? (
+                              {parseFloat(entry.credit_amount) > 0 ? (
                                 <Typography
                                   variant="body2"
                                   sx={{
                                     fontWeight: 700,
-                                    color: entryTypeColor,
+                                    color: '#dc2626',
                                     fontFamily: 'monospace',
                                     fontSize: '0.95rem'
                                   }}
                                 >
-                                  {parseFloat(cashAmount).toLocaleString('en-PK', {
+                                  {parseFloat(entry.credit_amount).toLocaleString('en-PK', {
                                     minimumFractionDigits: 2,
                                     maximumFractionDigits: 2
                                   })}
@@ -2211,10 +2211,10 @@ export default function FinancePage() {
                             TOTAL SUMMARY
                           </Typography>
                         </TableCell>
-                        <TableCell sx={{ borderRight: 1, borderColor: '#e5e7eb', textAlign: 'right', bgcolor: '#f0f9ff' }}>
+                        <TableCell sx={{ borderRight: 1, borderColor: '#e5e7eb', textAlign: 'right', bgcolor: '#f0fdf4' }}>
                           <Typography variant="body2" sx={{ fontWeight: 800, color: '#16a34a', fontFamily: 'monospace', fontSize: '1rem' }}>
                             {finalLedgerEntries.length > 0
-                              ? ledgerViewSummary.totalBank.toLocaleString('en-PK', {
+                              ? ledgerViewSummary.totalDebit.toLocaleString('en-PK', {
                                   minimumFractionDigits: 2,
                                   maximumFractionDigits: 2
                                 })
@@ -2224,7 +2224,7 @@ export default function FinancePage() {
                         <TableCell sx={{ borderRight: 1, borderColor: '#e5e7eb', textAlign: 'right', bgcolor: '#fef2f2' }}>
                           <Typography variant="body2" sx={{ fontWeight: 800, color: '#dc2626', fontFamily: 'monospace', fontSize: '1rem' }}>
                             {finalLedgerEntries.length > 0
-                              ? ledgerViewSummary.totalCash.toLocaleString('en-PK', {
+                              ? ledgerViewSummary.totalCredit.toLocaleString('en-PK', {
                                   minimumFractionDigits: 2,
                                   maximumFractionDigits: 2
                                 })

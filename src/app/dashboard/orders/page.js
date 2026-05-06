@@ -885,6 +885,14 @@ function OrdersPageContent() {
     return productTotal + labour + totalDelivery - discount;
   };
 
+  // Get display bill number: B-1 for BILL, O-1 for ORDER/ORDER_TRASH, fallback to sale_id
+  const getBillDisplayNo = (sale) => {
+    const bn = sale?.bill_number;
+    const bt = sale?.bill_type || 'ORDER';
+    const prefix = bt === 'BILL' ? 'B' : ['ORDER', 'ORDER_TRASH'].includes(bt) ? 'O' : bt === 'QUOTATION' ? 'Q' : 'O';
+    return bn ? `${prefix}-${bn}` : `#${sale?.sale_id || ''}`;
+  };
+
   // Calculate balance (grand total - total cash received)
   const calculateBalance = () => {
     const grandTotal = calculateGrandTotal();
@@ -1044,6 +1052,7 @@ function OrdersPageContent() {
         // Store bill data for printing
         const billDataForPrint = {
           sale_id: result.sale_id,
+          bill_number: result.bill_number ?? null,
           cus_id: formSelectedCustomer.cus_id,
           total_amount: grandTotal,
           discount: parseFloat(paymentData.discount) || 0,
@@ -1056,6 +1065,7 @@ function OrdersPageContent() {
           bill_type: billType || 'BILL',
           reference: paymentData.notes || null,
           created_at: new Date().toISOString(),
+          previous_balance: formSelectedCustomer?.cus_balance ?? null,
           customer: formSelectedCustomer,
           sale_details: productTableData.map((product, index) => ({
             sale_detail_id: index + 1,
@@ -2142,7 +2152,8 @@ function OrdersPageContent() {
   const filteredAndSortedSales = sales
     .filter(sale => {
       const matchesSearch = sale.customer?.cus_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        sale.sale_id?.toString().includes(searchTerm.toLowerCase());
+        sale.sale_id?.toString().includes(searchTerm.toLowerCase()) ||
+        sale.reference?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCustomer = !selectedCustomer || sale.cus_id === selectedCustomer.cus_id;
 
       return matchesSearch && matchesCustomer;
@@ -3240,10 +3251,31 @@ function OrdersPageContent() {
                         },
                       }}
                       disabled
-                      inputProps={{
-                        readOnly: true,
-                        step: 'any',
+                      inputProps={{ readOnly: true, step: 'any' }}
+                    />
+                  </Box>
+
+                  {/* REMAINING AMOUNT = ORDER TOTAL - TOTAL CASH RECEIVED */}
+                  <Box sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#dc2626', minWidth: '140px' }}>
+                      REMAINING
+                    </Typography>
+                    <TextField
+                      size="small"
+                      type="number"
+                      value={toReadOnlyNumberInput(Math.max(0, calculateGrandTotal() - parseFloat(paymentData.totalCashReceived || 0)))}
+                      placeholder="0"
+                      sx={{
+                        bgcolor: '#fef2f2',
+                        flex: 1,
+                        '& .MuiInputBase-input': { padding: '8px', color: '#dc2626', fontWeight: 700 },
+                        '& .MuiInputBase-input.Mui-disabled': {
+                          color: '#dc2626',
+                          WebkitTextFillColor: '#dc2626',
+                        },
                       }}
+                      disabled
+                      inputProps={{ readOnly: true, step: 'any' }}
                     />
                   </Box>
 
@@ -3432,7 +3464,7 @@ function OrdersPageContent() {
                 </Box>
                 <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right', flex: '0 0 50%' }}>
                   <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    Invoice No: <strong>#{currentBillData.sale_id}</strong>
+                    Invoice No: <strong>{getBillDisplayNo(currentBillData)}</strong>
                   </Typography>
                   <Typography variant="body2" sx={{ mb: 0.5 }}>
                     Time: <strong>{new Date(currentBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
@@ -3487,24 +3519,35 @@ function OrdersPageContent() {
                     <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, border: '1px solid #000', width: '100%' }}>
                       <Table size="small">
                         <TableBody>
-                          <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                              {fmtAmt(currentBillData.customer?.cus_balance)}
-                            </TableCell>
-                          </TableRow>
-                          <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                              {fmtAmt(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0))}
-                            </TableCell>
-                          </TableRow>
-                          <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                              {fmtAmt(parseFloat(currentBillData.customer?.cus_balance || 0) + parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0))}
-                            </TableCell>
-                          </TableRow>
+                          {(() => {
+                            const _rem = parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0);
+                            const _isOrd = ['ORDER', 'ORDER_TRASH'].includes(currentBillData.bill_type);
+                            const _bal = parseFloat(currentBillData.customer?.cus_balance || 0);
+                            const _pay = parseFloat(currentBillData.payment || 0);
+                            // Fresh receipt: previous_balance stored before API call (always correct)
+                            // Historical view: for ORDER cus_balance = prev - advance, so prev = bal + pay
+                            //                 for BILL  cus_balance = prev + total - pay, so prev = bal - rem
+                            const _prev = currentBillData.previous_balance != null
+                              ? parseFloat(currentBillData.previous_balance)
+                              : _isOrd ? _bal + _pay : _bal - _rem;
+                            const _total = _prev + _rem;
+                            return (
+                              <>
+                                <TableRow>
+                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
+                                  <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>{fmtAmt(_prev)}</TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</TableCell>
+                                  <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>{fmtAmt(_rem)}</TableCell>
+                                </TableRow>
+                                <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</TableCell>
+                                  <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>{fmtAmt(_total)}</TableCell>
+                                </TableRow>
+                              </>
+                            );
+                          })()}
                         </TableBody>
                       </Table>
                     </TableContainer>
@@ -3597,7 +3640,7 @@ function OrdersPageContent() {
                 <Typography sx={{ mt: 0.5, fontSize: '11px', fontWeight: 'bold' }}>ORDER RECEIPT</Typography>
               </Box>
               <Box sx={{ py: 1 }}>
-                <Typography sx={{ fontSize: '10px' }}>Inv#: #{currentBillData.sale_id}</Typography>
+                <Typography sx={{ fontSize: '10px' }}>Inv#: {getBillDisplayNo(currentBillData)}</Typography>
                 <Typography sx={{ fontSize: '10px' }}>Type: {currentBillData.bill_type || 'BILL'}</Typography>
                 <Typography sx={{ fontSize: '10px' }}>Date: {new Date(currentBillData.created_at).toLocaleDateString('en-GB')}</Typography>
                 <Typography sx={{ fontSize: '10px' }}>Time: {new Date(currentBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</Typography>
@@ -3684,7 +3727,7 @@ function OrdersPageContent() {
         >
           <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-              Receipt - Bill #{currentBillData?.sale_id}
+              Receipt - {getBillDisplayNo(currentBillData)}
             </Typography>
             <IconButton
               onClick={() => setReceiptDialogOpen(false)}
@@ -3746,7 +3789,7 @@ function OrdersPageContent() {
                   </Box>
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right', flex: '0 0 50%' }}>
                     <Typography variant="body2" sx={{ mb: 0.5 }}>
-                      Invoice No: <strong>#{currentBillData.sale_id}</strong>
+                      Invoice No: <strong>{getBillDisplayNo(currentBillData)}</strong>
                     </Typography>
                     <Typography variant="body2" sx={{ mb: 0.5 }}>
                       Time: <strong>{new Date(currentBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
@@ -3801,29 +3844,32 @@ function OrdersPageContent() {
                       <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, border: '1px solid #000', width: '100%' }}>
                         <Table size="small">
                           <TableBody>
-                            <TableRow>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
-                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                {fmtAmt(currentBillData.customer?.cus_balance)}
-                              </TableCell>
-                            </TableRow>
-                            {currentBillData.bill_type !== 'ORDER' && (
-                              <TableRow>
-                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</TableCell>
-                                <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                  {fmtAmt(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0))}
-                                </TableCell>
-                              </TableRow>
-                            )}
-                            <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                {currentBillData.bill_type === 'ORDER'
-                                  ? fmtAmt(currentBillData.customer?.cus_balance || 0)
-                                  : fmtAmt(parseFloat(currentBillData.customer?.cus_balance || 0) + parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0))
-                                }
-                              </TableCell>
-                            </TableRow>
+                            {(() => {
+                              const _rem = parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0);
+                              const _isOrd = ['ORDER', 'ORDER_TRASH'].includes(currentBillData.bill_type);
+                              const _bal = parseFloat(currentBillData.customer?.cus_balance || 0);
+                              const _pay = parseFloat(currentBillData.payment || 0);
+                              const _prev = currentBillData.previous_balance != null
+                                ? parseFloat(currentBillData.previous_balance)
+                                : _isOrd ? _bal + _pay : _bal - _rem;
+                              const _total = _prev + _rem;
+                              return (
+                                <>
+                                  <TableRow>
+                                    <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
+                                    <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>{fmtAmt(_prev)}</TableCell>
+                                  </TableRow>
+                                  <TableRow>
+                                    <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</TableCell>
+                                    <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>{fmtAmt(_rem)}</TableCell>
+                                  </TableRow>
+                                  <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                                    <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</TableCell>
+                                    <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>{fmtAmt(_total)}</TableCell>
+                                  </TableRow>
+                                </>
+                              );
+                            })()}
                           </TableBody>
                         </Table>
                       </TableContainer>
@@ -4533,7 +4579,7 @@ function OrdersPageContent() {
                       const balance = parseFloat(sale.total_amount) - parseFloat(sale.discount || 0) + parseFloat(sale.shipping_amount || 0) - parseFloat(sale.payment || 0);
                       return (
                         <TableRow key={sale.sale_id} sx={{ '&:hover': { bgcolor: '#f8f9fa' } }}>
-                          <TableCell sx={{ fontWeight: 'medium' }}>{sale.sale_id}</TableCell>
+                          <TableCell sx={{ fontWeight: 'medium' }}>{getBillDisplayNo(sale)}</TableCell>
                           <TableCell>{sale.customer?.cus_name || 'N/A'}</TableCell>
                           <TableCell sx={{ fontWeight: 'bold' }}>{fmtAmt(sale.total_amount)}</TableCell>
                           <TableCell>{fmtAmt(sale.discount)}</TableCell>
@@ -5206,7 +5252,7 @@ function OrdersPageContent() {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <ReceiptIcon />
             <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-              Bill Details - #{selectedBill?.sale_id}
+              Bill Details - {getBillDisplayNo(selectedBill)}
             </Typography>
           </Box>
           <IconButton
@@ -5271,7 +5317,7 @@ function OrdersPageContent() {
                 </Box>
                 <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right', flex: '0 0 50%' }}>
                   <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    <strong>Invoice No:</strong> <strong>#{selectedBill.sale_id}</strong>
+                    <strong>Invoice No:</strong> <strong>{getBillDisplayNo(selectedBill)}</strong>
                   </Typography>
                   <Typography variant="body2" sx={{ mb: 0.5 }}>
                     <strong>Time:</strong> <strong>{new Date(selectedBill.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>

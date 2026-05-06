@@ -943,6 +943,14 @@ function SalesPageContent() {
     return Number(subtotal.toFixed(2));
   };
 
+  // Get display bill number: B-1 for BILL, O-1 for ORDER, Q-1 for QUOTATION, fallback to sale_id
+  const getBillDisplayNo = (sale) => {
+    const bn = sale?.bill_number;
+    const bt = sale?.bill_type || 'BILL';
+    const prefix = bt === 'BILL' ? 'B' : ['ORDER', 'ORDER_TRASH'].includes(bt) ? 'O' : bt === 'QUOTATION' ? 'Q' : 'B';
+    return bn ? `${prefix}-${bn}` : `#${sale?.sale_id || ''}`;
+  };
+
   // Calculate grand total (products + labour + delivery (including transport) - discount)
   const calculateGrandTotal = () => {
     const productTotal = calculateTotalAmount();
@@ -954,12 +962,11 @@ function SalesPageContent() {
     return Number((productTotal + labour + totalDelivery - discount).toFixed(2));
   };
 
-  // Calculate balance (grand total - total cash received - advance payment)
+  // Calculate balance (grand total - total cash received only; advance is shown for info only)
   const calculateBalance = () => {
     const grandTotal = calculateGrandTotal();
     const totalCashReceived = parseFloat(paymentData.totalCashReceived) || 0;
-    const advancePayment = parseFloat(paymentData.advancePayment) || 0;
-    return Number((grandTotal - totalCashReceived - advancePayment).toFixed(2));
+    return Number((grandTotal - totalCashReceived).toFixed(2));
   };
 
   // Handle payment data changes
@@ -1306,7 +1313,7 @@ function SalesPageContent() {
       const grandTotal = calculateGrandTotal();
       const totalCashReceived = parseFloat(paymentData.totalCashReceived) || 0;
       const advancePayment = parseFloat(paymentData.advancePayment) || 0;
-      const finalPaymentTotal = totalCashReceived + advancePayment; // Include advance payment in total
+      const finalPaymentTotal = totalCashReceived; // Advance shown for info only; not added to payment total
 
       // Additional validation
       if (totalAmount <= 0) {
@@ -1436,10 +1443,11 @@ function SalesPageContent() {
         // Store bill data for printing
         const billDataForPrint = {
           sale_id: result.sale_id,
+          bill_number: result.bill_number ?? null,
           cus_id: formSelectedCustomer.cus_id,
           total_amount: grandTotal,
           discount: parseFloat(paymentData.discount) || 0,
-          payment: finalPaymentTotal, // Include advance payment in receipt total
+          payment: finalPaymentTotal, // Cash + bank received (advance shown separately)
           payment_type: splitPayments.length > 0 ? splitPayments[0].payment_type : 'CASH',
           cash_payment: cashAmount, // Add cash payment details
           bank_payment: bankAmount, // Add bank payment details
@@ -2926,6 +2934,8 @@ function SalesPageContent() {
 
         return (
           sale.sale_id?.toString().includes(searchLower) ||
+          sale.bill_number?.toString().includes(searchLower) ||
+          getBillDisplayNo(sale).toLowerCase().includes(searchLower) ||
           sale.invoice_number?.toLowerCase().includes(searchLower) ||
           sale.reference?.toLowerCase().includes(searchLower)
         );
@@ -3162,7 +3172,9 @@ function SalesPageContent() {
       const matchesSearch = searchTerm === '' ||
         sale.sale_id?.toString().includes(searchTerm) ||
         sale.customer?.cus_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        sale.reference?.toLowerCase().includes(searchTerm.toLowerCase());
+        sale.reference?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        sale.bill_number?.toString().includes(searchTerm) ||
+        getBillDisplayNo(sale).toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesCustomer = filterCustomer === '' ||
         sale.customer?.cus_id?.toString() === filterCustomer;
@@ -5089,7 +5101,7 @@ function SalesPageContent() {
                   </Box>
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right', flex: '0 0 50%' }}>
                     <Typography variant="body2" sx={{ mb: 0.5 }}>
-                      Invoice No: <strong>#{currentBillData.sale_id}</strong>
+                      Invoice No: <strong>{getBillDisplayNo(currentBillData)}</strong>
                     </Typography>
                     <Typography variant="body2" sx={{ mb: 0.5 }}>
                       Time: <strong>{new Date(currentBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
@@ -5265,7 +5277,7 @@ function SalesPageContent() {
                   <Typography sx={{ mt: 0.5, fontSize: '11px', fontWeight: 'bold' }}>SALE RECEIPT</Typography>
                 </Box>
                 <Box sx={{ py: 1 }}>
-                  <Typography sx={{ fontSize: '10px' }}>Inv#: #{currentBillData.sale_id}</Typography>
+                  <Typography sx={{ fontSize: '10px' }}>Inv#: {getBillDisplayNo(currentBillData)}</Typography>
                   <Typography sx={{ fontSize: '10px' }}>Type: {currentBillData.bill_type || 'BILL'}</Typography>
                   <Typography sx={{ fontSize: '10px' }}>Date: {new Date(currentBillData.created_at).toLocaleDateString('en-GB')}</Typography>
                   <Typography sx={{ fontSize: '10px' }}>Time: {new Date(currentBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</Typography>
@@ -5353,7 +5365,7 @@ function SalesPageContent() {
         >
           <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-              {currentBillData?.is_return ? 'Sale Return Invoice' : 'Receipt'} - Bill #{currentBillData?.sale_id || currentBillData?.return_id}
+              {currentBillData?.is_return ? 'Sale Return Invoice' : 'Receipt'} - {getBillDisplayNo(currentBillData)}
             </Typography>
             <IconButton
               onClick={() => setReceiptDialogOpen(false)}
@@ -5401,7 +5413,7 @@ function SalesPageContent() {
                     </Typography>
                   </Box>
                   <Box sx={{ py: 1 }}>
-                    <Typography sx={{ fontSize: '10px' }}>Inv#: #{currentBillData.sale_id || currentBillData?.return_id}</Typography>
+                    <Typography sx={{ fontSize: '10px' }}>Inv#: {getBillDisplayNo(currentBillData)}</Typography>
                     <Typography sx={{ fontSize: '10px' }}>Type: {currentBillData.bill_type || 'BILL'}</Typography>
                     <Typography sx={{ fontSize: '10px' }}>
                       Date: {new Date(currentBillData.created_at).toLocaleDateString('en-GB')}
@@ -5551,7 +5563,7 @@ function SalesPageContent() {
                   </Box>
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right', flex: '0 0 50%' }}>
                     <Typography variant="body2" sx={{ mb: 0.5 }}>
-                      Invoice No: <strong>#{currentBillData.sale_id}</strong>
+                      Invoice No: <strong>{getBillDisplayNo(currentBillData)}</strong>
                     </Typography>
                     <Typography variant="body2" sx={{ mb: 0.5 }}>
                       Time: <strong>{new Date(currentBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
@@ -5962,7 +5974,7 @@ function SalesPageContent() {
                     })
                     .map((sale) => (
                       <TableRow key={sale.sale_id} hover>
-                        <TableCell>{sale.sale_id}</TableCell>
+                        <TableCell>{getBillDisplayNo(sale)}</TableCell>
                         <TableCell>{sale.customer?.cus_name || 'N/A'}</TableCell>
                         <TableCell>{new Date(sale.created_at).toLocaleDateString()}</TableCell>
                         <TableCell align="right">{parseFloat(sale.total_amount || 0).toFixed(2)}</TableCell>
@@ -6855,7 +6867,7 @@ function SalesPageContent() {
                       const balance = parseFloat(sale.total_amount) - parseFloat(sale.discount || 0) + parseFloat(sale.shipping_amount || 0) - parseFloat(sale.payment || 0);
                       return (
                         <TableRow key={sale.sale_id} sx={{ '&:hover': { bgcolor: '#f8f9fa' } }}>
-                          <TableCell sx={{ fontWeight: 'medium' }}>{sale.sale_id}</TableCell>
+                          <TableCell sx={{ fontWeight: 'medium' }}>{getBillDisplayNo(sale)}</TableCell>
                           <TableCell>{sale.customer?.cus_name || 'N/A'}</TableCell>
                           <TableCell sx={{ fontWeight: 'bold' }}>{parseFloat(sale.total_amount).toFixed(2)}</TableCell>
                           <TableCell>{parseFloat(sale.discount || 0).toFixed(2)}</TableCell>
@@ -7639,7 +7651,7 @@ function SalesPageContent() {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <ReceiptIcon />
             <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-              Bill Details - #{selectedBill?.sale_id}
+              Bill Details - {getBillDisplayNo(selectedBill)}
             </Typography>
           </Box>
           <IconButton
@@ -7704,7 +7716,7 @@ function SalesPageContent() {
                 </Box>
                 <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right', flex: '0 0 50%' }}>
                   <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    Invoice No: <strong>#{selectedBill.sale_id}</strong>
+                    Invoice No: <strong>{getBillDisplayNo(selectedBill)}</strong>
                   </Typography>
                   <Typography variant="body2" sx={{ mb: 0.5 }}>
                     Time: <strong>{new Date(selectedBill.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>

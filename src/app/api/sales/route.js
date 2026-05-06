@@ -190,20 +190,11 @@ export async function GET(request) {
           return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
         }
 
-        // Log payment fields to verify they're being returned
-        console.log('📤 API returning sale with payment fields:', {
-          sale_id: sale.sale_id,
-          cash_payment: sale.cash_payment,
-          bank_payment: sale.bank_payment,
-          bank_title: sale.bank_title,
-          payment: sale.payment,
-          payment_type: sale.payment_type,
-          labour_charges: sale.labour_charges,
-          shipping_amount: sale.shipping_amount,
-          discount: sale.discount
-        });
+        // Fetch bill_number separately (not yet in Prisma schema until regenerated)
+        const [bnRow] = await prisma.$queryRaw`SELECT bill_number FROM sales WHERE sale_id = ${id}`;
+        const saleWithBillNumber = { ...sale, bill_number: bnRow?.bill_number ?? null };
 
-        return NextResponse.json(sale);
+        return NextResponse.json(saleWithBillNumber);
       } catch (prismaError) {
         console.error('❌ Prisma error:', prismaError.code, prismaError.message);
 
@@ -348,8 +339,13 @@ export async function GET(request) {
           }
         });
 
+        // Merge bill_number from raw query (not yet in Prisma schema until regenerated)
+        const billNumbers = await prisma.$queryRaw`SELECT sale_id, bill_number FROM sales`;
+        const bnMap = Object.fromEntries(billNumbers.map(r => [r.sale_id, r.bill_number]));
+        const salesWithBillNumber = sales.map(s => ({ ...s, bill_number: bnMap[s.sale_id] ?? null }));
+
         console.log('✅ Sales fetched via Prisma:', sales.length);
-        return NextResponse.json(sales);
+        return NextResponse.json(salesWithBillNumber);
       } catch (prismaError) {
         console.error('❌ Prisma error:', prismaError.code, prismaError.message);
         // If datetime parsing error or store_id column doesn't exist, use raw SQL
@@ -844,6 +840,27 @@ export async function POST(request) {
         }
       }
 
+      // Assign bill_number: separate sequence per type group
+      // ORDER + ORDER_TRASH share one series; BILL has its own; others get their own
+      {
+        const isOrderGroup = ['ORDER', 'ORDER_TRASH'].includes(bill_type || 'BILL');
+        let maxRow;
+        if (isOrderGroup) {
+          [maxRow] = await tx.$queryRaw`
+            SELECT COALESCE(MAX(bill_number), 0) AS maxNum FROM sales
+            WHERE bill_type = 'ORDER' OR bill_type = 'ORDER_TRASH'
+          `;
+        } else {
+          const bt = bill_type || 'BILL';
+          [maxRow] = await tx.$queryRaw`
+            SELECT COALESCE(MAX(bill_number), 0) AS maxNum FROM sales WHERE bill_type = ${bt}
+          `;
+        }
+        const nextNum = Number(maxRow.maxNum) + 1;
+        await tx.$executeRaw`UPDATE sales SET bill_number = ${nextNum} WHERE sale_id = ${sale.sale_id}`;
+        sale = { ...sale, bill_number: nextNum };
+      }
+
       // Create sale details - try with store_id first, fallback to raw SQL if column doesn't exist
       const saleDetailPromises = sale_details.map(async detail => {
         const detailData = {
@@ -973,8 +990,7 @@ export async function POST(request) {
         console.log(`${'='.repeat(60)}\n`);
 
         // ORDER: no full SALE debit (only payment credits). Regular BILL: full amount debit.
-        // Order → sale conversion: original ORDER never posted a full SALE debit; only the *remaining*
-        // (total not already prepaid on the order) should be debited here, so we don't double the bill.
+        // Order → sale conversion: full total_amount debited, then advance re-credited + combined cash/bank credit.
         if (!actualIsLoadedOrder && !isOrder) {
           // Bill debit amount is the final amount (discount already applied)
           const debitAmount = parseFloat(total_amount);
@@ -1006,17 +1022,15 @@ export async function POST(request) {
           console.log(`⏭️ SKIPPED: Debit entry for ORDER — only advance payment ledger will be created`);
         } else if (actualIsLoadedOrder) {
           const orderTotal = parseFloat(total_amount) || 0;
-          const orderPrepaid = Math.min(orderTotal, Math.max(0, parseFloat(advance_payment || 0) || 0));
-          const remainingForSale = Math.max(0, orderTotal - orderPrepaid);
-          if (remainingForSale > 0) {
-            let billDetails = `Sale Bill (order conversion) - ${bill_type || 'BILL'} - Customer Account (Debit) [order prepaid: ${orderPrepaid}]`;
+          if (orderTotal > 0) {
+            let billDetails = `Sale Bill (order conversion) - ${bill_type || 'BILL'} - Customer Account (Debit)`;
             if (parseFloat(discount || 0) > 0) {
               billDetails += ` [Discount Applied: ${parseFloat(discount || 0)}]`;
             }
             const billEntry = createLedgerEntry({
               cus_id,
               opening_balance: runningBalance,
-              debit_amount: remainingForSale,
+              debit_amount: orderTotal,
               credit_amount: 0,
               bill_no: sale.sale_id.toString(),
               trnx_type: 'SALE',
@@ -1024,64 +1038,72 @@ export async function POST(request) {
               payments: 0,
               updated_by: validatedUpdatedBy
             });
-            console.log(`📝 Bill Entry (order conversion, remaining only): Opening=${billEntry.opening_balance}, Debit=${billEntry.debit_amount}, Closing=${billEntry.closing_balance}`);
-            console.log(`   orderPrepaid=${orderPrepaid}, total_amount=${orderTotal}, remainingForSale=${remainingForSale}`);
+            console.log(`📝 Bill Entry (order conversion, full amount): Opening=${billEntry.opening_balance}, Debit=${billEntry.debit_amount}, Closing=${billEntry.closing_balance}`);
             ledgerEntries.push(billEntry);
             runningBalance = billEntry.closing_balance;
-          } else {
-            console.log(`⏭️ SKIPPED: Sale debit (loaded order) — no remaining after order prepayment (total=${orderTotal}, prepaid=${orderPrepaid})`);
           }
         }
 
         // 2. Customer account (credit) for payments
-        // Order → BILL conversion: remaining bill is posted first (debit) above; then separate credits for cash and bank.
+        // Order → BILL conversion: full bill debited above; then advance credit + single combined cash+bank credit.
         // Other cases: one combined line (cash + bank + advance when applicable).
         const cashAmount = eff_cash;
         const bankAmount = eff_bank;
         const advancePaymentAmount = parseFloat(advance_payment || 0);
-        const totalPaymentForCustomer = cashAmount + bankAmount + (!actualIsLoadedOrder ? advancePaymentAmount : 0);
-
-        if (actualIsLoadedOrder && advancePaymentAmount > 0) {
-          console.log(`\n💳 Advance ${advancePaymentAmount} was on the order — not duplicated as a payment line here (covered in remaining-bill debit above)`);
-        }
+        // Advance is credited at ORDER creation time; never re-credit it here for regular bills.
+        // The actualIsLoadedOrder path handles advance explicitly with its own conditional logic.
+        const totalPaymentForCustomer = cashAmount + bankAmount;
 
         if (actualIsLoadedOrder) {
-          // After remaining bill debit: post cash payment, then bank payment (separate ledger rows on customer)
-          if (cashAmount > 0) {
-            const cashPayEntry = createLedgerEntry({
+          const orderTotal = parseFloat(total_amount) || 0;
+          const orderPrepaid = parseFloat(advance_payment || 0);
+          const remaining = Math.max(0, orderTotal - orderPrepaid - cashAmount - bankAmount);
+
+          // Re-credit advance ONLY when bill is partially paid (remaining > 0).
+          // When fully paid (remaining = 0), advance already in cus_balance cancels naturally:
+          //   net = bill - (cash+bank) = advance → restores pre-order balance.
+          // When partially paid: re-credit advance so net = remaining (new obligation on customer).
+          if (remaining > 0 && orderPrepaid > 0) {
+            const advEntry = createLedgerEntry({
               cus_id,
               opening_balance: runningBalance,
               debit_amount: 0,
-              credit_amount: cashAmount,
+              credit_amount: orderPrepaid,
               bill_no: sale.sale_id.toString(),
               trnx_type: 'SALE',
-              details: `Payment Received (Cash) - ${bill_type || 'BILL'} - Customer Account (Credit)`,
-              payments: cashAmount,
-              cash_payment: cashAmount,
+              details: `Advance Payment (from original order) - Customer Account (Credit) [${orderPrepaid}]`,
+              payments: orderPrepaid,
+              cash_payment: 0,
               bank_payment: 0,
               updated_by: validatedUpdatedBy
             });
-            console.log(`💳 Customer ledger (Cash payment): Credit=${cashPayEntry.credit_amount}, Closing=${cashPayEntry.closing_balance}`);
-            ledgerEntries.push(cashPayEntry);
-            runningBalance = cashPayEntry.closing_balance;
+            console.log(`💳 Advance credit (partial bill): ${orderPrepaid}, remaining=${remaining}, Closing=${advEntry.closing_balance}`);
+            ledgerEntries.push(advEntry);
+            runningBalance = advEntry.closing_balance;
           }
-          if (bankAmount > 0) {
-            const bankPayEntry = createLedgerEntry({
+
+          // Single combined payment credit (cash + bank)
+          const totalNewPayment = cashAmount + bankAmount;
+          if (totalNewPayment > 0) {
+            const paymentParts = [];
+            if (cashAmount > 0) paymentParts.push(`Cash: ${cashAmount}`);
+            if (bankAmount > 0) paymentParts.push(`Bank (${bank_title || 'Bank'}): ${bankAmount}`);
+            const combinedPayEntry = createLedgerEntry({
               cus_id,
               opening_balance: runningBalance,
               debit_amount: 0,
-              credit_amount: bankAmount,
+              credit_amount: totalNewPayment,
               bill_no: sale.sale_id.toString(),
               trnx_type: 'SALE',
-              details: `Payment Received (Bank) - ${bill_type || 'BILL'} - Customer Account (Credit)${bank_title ? ` [${bank_title}]` : ''}`,
-              payments: bankAmount,
-              cash_payment: 0,
+              details: `Payment Received - ${bill_type || 'BILL'} - Customer Account (Credit) [${paymentParts.join(', ')}]`,
+              payments: totalNewPayment,
+              cash_payment: cashAmount,
               bank_payment: bankAmount,
               updated_by: validatedUpdatedBy
             });
-            console.log(`💳 Customer ledger (Bank payment): Credit=${bankPayEntry.credit_amount}, Closing=${bankPayEntry.closing_balance}`);
-            ledgerEntries.push(bankPayEntry);
-            runningBalance = bankPayEntry.closing_balance;
+            console.log(`💳 Combined payment credit: ${totalNewPayment}, remaining=${remaining}, Closing=${combinedPayEntry.closing_balance}`);
+            ledgerEntries.push(combinedPayEntry);
+            runningBalance = combinedPayEntry.closing_balance;
           }
         } else if (!isOrder && totalPaymentForCustomer > 0) {
           // BILL / other: customer A/R is adjusted by this payment credit.
@@ -1110,49 +1132,28 @@ export async function POST(request) {
           ledgerEntries.push(paymentEntry);
           runningBalance = paymentEntry.closing_balance;
         } else if (isOrder && (cashAmount > 0 || bankAmount > 0)) {
-          // Customer ledger: show cash/bank columns on the customer's book, but no net A/R change —
-          // equal debit & credit so closing balance matches opening (typically 0).
-          // Cash/bank asset lines are still posted below.
-          if (cashAmount > 0) {
-            const orderCashMemo = createLedgerEntry({
-              cus_id,
-              opening_balance: runningBalance,
-              debit_amount: cashAmount,
-              credit_amount: cashAmount,
-              bill_no: sale.sale_id.toString(),
-              trnx_type: 'CASH',
-              details: `ORDER — Payment (Cash) — memo; no receivable change | Bill #${sale.sale_id}`,
-              payments: 0,
-              cash_payment: cashAmount,
-              bank_payment: 0,
-              updated_by: validatedUpdatedBy
-            });
-            console.log(
-              `💳 ORDER customer memo (Cash): D=${orderCashMemo.debit_amount} C=${orderCashMemo.credit_amount} closing=${orderCashMemo.closing_balance}`
-            );
-            ledgerEntries.push(orderCashMemo);
-            runningBalance = orderCashMemo.closing_balance;
-          }
-          if (bankAmount > 0) {
-            const orderBankMemo = createLedgerEntry({
-              cus_id,
-              opening_balance: runningBalance,
-              debit_amount: bankAmount,
-              credit_amount: bankAmount,
-              bill_no: sale.sale_id.toString(),
-              trnx_type: 'BANK_TRANSFER',
-              details: `ORDER — Payment (Bank) — memo; no receivable change | Bill #${sale.sale_id}${bank_title ? ` [${bank_title}]` : ''}`,
-              payments: 0,
-              cash_payment: 0,
-              bank_payment: bankAmount,
-              updated_by: validatedUpdatedBy
-            });
-            console.log(
-              `💳 ORDER customer memo (Bank): D=${orderBankMemo.debit_amount} C=${orderBankMemo.credit_amount} closing=${orderBankMemo.closing_balance}`
-            );
-            ledgerEntries.push(orderBankMemo);
-            runningBalance = orderBankMemo.closing_balance;
-          }
+          // ORDER advance payment: single combined credit on customer account (reduces their balance)
+          const totalAdvance = cashAmount + bankAmount;
+          const advanceParts = [];
+          if (cashAmount > 0) advanceParts.push(`${cashAmount.toLocaleString('en-PK')} Cash Account`);
+          if (bankAmount > 0) advanceParts.push(`${bankAmount.toLocaleString('en-PK')} Bank Account (${bank_title || 'Bank'})`);
+
+          const orderAdvanceEntry = createLedgerEntry({
+            cus_id,
+            opening_balance: runningBalance,
+            debit_amount: 0,
+            credit_amount: totalAdvance,
+            bill_no: sale.sale_id.toString(),
+            trnx_type: 'SALE',
+            details: `Advance Payment — ${advanceParts.join(' + ')}`,
+            payments: totalAdvance,
+            cash_payment: cashAmount,
+            bank_payment: bankAmount,
+            updated_by: validatedUpdatedBy
+          });
+          console.log(`💳 ORDER advance: Credit=${orderAdvanceEntry.credit_amount}, Closing=${orderAdvanceEntry.closing_balance}, Desc="${orderAdvanceEntry.details}"`);
+          ledgerEntries.push(orderAdvanceEntry);
+          runningBalance = orderAdvanceEntry.closing_balance;
         }
 
         // 3. Bank Account - DEBIT (when bank payment is received)
@@ -1346,9 +1347,9 @@ export async function POST(request) {
           }
           console.log(`📊 All ${ledgerEntries.length} ledger entries created successfully\n`);
 
-          // Update customer balance from ledger lines for this sale (not for ORDER — no customer A/R lines for prepayments)
+          // Update customer balance from ledger lines for this sale
           const customerLedgerEntries = ledgerEntries.filter(e => e.cus_id === cus_id);
-          if (!isOrder && customerLedgerEntries.length > 0) {
+          if (customerLedgerEntries.length > 0) {
             const lastCustomerEntry = customerLedgerEntries[customerLedgerEntries.length - 1];
             const ledgerClosingBalance = parseFloat(lastCustomerEntry.closing_balance);
 
@@ -1379,8 +1380,6 @@ export async function POST(request) {
             });
             console.log(`✅ CUSTOMER BALANCE UPDATED: ${customer.cus_name} balance changed from ${customer.cus_balance} to ${ledgerClosingBalance}`);
             console.log(`========== CUSTOMER BALANCE UPDATE END ==========\n`);
-          } else if (isOrder) {
-            console.log(`\n⏭️ ORDER: Not updating cus_balance from this sale (order prepayments do not change customer A/R).`);
           }
         }
 
