@@ -107,7 +107,7 @@ function SalesPageContent() {
   const [selectedBill, setSelectedBill] = useState(null);
   const [currentView, setCurrentView] = useState('list');
   const [hoveredSale, setHoveredSale] = useState(null);
-  const [hoverAnchorEl, setHoverAnchorEl] = useState(null);
+  const [hoverPos, setHoverPos] = useState({ top: 0, left: 0 });
 
   // Screen Stack State
   const [screenStack, setScreenStack] = useState([]);
@@ -6880,8 +6880,24 @@ function SalesPageContent() {
                       return (
                         <TableRow
                           key={sale.sale_id}
-                          onMouseEnter={(e) => { setHoveredSale(sale); setHoverAnchorEl(e.currentTarget); }}
-                          onMouseLeave={() => { setHoveredSale(null); setHoverAnchorEl(null); }}
+                          onMouseEnter={(e) => {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const cardH = 460;
+                            const cardW = 480;
+                            const margin = 16;
+                            // Place card to left of row (inside content area), vertically near row
+                            let top = rect.top;
+                            if (top + cardH > window.innerHeight - margin) top = window.innerHeight - cardH - margin;
+                            if (top < margin) top = margin;
+                            // Horizontally: try left of table; if table left < cardW use right side with margin
+                            const tableLeft = rect.left;
+                            const left = tableLeft + cardW + margin < window.innerWidth
+                              ? Math.min(rect.left + 20, window.innerWidth - cardW - margin)
+                              : margin;
+                            setHoveredSale(sale);
+                            setHoverPos({ top, left });
+                          }}
+                          onMouseLeave={() => setHoveredSale(null)}
                           sx={{ '&:hover': { bgcolor: '#f1f5f9', cursor: 'pointer' }, transition: 'background 0.15s' }}
                         >
                           <TableCell sx={{ fontWeight: 'medium' }}>{getBillDisplayNo(sale)}</TableCell>
@@ -6963,24 +6979,24 @@ function SalesPageContent() {
       </Container>
 
       {/* Bill Quick-View Hover Card */}
-      <Popper
-        open={Boolean(hoveredSale && hoverAnchorEl)}
-        anchorEl={hoverAnchorEl}
-        placement="right-start"
-        transition
-        style={{ zIndex: 9999 }}
-        modifiers={[{ name: 'offset', options: { offset: [0, 12] } }]}
-      >
-        {({ TransitionProps }) => (
-          <Fade {...TransitionProps} timeout={180}>
-            <Paper elevation={12} sx={{
-              width: 480,
-              borderRadius: 3,
-              overflow: 'hidden',
-              border: '1px solid #e2e8f0',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
-              pointerEvents: 'none'
-            }}>
+      {hoveredSale && (
+        <Paper elevation={16} sx={{
+          position: 'fixed',
+          top: hoverPos.top,
+          left: hoverPos.left,
+          width: 480,
+          zIndex: 9999,
+          borderRadius: 3,
+          overflow: 'hidden',
+          border: '1px solid #e2e8f0',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.22)',
+          pointerEvents: 'none',
+          animation: 'fadeSlideIn 0.15s ease-out',
+          '@keyframes fadeSlideIn': {
+            from: { opacity: 0, transform: 'translateY(6px)' },
+            to: { opacity: 1, transform: 'translateY(0)' }
+          }
+        }}>
               {hoveredSale && (() => {
                 const s = hoveredSale;
                 const bal = parseFloat(s.total_amount) - parseFloat(s.discount || 0) + parseFloat(s.shipping_amount || 0) - parseFloat(s.payment || 0);
@@ -7084,10 +7100,8 @@ function SalesPageContent() {
                   </>
                 );
               })()}
-            </Paper>
-          </Fade>
-        )}
-      </Popper>
+        </Paper>
+      )}
     </DashboardLayout>
   );
 
