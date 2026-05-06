@@ -4716,14 +4716,7 @@ function SalesPageContent() {
                       <TextField
                         size="small"
                         type="number"
-                        value={(() => {
-                          const productTotal = productTableData.reduce((sum, product) => sum + parseFloat(product.amount || 0), 0);
-                          const labour = parseFloat(paymentData.labour || 0);
-                          const delivery = parseFloat(paymentData.deliveryCharges || 0);
-                          const discount = parseFloat(paymentData.discount || 0);
-                          const grandTotal = productTotal + labour + delivery - discount;
-                          return grandTotal.toFixed(2);
-                        })()}
+                        value={calculateGrandTotal().toFixed(2)}
                         sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px', fontWeight: 'bold' }, flex: 1 }}
                         disabled
                         inputProps={{ readOnly: true }}
