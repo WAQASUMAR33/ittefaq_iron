@@ -951,14 +951,19 @@ function SalesPageContent() {
     return bn ? `${prefix}-${bn}` : `#${sale?.sale_id || ''}`;
   };
 
-  // Calculate grand total (products + labour + delivery (including transport) - discount)
+  // Calculate grand total
+  // For regular sales: products + labour + delivery - discount
+  // For SALE_RETURN: products - labour - delivery - discount (charges are deducted from return amount)
   const calculateGrandTotal = () => {
     const productTotal = calculateTotalAmount();
     const labour = parseFloat(paymentData.labour) || 0;
     const deliveryCharges = parseFloat(paymentData.deliveryCharges) || 0;
     const transportTotal = calculateTransportTotal();
-    const totalDelivery = deliveryCharges + transportTotal; // Transport added to delivery
+    const totalDelivery = deliveryCharges + transportTotal;
     const discount = parseFloat(paymentData.discount) || 0;
+    if (billType === 'SALE_RETURN') {
+      return Number((productTotal - labour - totalDelivery - discount).toFixed(2));
+    }
     return Number((productTotal + labour + totalDelivery - discount).toFixed(2));
   };
 
