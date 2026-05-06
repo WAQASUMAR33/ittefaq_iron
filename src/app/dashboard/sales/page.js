@@ -1182,8 +1182,10 @@ function SalesPageContent() {
     try {
       // If bill type is SALE_RETURN, process it as a return
       if (billType === 'SALE_RETURN') {
-        if (!selectedSaleForReturnMain) {
-          showSnackbar('Please select a sale to return (Invoice)', 'error');
+        // Customer is required if no invoice is selected
+        const returnCustomerId = formSelectedCustomer?.cus_id || selectedSaleForReturnMain?.cus_id;
+        if (!returnCustomerId) {
+          showSnackbar('Please select a customer to process a return', 'error');
           return;
         }
         if (productTableData.length === 0) {
@@ -1201,8 +1203,8 @@ function SalesPageContent() {
         const totalReturn = cashReturn + bankReturn; // Total refund amount
 
         const returnBody = {
-          sale_id: selectedSaleForReturnMain.sale_id,
-          cus_id: formSelectedCustomer ? formSelectedCustomer.cus_id : selectedSaleForReturnMain.cus_id,
+          sale_id: selectedSaleForReturnMain ? selectedSaleForReturnMain.sale_id : null,
+          cus_id: returnCustomerId,
           total_amount: Number(totalAmount.toFixed(2)),
           discount: Number(discount.toFixed(2)),
           labour_charges: Number(labourCharges.toFixed(2)),
@@ -1219,6 +1221,7 @@ function SalesPageContent() {
           // Return details from product table
           return_details: productTableData.map(item => ({
             pro_id: item.pro_id,
+            store_id: item.store_id || selectedSaleForReturnMain?.store_id || null,
             qnty: item.quantity, // Quantity to return
             unit_rate: item.rate.toString(),
             total_amount: item.amount.toString(),
@@ -1243,7 +1246,7 @@ function SalesPageContent() {
 
           // Prepare bill data for receipt with sale return details
           const returnReceipt = {
-            ...selectedSaleForReturnMain,
+            ...(selectedSaleForReturnMain || {}),
             return_id: saleReturnData.return_id,
             sale_details: productTableData.map((item, idx) => ({
               sale_detail_id: idx,
