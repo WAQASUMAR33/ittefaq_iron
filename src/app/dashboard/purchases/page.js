@@ -1306,14 +1306,10 @@ function PurchasesPageContent() {
     const totalAmount = calculateTotalAmount();
     const discount = parseFloat(formData.discount || 0);
 
-    // Include internal charges (unloading, transport, labour) in the supplier-facing grand total.
-    // External cargo charges entered in `out_labour_amount` / `out_delivery_amount` are handled
-    // separately and MUST NOT be added to the supplier's bill total.
     const unloadingAmount = parseFloat(formData.unloading_amount || 0);
-    const transportAmount = parseFloat(formData.transport_amount || 0);
-    const labourAmount = parseFloat(formData.labour_amount || 0);
-    // const outLabour = parseFloat(formData.out_labour_amount || 0); // external — excluded
-    // const outDelivery = parseFloat(formData.out_delivery_amount || 0); // external — excluded
+    // Transport and labour only added to supplier total when "Include Labour Charges" checkbox is checked
+    const transportAmount = formData.include_labour ? parseFloat(formData.transport_amount || 0) : 0;
+    const labourAmount = formData.include_labour ? parseFloat(formData.labour_amount || 0) : 0;
 
     return Number((totalAmount + unloadingAmount + transportAmount + labourAmount - discount).toFixed(2));
   };
