@@ -1266,7 +1266,10 @@ function SalesPageContent() {
             bill_type: 'SALE_RETURN',
             is_return: true,
             created_at: new Date(),
-            previous_customer_balance: parseFloat(selectedSaleForReturnMain?.customer?.cus_balance || 0)
+            previous_customer_balance: parseFloat(
+              selectedSaleForReturnMain?.customer?.cus_balance ??
+              formSelectedCustomer?.cus_balance ?? 0
+            )
           };
 
           // Set current bill data and open receipt dialog
@@ -5621,33 +5624,38 @@ function SalesPageContent() {
                           <TableBody>
                             {currentBillData?.is_return ? (
                               (() => {
-                                const grandTotal = parseFloat(currentBillData.total_amount || 0);
+                                const productTotal = parseFloat(currentBillData.total_amount || 0);
+                                const labour = parseFloat(currentBillData.labour_charges || 0);
+                                const shipping = parseFloat(currentBillData.shipping_amount || 0);
+                                const discount = parseFloat(currentBillData.discount || 0);
+                                // Net return = items - labour - delivery - discount
+                                const netReturn = productTotal - labour - shipping - discount;
                                 const totalRefund = parseFloat(currentBillData.payment || 0);
                                 const prevBal = parseFloat(currentBillData.previous_customer_balance ?? currentBillData.customer?.cus_balance ?? 0);
-                                // After return: previous balance reduced by refund amount
-                                const newBal = prevBal - totalRefund;
+                                // Balance after return credit applied
+                                const newBal = prevBal - netReturn;
                                 return (
                                   <>
                                     <TableRow>
                                       <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>منسوخ کردہ رقم</TableCell>
-                                      <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>{fmtAmt(currentBillData.total_amount)}</TableCell>
+                                      <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>{fmtAmt(productTotal)}</TableCell>
                                     </TableRow>
                                     <TableRow>
                                       <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>رعایت</TableCell>
-                                      <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>-{fmtAmt(currentBillData.discount)}</TableCell>
+                                      <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>-{fmtAmt(discount)}</TableCell>
                                     </TableRow>
                                     <TableRow>
                                       <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>مزدوری</TableCell>
-                                      <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>{fmtAmt(currentBillData.labour_charges)}</TableCell>
+                                      <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>-{fmtAmt(labour)}</TableCell>
                                     </TableRow>
                                     <TableRow>
                                       <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>کرایہ</TableCell>
-                                      <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>{fmtAmt(currentBillData.shipping_amount)}</TableCell>
+                                      <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>-{fmtAmt(shipping)}</TableCell>
                                     </TableRow>
                                     <TableRow sx={{ bgcolor: '#e8f5e9' }}>
                                       <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>کل منسوخی</TableCell>
                                       <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', color: '#2e7d32' }}>
-                                        {fmtAmt(grandTotal - parseFloat(currentBillData.discount || 0) + parseFloat(currentBillData.labour_charges || 0) + parseFloat(currentBillData.shipping_amount || 0))}
+                                        {fmtAmt(netReturn)}
                                       </TableCell>
                                     </TableRow>
                                     <TableRow sx={{ bgcolor: '#ffe0b2' }}>
@@ -5705,18 +5713,16 @@ function SalesPageContent() {
                             {currentBillData?.is_return ? (
                               // ── SALE RETURN right panel (Urdu) ──
                               (() => {
-                                const billAmt = parseFloat(currentBillData.total_amount || 0)
-                                  - parseFloat(currentBillData.labour_charges || 0)
-                                  - parseFloat(currentBillData.shipping_amount || 0)
-                                  + parseFloat(currentBillData.discount || 0);
                                 const labour = parseFloat(currentBillData.labour_charges || 0);
                                 const delivery = parseFloat(currentBillData.shipping_amount || 0);
                                 const discount = parseFloat(currentBillData.discount || 0);
-                                const grandTotal = parseFloat(currentBillData.total_amount || 0);
+                                // billAmt = net return (items - labour - delivery - discount)
+                                const billAmt = parseFloat(currentBillData.total_amount || 0) - labour - delivery - discount;
                                 const cash = parseFloat(currentBillData.cash_refund || currentBillData.cash_payment || 0);
                                 const bank = parseFloat(currentBillData.bank_refund || currentBillData.bank_payment || 0);
                                 const totalReceived = parseFloat(currentBillData.payment || 0);
-                                const remaining = grandTotal - totalReceived;
+                                // remaining = net return not yet refunded
+                                const remaining = billAmt - totalReceived;
                                 return (
                                   <>
                                     <TableRow>
@@ -5743,7 +5749,7 @@ function SalesPageContent() {
                                     )}
                                     <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                                       <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>کل واپسی رقم</TableCell>
-                                      <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(grandTotal)}</TableCell>
+                                      <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(billAmt)}</TableCell>
                                     </TableRow>
                                     <TableRow>
                                       <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>نقد</TableCell>
