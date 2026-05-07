@@ -2224,82 +2224,47 @@ function SalesPageContent() {
     try {
       setIsSendingWhatsApp(true);
 
-      // Capture the compact receipt (summary image), not the full on-screen A4 with line items.
-      // MUI Dialog uses transforms; off-screen / fixed nodes often become 0×0 to html2canvas.
-      // Clone to document.body, capture, remove — same pattern as reliable receipt exports.
+      // Capture the full invoice design (receipt-preview).
+      // MUI Dialog applies CSS transforms that confuse html2canvas — clone to document.body first.
       const html2canvas = (await import('html2canvas')).default;
-      const sourceEl =
-        document.getElementById('receipt-whatsapp-capture') ||
-        document.getElementById('receipt-preview');
+      const sourceEl = document.getElementById('receipt-preview');
       if (!sourceEl) {
         showSnackbar('❌ Receipt preview not found', 'error');
         return;
       }
 
-      const w = Math.max(
-        sourceEl.offsetWidth || 0,
-        sourceEl.scrollWidth || 0,
-        302
-      );
-      const h = Math.max(
-        sourceEl.offsetHeight || 0,
-        sourceEl.scrollHeight || 0,
-        1
-      );
-      const rect = sourceEl.getBoundingClientRect();
-      const needsClone =
-        sourceEl.id === 'receipt-whatsapp-capture' || rect.width < 4 || rect.height < 4;
+      const w = Math.max(sourceEl.scrollWidth || 0, sourceEl.offsetWidth || 0, 800);
+      const h = Math.max(sourceEl.scrollHeight || 0, sourceEl.offsetHeight || 0, 200);
 
+      // Always clone outside the Dialog to avoid transform issues
+      const clone = sourceEl.cloneNode(true);
+      clone.removeAttribute('id');
+      Object.assign(clone.style, {
+        position: 'fixed',
+        left: '0',
+        top: '0',
+        zIndex: '2147483647',
+        width: `${w}px`,
+        minHeight: `${h}px`,
+        backgroundColor: '#ffffff',
+        boxSizing: 'border-box',
+        padding: '24px',
+      });
+      document.body.appendChild(clone);
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
       let canvas;
-      if (needsClone) {
-        const clone = sourceEl.cloneNode(true);
-        clone.removeAttribute('id');
-        clone.setAttribute('data-receipt-capture', '1');
-        const cloneH = Math.max(h, 200);
-        Object.assign(clone.style, {
-          position: 'fixed',
-          left: '0',
-          top: '0',
-          zIndex: '2147483647',
-          width: `${w}px`,
-          minHeight: `${cloneH}px`,
-          maxWidth: '400px',
-          backgroundColor: '#ffffff',
-          boxSizing: 'border-box',
-        });
-        document.body.appendChild(clone);
-        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-        try {
-          await new Promise((r) => setTimeout(r, 50));
-          canvas = await html2canvas(clone, {
-            scale: 2,
-            useCORS: true,
-            backgroundColor: '#ffffff',
-            logging: false,
-          });
-        } finally {
-          if (clone.parentNode) {
-            clone.parentNode.removeChild(clone);
-          }
-        }
-      } else {
-        canvas = await html2canvas(sourceEl, {
+      try {
+        await new Promise((r) => setTimeout(r, 80));
+        canvas = await html2canvas(clone, {
           scale: 2,
           useCORS: true,
           backgroundColor: '#ffffff',
           logging: false,
+          width: w,
+          height: Math.max(clone.scrollHeight, h),
         });
-      }
-      if (!canvas || canvas.width < 2 || canvas.height < 2) {
-        const fallback = document.getElementById('receipt-preview');
-        if (fallback) {
-          canvas = await html2canvas(fallback, {
-            scale: 2,
-            useCORS: true,
-            backgroundColor: '#ffffff',
-            logging: false,
-          });
-        }
+      } finally {
+        if (clone.parentNode) clone.parentNode.removeChild(clone);
       }
       const imageBase64 = canvas.toDataURL('image/png');
 
