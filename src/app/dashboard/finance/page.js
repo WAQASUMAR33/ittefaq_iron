@@ -251,6 +251,7 @@ export default function FinancePage() {
   const [selectedLedgerBankAccount, setSelectedLedgerBankAccount] = useState(null);
   const [isSubmittingLedger, setIsSubmittingLedger] = useState(false);
   const [isSendingPaymentWhatsApp, setIsSendingPaymentWhatsApp] = useState(false);
+  const [isSendingLedgerWhatsApp, setIsSendingLedgerWhatsApp] = useState(false);
 
   // Fetch data
   useEffect(() => {
@@ -990,17 +991,32 @@ export default function FinancePage() {
       }
       setIsSendingPaymentWhatsApp(true);
       const html2canvas = (await import('html2canvas')).default;
-      const receiptEl = document.getElementById('payment-receipt-preview');
-      if (!receiptEl) {
+      const sourceEl = document.getElementById('payment-receipt-preview');
+      if (!sourceEl) {
         alert('Receipt preview not found');
         return;
       }
-      const canvas = await html2canvas(receiptEl, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false,
+      const w = Math.max(sourceEl.scrollWidth || 0, sourceEl.offsetWidth || 0, 700);
+      const h = Math.max(sourceEl.scrollHeight || 0, sourceEl.offsetHeight || 0, 200);
+      const clone = sourceEl.cloneNode(true);
+      clone.removeAttribute('id');
+      Object.assign(clone.style, {
+        position: 'fixed', left: '0', top: '0', zIndex: '2147483647',
+        width: `${w}px`, minHeight: `${h}px`,
+        backgroundColor: '#ffffff', boxSizing: 'border-box', padding: '24px',
       });
+      document.body.appendChild(clone);
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      let canvas;
+      try {
+        await new Promise((r) => setTimeout(r, 80));
+        canvas = await html2canvas(clone, {
+          scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false,
+          width: w, height: Math.max(clone.scrollHeight, h),
+        });
+      } finally {
+        if (clone.parentNode) clone.parentNode.removeChild(clone);
+      }
       const imageBase64 = canvas.toDataURL('image/png');
       const d = paymentReceiptData;
       const caption =
@@ -1039,6 +1055,131 @@ export default function FinancePage() {
       alert(err.message || 'WhatsApp error');
     } finally {
       setIsSendingPaymentWhatsApp(false);
+    }
+  };
+
+  const handleSendLedgerPdfWhatsApp = async () => {
+    const customer = selectedCustomer ? customers.find(c => c.cus_id === selectedCustomer) : null;
+    const phone = customer?.cus_phone_no;
+    if (!phone) {
+      alert('Please select a customer with a phone number to send the ledger.');
+      return;
+    }
+    if (finalLedgerEntries.length === 0) {
+      alert('No ledger entries to send.');
+      return;
+    }
+    try {
+      setIsSendingLedgerWhatsApp(true);
+      const jsPDF = (await import('jspdf')).default;
+      const autoTable = (await import('jspdf-autotable')).default;
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+
+      const today = new Date().toLocaleDateString('en-GB');
+      const custName = customer?.cus_name || 'All Accounts';
+      const balance = parseFloat(customer?.cus_balance ?? ledgerViewSummary.lastClosing ?? 0);
+
+      // Header
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Itefaq Iron & Cement Store', 40, 36);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Gujrat Sargodha Road, Pahrian Wali | Ph: 0346-7560306, 0300-7560306', 40, 50);
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'bold');
+      doc.text('GENERAL LEDGER', 40, 68);
+      doc.setFontSize(11);
+      doc.text(`Account: ${custName}`, 40, 84);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.text(`Date: ${today}   |   Entries: ${finalLedgerEntries.length}   |   Balance: PKR ${fmtAmt(balance)}`, 40, 98);
+      doc.line(40, 104, 800, 104);
+
+      const rows = finalLedgerEntries.map((entry, i) => {
+        const date = entry.created_at
+          ? new Date(entry.created_at).toLocaleDateString('en-GB') + ' ' + new Date(entry.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+          : '—';
+        const type = entry.trnx_type || '—';
+        const account = entry.customer?.cus_name || '—';
+        const desc = entry.details
+          ? String(entry.details).replace(/\{.*?\}/g, '').replace(/\|/g, ' ').trim().slice(0, 60)
+          : '—';
+        const bill = entry.bill_no ? `B-${entry.bill_no}` : '—';
+        const debit = parseFloat(entry.debit_amount || 0) > 0 ? fmtAmt(entry.debit_amount) : '';
+        const credit = parseFloat(entry.credit_amount || 0) > 0 ? fmtAmt(entry.credit_amount) : '';
+        const bal = fmtAmt(entry.closing_balance);
+        return [i + 1, date, type, account, desc, bill, debit, credit, bal];
+      });
+
+      const totalDebit = finalLedgerEntries.reduce((s, e) => s + parseFloat(e.debit_amount || 0), 0);
+      const totalCredit = finalLedgerEntries.reduce((s, e) => s + parseFloat(e.credit_amount || 0), 0);
+
+      autoTable(doc, {
+        startY: 112,
+        head: [['S#', 'Date & Time', 'Type', 'Account', 'Description', 'Bill', 'Debit (PKR)', 'Credit (PKR)', 'Balance (PKR)']],
+        body: rows,
+        foot: [['', '', '', '', '', 'TOTALS', fmtAmt(totalDebit), fmtAmt(totalCredit), fmtAmt(balance)]],
+        styles: { fontSize: 7.5, cellPadding: 3 },
+        headStyles: { fillColor: [31, 41, 55], textColor: 255, fontStyle: 'bold' },
+        footStyles: { fillColor: [241, 245, 249], textColor: [0, 0, 0], fontStyle: 'bold' },
+        columnStyles: {
+          0: { cellWidth: 24, halign: 'center' },
+          1: { cellWidth: 90 },
+          2: { cellWidth: 70 },
+          3: { cellWidth: 90 },
+          4: { cellWidth: 'auto' },
+          5: { cellWidth: 50 },
+          6: { cellWidth: 72, halign: 'right' },
+          7: { cellWidth: 72, halign: 'right' },
+          8: { cellWidth: 78, halign: 'right' },
+        },
+        didParseCell: (data) => {
+          if (data.section === 'body') {
+            const rowData = rows[data.row.index];
+            if (rowData && rowData[6] && !rowData[7]) {
+              // debit row - green tint
+              data.cell.styles.fillColor = [220, 252, 231];
+            } else if (rowData && rowData[7] && !rowData[6]) {
+              // credit row - red tint
+              data.cell.styles.fillColor = [254, 226, 226];
+            }
+          }
+        },
+      });
+
+      const pdfBase64 = `data:application/pdf;base64,${doc.output('datauristring').split(',')[1]}`;
+
+      const response = await fetch('/api/whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64: pdfBase64,
+          phone,
+          bill: {
+            sale_id: `ledger-${customer?.cus_id || 'all'}`,
+            customer,
+            bill_type: 'FINANCE_IN',
+            total_amount: balance,
+          },
+          caption: `Ledger statement — ${custName} — ${finalLedgerEntries.length} entries — Balance: PKR ${fmtAmt(balance)}`,
+          templateKey: 'finance_receipt',
+          templateVariables: {
+            1: custName,
+            2: `Ledger statement – ${finalLedgerEntries.length} entries | Balance PKR ${fmtAmt(balance)} · ${today}`,
+          },
+        }),
+      });
+      const result = await response.json();
+      if (response.ok) {
+        alert(`✅ Ledger PDF sent to ${phone}`);
+      } else {
+        alert(result.error || 'WhatsApp send failed');
+      }
+    } catch (err) {
+      alert(err.message || 'WhatsApp error');
+    } finally {
+      setIsSendingLedgerWhatsApp(false);
     }
   };
 
@@ -1767,6 +1908,29 @@ export default function FinancePage() {
                         }}
                       >
                         Pay Amount
+                      </Button>
+                      <Button
+                        variant="contained"
+                        size="small"
+                        disabled={isSendingLedgerWhatsApp}
+                        startIcon={isSendingLedgerWhatsApp ? <CircularProgress size={14} sx={{ color: 'white' }} /> : null}
+                        onClick={handleSendLedgerPdfWhatsApp}
+                        sx={{
+                          background: 'linear-gradient(135deg, #25D366, #1ebe5d)',
+                          color: 'white',
+                          fontWeight: 600,
+                          textTransform: 'none',
+                          px: 2,
+                          py: 1,
+                          borderRadius: 1.5,
+                          '&:hover': {
+                            background: 'linear-gradient(135deg, #1ebe5d, #17a34a)',
+                            transform: 'translateY(-1px)',
+                          },
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        {isSendingLedgerWhatsApp ? 'Sending…' : 'Send Ledger'}
                       </Button>
                     </Box>
                   )}
