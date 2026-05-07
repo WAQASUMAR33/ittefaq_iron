@@ -234,6 +234,14 @@ export async function POST(request) {
       return errorResponse('Total amount is required and must be greater than 0');
     }
 
+    // Validate store_id exists to avoid FK constraint errors (e.g. stale localStorage draft)
+    if (store_id) {
+      const storeExists = await prisma.store.findUnique({ where: { storeid: safeParseInt(store_id) } });
+      if (!storeExists) {
+        return errorResponse(`Store ID ${store_id} not found. Please refresh and reselect the store.`, 400);
+      }
+    }
+
     // Validate payment amounts
     const cashPaymentAmount = safeParseFloat(cash_payment);
     const bankPaymentAmount = safeParseFloat(bank_payment);

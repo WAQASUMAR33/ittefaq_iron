@@ -843,17 +843,14 @@ function PurchasesPageContent() {
     return () => window.removeEventListener('keydown', handleShortcuts);
   }, [handleForwardNavigation, goToPreviousScreen, cancelCurrentScreen]);
 
-  // Auto-select first store when stores are loaded
+  // Auto-select first store when stores are loaded; also clear stale store_id (e.g. from localStorage draft)
   useEffect(() => {
-    if (stores.length > 0 && !formData.store_id) {
-      const firstStore = stores[0];
-      setFormData(prev => ({
-        ...prev,
-        store_id: firstStore.storeid.toString()
-      }));
-      console.log('🔍 Auto-selected first store:', firstStore.store_name);
+    if (stores.length === 0) return;
+    const validIds = stores.map(s => s.storeid.toString());
+    if (!formData.store_id || !validIds.includes(formData.store_id)) {
+      setFormData(prev => ({ ...prev, store_id: stores[0].storeid.toString() }));
     }
-  }, [stores, formData.store_id]);
+  }, [stores]);
 
   // Recompute product cost_rate from original_cost_rate + (labourPerUnit) + (incityPerUnit) + (cargoPerUnit)
   // All values must be passed explicitly — no formData closure reads to avoid stale state bugs
