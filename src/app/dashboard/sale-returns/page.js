@@ -530,8 +530,12 @@ export default function SaleReturnsPage() {
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const authOk = await requireAuth();
-    if (!authOk) return;
+
+    const hasPayment = parseFloat(formData.cash_payment || 0) > 0 || parseFloat(formData.bank_payment || 0) > 0;
+    if (hasPayment) {
+      const authOk = await requireAuth();
+      if (!authOk) return;
+    }
 
     if (!formData.cus_id) {
       showSnackbar('Please select a customer', 'error');
@@ -672,35 +676,103 @@ export default function SaleReturnsPage() {
       return;
     }
 
+    const fmtN = (v) => {
+      const n = parseFloat(v || 0);
+      return n % 1 === 0 ? n.toLocaleString() : n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
+    const details = returnItem.return_details || [];
+    const totalAmount = parseFloat(returnItem.total_amount || 0);
+    const labour = parseFloat(returnItem.labour_charges || 0);
+    const delivery = parseFloat(returnItem.shipping_amount || 0);
+    const discount = parseFloat(returnItem.discount || 0);
+    const netReturn = totalAmount - labour - delivery - discount;
+    const payment = parseFloat(returnItem.payment || 0);
+    const remaining = netReturn - payment;
+    const prevBal = parseFloat(returnItem.previous_customer_balance ?? customer?.cus_balance ?? 0);
+    const newBal = prevBal - netReturn;
+    const returnDate = new Date(returnItem.return_date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const returnTime = new Date(returnItem.return_date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+    const itemRows = details.map((d, i) => `
+      <tr>
+        <td style="border:1px solid #ddd;padding:4px 6px;">${i + 1}</td>
+        <td style="border:1px solid #ddd;padding:4px 6px;">${d.product?.pro_title || d.pro_title || 'Item'}</td>
+        <td style="border:1px solid #ddd;padding:4px 6px;text-align:right;">${fmtN(d.qnty || d.return_quantity)}</td>
+        <td style="border:1px solid #ddd;padding:4px 6px;text-align:right;">${fmtN(d.unit_rate)}</td>
+        <td style="border:1px solid #ddd;padding:4px 6px;text-align:right;">${fmtN(d.total_amount || d.return_amount)}</td>
+      </tr>`).join('');
+
     let tempEl = null;
     try {
       setIsSendingWhatsApp(true);
       tempEl = document.createElement('div');
-      tempEl.style.position = 'fixed';
-      tempEl.style.left = '-9999px';
-      tempEl.style.top = '0';
-      tempEl.style.width = '700px';
-      tempEl.style.background = '#fff';
-      tempEl.style.padding = '24px';
-      tempEl.style.fontFamily = 'Arial, sans-serif';
+      Object.assign(tempEl.style, {
+        position: 'fixed', left: '0', top: '0', zIndex: '2147483647',
+        width: '800px', background: '#fff', padding: '24px',
+        fontFamily: 'Arial, sans-serif', boxSizing: 'border-box',
+      });
       tempEl.innerHTML = `
-        <div style="border-bottom:1px solid #ddd;padding-bottom:12px;margin-bottom:12px;">
-          <h2 style="margin:0;color:#1e3a8a;">Sale Return Receipt</h2>
-          <p style="margin:6px 0 0 0;color:#555;">Return #${returnItem.return_id}</p>
+        <div style="text-align:center;padding-bottom:12px;border-bottom:2px solid #000;margin-bottom:12px;">
+          <h2 style="margin:0;font-size:22px;direction:rtl;">اتفاق آئرن اینڈ سیمنٹ سٹور</h2>
+          <p style="margin:4px 0;direction:rtl;">گجرات سرگودھا روڈ، پاہڑیانوالی</p>
+          <p style="margin:4px 0;">Ph:- 0346-7560306, 0300-7560306</p>
+          <h3 style="margin:8px 0 0 0;color:#c62828;letter-spacing:1px;">SALE RETURN INVOICE</h3>
         </div>
-        <p><strong>Customer:</strong> ${customer?.cus_name || 'N/A'}</p>
-        <p><strong>Date:</strong> ${new Date(returnItem.return_date).toLocaleDateString('en-PK')}</p>
-        <p><strong>Reason:</strong> ${returnItem.reason || 'N/A'}</p>
-        <p><strong>Total Return:</strong> Rs. ${parseFloat(returnItem.total_amount || 0).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-      `;
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #ddd;margin-bottom:12px;">
+          <div>
+            <p style="margin:3px 0;">Customer Name: <strong>${customer?.cus_name || 'N/A'}</strong></p>
+            <p style="margin:3px 0;">Phone No: <strong>${customer?.cus_phone_no || 'N/A'}</strong></p>
+            ${customer?.cus_address ? `<p style="margin:3px 0;">Address: <strong>${customer.cus_address}</strong></p>` : ''}
+          </div>
+          <div style="text-align:right;">
+            <p style="margin:3px 0;">Invoice No: <strong>INV-R-${returnItem.return_id}</strong></p>
+            <p style="margin:3px 0;">Time: <strong>${returnTime}</strong></p>
+            <p style="margin:3px 0;">Date: <strong>${returnDate}</strong></p>
+            <p style="margin:3px 0;">Bill Type: <strong>SALE_RETURN</strong></p>
+          </div>
+        </div>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
+          <thead>
+            <tr style="background:#9e9e9e;color:white;">
+              <th style="border:1px solid #bbb;padding:6px 8px;text-align:left;">S#</th>
+              <th style="border:1px solid #bbb;padding:6px 8px;text-align:left;">Product Name</th>
+              <th style="border:1px solid #bbb;padding:6px 8px;text-align:right;">Qty</th>
+              <th style="border:1px solid #bbb;padding:6px 8px;text-align:right;">Rate</th>
+              <th style="border:1px solid #bbb;padding:6px 8px;text-align:right;">Amount</th>
+            </tr>
+          </thead>
+          <tbody>${itemRows || '<tr><td colspan="5" style="text-align:center;padding:12px;">No items</td></tr>'}</tbody>
+        </table>
+        <div style="display:flex;gap:16px;">
+          <table style="flex:1;border-collapse:collapse;border:1px solid #000;">
+            <tr><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">منسوخ کردہ رقم</td><td style="text-align:right;padding:5px 8px;border:1px solid #ddd;">${fmtN(totalAmount)}</td></tr>
+            ${discount > 0 ? `<tr><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">رعایت</td><td style="text-align:right;padding:5px 8px;border:1px solid #ddd;">-${fmtN(discount)}</td></tr>` : ''}
+            ${labour > 0 ? `<tr><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">مزدوری</td><td style="text-align:right;padding:5px 8px;border:1px solid #ddd;">-${fmtN(labour)}</td></tr>` : ''}
+            ${delivery > 0 ? `<tr><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">کرایہ</td><td style="text-align:right;padding:5px 8px;border:1px solid #ddd;">-${fmtN(delivery)}</td></tr>` : ''}
+            <tr style="background:#e8f5e9;"><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">کل منسوخی</td><td style="font-weight:bold;text-align:right;padding:5px 8px;border:1px solid #ddd;color:#2e7d32;">${fmtN(netReturn)}</td></tr>
+            <tr><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">سابقہ بقایا</td><td style="text-align:right;padding:5px 8px;border:1px solid #ddd;">${fmtN(prevBal)}</td></tr>
+            <tr style="background:#f5f5f5;"><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">موجودہ بقایا</td><td style="font-weight:bold;text-align:right;padding:5px 8px;border:1px solid #ddd;">${fmtN(newBal)}</td></tr>
+          </table>
+          <table style="flex:1;border-collapse:collapse;border:1px solid #000;">
+            <tr><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">رقم بل</td><td style="text-align:right;padding:5px 8px;border:1px solid #ddd;">${fmtN(netReturn)}</td></tr>
+            ${labour > 0 ? `<tr><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">مزدوری</td><td style="text-align:right;padding:5px 8px;border:1px solid #ddd;">${fmtN(labour)}</td></tr>` : ''}
+            ${delivery > 0 ? `<tr><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">کرایہ</td><td style="text-align:right;padding:5px 8px;border:1px solid #ddd;">${fmtN(delivery)}</td></tr>` : ''}
+            ${discount > 0 ? `<tr><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">رعایت</td><td style="text-align:right;padding:5px 8px;border:1px solid #ddd;">-${fmtN(discount)}</td></tr>` : ''}
+            <tr style="background:#f5f5f5;"><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">کل واپسی رقم</td><td style="font-weight:bold;text-align:right;padding:5px 8px;border:1px solid #ddd;">${fmtN(netReturn)}</td></tr>
+            <tr><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">نقد کیش</td><td style="text-align:right;padding:5px 8px;border:1px solid #ddd;">${fmtN(returnItem.cash_payment || 0)}</td></tr>
+            <tr style="background:#f5f5f5;"><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">کل رقم وصول</td><td style="font-weight:bold;text-align:right;padding:5px 8px;border:1px solid #ddd;">${fmtN(payment)}</td></tr>
+            <tr style="background:#d0d0d0;"><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">بقایا رقم</td><td style="font-weight:bold;text-align:right;padding:5px 8px;border:1px solid #ddd;">${fmtN(remaining)}</td></tr>
+          </table>
+        </div>`;
       document.body.appendChild(tempEl);
 
       const html2canvas = (await import('html2canvas')).default;
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      await new Promise((r) => setTimeout(r, 80));
       const canvas = await html2canvas(tempEl, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false
+        scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false,
+        width: 800, height: Math.max(tempEl.scrollHeight, 200),
       });
       const imageBase64 = canvas.toDataURL('image/png');
       const response = await fetch('/api/whatsapp', {
@@ -708,12 +780,7 @@ export default function SaleReturnsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           imageBase64,
-          bill: {
-            ...returnItem,
-            customer,
-            is_return: true,
-            bill_type: 'SALE_RETURN',
-          },
+          bill: { ...returnItem, customer, is_return: true, bill_type: 'SALE_RETURN' },
           phone,
           templateKey: 'sale_return_receipt',
         })

@@ -1960,17 +1960,32 @@ function OrdersPageContent() {
     try {
       setIsSendingWhatsApp(true);
       const html2canvas = (await import('html2canvas')).default;
-      const receiptEl = document.getElementById(elementId);
-      if (!receiptEl) {
+      const sourceEl = document.getElementById(elementId);
+      if (!sourceEl) {
         showSnackbar('❌ Receipt preview not found', 'error');
         return;
       }
-      const canvas = await html2canvas(receiptEl, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false
+      const w = Math.max(sourceEl.scrollWidth || 0, sourceEl.offsetWidth || 0, 800);
+      const h = Math.max(sourceEl.scrollHeight || 0, sourceEl.offsetHeight || 0, 200);
+      const clone = sourceEl.cloneNode(true);
+      clone.removeAttribute('id');
+      Object.assign(clone.style, {
+        position: 'fixed', left: '0', top: '0', zIndex: '2147483647',
+        width: `${w}px`, minHeight: `${h}px`,
+        backgroundColor: '#ffffff', boxSizing: 'border-box', padding: '24px',
       });
+      document.body.appendChild(clone);
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      let canvas;
+      try {
+        await new Promise((r) => setTimeout(r, 80));
+        canvas = await html2canvas(clone, {
+          scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false,
+          width: w, height: Math.max(clone.scrollHeight, h),
+        });
+      } finally {
+        if (clone.parentNode) clone.parentNode.removeChild(clone);
+      }
       const imageBase64 = canvas.toDataURL('image/png');
       const response = await fetch('/api/whatsapp', {
         method: 'POST',
