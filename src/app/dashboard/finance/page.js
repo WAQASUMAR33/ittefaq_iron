@@ -984,47 +984,74 @@ export default function FinancePage() {
   };
 
   const handleSendPaymentWhatsApp = async () => {
+    const d = paymentReceiptData;
+    if (!d?.customer?.cus_phone_no) {
+      alert('No phone number on file for this account. Add a phone on the customer record to send WhatsApp.');
+      return;
+    }
+    const fmt = (v) => (v == null || v === '' ? '—' : parseFloat(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+    const isPay = d.type === 'PAY';
+    const accentColor = isPay ? '#ef4444' : '#16a34a';
+    const rows = [];
+    rows.push(`<tr style="background:#f9fafb"><td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-weight:600">Previous Balance (سابقہ بقایا)</td><td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:600">${fmt(d.previousBalance)}</td></tr>`);
+    if (d.cashAmount > 0) rows.push(`<tr><td style="padding:10px 14px;border-bottom:1px solid #e5e7eb">Cash${d.cashAcc ? ` (${d.cashAcc.cus_name})` : ''}</td><td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:right">${fmt(d.cashAmount)}</td></tr>`);
+    if (d.bankAmount > 0) rows.push(`<tr><td style="padding:10px 14px;border-bottom:1px solid #e5e7eb">Bank${d.bankAcc ? ` (${d.bankAcc.cus_name})` : ''}</td><td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:right">${fmt(d.bankAmount)}</td></tr>`);
+    if (d.discountAmount > 0) rows.push(`<tr><td style="padding:10px 14px;border-bottom:1px solid #e5e7eb">Discount</td><td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:right">${fmt(d.discountAmount)}</td></tr>`);
+    rows.push(`<tr style="background:#f1f5f9"><td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-weight:700">Total Paid</td><td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:700">${fmt(d.totalAmount)}</td></tr>`);
+    const remColor = d.remainingBalance == null ? '#e2e8f0' : (d.remainingBalance > 0 ? '#fbbf24' : '#4ade80');
+    rows.push(`<tr style="background:#1e293b"><td style="padding:12px 14px;color:white;font-weight:700">Remaining Balance (کل بقایا)</td><td style="padding:12px 14px;text-align:right;font-weight:700;color:${remColor}">${d.remainingBalance == null ? '—' : `PKR ${fmt(d.remainingBalance)}`}</td></tr>`);
+
+    let tempEl = null;
     try {
-      if (!paymentReceiptData?.customer?.cus_phone_no) {
-        alert('No phone number on file for this account. Add a phone on the customer record to send WhatsApp.');
-        return;
-      }
       setIsSendingPaymentWhatsApp(true);
       const html2canvas = (await import('html2canvas')).default;
-      const sourceEl = document.getElementById('payment-receipt-preview');
-      if (!sourceEl) {
-        alert('Receipt preview not found');
-        return;
-      }
-      const w = Math.max(sourceEl.scrollWidth || 0, sourceEl.offsetWidth || 0, 700);
-      const h = Math.max(sourceEl.scrollHeight || 0, sourceEl.offsetHeight || 0, 200);
-      const clone = sourceEl.cloneNode(true);
-      clone.removeAttribute('id');
-      Object.assign(clone.style, {
+      tempEl = document.createElement('div');
+      Object.assign(tempEl.style, {
         position: 'fixed', left: '0', top: '0', zIndex: '2147483647',
-        width: `${w}px`, minHeight: `${h}px`,
-        backgroundColor: '#ffffff', boxSizing: 'border-box', padding: '24px',
+        width: '680px', background: '#fff', padding: '28px',
+        fontFamily: 'Arial, sans-serif', boxSizing: 'border-box',
       });
-      document.body.appendChild(clone);
+      tempEl.innerHTML = `
+        <div style="text-align:center;padding-bottom:14px;border-bottom:2px solid #000;margin-bottom:16px;">
+          <h2 style="margin:0;font-size:20px;direction:rtl;">اتفاق آئرن اینڈ سیمنٹ سٹور</h2>
+          <p style="margin:4px 0;direction:rtl;">گجرات سرگودھا روڈ، پاہڑیانوالی</p>
+          <p style="margin:4px 0;">Ph:- 0346-7560306, 0300-7560306</p>
+          <h3 style="margin:10px 0 0 0;color:${accentColor};letter-spacing:1px;">${isPay ? 'PAYMENT VOUCHER' : 'RECEIPT VOUCHER'}</h3>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:16px;padding:0 4px;">
+          <div>
+            <p style="margin:4px 0;"><strong>Account:</strong> ${d.customer?.cus_name || '—'}</p>
+            <p style="margin:4px 0;"><strong>Phone:</strong> ${d.customer?.cus_phone_no || '—'}</p>
+            ${d.description ? `<p style="margin:4px 0;"><strong>Note:</strong> ${d.description}</p>` : ''}
+          </div>
+          <div style="text-align:right;">
+            <p style="margin:4px 0;"><strong>Ref #:</strong> PAY-${d.paymentId}</p>
+            <p style="margin:4px 0;"><strong>Date:</strong> ${d.date || '—'}</p>
+            <p style="margin:4px 0;"><strong>Time:</strong> ${d.time || '—'}</p>
+          </div>
+        </div>
+        <div style="border:1px solid #000;border-radius:4px;overflow:hidden;margin-bottom:20px;">
+          <div style="display:flex;justify-content:space-between;padding:8px 14px;background:#f5f5f5;border-bottom:1px solid #ddd;">
+            <span style="font-weight:700;">Description</span><span style="font-weight:700;">Amount (PKR)</span>
+          </div>
+          <table style="width:100%;border-collapse:collapse;">${rows.join('')}</table>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:40px;padding-top:12px;">
+          <div style="text-align:center;flex:1;"><div style="border-top:1px solid #000;padding-top:4px;margin:0 20px;"><small>Received By</small></div></div>
+          <div style="text-align:center;flex:1;"><div style="border-top:1px solid #000;padding-top:4px;margin:0 20px;"><small>Authorized Signature</small></div></div>
+        </div>`;
+      document.body.appendChild(tempEl);
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-      let canvas;
-      try {
-        await new Promise((r) => setTimeout(r, 80));
-        canvas = await html2canvas(clone, {
-          scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false,
-          width: w, height: Math.max(clone.scrollHeight, h),
-        });
-      } finally {
-        if (clone.parentNode) clone.parentNode.removeChild(clone);
-      }
+      await new Promise((r) => setTimeout(r, 80));
+      const canvas = await html2canvas(tempEl, {
+        scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false,
+        width: 680, height: Math.max(tempEl.scrollHeight, 300),
+      });
       const imageBase64 = canvas.toDataURL('image/png');
-      const d = paymentReceiptData;
-      const caption =
-        d.type === 'PAY'
-          ? `Pay Amount — Payment voucher PAY-${d.paymentId} — ${d.customer?.cus_name || ''}`
-          : `Receive Amount — Receipt voucher PAY-${d.paymentId} — ${d.customer?.cus_name || ''}`;
+      const caption = isPay
+        ? `Pay Amount — Payment voucher PAY-${d.paymentId} — ${d.customer?.cus_name || ''}`
+        : `Receive Amount — Receipt voucher PAY-${d.paymentId} — ${d.customer?.cus_name || ''}`;
       const totalAmount = Number(d.totalAmount || 0);
-      const direction = d.type === 'PAY' ? 'PAY' : 'RECEIVE';
       const response = await fetch('/api/whatsapp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1041,7 +1068,7 @@ export default function FinancePage() {
           templateKey: 'finance_receipt',
           templateVariables: {
             1: d.customer?.cus_name || 'Customer',
-            2: `${direction === 'PAY' ? 'Payment voucher (Pay Amount)' : 'Receipt voucher (Receive Amount)'} – ref PAY-${d.paymentId} | PKR ${totalAmount.toLocaleString()} · ${d.date || new Date().toISOString().slice(0, 10)}`,
+            2: `${isPay ? 'Payment voucher (Pay Amount)' : 'Receipt voucher (Receive Amount)'} – ref PAY-${d.paymentId} | PKR ${totalAmount.toLocaleString()} · ${d.date || new Date().toISOString().slice(0, 10)}`,
           },
         }),
       });
@@ -1054,6 +1081,7 @@ export default function FinancePage() {
     } catch (err) {
       alert(err.message || 'WhatsApp error');
     } finally {
+      if (tempEl && tempEl.parentNode) tempEl.parentNode.removeChild(tempEl);
       setIsSendingPaymentWhatsApp(false);
     }
   };
