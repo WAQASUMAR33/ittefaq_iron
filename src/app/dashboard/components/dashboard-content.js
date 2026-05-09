@@ -37,6 +37,7 @@ export default function DashboardContent({ activeTab }) {
   const [loading, setLoading] = useState(true);
   const [recentActivityData, setRecentActivityData] = useState([]);
   const [chartsData, setChartsData] = useState(null);
+  const [balanceData, setBalanceData] = useState({ customers: [], suppliers: [] });
 
   // Fetch dashboard analytics
   useEffect(() => {
@@ -161,6 +162,40 @@ export default function DashboardContent({ activeTab }) {
       
       return () => clearInterval(interval);
     }
+  }, [activeTab]);
+
+  // Fetch customer & supplier balance data for charts
+  useEffect(() => {
+    if (activeTab !== 'dashboard') return;
+    const fetchBalances = async () => {
+      try {
+        const [cusRes, catRes] = await Promise.all([
+          fetch('/api/customers?include=category,type'),
+          fetch('/api/customer-category')
+        ]);
+        const allCustomers = cusRes.ok ? await cusRes.json() : [];
+        const allCategories = catRes.ok ? await catRes.json() : [];
+        const catMap = new Map((Array.isArray(allCategories) ? allCategories : []).map(c => [c.cus_cat_id, c.cus_cat_title || '']));
+
+        const customers = [];
+        const suppliers = [];
+        (Array.isArray(allCustomers) ? allCustomers : []).forEach(c => {
+          const catTitle = (catMap.get(c.cus_category) || c.customer_category?.cus_cat_title || '').toLowerCase();
+          const balance = parseFloat(c.cus_balance || 0);
+          if (balance === 0) return;
+          const entry = { name: c.cus_name, balance };
+          if (catTitle.includes('supplier')) suppliers.push(entry);
+          else if (!catTitle.includes('cash') && !catTitle.includes('bank')) customers.push(entry);
+        });
+
+        customers.sort((a, b) => b.balance - a.balance);
+        suppliers.sort((a, b) => b.balance - a.balance);
+        setBalanceData({ customers: customers.slice(0, 10), suppliers: suppliers.slice(0, 10) });
+      } catch (err) {
+        console.error('Error fetching balance data:', err);
+      }
+    };
+    fetchBalances();
   }, [activeTab]);
 
   // Handle navigation to separate pages
@@ -495,6 +530,57 @@ export default function DashboardContent({ activeTab }) {
               )}
             </div>
           </div>
+        </div>
+
+        {/* Customer & Supplier Balance Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {[
+            { label: 'Top Customers by Balance', key: 'customers', color: '#3b82f6', gradId: 'custGrad', bg: 'from-blue-50 to-indigo-50' },
+            { label: 'Top Suppliers by Balance', key: 'suppliers', color: '#f97316', gradId: 'suppGrad', bg: 'from-orange-50 to-amber-50' }
+          ].map(({ label, key, color, gradId, bg }) => {
+            const rows = balanceData[key];
+            const maxBal = rows.length > 0 ? Math.max(...rows.map(r => Math.abs(r.balance))) : 1;
+            const rowH = 28;
+            const paddingLeft = 130;
+            const paddingRight = 90;
+            const svgW = 560;
+            const svgH = Math.max(rows.length * rowH + 10, 50);
+            return (
+              <div key={key} className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">{label}</h3>
+                <div className={`bg-gradient-to-br ${bg} rounded-xl p-3 overflow-auto`} style={{ maxHeight: 320 }}>
+                  {rows.length === 0 ? (
+                    <div className="flex items-center justify-center h-24 text-gray-500 text-sm">No data available</div>
+                  ) : (
+                    <svg viewBox={`0 0 ${svgW} ${svgH}`} width="100%" height={svgH}>
+                      <defs>
+                        <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="0%">
+                          <stop offset="0%" stopColor={color} stopOpacity="0.9" />
+                          <stop offset="100%" stopColor={color} stopOpacity="0.4" />
+                        </linearGradient>
+                      </defs>
+                      {rows.map((r, i) => {
+                        const barW = Math.max(((Math.abs(r.balance) / maxBal) * (svgW - paddingLeft - paddingRight)), 2);
+                        const y = i * rowH + 4;
+                        const barH = rowH - 8;
+                        return (
+                          <g key={i}>
+                            <text x={paddingLeft - 6} y={y + barH / 2 + 4} fontSize="11" fill="#374151" textAnchor="end" fontWeight="500">
+                              {r.name.length > 16 ? r.name.slice(0, 15) + '…' : r.name}
+                            </text>
+                            <rect x={paddingLeft} y={y} width={barW} height={barH} rx="3" fill={`url(#${gradId})`} />
+                            <text x={paddingLeft + barW + 5} y={y + barH / 2 + 4} fontSize="10" fill="#6b7280">
+                              {r.balance >= 1000 ? `${(r.balance / 1000).toFixed(1)}K` : r.balance.toFixed(0)}
+                            </text>
+                          </g>
+                        );
+                      })}
+                    </svg>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {/* Recent Activity */}
