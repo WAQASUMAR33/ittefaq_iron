@@ -906,6 +906,7 @@ enum TransactionType {
   SALE
   SALE_RETURN
   PURCHASE_RETURN
+  REBATE
 }
 
 enum PaymentType {

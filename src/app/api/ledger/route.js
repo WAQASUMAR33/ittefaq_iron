@@ -102,8 +102,8 @@ export async function POST(request) {
     if (!cus_id) {
       return errorResponse('Customer ID is required');
     }
-    if (!trnx_type || !['CASH', 'CHEQUE', 'BANK_TRANSFER'].includes(trnx_type)) {
-      return errorResponse('Valid transaction type is required (CASH, CHEQUE, BANK_TRANSFER)');
+    if (!trnx_type || !['CASH', 'CHEQUE', 'BANK_TRANSFER', 'REBATE'].includes(trnx_type)) {
+      return errorResponse('Valid transaction type is required (CASH, CHEQUE, BANK_TRANSFER, REBATE)');
     }
     if (debit_amount < 0 || credit_amount < 0) {
       return errorResponse('Debit and credit amounts must be non-negative');
@@ -221,8 +221,8 @@ export async function PUT(request) {
 
     if (!id) return errorResponse('Ledger ID is required');
     if (!cus_id) return errorResponse('Customer ID is required');
-    if (!trnx_type || !['CASH', 'CHEQUE', 'BANK_TRANSFER'].includes(trnx_type)) {
-      return errorResponse('Valid transaction type is required (CASH, CHEQUE, BANK_TRANSFER)');
+    if (!trnx_type || !['CASH', 'CHEQUE', 'BANK_TRANSFER', 'REBATE'].includes(trnx_type)) {
+      return errorResponse('Valid transaction type is required (CASH, CHEQUE, BANK_TRANSFER, REBATE)');
     }
     if (debit_amount < 0 || credit_amount < 0) {
       return errorResponse('Debit and credit amounts must be non-negative');

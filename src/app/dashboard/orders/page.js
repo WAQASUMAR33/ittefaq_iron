@@ -2025,10 +2025,14 @@ function OrdersPageContent() {
     console.log('🔍 Filtering', sales.length, 'sales...');
     const filtered = sales.filter(sale => {
       // All filters are empty by default, so all sales should match
+      const q = searchTerm.toLowerCase();
       const matchesSearch = searchTerm === '' ||
         sale.sale_id?.toString().includes(searchTerm) ||
-        sale.customer?.cus_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        sale.reference?.toLowerCase().includes(searchTerm.toLowerCase());
+        sale.customer?.cus_name?.toLowerCase().includes(q) ||
+        sale.reference?.toLowerCase().includes(q) ||
+        sale.customer?.cus_phone_no?.includes(searchTerm) ||
+        sale.customer?.cus_address?.toLowerCase().includes(q) ||
+        sale.customer?.city?.city_name?.toLowerCase().includes(q);
 
       const matchesCustomer = filterCustomer === '' ||
         sale.customer?.cus_id?.toString() === filterCustomer;
@@ -2166,9 +2170,14 @@ function OrdersPageContent() {
   // Filter and sort sales
   const filteredAndSortedSales = sales
     .filter(sale => {
-      const matchesSearch = sale.customer?.cus_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        sale.sale_id?.toString().includes(searchTerm.toLowerCase()) ||
-        sale.reference?.toLowerCase().includes(searchTerm.toLowerCase());
+      const q = searchTerm.toLowerCase();
+      const matchesSearch = searchTerm === '' ||
+        sale.customer?.cus_name?.toLowerCase().includes(q) ||
+        sale.sale_id?.toString().includes(searchTerm) ||
+        sale.reference?.toLowerCase().includes(q) ||
+        sale.customer?.cus_phone_no?.includes(searchTerm) ||
+        sale.customer?.cus_address?.toLowerCase().includes(q) ||
+        sale.customer?.city?.city_name?.toLowerCase().includes(q);
       const matchesCustomer = !selectedCustomer || sale.cus_id === selectedCustomer.cus_id;
 
       return matchesSearch && matchesCustomer;
@@ -2893,7 +2902,23 @@ function OrdersPageContent() {
                       productTableData.map((product, index) => (
                         <TableRow key={product.id} sx={{ '&:hover': { bgcolor: '#f8f9fa' } }}>
                           <TableCell sx={{ py: 1 }}>{index + 1}</TableCell>
-                          <TableCell sx={{ py: 1 }}>{product.store_name}</TableCell>
+                          <TableCell sx={{ py: 1 }}>
+                            <Select
+                              size="small"
+                              value={product.storeid || ''}
+                              onChange={(e) => {
+                                const s = stores.find(st => st.storeid === e.target.value);
+                                setProductTableData(prev => prev.map(p =>
+                                  p.id === product.id ? { ...p, storeid: s?.storeid, store_name: s?.store_name } : p
+                                ));
+                              }}
+                              sx={{ minWidth: 110, fontSize: '0.85rem' }}
+                            >
+                              {stores.map(s => (
+                                <MenuItem key={s.storeid} value={s.storeid}>{s.store_name}</MenuItem>
+                              ))}
+                            </Select>
+                          </TableCell>
                           <TableCell sx={{ py: 1 }}>{product.pro_title}</TableCell>
                           <TableCell sx={{ py: 1 }}>
                             <TextField
@@ -3815,6 +3840,11 @@ function OrdersPageContent() {
                     <Typography variant="body2">
                       Bill Type: <strong>{currentBillData.bill_type || 'BILL'}</strong>
                     </Typography>
+                    {currentBillData.reference && (
+                      <Typography variant="body2">
+                        Reference: <strong>{currentBillData.reference}</strong>
+                      </Typography>
+                    )}
                   </Box>
                 </Box>
 
@@ -4331,7 +4361,7 @@ function OrdersPageContent() {
                     <TextField
                       fullWidth
                       label="Search Orders"
-                      placeholder="ID, Customer, or Reference..."
+                      placeholder="ID, Customer, Phone, Address, City, Reference..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       onFocus={(e) => e.target.select()}

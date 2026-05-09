@@ -95,7 +95,7 @@ export default function RebateReport() {
 
         const totalQty = reportData.summary.totalQuantity;
         const rate = parseFloat(rebateRate) || 0;
-        const totalAmount = Number(fmtAmt(totalQty * rate));
+        const totalAmount = parseFloat((totalQty * rate).toFixed(2));
 
         if (totalAmount <= 0) {
             alert('Please enter a valid rate');
@@ -107,12 +107,14 @@ export default function RebateReport() {
             const userStr = localStorage.getItem('user');
             const user = userStr ? JSON.parse(userStr) : null;
 
+            const billNo = `REB-${Date.now()}`;
             const ledgerEntry = {
                 cus_id: parseInt(selectedSupplierId),
                 credit_amount: totalAmount,
                 debit_amount: 0,
-                trnx_type: 'CASH', // User requested cash column
-                details: `Rebate From: ${startDate} To: ${endDate} | Qty: ${fmtAmt(totalQty)} | Rate: ${fmtAmt(rate)}`,
+                bill_no: billNo,
+                trnx_type: 'REBATE',
+                details: `Rebate | ${reportData.summary.supplierName} | From: ${startDate} To: ${endDate} | Qty: ${fmtAmt(totalQty)} | Rate: ${fmtAmt(rate)} | Amt: ${fmtAmt(totalAmount)}`,
                 updated_by: user?.user_id ? parseInt(user.user_id) : (user?.id ? parseInt(user.id) : null)
             };
 
@@ -123,7 +125,9 @@ export default function RebateReport() {
             });
 
             if (response.ok) {
-                alert('Rebate saved successfully to supplier ledger!');
+                const saved = await response.json();
+                const newBal = parseFloat(saved.closing_balance || 0);
+                alert(`Rebate of PKR ${fmtAmt(totalAmount)} saved!\nSupplier balance updated to PKR ${fmtAmt(newBal)}`);
                 setIsRebateOpen(false);
                 setRebateRate('');
             } else {

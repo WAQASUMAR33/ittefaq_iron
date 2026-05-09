@@ -36,7 +36,9 @@ import {
   Divider,
   Fade,
   Zoom,
-  LinearProgress
+  LinearProgress,
+  Select,
+  MenuItem
 } from '@mui/material';
 
 import {
@@ -689,8 +691,8 @@ export default function SaleReturnsPage() {
     const netReturn = totalAmount - labour - delivery - discount;
     const payment = parseFloat(returnItem.payment || 0);
     const remaining = netReturn - payment;
-    const prevBal = parseFloat(returnItem.previous_customer_balance ?? customer?.cus_balance ?? 0);
-    const newBal = prevBal - netReturn;
+    const newBal = parseFloat(customer?.cus_balance ?? 0);
+    const prevBal = parseFloat(returnItem.previous_customer_balance ?? (newBal + netReturn));
     const returnDate = new Date(returnItem.return_date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
     const returnTime = new Date(returnItem.return_date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
@@ -1540,10 +1542,26 @@ export default function SaleReturnsPage() {
                                     </Stack>
                                   </TableCell>
                                   <TableCell>
-                                    <Stack direction="row" spacing={0.5} alignItems="center">
-                                      <StoreIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                                      <Typography variant="body2">{store?.store_name || 'Loading...'}</Typography>
-                                    </Stack>
+                                    <Select
+                                      size="small"
+                                      value={detail.store_id || ''}
+                                      onChange={(e) => {
+                                        const s = stores.find(st => (st.storeid === e.target.value || st.store_id === e.target.value));
+                                        const newId = s?.storeid || s?.store_id;
+                                        setFormData(prev => ({
+                                          ...prev,
+                                          return_details: prev.return_details.map((d, i) =>
+                                            i === index ? { ...d, store_id: newId } : d
+                                          )
+                                        }));
+                                      }}
+                                      sx={{ minWidth: 110, fontSize: '0.85rem' }}
+                                    >
+                                      {stores.map(s => {
+                                        const id = s.storeid || s.store_id;
+                                        return <MenuItem key={id} value={id}>{s.store_name}</MenuItem>;
+                                      })}
+                                    </Select>
                                   </TableCell>
                                   <TableCell align="center">
                                     <Typography variant="body2" sx={{ color: 'text.secondary' }}>

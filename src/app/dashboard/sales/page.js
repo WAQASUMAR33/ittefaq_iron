@@ -927,11 +927,7 @@ function SalesPageContent() {
   /** Same display name can exist for different accounts (e.g. cus_name "1781"); show id + category/type in the transport picker. */
   const formatTransportAccountLabel = (account) => {
     if (!account) return '';
-    const name = account.cus_name || '';
-    const cat = account.customer_category?.cus_cat_title || '';
-    const typ = account.customer_type?.cus_type_title || '';
-    const tail = [cat, typ].filter(Boolean).join(' · ');
-    return tail ? `${name} (#${account.cus_id}) — ${tail}` : `${name} (#${account.cus_id})`;
+    return account.cus_name || '';
   };
 
   const calculateTotalAmount = () => {
@@ -4183,7 +4179,23 @@ function SalesPageContent() {
                           }}
                         >
                           <TableCell sx={{ py: 1, fontWeight: 'bold', color: 'text.secondary', fontSize: '0.8rem' }}>{index + 1}</TableCell>
-                          <TableCell sx={{ py: 1, fontWeight: 600 }}>{product.store_name}</TableCell>
+                          <TableCell sx={{ py: 1 }}>
+                            <Select
+                              size="small"
+                              value={product.storeid || ''}
+                              onChange={(e) => {
+                                const s = stores.find(st => st.storeid === e.target.value);
+                                setProductTableData(prev => prev.map(p =>
+                                  p.id === product.id ? { ...p, storeid: s?.storeid, store_name: s?.store_name } : p
+                                ));
+                              }}
+                              sx={{ minWidth: 110, fontSize: '0.85rem' }}
+                            >
+                              {stores.map(s => (
+                                <MenuItem key={s.storeid} value={s.storeid}>{s.store_name}</MenuItem>
+                              ))}
+                            </Select>
+                          </TableCell>
                           <TableCell sx={{ py: 1, fontWeight: 700 }}>{product.pro_title}</TableCell>
                           <TableCell sx={{ py: 1 }}>
                             <TextField
@@ -5085,6 +5097,11 @@ function SalesPageContent() {
                     <Typography variant="body2">
                       Bill Type: <strong>{currentBillData.bill_type || 'BILL'}</strong>
                     </Typography>
+                    {currentBillData.reference && (
+                      <Typography variant="body2">
+                        Reference: <strong>{currentBillData.reference}</strong>
+                      </Typography>
+                    )}
                   </Box>
                 </Box>
 
