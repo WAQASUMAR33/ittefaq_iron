@@ -860,12 +860,12 @@ export default function FinancePage() {
       if (response.ok) {
         const result = await response.json();
         if (parseFloat(receivePaymentData.discount || 0) > 0) {
-          await createDiscountExpense(parseFloat(receivePaymentData.discount), receivePaymentData.description || 'Payment discount');
+          await createDiscountExpense(-parseFloat(receivePaymentData.discount), receivePaymentData.description || 'Payment discount');
         }
 
         const bankAcc = bankAccounts.find(b => b.cus_id === parseInt(receivePaymentData.bank_account));
         const cashAcc = cashAccounts.find(c => c.cus_id === parseInt(receivePaymentData.cash_account));
-        const remainingBalance = previousBalance + totalAmount;
+        const remainingBalance = previousBalance - totalAmount;
 
         setPaymentReceiptData({
           type: 'RECEIVE',

@@ -84,8 +84,8 @@ export async function POST(request) {
     }
 
     // Validate amount
-    if (parseFloat(exp_amount) <= 0) {
-      return NextResponse.json({ error: 'Amount must be greater than 0' }, { status: 400 });
+    if (parseFloat(exp_amount) === 0) {
+      return NextResponse.json({ error: 'Amount must not be zero' }, { status: 400 });
     }
 
     // Check if expense title exists
@@ -146,8 +146,8 @@ export async function PUT(request) {
     }
 
     // Validate amount
-    if (parseFloat(exp_amount) <= 0) {
-      return NextResponse.json({ error: 'Amount must be greater than 0' }, { status: 400 });
+    if (parseFloat(exp_amount) === 0) {
+      return NextResponse.json({ error: 'Amount must not be zero' }, { status: 400 });
     }
 
     // Check if expense title exists
