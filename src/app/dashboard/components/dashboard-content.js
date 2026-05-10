@@ -38,6 +38,7 @@ export default function DashboardContent({ activeTab }) {
   const [recentActivityData, setRecentActivityData] = useState([]);
   const [chartsData, setChartsData] = useState(null);
   const [balanceData, setBalanceData] = useState({ customers: [], suppliers: [] });
+  const [profitData, setProfitData] = useState([]);
 
   // Fetch dashboard analytics
   useEffect(() => {
@@ -196,6 +197,15 @@ export default function DashboardContent({ activeTab }) {
       }
     };
     fetchBalances();
+  }, [activeTab]);
+
+  // Fetch monthly profit data
+  useEffect(() => {
+    if (activeTab !== 'dashboard') return;
+    fetch('/api/dashboard/profit')
+      .then(r => r.ok ? r.json() : { success: false })
+      .then(json => { if (json.success) setProfitData(json.data); })
+      .catch(err => console.error('Profit fetch error:', err));
   }, [activeTab]);
 
   // Handle navigation to separate pages
@@ -529,6 +539,92 @@ export default function DashboardContent({ activeTab }) {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+
+        {/* Sales Profit Chart */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Monthly Sales Profit (Last 6 Months)</h3>
+          <div className="h-72 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-4 flex items-end">
+            {profitData.length === 0 ? (
+              <div className="w-full flex items-center justify-center h-full">
+                <div className="text-center">
+                  <TrendingUp className="w-16 h-16 text-emerald-400 mx-auto mb-3" />
+                  <p className="text-gray-500 text-sm">No profit data available</p>
+                </div>
+              </div>
+            ) : (() => {
+              const maxVal = Math.max(...profitData.map(d => Math.max(d.revenue, d.profit, 1)));
+              const barW = Math.floor(500 / (profitData.length * 3 + profitData.length + 1));
+              const gap = Math.floor(barW * 0.5);
+              const svgW = profitData.length * (barW * 3 + gap) + gap;
+              const svgH = 240;
+              const chartH = 190;
+              return (
+                <svg viewBox={`0 0 ${svgW} ${svgH + 30}`} width="100%" height="100%">
+                  <defs>
+                    <linearGradient id="revGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.9" />
+                      <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.4" />
+                    </linearGradient>
+                    <linearGradient id="profGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stopColor="#10b981" stopOpacity="0.9" />
+                      <stop offset="100%" stopColor="#10b981" stopOpacity="0.4" />
+                    </linearGradient>
+                    <linearGradient id="costGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stopColor="#f97316" stopOpacity="0.8" />
+                      <stop offset="100%" stopColor="#f97316" stopOpacity="0.3" />
+                    </linearGradient>
+                  </defs>
+                  {/* Y grid lines */}
+                  {[0.25, 0.5, 0.75, 1].map(f => (
+                    <line key={f} x1={0} y1={chartH - chartH * f} x2={svgW} y2={chartH - chartH * f}
+                      stroke="#d1fae5" strokeWidth="1" strokeDasharray="4 3" />
+                  ))}
+                  {profitData.map((d, i) => {
+                    const groupX = gap + i * (barW * 3 + gap);
+                    const revH = Math.max((d.revenue / maxVal) * chartH, 1);
+                    const costH = Math.max((d.cost / maxVal) * chartH, 1);
+                    const profH = Math.max((d.profit / maxVal) * chartH, 1);
+                    const label = d.month.slice(5); // e.g. "04"
+                    const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                    const mName = monthNames[parseInt(label) - 1] || label;
+                    const year = d.month.slice(2, 4);
+                    return (
+                      <g key={i}>
+                        {/* Revenue bar */}
+                        <rect x={groupX} y={chartH - revH} width={barW} height={revH} rx="2" fill="url(#revGrad)">
+                          <title>Revenue: PKR {d.revenue.toLocaleString()}</title>
+                        </rect>
+                        {/* Cost bar */}
+                        <rect x={groupX + barW} y={chartH - costH} width={barW} height={costH} rx="2" fill="url(#costGrad)">
+                          <title>Cost: PKR {d.cost.toLocaleString()}</title>
+                        </rect>
+                        {/* Profit bar */}
+                        <rect x={groupX + barW * 2} y={chartH - profH} width={barW} height={profH} rx="2" fill="url(#profGrad)">
+                          <title>Profit: PKR {d.profit.toLocaleString()}</title>
+                        </rect>
+                        {/* Profit value label */}
+                        <text x={groupX + barW * 1.5} y={chartH - profH - 3} fontSize="8" fill="#059669" textAnchor="middle" fontWeight="600">
+                          {d.profit >= 1000 ? `${(d.profit / 1000).toFixed(0)}K` : d.profit.toFixed(0)}
+                        </text>
+                        {/* Month label */}
+                        <text x={groupX + barW * 1.5} y={chartH + 12} fontSize="9" fill="#6b7280" textAnchor="middle">{mName} {year}</text>
+                      </g>
+                    );
+                  })}
+                  {/* Baseline */}
+                  <line x1={0} y1={chartH} x2={svgW} y2={chartH} stroke="#9ca3af" strokeWidth="1" />
+                  {/* Legend */}
+                  <rect x={4} y={svgH + 8} width={8} height={8} rx="1" fill="#3b82f6" />
+                  <text x={16} y={svgH + 16} fontSize="9" fill="#374151">Revenue</text>
+                  <rect x={64} y={svgH + 8} width={8} height={8} rx="1" fill="#f97316" />
+                  <text x={76} y={svgH + 16} fontSize="9" fill="#374151">Cost</text>
+                  <rect x={104} y={svgH + 8} width={8} height={8} rx="1" fill="#10b981" />
+                  <text x={116} y={svgH + 16} fontSize="9" fill="#374151">Profit</text>
+                </svg>
+              );
+            })()}
           </div>
         </div>
 
