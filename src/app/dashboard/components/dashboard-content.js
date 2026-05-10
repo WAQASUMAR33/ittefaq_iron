@@ -135,17 +135,19 @@ export default function DashboardContent({ activeTab }) {
           }
         });
 
-        // Build charts data with line chart format
+        // Count orders per day (last 7 days)
+        const allOrders = salesList.filter(s => s.bill_type === 'ORDER');
+        const ordersByDay = last7Days.map(d => ({ ...d, orderCount: 0 }));
+        allOrders.forEach(order => {
+          const od = new Date(order.created_at);
+          od.setHours(0, 0, 0, 0);
+          const slot = ordersByDay.find(d => d.date.getTime() === od.getTime());
+          if (slot) slot.orderCount++;
+        });
+
         const chartData = {
-          sales: last7Days.map(d => ({
-            x: d.dateStr,
-            y: d.total,
-            date: d.date
-          })),
-          orders: ordersData.slice ? ordersData.slice(0, 7).map((o, idx) => ({
-            x: `Order ${idx + 1}`,
-            y: 1
-          })) : []
+          sales: last7Days.map(d => ({ x: d.dateStr, y: d.total })),
+          orders: ordersByDay.map(d => ({ x: d.dateStr, y: d.orderCount }))
         };
         setChartsData(chartData);
       } catch (error) {
@@ -387,155 +389,114 @@ export default function DashboardContent({ activeTab }) {
 
         {/* Charts Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Sales Chart */}
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-gray-900">Sales Overview</h3>
-              <div className="flex items-center space-x-2">
-                <button className="text-gray-400 hover:text-gray-600">
-                  <Eye className="w-4 h-4" />
-                </button>
-                <button className="text-gray-400 hover:text-gray-600">
-                  <EyeOff className="w-4 h-4" />
-                </button>
+          {/* Sales Overview — smooth area chart */}
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 overflow-hidden">
+            <div className="px-6 pt-5 pb-2 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">Sales Overview</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Last 7 days</p>
               </div>
+              <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-600">Daily</span>
             </div>
-            <div className="h-64 bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-4 flex items-center justify-center">
-              {chartsData && chartsData.sales && chartsData.sales.length > 0 ? (
-                <svg viewBox="0 0 600 200" className="w-full h-full">
-                  {/* Background grid */}
-                  <defs>
-                    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#e5e7eb" strokeWidth="0.5"/>
-                    </pattern>
-                  </defs>
-                  <rect width="600" height="200" fill="url(#grid)" />
-                  
-                  {/* Axes */}
-                  <line x1="30" y1="170" x2="580" y2="170" stroke="#9ca3af" strokeWidth="1" />
-                  <line x1="30" y1="10" x2="30" y2="170" stroke="#9ca3af" strokeWidth="1" />
-                  
-                  {/* Y-axis labels */}
-                  <text x="25" y="175" fontSize="10" fill="#6b7280" textAnchor="end">0</text>
-                  {chartsData.sales.length > 0 && (() => {
-                    const maxValue = Math.max(...chartsData.sales.map(d => d.y), 1);
-                    const step = Math.ceil(maxValue / 4);
-                    return [1, 2, 3, 4].map((i) => {
-                      const value = step * i;
-                      const y = 170 - ((value / maxValue) * 160);
-                      return (
-                        <g key={`y-${i}`}>
-                          <line x1="25" y1={y} x2="30" y2={y} stroke="#9ca3af" strokeWidth="1" />
-                          <text x="25" y={y + 3} fontSize="10" fill="#6b7280" textAnchor="end">PKR {(value/1000).toFixed(0)}K</text>
-                        </g>
-                      );
-                    });
-                  })()}
-                  
-                  {/* Line chart path */}
-                  {chartsData.sales.length > 0 && (() => {
-                    const maxValue = Math.max(...chartsData.sales.map(d => d.y), 1);
-                    const xStep = 550 / (chartsData.sales.length - 1 || 1);
-                    const points = chartsData.sales.map((data, idx) => {
-                      const x = 30 + (idx * xStep);
-                      const y = 170 - ((data.y / maxValue) * 160);
-                      return `${x},${y}`;
-                    }).join(' ');
-                    
-                    return (
-                      <>
-                        {/* Area under line */}
-                        <path
-                          d={`M 30,170 L ${chartsData.sales.map((data, idx) => {
-                            const x = 30 + (idx * xStep);
-                            const y = 170 - ((data.y / maxValue) * 160);
-                            return `${x},${y}`;
-                          }).join(' L ')} L 580,170 Z`}
-                          fill="url(#lineGradient)"
-                          opacity="0.3"
-                        />
-                        {/* Line */}
-                        <polyline
-                          points={points}
-                          fill="none"
-                          stroke="#3b82f6"
-                          strokeWidth="2"
-                          strokeLinejoin="round"
-                          strokeLinecap="round"
-                        />
-                        {/* Data points */}
-                        {chartsData.sales.map((data, idx) => {
-                          const x = 30 + (idx * xStep);
-                          const y = 170 - ((data.y / maxValue) * 160);
-                          return (
-                            <g key={`point-${idx}`}>
-                              <circle cx={x} cy={y} r="3" fill="#3b82f6" stroke="#fff" strokeWidth="2" className="hover:r-5 transition-all" />
-                              <title>{`${data.x}: PKR ${data.y.toFixed(0)}`}</title>
-                            </g>
-                          );
-                        })}
-                      </>
-                    );
-                  })()}
-                  
-                  {/* X-axis labels */}
-                  {chartsData.sales.map((data, idx) => {
-                    const xStep = 550 / (chartsData.sales.length - 1 || 1);
-                    const x = 30 + (idx * xStep);
-                    return (
-                      <text key={`x-${idx}`} x={x} y="190" fontSize="10" fill="#6b7280" textAnchor="middle">
-                        {data.x}
-                      </text>
-                    );
-                  })}
-                  
-                  {/* Gradient definition */}
-                  <defs>
-                    <linearGradient id="lineGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                      <stop offset="0%" style={{stopColor: '#3b82f6', stopOpacity: 0.5}} />
-                      <stop offset="100%" style={{stopColor: '#3b82f6', stopOpacity: 0}} />
-                    </linearGradient>
-                  </defs>
-                </svg>
-              ) : (
-                <div className="text-center w-full flex items-center justify-center">
-                  <div>
-                    <TrendingUp className="w-16 h-16 text-blue-500 mx-auto mb-4" />
-                    <p className="text-gray-600 font-medium">No sales data available</p>
-                  </div>
+            <div className="px-2 pb-4">
+              {chartsData && chartsData.sales && chartsData.sales.length > 0 ? (() => {
+                const pL=58, pR=12, pT=16, pB=32, W=600, H=210;
+                const cW=W-pL-pR, cH=H-pT-pB;
+                const pts = chartsData.sales;
+                const maxV = Math.max(...pts.map(d=>d.y), 1);
+                const xs = pts.map((_,i)=> pL + (i/(pts.length-1||1))*cW);
+                const ys = pts.map(d=> pT + cH*(1 - d.y/maxV));
+                let linePath = `M ${xs[0]} ${ys[0]}`;
+                for(let i=0;i<xs.length-1;i++){
+                  const cpx = (xs[i]+xs[i+1])/2;
+                  linePath += ` C ${cpx} ${ys[i]} ${cpx} ${ys[i+1]} ${xs[i+1]} ${ys[i+1]}`;
+                }
+                const areaPath = linePath+` L ${xs[xs.length-1]} ${pT+cH} L ${xs[0]} ${pT+cH} Z`;
+                const fmt = v => v>=1000000?`${(v/1000000).toFixed(1)}M`:v>=1000?`${(v/1000).toFixed(0)}K`:'0';
+                return (
+                  <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="230">
+                    <defs>
+                      <linearGradient id="sAreaG" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#6366f1" stopOpacity="0.25"/>
+                        <stop offset="100%" stopColor="#6366f1" stopOpacity="0"/>
+                      </linearGradient>
+                    </defs>
+                    {[0,0.25,0.5,0.75,1].map(f=>(
+                      <g key={f}>
+                        <line x1={pL} y1={pT+cH*(1-f)} x2={W-pR} y2={pT+cH*(1-f)} stroke={f===0?'#e2e8f0':'#f1f5f9'} strokeWidth="1" strokeDasharray={f===0?'':'4 3'}/>
+                        <text x={pL-5} y={pT+cH*(1-f)+4} fontSize="9" fill="#94a3b8" textAnchor="end">{fmt(maxV*f)}</text>
+                      </g>
+                    ))}
+                    <path d={areaPath} fill="url(#sAreaG)"/>
+                    <path d={linePath} fill="none" stroke="#6366f1" strokeWidth="2.5" strokeLinecap="round"/>
+                    {pts.map((d,i)=>(
+                      <g key={i}>
+                        <circle cx={xs[i]} cy={ys[i]} r="6" fill="#6366f1" opacity="0.12"/>
+                        <circle cx={xs[i]} cy={ys[i]} r="3.5" fill="#6366f1" stroke="white" strokeWidth="1.5"/>
+                        <title>{d.x}: PKR {d.y.toLocaleString()}</title>
+                      </g>
+                    ))}
+                    {pts.map((d,i)=>(
+                      <text key={i} x={xs[i]} y={H-6} fontSize="9" fill="#94a3b8" textAnchor="middle">{d.x}</text>
+                    ))}
+                  </svg>
+                );
+              })() : (
+                <div className="h-56 flex flex-col items-center justify-center text-gray-300">
+                  <TrendingUp className="w-12 h-12 mb-2"/>
+                  <p className="text-sm text-gray-400">No sales data</p>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Orders Chart */}
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-gray-900">Orders Overview</h3>
-              <div className="flex items-center space-x-2">
-                <button className="text-gray-400 hover:text-gray-600">
-                  <Eye className="w-4 h-4" />
-                </button>
-                <button className="text-gray-400 hover:text-gray-600">
-                  <EyeOff className="w-4 h-4" />
-                </button>
+          {/* Orders Overview — vertical bar chart (daily counts) */}
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 overflow-hidden">
+            <div className="px-6 pt-5 pb-2 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">Orders Overview</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Last 7 days</p>
               </div>
+              <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-violet-50 text-violet-600">Daily</span>
             </div>
-            <div className="h-64 flex items-end justify-around gap-2 bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4">
-              {chartsData && chartsData.orders && chartsData.orders.length > 0 ? (
-                chartsData.orders.map((data, idx) => (
-                  <div key={idx} className="flex flex-col items-center flex-1 group">
-                    <div className="text-xs font-medium text-gray-600 mb-2 group-hover:text-gray-900 transition-colors">{data.y}</div>
-                    <div className="w-full bg-gradient-to-t from-green-500 to-green-400 rounded-t-lg hover:shadow-lg transition-all" style={{ height: '60px' }}></div>
-                    <div className="text-xs text-gray-500 mt-2">{data.x}</div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center w-full flex items-center justify-center">
-                  <div>
-                    <ShoppingCart className="w-16 h-16 text-green-500 mx-auto mb-4" />
-                    <p className="text-gray-600 font-medium">No orders data available</p>
-                  </div>
+            <div className="px-2 pb-4">
+              {chartsData && chartsData.orders ? (() => {
+                const pL=28, pR=12, pT=20, pB=32, W=600, H=210;
+                const cW=W-pL-pR, cH=H-pT-pB;
+                const pts = chartsData.orders;
+                const maxV = Math.max(...pts.map(d=>d.y), 1);
+                const grpW = cW/pts.length;
+                const barW = Math.min(grpW*0.55, 38);
+                return (
+                  <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="230">
+                    <defs>
+                      <linearGradient id="ordBG" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#8b5cf6" stopOpacity="1"/>
+                        <stop offset="100%" stopColor="#c4b5fd" stopOpacity="0.6"/>
+                      </linearGradient>
+                    </defs>
+                    {[0.25,0.5,0.75,1].map(f=>(
+                      <line key={f} x1={pL} y1={pT+cH-cH*f} x2={W-pR} y2={pT+cH-cH*f} stroke="#f1f5f9" strokeWidth="1" strokeDasharray="4 3"/>
+                    ))}
+                    <line x1={pL} y1={pT+cH} x2={W-pR} y2={pT+cH} stroke="#e2e8f0" strokeWidth="1"/>
+                    {pts.map((d,i)=>{
+                      const cx = pL + grpW*i + grpW/2;
+                      const bH = Math.max((d.y/maxV)*cH, d.y>0?3:0);
+                      return (
+                        <g key={i}>
+                          <rect x={cx-barW/2} y={pT+cH-bH} width={barW} height={bH} rx="4" fill="url(#ordBG)"/>
+                          {d.y>0 && <text x={cx} y={pT+cH-bH-4} fontSize="10" fill="#7c3aed" textAnchor="middle" fontWeight="600">{d.y}</text>}
+                          <text x={cx} y={H-6} fontSize="9" fill="#94a3b8" textAnchor="middle">{d.x}</text>
+                          <title>{d.x}: {d.y} orders</title>
+                        </g>
+                      );
+                    })}
+                  </svg>
+                );
+              })() : (
+                <div className="h-56 flex flex-col items-center justify-center text-gray-300">
+                  <ShoppingCart className="w-12 h-12 mb-2"/>
+                  <p className="text-sm text-gray-400">No orders data</p>
                 </div>
               )}
             </div>
@@ -543,85 +504,95 @@ export default function DashboardContent({ activeTab }) {
         </div>
 
         {/* Sales Profit Chart */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Monthly Sales Profit (Last 6 Months)</h3>
-          <div className="h-72 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-4 flex items-end">
-            {profitData.length === 0 ? (
-              <div className="w-full flex items-center justify-center h-full">
-                <div className="text-center">
-                  <TrendingUp className="w-16 h-16 text-emerald-400 mx-auto mb-3" />
-                  <p className="text-gray-500 text-sm">No profit data available</p>
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 overflow-hidden">
+          <div className="px-6 pt-5 pb-3 flex items-start justify-between">
+            <div>
+              <h3 className="text-base font-semibold text-gray-900">Monthly Sales Profit</h3>
+              <p className="text-xs text-gray-400 mt-0.5">Last 6 months — Revenue · Cost · Profit</p>
+            </div>
+            <div className="flex gap-3">
+              {[{l:'Revenue',c:'#6366f1'},{l:'Cost',c:'#f43f5e'},{l:'Profit',c:'#10b981'}].map(({l,c})=>(
+                <div key={l} className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{background:c}}/>
+                  <span className="text-xs text-gray-500">{l}</span>
                 </div>
+              ))}
+            </div>
+          </div>
+          {profitData.length > 0 && (() => {
+            const totRev = profitData.reduce((s,d)=>s+d.revenue,0);
+            const totCost = profitData.reduce((s,d)=>s+d.cost,0);
+            const totProfit = profitData.reduce((s,d)=>s+d.profit,0);
+            const fmtK = v => v>=1000000?`${(v/1000000).toFixed(1)}M`:v>=1000?`${(v/1000).toFixed(0)}K`:v.toFixed(0);
+            return (
+              <div className="flex gap-3 px-6 pb-4">
+                {[
+                  {label:'Total Revenue', value:fmtK(totRev), bg:'bg-indigo-50', text:'text-indigo-700'},
+                  {label:'Total Cost',    value:fmtK(totCost), bg:'bg-rose-50',   text:'text-rose-700'},
+                  {label:'Net Profit',    value:fmtK(totProfit),bg:'bg-emerald-50',text:'text-emerald-700'}
+                ].map(c=>(
+                  <div key={c.label} className={`flex-1 rounded-xl px-4 py-2.5 ${c.bg}`}>
+                    <p className={`text-xs opacity-60 ${c.text}`}>{c.label}</p>
+                    <p className={`text-sm font-bold ${c.text}`}>PKR {c.value}</p>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+          <div className="px-2 pb-4">
+            {profitData.length === 0 ? (
+              <div className="h-56 flex flex-col items-center justify-center text-gray-300">
+                <TrendingUp className="w-12 h-12 mb-2"/>
+                <p className="text-sm text-gray-400">No profit data available</p>
               </div>
             ) : (() => {
-              const maxVal = Math.max(...profitData.map(d => Math.max(d.revenue, d.profit, 1)));
-              const barW = Math.floor(500 / (profitData.length * 3 + profitData.length + 1));
-              const gap = Math.floor(barW * 0.5);
-              const svgW = profitData.length * (barW * 3 + gap) + gap;
-              const svgH = 240;
-              const chartH = 190;
+              const pL=52, pR=14, pT=14, pB=36, W=700, H=210;
+              const cW=W-pL-pR, cH=H-pT-pB;
+              const maxV = Math.max(...profitData.map(d=>Math.max(d.revenue,d.cost,1)));
+              const grpW = cW/profitData.length;
+              const barW = Math.min(grpW*0.23, 26);
+              const gap = barW*0.2;
+              const mNames=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+              const fmtK = v => v>=1000000?`${(v/1000000).toFixed(1)}M`:v>=1000?`${(v/1000).toFixed(0)}K`:v.toFixed(0);
               return (
-                <svg viewBox={`0 0 ${svgW} ${svgH + 30}`} width="100%" height="100%">
+                <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="240">
                   <defs>
-                    <linearGradient id="revGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                      <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.9" />
-                      <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.4" />
+                    <linearGradient id="pRevG" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#6366f1"/><stop offset="100%" stopColor="#818cf8" stopOpacity="0.5"/>
                     </linearGradient>
-                    <linearGradient id="profGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                      <stop offset="0%" stopColor="#10b981" stopOpacity="0.9" />
-                      <stop offset="100%" stopColor="#10b981" stopOpacity="0.4" />
+                    <linearGradient id="pCostG" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#f43f5e"/><stop offset="100%" stopColor="#fb7185" stopOpacity="0.5"/>
                     </linearGradient>
-                    <linearGradient id="costGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                      <stop offset="0%" stopColor="#f97316" stopOpacity="0.8" />
-                      <stop offset="100%" stopColor="#f97316" stopOpacity="0.3" />
+                    <linearGradient id="pProfG" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#10b981"/><stop offset="100%" stopColor="#34d399" stopOpacity="0.5"/>
                     </linearGradient>
                   </defs>
-                  {/* Y grid lines */}
-                  {[0.25, 0.5, 0.75, 1].map(f => (
-                    <line key={f} x1={0} y1={chartH - chartH * f} x2={svgW} y2={chartH - chartH * f}
-                      stroke="#d1fae5" strokeWidth="1" strokeDasharray="4 3" />
-                  ))}
-                  {profitData.map((d, i) => {
-                    const groupX = gap + i * (barW * 3 + gap);
-                    const revH = Math.max((d.revenue / maxVal) * chartH, 1);
-                    const costH = Math.max((d.cost / maxVal) * chartH, 1);
-                    const profH = Math.max((d.profit / maxVal) * chartH, 1);
-                    const label = d.month.slice(5); // e.g. "04"
-                    const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-                    const mName = monthNames[parseInt(label) - 1] || label;
-                    const year = d.month.slice(2, 4);
+                  {[0,0.25,0.5,0.75,1].map(f=>{
+                    const y=pT+cH*(1-f);
                     return (
-                      <g key={i}>
-                        {/* Revenue bar */}
-                        <rect x={groupX} y={chartH - revH} width={barW} height={revH} rx="2" fill="url(#revGrad)">
-                          <title>Revenue: PKR {d.revenue.toLocaleString()}</title>
-                        </rect>
-                        {/* Cost bar */}
-                        <rect x={groupX + barW} y={chartH - costH} width={barW} height={costH} rx="2" fill="url(#costGrad)">
-                          <title>Cost: PKR {d.cost.toLocaleString()}</title>
-                        </rect>
-                        {/* Profit bar */}
-                        <rect x={groupX + barW * 2} y={chartH - profH} width={barW} height={profH} rx="2" fill="url(#profGrad)">
-                          <title>Profit: PKR {d.profit.toLocaleString()}</title>
-                        </rect>
-                        {/* Profit value label */}
-                        <text x={groupX + barW * 1.5} y={chartH - profH - 3} fontSize="8" fill="#059669" textAnchor="middle" fontWeight="600">
-                          {d.profit >= 1000 ? `${(d.profit / 1000).toFixed(0)}K` : d.profit.toFixed(0)}
-                        </text>
-                        {/* Month label */}
-                        <text x={groupX + barW * 1.5} y={chartH + 12} fontSize="9" fill="#6b7280" textAnchor="middle">{mName} {year}</text>
+                      <g key={f}>
+                        <line x1={pL} y1={y} x2={W-pR} y2={y} stroke={f===0?'#e2e8f0':'#f1f5f9'} strokeWidth="1" strokeDasharray={f===0?'':'4 3'}/>
+                        <text x={pL-5} y={y+4} fontSize="9" fill="#94a3b8" textAnchor="end">{fmtK(maxV*f)}</text>
                       </g>
                     );
                   })}
-                  {/* Baseline */}
-                  <line x1={0} y1={chartH} x2={svgW} y2={chartH} stroke="#9ca3af" strokeWidth="1" />
-                  {/* Legend */}
-                  <rect x={4} y={svgH + 8} width={8} height={8} rx="1" fill="#3b82f6" />
-                  <text x={16} y={svgH + 16} fontSize="9" fill="#374151">Revenue</text>
-                  <rect x={64} y={svgH + 8} width={8} height={8} rx="1" fill="#f97316" />
-                  <text x={76} y={svgH + 16} fontSize="9" fill="#374151">Cost</text>
-                  <rect x={104} y={svgH + 8} width={8} height={8} rx="1" fill="#10b981" />
-                  <text x={116} y={svgH + 16} fontSize="9" fill="#374151">Profit</text>
+                  {profitData.map((d,i)=>{
+                    const cx = pL + grpW*i + grpW/2;
+                    const gx = cx - (barW*3+gap*2)/2;
+                    const revH = Math.max((d.revenue/maxV)*cH, d.revenue>0?2:0);
+                    const costH = Math.max((d.cost/maxV)*cH, d.cost>0?2:0);
+                    const profH = Math.max((d.profit/maxV)*cH, d.profit>0?2:0);
+                    const mIdx = parseInt(d.month.slice(5))-1;
+                    return (
+                      <g key={i}>
+                        <rect x={gx}            y={pT+cH-revH}  width={barW} height={revH}  rx="3" fill="url(#pRevG)"><title>Revenue: PKR {d.revenue.toLocaleString()}</title></rect>
+                        <rect x={gx+barW+gap}   y={pT+cH-costH} width={barW} height={costH} rx="3" fill="url(#pCostG)"><title>Cost: PKR {d.cost.toLocaleString()}</title></rect>
+                        <rect x={gx+barW*2+gap*2} y={pT+cH-profH} width={barW} height={profH} rx="3" fill="url(#pProfG)"><title>Profit: PKR {d.profit.toLocaleString()}</title></rect>
+                        {d.profit>0 && <text x={gx+barW*2.5+gap*2} y={pT+cH-profH-4} fontSize="8" fill="#059669" textAnchor="middle" fontWeight="700">{fmtK(d.profit)}</text>}
+                        <text x={cx} y={H-7} fontSize="9" fill="#64748b" textAnchor="middle" fontWeight="500">{mNames[mIdx]} '{d.month.slice(2,4)}</text>
+                      </g>
+                    );
+                  })}
                 </svg>
               );
             })()}
@@ -631,48 +602,43 @@ export default function DashboardContent({ activeTab }) {
         {/* Customer & Supplier Balance Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {[
-            { label: 'Top Customers by Balance', key: 'customers', color: '#3b82f6', gradId: 'custGrad', bg: 'from-blue-50 to-indigo-50' },
-            { label: 'Top Suppliers by Balance', key: 'suppliers', color: '#f97316', gradId: 'suppGrad', bg: 'from-orange-50 to-amber-50' }
-          ].map(({ label, key, color, gradId, bg }) => {
+            { label:'Top Customers by Balance', key:'customers', color:'#6366f1', light:'#eef2ff', text:'#4338ca' },
+            { label:'Top Suppliers by Balance',  key:'suppliers', color:'#f59e0b', light:'#fffbeb', text:'#b45309' }
+          ].map(({label,key,color,light,text})=>{
             const rows = balanceData[key];
-            const maxBal = rows.length > 0 ? Math.max(...rows.map(r => Math.abs(r.balance))) : 1;
-            const rowH = 28;
-            const paddingLeft = 130;
-            const paddingRight = 90;
-            const svgW = 560;
-            const svgH = Math.max(rows.length * rowH + 10, 50);
+            const maxBal = rows.length>0 ? Math.max(...rows.map(r=>Math.abs(r.balance))) : 1;
+            const fmtK = v => v>=1000000?`${(v/1000000).toFixed(1)}M`:v>=1000?`${(v/1000).toFixed(0)}K`:v.toFixed(0);
             return (
-              <div key={key} className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">{label}</h3>
-                <div className={`bg-gradient-to-br ${bg} rounded-xl p-3 overflow-auto`} style={{ maxHeight: 320 }}>
-                  {rows.length === 0 ? (
-                    <div className="flex items-center justify-center h-24 text-gray-500 text-sm">No data available</div>
-                  ) : (
-                    <svg viewBox={`0 0 ${svgW} ${svgH}`} width="100%" height={svgH}>
-                      <defs>
-                        <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="0%">
-                          <stop offset="0%" stopColor={color} stopOpacity="0.9" />
-                          <stop offset="100%" stopColor={color} stopOpacity="0.4" />
-                        </linearGradient>
-                      </defs>
-                      {rows.map((r, i) => {
-                        const barW = Math.max(((Math.abs(r.balance) / maxBal) * (svgW - paddingLeft - paddingRight)), 2);
-                        const y = i * rowH + 4;
-                        const barH = rowH - 8;
-                        return (
-                          <g key={i}>
-                            <text x={paddingLeft - 6} y={y + barH / 2 + 4} fontSize="11" fill="#374151" textAnchor="end" fontWeight="500">
-                              {r.name.length > 16 ? r.name.slice(0, 15) + '…' : r.name}
-                            </text>
-                            <rect x={paddingLeft} y={y} width={barW} height={barH} rx="3" fill={`url(#${gradId})`} />
-                            <text x={paddingLeft + barW + 5} y={y + barH / 2 + 4} fontSize="10" fill="#6b7280">
-                              {r.balance >= 1000 ? `${(r.balance / 1000).toFixed(1)}K` : r.balance.toFixed(0)}
-                            </text>
-                          </g>
-                        );
-                      })}
-                    </svg>
-                  )}
+              <div key={key} className="bg-white rounded-2xl shadow-lg border border-gray-100/50 overflow-hidden">
+                <div className="px-6 pt-5 pb-4 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-900">{label}</h3>
+                    <p className="text-xs text-gray-400 mt-0.5">Outstanding balances</p>
+                  </div>
+                  <span className="text-xs font-medium px-2.5 py-1 rounded-full" style={{background:light,color:text}}>
+                    Top {rows.length}
+                  </span>
+                </div>
+                <div className="px-6 pb-5 space-y-3" style={{maxHeight:340,overflowY:'auto'}}>
+                  {rows.length===0 ? (
+                    <div className="h-20 flex items-center justify-center text-gray-400 text-sm">No data available</div>
+                  ) : rows.map((r,i)=>{
+                    const pct = Math.round((Math.abs(r.balance)/maxBal)*100);
+                    return (
+                      <div key={i} className="flex items-center gap-3">
+                        <span className="flex-shrink-0 w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center" style={{background:light,color:text}}>{i+1}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-medium text-gray-700 truncate">{r.name}</span>
+                            <span className="text-xs font-semibold ml-2 flex-shrink-0" style={{color}}>{fmtK(r.balance)}</span>
+                          </div>
+                          <div className="h-1.5 rounded-full bg-gray-100">
+                            <div className="h-1.5 rounded-full" style={{width:`${pct}%`,background:`linear-gradient(to right,${color},${color}77)`}}/>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             );
