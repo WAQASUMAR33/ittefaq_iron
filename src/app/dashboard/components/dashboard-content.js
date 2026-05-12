@@ -534,50 +534,70 @@ export default function DashboardContent({ activeTab }) {
           </div>
         </div>
 
-        {/* Customer & Supplier Balances — Clustered Column */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 overflow-hidden">
-          <div className="px-6 pt-5 pb-3 flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-semibold text-gray-900">Customer &amp; Supplier Balances</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Top accounts by outstanding balance</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm inline-block" style={{background:'#3b82f6'}}/><span className="text-xs text-gray-500">Customers</span></div>
-              <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm inline-block" style={{background:'#f97316'}}/><span className="text-xs text-gray-500">Suppliers</span></div>
-            </div>
-          </div>
-          <div className="px-1 pb-3">
-            {(balanceData.customers.length>0||balanceData.suppliers.length>0) ? (() => {
-              const n=Math.min(Math.max(balanceData.customers.length,balanceData.suppliers.length),8);
-              const s1=Array.from({length:n},(_,i)=>balanceData.customers[i]?.balance??0);
-              const s2=Array.from({length:n},(_,i)=>balanceData.suppliers[i]?.balance??0);
-              const pL=52,pR=12,pT=20,pB=36,W=700,H=210,cW=W-pL-pR,cH=H-pT-pB;
-              const grpW=cW/n,barW=Math.min(grpW*0.36,42);
-              const maxV=Math.max(...s1,...s2,1);
-              const fmtK=v=>v>=1000000?`${(v/1000000).toFixed(1)}M`:v>=1000?`${(v/1000).toFixed(0)}K`:'0';
-              return (
-                <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="240">
-                  <defs>
-                    <linearGradient id="cc4B" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3b82f6"/><stop offset="100%" stopColor="#93c5fd" stopOpacity="0.5"/></linearGradient>
-                    <linearGradient id="cc4O" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#f97316"/><stop offset="100%" stopColor="#fdba74" stopOpacity="0.5"/></linearGradient>
-                  </defs>
-                  <line x1={pL} y1={pT} x2={pL} y2={pT+cH} stroke="#e2e8f0" strokeWidth="1"/>
-                  {[0,0.25,0.5,0.75,1].map(f=>{const y=pT+cH*(1-f);return(<g key={f}><line x1={pL} y1={y} x2={W-pR} y2={y} stroke={f===0?'#e2e8f0':'#f8fafc'} strokeWidth="1" strokeDasharray={f===0?'':'3 3'}/><text x={pL-4} y={y+4} fontSize="9" fill="#cbd5e1" textAnchor="end">{fmtK(maxV*f)}</text></g>);})}
-                  {Array.from({length:n},(_,i)=>{
-                    const cx=pL+grpW*i+grpW/2,bx=cx-barW-1,ox=cx+1;
-                    const h1=Math.max((s1[i]/maxV)*cH,s1[i]>0?2:0),h2=Math.max((s2[i]/maxV)*cH,s2[i]>0?2:0);
-                    const cName=balanceData.customers[i]?.name||'—';
-                    const sName=balanceData.suppliers[i]?.name||'—';
-                    return(<g key={i}>
-                      <rect x={bx} y={pT+cH-h1} width={barW} height={h1} rx="3" fill="url(#cc4B)"><title>Customer: {cName} — PKR {s1[i].toLocaleString()}</title></rect>
-                      <rect x={ox} y={pT+cH-h2} width={barW} height={h2} rx="3" fill="url(#cc4O)"><title>Supplier: {sName} — PKR {s2[i].toLocaleString()}</title></rect>
-                      <text x={cx} y={H-7} fontSize="9" fill="#94a3b8" textAnchor="middle">#{i+1}</text>
-                    </g>);
-                  })}
-                </svg>
-              );
-            })() : <div className="h-56 flex items-center justify-center text-gray-400 text-sm">No balance data available</div>}
-          </div>
+        {/* Customer & Supplier Balances — two separate charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {[
+            { title:'Top Customers by Balance', rows: balanceData.customers, color:'#3b82f6', gradId:'balCustG', light:'#eff6ff' },
+            { title:'Top Suppliers by Balance',  rows: balanceData.suppliers, color:'#f97316', gradId:'balSuppG', light:'#fff7ed' }
+          ].map(({ title, rows, color, gradId, light }) => {
+            const fmtK = v => v>=1000000?`${(v/1000000).toFixed(1)}M`:v>=1000?`${(v/1000).toFixed(0)}K`:'0';
+            const n = Math.min(rows.length, 10);
+            const pL=44, pR=12, pT=16, pB=80, W=600, H=220;
+            const cW=W-pL-pR, cH=H-pT-pB;
+            const grpW = n > 0 ? cW/n : cW;
+            const barW = Math.min(grpW*0.6, 44);
+            const maxV = n > 0 ? Math.max(...rows.slice(0,n).map(r=>r.balance), 1) : 1;
+            return (
+              <div key={title} className="bg-white rounded-2xl shadow-lg border border-gray-100/50 overflow-hidden">
+                <div className="px-6 pt-5 pb-3 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-900">{title}</h3>
+                    <p className="text-xs text-gray-400 mt-0.5">Outstanding balance</p>
+                  </div>
+                  <span className="text-xs font-medium px-2.5 py-1 rounded-full" style={{background:light, color}}>Top {n}</span>
+                </div>
+                <div className="px-1 pb-2">
+                  {n === 0 ? (
+                    <div className="h-56 flex items-center justify-center text-gray-400 text-sm">No data available</div>
+                  ) : (
+                    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="260">
+                      <defs>
+                        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={color}/>
+                          <stop offset="100%" stopColor={color} stopOpacity="0.4"/>
+                        </linearGradient>
+                      </defs>
+                      <line x1={pL} y1={pT} x2={pL} y2={pT+cH} stroke="#e2e8f0" strokeWidth="1"/>
+                      {[0,0.25,0.5,0.75,1].map(f=>{
+                        const y=pT+cH*(1-f);
+                        return(<g key={f}>
+                          <line x1={pL} y1={y} x2={W-pR} y2={y} stroke={f===0?'#e2e8f0':'#f8fafc'} strokeWidth="1" strokeDasharray={f===0?'':'3 3'}/>
+                          <text x={pL-4} y={y+4} fontSize="9" fill="#cbd5e1" textAnchor="end">{fmtK(maxV*f)}</text>
+                        </g>);
+                      })}
+                      {rows.slice(0,n).map((r,i)=>{
+                        const cx = pL + grpW*i + grpW/2;
+                        const bH = Math.max((r.balance/maxV)*cH, 2);
+                        const bx = cx - barW/2;
+                        const shortName = r.name.length>11 ? r.name.slice(0,10)+'…' : r.name;
+                        return(<g key={i}>
+                          <rect x={bx} y={pT+cH-bH} width={barW} height={bH} rx="3" fill={`url(#${gradId})`}>
+                            <title>{r.name}: PKR {r.balance.toLocaleString()}</title>
+                          </rect>
+                          <text x={bx+barW/2} y={pT+cH-bH-4} fontSize="8" fill={color} textAnchor="middle" fontWeight="700">{fmtK(r.balance)}</text>
+                          <text
+                            x={cx} y={pT+cH+8}
+                            fontSize="9" fill="#64748b" textAnchor="end"
+                            transform={`rotate(-40,${cx},${pT+cH+8})`}
+                          >{shortName}</text>
+                        </g>);
+                      })}
+                    </svg>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {/* Recent Activity */}
