@@ -260,6 +260,7 @@ function OrdersPageContent() {
   const [cityFormData, setCityFormData] = useState({ city_name: '' });
   const [isAddingCustomerCategory, setIsAddingCustomerCategory] = useState(false);
   const [isAddingCustomerType, setIsAddingCustomerType] = useState(false);
+  const [isSavingCustomer, setIsSavingCustomer] = useState(false);
   const [isAddingCity, setIsAddingCity] = useState(false);
 
   const [newCustomer, setNewCustomer] = useState({
@@ -1370,6 +1371,7 @@ function OrdersPageContent() {
     }
 
     try {
+      setIsSavingCustomer(true);
       const customerData = {
         cus_name: newCustomer.cus_name.trim(),
         cus_phone_no: newCustomer.cus_phone_no.trim(),
@@ -1412,6 +1414,8 @@ function OrdersPageContent() {
     } catch (error) {
       console.error('Error creating customer:', error);
       showSnackbar('Error creating customer', 'error');
+    } finally {
+      setIsSavingCustomer(false);
     }
   };
 
@@ -5258,9 +5262,11 @@ function OrdersPageContent() {
           <Button
             onClick={handleCreateCustomer}
             variant="contained"
-            sx={{ bgcolor: '#6f42c1', '&:hover': { bgcolor: '#5a2d91' } }}
+            disabled={isSavingCustomer}
+            startIcon={isSavingCustomer ? <CircularProgress size={16} color="inherit" /> : null}
+            sx={{ bgcolor: '#6f42c1', '&:hover': { bgcolor: '#5a2d91' }, minWidth: 140 }}
           >
-            Create Customer
+            {isSavingCustomer ? 'Saving...' : 'Create Customer'}
           </Button>
         </DialogActions>
       </Dialog>
