@@ -317,6 +317,7 @@ function SalesPageContent() {
   const [productSubCatInput, setProductSubCatInput] = useState('');
   const [isAddingCustomerCategory, setIsAddingCustomerCategory] = useState(false);
   const [isAddingCustomerType, setIsAddingCustomerType] = useState(false);
+  const [isSavingCustomer, setIsSavingCustomer] = useState(false);
   const [isAddingCity, setIsAddingCity] = useState(false);
   const [showAddProductCategoryPopup, setShowAddProductCategoryPopup] = useState(false);
   const [addProductCategoryName, setAddProductCategoryName] = useState('');
@@ -2001,6 +2002,7 @@ function SalesPageContent() {
     // Allow duplicate phone numbers — do not block creation by phone number.
 
     try {
+      setIsSavingCustomer(true);
       const customerData = {
         cus_name: newCustomer.cus_name.trim(),
         cus_phone_no: newCustomer.cus_phone_no.trim(),
@@ -2045,6 +2047,8 @@ function SalesPageContent() {
     } catch (error) {
       console.error('Error creating customer:', error);
       showSnackbar('Error creating customer', 'error');
+    } finally {
+      setIsSavingCustomer(false);
     }
   };
 
@@ -7753,9 +7757,11 @@ function SalesPageContent() {
           <Button
             onClick={handleCreateCustomer}
             variant="contained"
-            sx={{ bgcolor: '#6f42c1', '&:hover': { bgcolor: '#5a2d91' } }}
+            disabled={isSavingCustomer}
+            startIcon={isSavingCustomer ? <CircularProgress size={16} color="inherit" /> : null}
+            sx={{ bgcolor: '#6f42c1', '&:hover': { bgcolor: '#5a2d91' }, minWidth: 140 }}
           >
-            {editingCustomer ? 'Save Changes' : 'Create Customer'}
+            {isSavingCustomer ? 'Saving...' : (editingCustomer ? 'Save Changes' : 'Create Customer')}
           </Button>
         </DialogActions>
       </Dialog>
