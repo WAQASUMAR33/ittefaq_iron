@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { calculateClosingBalance, createLedgerEntry } from '@/lib/ledger-helper';
+import { calculateClosingBalance, createLedgerEntry, createPayableLedgerEntry } from '@/lib/ledger-helper';
 
 const prisma = new PrismaClient();
 
@@ -148,14 +148,22 @@ export async function POST(request) {
 
     const accountBalances = await prisma.customer.findMany({
       where: { cus_id: { in: affectedAccountIds } },
-      select: { cus_id: true, cus_balance: true, cus_category: true }
+      select: {
+        cus_id: true,
+        cus_balance: true,
+        cus_category: true,
+        customer_category: { select: { cus_cat_title: true } }
+      }
     });
 
     const balanceMap = {};
     const categoryMap = {};
+    const supplierAccountIds = new Set();
     accountBalances.forEach(acc => {
       balanceMap[acc.cus_id] = parseFloat(acc.cus_balance || 0);
       categoryMap[acc.cus_id] = acc.cus_category;
+      const catTitle = (acc.customer_category?.cus_cat_title || '').toLowerCase();
+      if (catTitle.includes('supplier')) supplierAccountIds.add(acc.cus_id);
     });
 
     // Bank (23) and Cash (24) are asset accounts — same direction as customer/supplier now
@@ -163,6 +171,7 @@ export async function POST(request) {
     // RECEIVE (Receive Amount) = money IN → DEBIT → selected account balance increases
     const BANK_CASH_CATEGORIES = [23, 24];
     const mainAccountIsBankOrCash = BANK_CASH_CATEGORIES.includes(categoryMap[parseInt(account_id)]);
+    const mainAccountIsSupplier = supplierAccountIds.has(parseInt(account_id));
 
     // Use transaction to ensure data consistency
     const result = await prisma.$transaction(
@@ -251,9 +260,10 @@ export async function POST(request) {
         }
       const ledgerEntries = [];
 
-      // Main account ledger entry direction (same for all account types):
-      //   RECEIVE (Receive Amount) → DEBIT  → selected account balance increases
-      //   PAY     (Pay Amount)     → CREDIT → selected account balance decreases
+      // Main account line:
+      //   Bank/Cash (asset): RECEIVE → DEBIT, PAY → CREDIT
+      //   Supplier (payable): PAY → DEBIT, RECEIVE → CREDIT
+      //   Customer (receivable): RECEIVE → DEBIT, PAY → CREDIT
       let mainDebitAmount = 0;
       let mainCreditAmount = 0;
       if (mainAccountIsBankOrCash) {
@@ -262,10 +272,15 @@ export async function POST(request) {
         } else {
           mainCreditAmount = parseFloat(total_amount);
         }
+      } else if (mainAccountIsSupplier) {
+        // Supplier (payable): PAY = DEBIT, RECEIVE = CREDIT
+        if (payment_type === 'RECEIVE') {
+          mainCreditAmount = parseFloat(total_amount);
+        } else {
+          mainDebitAmount = parseFloat(total_amount);
+        }
       } else {
-        // Customer/Supplier:
-        // RECEIVE (Receive Amount) → DEBIT → increases balance of the selected account
-        // PAY (Pay Amount) → CREDIT → decreases balance of the selected account
+        // Customer (receivable): RECEIVE = DEBIT, PAY = CREDIT
         if (payment_type === 'RECEIVE') {
           mainDebitAmount = parseFloat(total_amount);
         } else {
@@ -273,7 +288,8 @@ export async function POST(request) {
         }
       }
 
-      const mainAccountEntry = createLedgerEntry({
+      const mainLedgerFactory = mainAccountIsSupplier ? createPayableLedgerEntry : createLedgerEntry;
+      const mainAccountEntry = mainLedgerFactory({
         cus_id: parseInt(account_id),
         opening_balance: balanceMap[parseInt(account_id)] || 0,
         debit_amount: mainDebitAmount,

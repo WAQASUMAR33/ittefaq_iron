@@ -1334,6 +1334,12 @@ function PurchasesPageContent() {
     return Number((net - payment).toFixed(2));
   };
 
+  /** Supplier payable: balance is negative when we owe. After this purchase: previous − unpaid portion of this bill. */
+  const getSupplierBalanceAfterBill = (bill) => {
+    const prev = parseFloat(bill?.previous_customer_balance ?? bill?.customer?.cus_balance ?? 0);
+    return Number((prev - getInvoiceRemainingDue(bill)).toFixed(2));
+  };
+
   // Calculate and sync Incity charges total (read-only) — only own labour + own delivery
   useEffect(() => {
     try {
@@ -1500,8 +1506,7 @@ function PurchasesPageContent() {
       // So we must send the Subtotal here, NOT the Net Total.
       const calculatedTotalAmount = calculateTotalAmount();
 
-      // Set proper debit and credit accounts for purchase transaction
-      // For purchases: Debit = Inventory/Stock Account, Credit = Supplier Account or Cash Account
+      // debit_account_id / credit_account_id: inventory vs pay-from account hints for API (GL posts in purchases route)
       let debitAccountId = '';
       let creditAccountId = '';
 
@@ -5296,7 +5301,7 @@ function PurchasesPageContent() {
                           </TableRow>
                           <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                             <TableCell sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>Total Due</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>{fmtAmt(parseFloat(viewingPurchase.previous_customer_balance ?? viewingPurchase.customer?.cus_balance ?? 0) + getInvoiceRemainingDue(viewingPurchase))}</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>{fmtAmt(getSupplierBalanceAfterBill(viewingPurchase))}</TableCell>
                           </TableRow>
                         </TableBody>
                       </Table>
@@ -6087,7 +6092,7 @@ function PurchasesPageContent() {
                           <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Total Due</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                              {fmtAmt(parseFloat(currentBillData.customer?.cus_balance || 0) + (parseFloat(currentBillData.display_net_total || (parseFloat(currentBillData.total_amount || 0) + parseFloat(currentBillData.unloading_amount || 0) + parseFloat(currentBillData.transport_amount || 0) + parseFloat(currentBillData.labour_amount || 0) + parseFloat(currentBillData.fare_amount || 0) - parseFloat(currentBillData.discount || 0))) - parseFloat(currentBillData.payment || 0)))}
+                              {fmtAmt(getSupplierBalanceAfterBill(currentBillData))}
                             </TableCell>
                           </TableRow>
                         </TableBody>

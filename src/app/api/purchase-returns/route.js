@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { createPayableLedgerEntry } from '@/lib/ledger-helper';
 
 // GET - Fetch all purchase returns
 export async function GET(request) {
@@ -171,35 +172,26 @@ export async function POST(request) {
 
       const currentBalance = parseFloat(supplier?.cus_balance || 0);
       
-      // PURCHASE RETURN ACCOUNTING:
-      // When we return goods to supplier:
-      // - Our liability (amount we owe them) DECREASES
-      // - Since Purchase DEBITS supplier (increases liability), 
-      //   Purchase Return should CREDIT supplier (decrease liability)
+      // Payable supplier: purchase return = DEBIT (reduces amount we owe)
       const returnAmount = parseFloat(total_return_amount || 0);
-      const newBalance = currentBalance - returnAmount;
+      const returnLedgerEntry = createPayableLedgerEntry({
+        cus_id: purchase.cus_id,
+        opening_balance: currentBalance,
+        debit_amount: returnAmount,
+        credit_amount: 0,
+        bill_no: `PR-${newPurchaseReturn.id}`,
+        trnx_type: 'PURCHASE_RETURN',
+        details: `Purchase Return #${newPurchaseReturn.id} - ${return_reason} - Goods returned to ${supplier?.cus_name || 'Supplier'}`,
+        payments: 0,
+        updated_by: null
+      });
 
-      // Update supplier balance
       await tx.customer.update({
         where: { cus_id: purchase.cus_id },
-        data: { cus_balance: newBalance }
+        data: { cus_balance: returnLedgerEntry.closing_balance }
       });
 
-      // Create ledger entry - Credit Supplier (reduces what we owe)
-      await tx.ledger.create({
-        data: {
-          cus_id: purchase.cus_id,
-          opening_balance: currentBalance,
-          debit_amount: 0,
-          credit_amount: returnAmount,
-          closing_balance: newBalance,
-          bill_no: `PR-${newPurchaseReturn.id}`,
-          trnx_type: 'PURCHASE_RETURN',
-          details: `Purchase Return #${newPurchaseReturn.id} - ${return_reason} - Goods returned to ${supplier?.cus_name || 'Supplier'}`,
-          payments: 0,
-          updated_by: null
-        }
-      });
+      await tx.ledger.create({ data: returnLedgerEntry });
 
       return newPurchaseReturn;
       },
@@ -278,14 +270,15 @@ export async function PUT(request) {
         }
       }
 
-      // Reverse old balance change (debit back what was credited)
+      // Reverse old balance change (restore payable before re-applying updated return)
       const supplierBeforeReverse = await tx.customer.findUnique({
         where: { cus_id: purchase.cus_id },
         select: { cus_balance: true, cus_name: true }
       });
       const balanceBeforeReverse = parseFloat(supplierBeforeReverse?.cus_balance || 0);
       const oldReturnAmount = parseFloat(existingReturn.total_return_amount || 0);
-      const balanceAfterReverse = balanceBeforeReverse + oldReturnAmount;
+      // Reverse old return: old posting was debit oldReturnAmount — remove that delta from balance
+      const balanceAfterReverse = balanceBeforeReverse - oldReturnAmount;
 
       await tx.customer.update({
         where: { cus_id: purchase.cus_id },
@@ -348,30 +341,26 @@ export async function PUT(request) {
         }
       }
 
-      // Apply new balance change
       const newReturnAmount = parseFloat(total_return_amount || 0);
-      const finalBalance = balanceAfterReverse - newReturnAmount;
+
+      const updatedReturnLedger = createPayableLedgerEntry({
+        cus_id: purchase.cus_id,
+        opening_balance: balanceAfterReverse,
+        debit_amount: newReturnAmount,
+        credit_amount: 0,
+        bill_no: `PR-${id}`,
+        trnx_type: 'PURCHASE_RETURN',
+        details: `Purchase Return #${id} (Updated) - ${return_reason} - Goods returned to ${supplierBeforeReverse?.cus_name || 'Supplier'}`,
+        payments: 0,
+        updated_by: null
+      });
 
       await tx.customer.update({
         where: { cus_id: purchase.cus_id },
-        data: { cus_balance: finalBalance }
+        data: { cus_balance: updatedReturnLedger.closing_balance }
       });
 
-      // Create new ledger entry
-      await tx.ledger.create({
-        data: {
-          cus_id: purchase.cus_id,
-          opening_balance: balanceAfterReverse,
-          debit_amount: 0,
-          credit_amount: newReturnAmount,
-          closing_balance: finalBalance,
-          bill_no: `PR-${id}`,
-          trnx_type: 'PURCHASE_RETURN',
-          details: `Purchase Return #${id} (Updated) - ${return_reason} - Goods returned to ${supplierBeforeReverse?.cus_name || 'Supplier'}`,
-          payments: 0,
-          updated_by: null
-        }
-      });
+      await tx.ledger.create({ data: updatedReturnLedger });
 
       return updatedReturn;
       },
@@ -439,7 +428,7 @@ export async function DELETE(request) {
         }
       }
 
-      // Revert supplier balance - DEBIT back what was credited
+      // Revert supplier balance — credit back what was debited on return
       const supplier = await tx.customer.findUnique({
         where: { cus_id: purchase.cus_id },
         select: { cus_balance: true, cus_name: true }
@@ -447,28 +436,25 @@ export async function DELETE(request) {
 
       const currentBalance = parseFloat(supplier?.cus_balance || 0);
       const returnAmount = parseFloat(existingReturn.total_return_amount || 0);
-      const newBalance = currentBalance + returnAmount;  // Add back what was reduced
+
+      const reversalEntry = createPayableLedgerEntry({
+        cus_id: purchase.cus_id,
+        opening_balance: currentBalance,
+        debit_amount: 0,
+        credit_amount: returnAmount,
+        bill_no: `PR-${id}-DELETED`,
+        trnx_type: 'PURCHASE_RETURN',
+        details: `Purchase Return #${id} CANCELLED/DELETED - Reversal entry for ${supplier?.cus_name || 'Supplier'}`,
+        payments: 0,
+        updated_by: null
+      });
 
       await tx.customer.update({
         where: { cus_id: purchase.cus_id },
-        data: { cus_balance: newBalance }
+        data: { cus_balance: reversalEntry.closing_balance }
       });
 
-      // Create reversal ledger entry
-      await tx.ledger.create({
-        data: {
-          cus_id: purchase.cus_id,
-          opening_balance: currentBalance,
-          debit_amount: returnAmount,  // Debit to reverse the credit
-          credit_amount: 0,
-          closing_balance: newBalance,
-          bill_no: `PR-${id}-DELETED`,
-          trnx_type: 'PURCHASE_RETURN',
-          details: `Purchase Return #${id} CANCELLED/DELETED - Reversal entry for ${supplier?.cus_name || 'Supplier'}`,
-          payments: 0,
-          updated_by: null
-        }
-      });
+      await tx.ledger.create({ data: reversalEntry });
 
       // Delete return details
       await tx.purchaseReturnDetail.deleteMany({

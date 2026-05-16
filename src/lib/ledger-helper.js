@@ -4,22 +4,28 @@
  * Ensures consistent accounting across all modules (Sales, Purchases, Orders)
  */
 
+/** @typedef {'RECEIVABLE' | 'PAYABLE'} AccountNature */
+
+export const ACCOUNT_NATURE = {
+  RECEIVABLE: 'RECEIVABLE',
+  PAYABLE: 'PAYABLE'
+};
+
 /**
- * Calculate closing balance using standard accounting formula
- * Formula: closing_balance = opening_balance + debit_amount - credit_amount
- * 
- * @param {number} openingBalance - The opening balance for this entry
- * @param {number} debitAmount - Debit amount (default 0)
- * @param {number} creditAmount - Credit amount (default 0)
- * @returns {number} The calculated closing balance
+ * Calculate closing balance for a party ledger account.
+ * - RECEIVABLE (customers): what they owe us — opening + debit - credit (debit increases balance)
+ * - PAYABLE (suppliers): what we owe them — opening - credit + debit (stored negative; purchase credit deepens payable)
  */
-export function calculateClosingBalance(openingBalance, debitAmount = 0, creditAmount = 0) {
+export function calculateClosingBalance(openingBalance, debitAmount = 0, creditAmount = 0, accountNature = ACCOUNT_NATURE.RECEIVABLE) {
   const opening = parseFloat(openingBalance || 0);
   const debit = parseFloat(debitAmount || 0);
   const credit = parseFloat(creditAmount || 0);
-  
-  const closing = opening + debit - credit;
-  return closing;
+
+  if (accountNature === ACCOUNT_NATURE.PAYABLE) {
+    // Negative balance = amount still to pay (e.g. bill 2500, pay 1000 → -1500)
+    return opening - credit + debit;
+  }
+  return opening + debit - credit;
 }
 
 /**
@@ -50,7 +56,8 @@ export function createLedgerEntry(config) {
     payments = 0,
     cash_payment = 0,
     bank_payment = 0,
-    updated_by = null
+    updated_by = null,
+    account_nature = ACCOUNT_NATURE.RECEIVABLE
   } = config;
 
   // Validate required fields
@@ -58,7 +65,7 @@ export function createLedgerEntry(config) {
     throw new Error('Customer ID (cus_id) is required for ledger entry');
   }
 
-  const closing_balance = calculateClosingBalance(opening_balance, debit_amount, credit_amount);
+  const closing_balance = calculateClosingBalance(opening_balance, debit_amount, credit_amount, account_nature);
 
   return {
     cus_id,
@@ -108,16 +115,17 @@ export function createChainedLedgerEntries(entries) {
 
 /**
  * Validate ledger entry consistency
- * Check if closing balance = opening + debit - credit
+ * Check if closing balance matches the nature-specific formula.
  * 
  * @param {Object} entry - Ledger entry to validate
  * @returns {boolean} True if entry is valid, throws error if not
  */
-export function validateLedgerEntry(entry) {
+export function validateLedgerEntry(entry, accountNature = ACCOUNT_NATURE.RECEIVABLE) {
   const calculated = calculateClosingBalance(
     entry.opening_balance,
     entry.debit_amount,
-    entry.credit_amount
+    entry.credit_amount,
+    accountNature
   );
 
   const difference = Math.abs(calculated - parseFloat(entry.closing_balance));
@@ -167,9 +175,16 @@ export function getLedgerSummary(entries) {
   };
 }
 
+/** Supplier / accounts-payable (purchase = credit, payment = debit; cus_balance negative = we owe). */
+export function createPayableLedgerEntry(config) {
+  return createLedgerEntry({ ...config, account_nature: ACCOUNT_NATURE.PAYABLE });
+}
+
 export default {
+  ACCOUNT_NATURE,
   calculateClosingBalance,
   createLedgerEntry,
+  createPayableLedgerEntry,
   createChainedLedgerEntries,
   validateLedgerEntry,
   getLedgerSummary

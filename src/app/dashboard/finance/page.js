@@ -159,6 +159,11 @@ const getInvoiceRemainingDue = (bill) => {
   return net - payment;
 };
 
+const getSupplierBalanceAfterBill = (bill) => {
+  const prev = parseFloat(bill?.previous_customer_balance ?? bill?.customer?.cus_balance ?? 0);
+  return Number((prev - getInvoiceRemainingDue(bill)).toFixed(2));
+};
+
 export default function FinancePage() {
   // PIN auth
   const { requireAuth, authDialogOpen, handleAuthSuccess, handleAuthCancel } = usePinAuth();
@@ -3941,7 +3946,7 @@ export default function FinancePage() {
                           </TableRow>
                           <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                             <TableCell sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>Total Due</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>{fmtAmt(parseFloat(viewingPurchase.previous_customer_balance ?? viewingPurchase.customer?.cus_balance ?? 0) + getInvoiceRemainingDue(viewingPurchase))}</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>{fmtAmt(getSupplierBalanceAfterBill(viewingPurchase))}</TableCell>
                           </TableRow>
                         </TableBody>
                       </Table>

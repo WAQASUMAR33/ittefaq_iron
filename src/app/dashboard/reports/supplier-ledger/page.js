@@ -268,13 +268,13 @@ export default function SupplierLedgerReport() {
                   <div className="text-sm font-medium text-blue-600 mb-1">Opening Balance</div>
                   <div className="text-2xl font-bold text-blue-900">{fmtAmt(reportData.summary.openingBalance)}</div>
                 </div>
-                <div className="bg-red-50 rounded-lg p-4 border border-red-200">
-                  <div className="text-sm font-medium text-red-600 mb-1">Total Debit (Purchase)</div>
-                  <div className="text-2xl font-bold text-red-900">{fmtAmt(reportData.summary.totalDebit)}</div>
-                </div>
                 <div className="bg-green-50 rounded-lg p-4 border border-green-200">
-                  <div className="text-sm font-medium text-green-600 mb-1">Total Credit (Payment)</div>
+                  <div className="text-sm font-medium text-green-600 mb-1">Total Credit (Purchase)</div>
                   <div className="text-2xl font-bold text-green-900">{fmtAmt(reportData.summary.totalCredit)}</div>
+                </div>
+                <div className="bg-red-50 rounded-lg p-4 border border-red-200">
+                  <div className="text-sm font-medium text-red-600 mb-1">Total Debit (Payment)</div>
+                  <div className="text-2xl font-bold text-red-900">{fmtAmt(reportData.summary.totalDebit)}</div>
                 </div>
                 <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
                   <div className="text-sm font-medium text-amber-600 mb-1">Closing Balance</div>
@@ -330,10 +330,10 @@ export default function SupplierLedgerReport() {
                                     <div>
                                       Bill: {entry.bill_no}{' '}
                                       {(
-                                        (entry.trnx_type === 'PURCHASE' && parseFloat(entry.debit_amount || 0) > 0) ||
+                                        (entry.trnx_type === 'PURCHASE' && parseFloat(entry.credit_amount || 0) > 0) ||
                                         (/incity \(own\) - (labour|delivery)/i).test(entry.details || '')
                                       ) ? (
-                                        <span className="text-blue-600 font-bold">— {fmtAmt(entry.debit_amount)}</span>
+                                        <span className="text-blue-600 font-bold">— {fmtAmt(entry.credit_amount)}</span>
                                       ) : null}
                                     </div>
                                   ) : ''
