@@ -172,13 +172,13 @@ export async function POST(request) {
 
       const currentBalance = parseFloat(supplier?.cus_balance || 0);
       
-      // Payable supplier: purchase return = DEBIT (reduces amount we owe)
+      // Payable supplier: purchase return = CREDIT (reduces amount we owe)
       const returnAmount = parseFloat(total_return_amount || 0);
       const returnLedgerEntry = createPayableLedgerEntry({
         cus_id: purchase.cus_id,
         opening_balance: currentBalance,
-        debit_amount: returnAmount,
-        credit_amount: 0,
+        debit_amount: 0,
+        credit_amount: returnAmount,
         bill_no: `PR-${newPurchaseReturn.id}`,
         trnx_type: 'PURCHASE_RETURN',
         details: `Purchase Return #${newPurchaseReturn.id} - ${return_reason} - Goods returned to ${supplier?.cus_name || 'Supplier'}`,
@@ -277,8 +277,8 @@ export async function PUT(request) {
       });
       const balanceBeforeReverse = parseFloat(supplierBeforeReverse?.cus_balance || 0);
       const oldReturnAmount = parseFloat(existingReturn.total_return_amount || 0);
-      // Reverse old return: old posting was debit oldReturnAmount — remove that delta from balance
-      const balanceAfterReverse = balanceBeforeReverse - oldReturnAmount;
+      // Reverse old return: old posting was credit oldReturnAmount
+      const balanceAfterReverse = balanceBeforeReverse + oldReturnAmount;
 
       await tx.customer.update({
         where: { cus_id: purchase.cus_id },
@@ -346,8 +346,8 @@ export async function PUT(request) {
       const updatedReturnLedger = createPayableLedgerEntry({
         cus_id: purchase.cus_id,
         opening_balance: balanceAfterReverse,
-        debit_amount: newReturnAmount,
-        credit_amount: 0,
+        debit_amount: 0,
+        credit_amount: newReturnAmount,
         bill_no: `PR-${id}`,
         trnx_type: 'PURCHASE_RETURN',
         details: `Purchase Return #${id} (Updated) - ${return_reason} - Goods returned to ${supplierBeforeReverse?.cus_name || 'Supplier'}`,
@@ -428,7 +428,7 @@ export async function DELETE(request) {
         }
       }
 
-      // Revert supplier balance — credit back what was debited on return
+      // Revert supplier balance — debit back what was credited on return
       const supplier = await tx.customer.findUnique({
         where: { cus_id: purchase.cus_id },
         select: { cus_balance: true, cus_name: true }
@@ -440,8 +440,8 @@ export async function DELETE(request) {
       const reversalEntry = createPayableLedgerEntry({
         cus_id: purchase.cus_id,
         opening_balance: currentBalance,
-        debit_amount: 0,
-        credit_amount: returnAmount,
+        debit_amount: returnAmount,
+        credit_amount: 0,
         bill_no: `PR-${id}-DELETED`,
         trnx_type: 'PURCHASE_RETURN',
         details: `Purchase Return #${id} CANCELLED/DELETED - Reversal entry for ${supplier?.cus_name || 'Supplier'}`,

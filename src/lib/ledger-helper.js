@@ -14,7 +14,8 @@ export const ACCOUNT_NATURE = {
 /**
  * Calculate closing balance for a party ledger account.
  * - RECEIVABLE (customers): what they owe us — opening + debit - credit (debit increases balance)
- * - PAYABLE (suppliers): what we owe them — opening - credit + debit (stored negative; purchase credit deepens payable)
+ * - PAYABLE (suppliers): bill/purchase = debit, payment = credit; balance negative when we owe
+ *   closing = opening - debit + credit (e.g. bill 2500 → -2500, pay 1000 credit → -1500)
  */
 export function calculateClosingBalance(openingBalance, debitAmount = 0, creditAmount = 0, accountNature = ACCOUNT_NATURE.RECEIVABLE) {
   const opening = parseFloat(openingBalance || 0);
@@ -22,8 +23,7 @@ export function calculateClosingBalance(openingBalance, debitAmount = 0, creditA
   const credit = parseFloat(creditAmount || 0);
 
   if (accountNature === ACCOUNT_NATURE.PAYABLE) {
-    // Negative balance = amount still to pay (e.g. bill 2500, pay 1000 → -1500)
-    return opening - credit + debit;
+    return opening - debit + credit;
   }
   return opening + debit - credit;
 }
@@ -175,7 +175,7 @@ export function getLedgerSummary(entries) {
   };
 }
 
-/** Supplier / accounts-payable (purchase = credit, payment = debit; cus_balance negative = we owe). */
+/** Supplier / accounts-payable (purchase = debit, payment = credit; negative balance = we owe). */
 export function createPayableLedgerEntry(config) {
   return createLedgerEntry({ ...config, account_nature: ACCOUNT_NATURE.PAYABLE });
 }

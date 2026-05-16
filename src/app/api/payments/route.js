@@ -262,7 +262,7 @@ export async function POST(request) {
 
       // Main account line:
       //   Bank/Cash (asset): RECEIVE → DEBIT, PAY → CREDIT
-      //   Supplier (payable): PAY → DEBIT, RECEIVE → CREDIT
+      //   Supplier (payable): purchase/bill → DEBIT, payment → CREDIT (PAY = credit)
       //   Customer (receivable): RECEIVE → DEBIT, PAY → CREDIT
       let mainDebitAmount = 0;
       let mainCreditAmount = 0;
@@ -273,11 +273,11 @@ export async function POST(request) {
           mainCreditAmount = parseFloat(total_amount);
         }
       } else if (mainAccountIsSupplier) {
-        // Supplier (payable): PAY = DEBIT, RECEIVE = CREDIT
+        // Supplier (payable): bill/purchase = debit, payment = credit
         if (payment_type === 'RECEIVE') {
-          mainCreditAmount = parseFloat(total_amount);
-        } else {
           mainDebitAmount = parseFloat(total_amount);
+        } else {
+          mainCreditAmount = parseFloat(total_amount);
         }
       } else {
         // Customer (receivable): RECEIVE = DEBIT, PAY = CREDIT
