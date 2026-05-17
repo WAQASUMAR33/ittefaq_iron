@@ -1054,8 +1054,8 @@ export default function FinancePage() {
       });
       const imageBase64 = canvas.toDataURL('image/png');
       const caption = isPay
-        ? `Pay Amount — Payment voucher PAY-${d.paymentId} — ${d.customer?.cus_name || ''}`
-        : `Receive Amount — Receipt voucher PAY-${d.paymentId} — ${d.customer?.cus_name || ''}`;
+        ? `Debit Amount — Payment voucher PAY-${d.paymentId} — ${d.customer?.cus_name || ''}`
+        : `Credit Amount — Receipt voucher PAY-${d.paymentId} — ${d.customer?.cus_name || ''}`;
       const totalAmount = Number(d.totalAmount || 0);
       const response = await fetch('/api/whatsapp', {
         method: 'POST',
@@ -1073,7 +1073,7 @@ export default function FinancePage() {
           templateKey: 'finance_receipt',
           templateVariables: {
             1: d.customer?.cus_name || 'Customer',
-            2: `${isPay ? 'Payment voucher (Pay Amount)' : 'Receipt voucher (Receive Amount)'} – ref PAY-${d.paymentId} | PKR ${totalAmount.toLocaleString()} · ${d.date || new Date().toISOString().slice(0, 10)}`,
+            2: `${isPay ? 'Payment voucher (Debit Amount)' : 'Receipt voucher (Credit Amount)'} – ref PAY-${d.paymentId} | PKR ${totalAmount.toLocaleString()} · ${d.date || new Date().toISOString().slice(0, 10)}`,
           },
         }),
       });
@@ -1916,7 +1916,7 @@ export default function FinancePage() {
                           transition: 'all 0.2s'
                         }}
                       >
-                        Receive Amount
+                        Credit Amount
                       </Button>
                       <Button
                         variant="contained"
@@ -1940,7 +1940,7 @@ export default function FinancePage() {
                           transition: 'all 0.2s'
                         }}
                       >
-                        Pay Amount
+                        Debit Amount
                       </Button>
                       <Button
                         variant="contained"
@@ -3242,10 +3242,10 @@ export default function FinancePage() {
             </Box>
             {receiveTotalPreview > 0 && (
               <Alert severity="info" sx={{ py: 0.5 }}>
-                <strong>After Receive Amount:</strong> account balance → PKR{' '}
+                <strong>After Credit Amount:</strong> account balance → PKR{' '}
                 {receiveBalanceAfter.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
                 <Typography component="span" variant="caption" display="block" color="text.secondary">
-                  Receive Amount credits the selected account (balance increases by the entered amount).
+                  Credit Amount credits the selected account (balance increases by the entered amount).
                 </Typography>
               </Alert>
             )}
@@ -3464,10 +3464,10 @@ export default function FinancePage() {
             </Box>
             {payTotalPreview > 0 && (
               <Alert severity="info" sx={{ py: 0.5 }}>
-                <strong>After Pay Amount:</strong> account balance → PKR{' '}
+                <strong>After Debit Amount:</strong> account balance → PKR{' '}
                 {payBalanceAfter.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
                 <Typography component="span" variant="caption" display="block" color="text.secondary">
-                  Pay Amount debits the selected account (balance decreases by the entered amount).
+                  Debit Amount debits the selected account (balance decreases by the entered amount).
                 </Typography>
               </Alert>
             )}
