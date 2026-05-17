@@ -539,7 +539,7 @@ export default function DashboardContent({ activeTab }) {
           </div>
         </div>
 
-        {/* Customer & Supplier Balance Charts — with category filter + date range */}
+        {/* Customer & Supplier Balance Charts — full width, stacked */}
         <div className="space-y-4">
           {/* Shared date-range filter bar */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100/50 px-5 py-3 flex flex-wrap items-center gap-3">
@@ -582,187 +582,181 @@ export default function DashboardContent({ activeTab }) {
             )}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Customer Balance Chart */}
-            {(() => {
-              const rows = balanceData.customers;
-              const color = '#3b82f6', gradId = 'balCustG', light = '#eff6ff';
-              const fmtK = v => v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}K` : '0';
-              const n = Math.min(rows.length, 15);
-              const pL = 44, pR = 12, pT = 16, pB = 80, W = 600, H = 220;
-              const cW = W - pL - pR, cH = H - pT - pB;
-              const grpW = n > 0 ? cW / n : cW;
-              const barW = Math.min(grpW * 0.6, 44);
-              const maxV = n > 0 ? Math.max(...rows.slice(0, n).map(r => r.balance), 1) : 1;
-              const custCats = allCategories.filter(c =>
-                !c.cus_cat_title.toLowerCase().includes('supplier') &&
-                !c.cus_cat_title.toLowerCase().includes('cash') &&
-                !c.cus_cat_title.toLowerCase().includes('bank')
-              );
-              return (
-                <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 overflow-hidden">
-                  <div className="px-6 pt-5 pb-3">
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <h3 className="text-base font-semibold text-gray-900">Top Customers by Balance</h3>
-                        <p className="text-xs text-gray-400 mt-0.5">
-                          {balanceFilters.fromDate || balanceFilters.toDate ? 'Net activity in selected period' : 'Outstanding balance'}
-                        </p>
-                      </div>
-                      <span className="text-xs font-medium px-2.5 py-1 rounded-full flex-shrink-0" style={{ background: light, color }}>Top {n}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Filter className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                      <select
-                        value={cusCatFilter}
-                        onChange={e => setCusCatFilter(e.target.value)}
-                        className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 flex-1 max-w-xs"
-                      >
-                        <option value="">All Customer Categories</option>
-                        {custCats.map(c => (
-                          <option key={c.cus_cat_id} value={c.cus_cat_id}>{c.cus_cat_title}</option>
-                        ))}
-                      </select>
-                      {cusCatFilter && (
-                        <button onClick={() => setCusCatFilter('')} className="text-sm text-gray-400 hover:text-red-500 leading-none">×</button>
-                      )}
-                    </div>
+          {/* Customer Balance Chart — full width */}
+          {(() => {
+            const rows = balanceData.customers;
+            const color = '#3b82f6', gradId = 'balCustG', light = '#eff6ff';
+            const fmtK = v => v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}K` : '0';
+            const n = Math.min(rows.length, 15);
+            const pL = 52, pR = 16, pT = 20, pB = 90, W = 1200, H = 260;
+            const cW = W - pL - pR, cH = H - pT - pB;
+            const grpW = n > 0 ? cW / n : cW;
+            const barW = Math.min(grpW * 0.55, 60);
+            const maxV = n > 0 ? Math.max(...rows.slice(0, n).map(r => r.balance), 1) : 1;
+            const custCats = allCategories.filter(c =>
+              !c.cus_cat_title.toLowerCase().includes('supplier') &&
+              !c.cus_cat_title.toLowerCase().includes('cash') &&
+              !c.cus_cat_title.toLowerCase().includes('bank')
+            );
+            return (
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 overflow-hidden">
+                <div className="px-6 pt-5 pb-4 flex flex-wrap items-center gap-4">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-base font-semibold text-gray-900">Top Customers by Balance</h3>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {balanceFilters.fromDate || balanceFilters.toDate ? 'Net activity in selected period' : 'Outstanding balance'}
+                    </p>
                   </div>
-                  <div className="px-1 pb-2">
-                    {n === 0 ? (
-                      <div className="h-56 flex items-center justify-center text-gray-400 text-sm">
-                        {balanceLoading
-                          ? <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-                          : 'No data available'}
-                      </div>
-                    ) : (
-                      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="260">
-                        <defs>
-                          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor={color} />
-                            <stop offset="100%" stopColor={color} stopOpacity="0.4" />
-                          </linearGradient>
-                        </defs>
-                        <line x1={pL} y1={pT} x2={pL} y2={pT + cH} stroke="#e2e8f0" strokeWidth="1" />
-                        {[0, 0.25, 0.5, 0.75, 1].map(f => {
-                          const y = pT + cH * (1 - f);
-                          return (
-                            <g key={f}>
-                              <line x1={pL} y1={y} x2={W - pR} y2={y} stroke={f === 0 ? '#e2e8f0' : '#f8fafc'} strokeWidth="1" strokeDasharray={f === 0 ? '' : '3 3'} />
-                              <text x={pL - 4} y={y + 4} fontSize="9" fill="#cbd5e1" textAnchor="end">{fmtK(maxV * f)}</text>
-                            </g>
-                          );
-                        })}
-                        {rows.slice(0, n).map((r, i) => {
-                          const cx = pL + grpW * i + grpW / 2;
-                          const bH = Math.max((r.balance / maxV) * cH, 2);
-                          const bx = cx - barW / 2;
-                          const shortName = r.name.length > 11 ? r.name.slice(0, 10) + '…' : r.name;
-                          return (
-                            <g key={i}>
-                              <rect x={bx} y={pT + cH - bH} width={barW} height={bH} rx="3" fill={`url(#${gradId})`}>
-                                <title>{r.name}: PKR {r.balance.toLocaleString()}</title>
-                              </rect>
-                              <text x={bx + barW / 2} y={pT + cH - bH - 4} fontSize="8" fill={color} textAnchor="middle" fontWeight="700">{fmtK(r.balance)}</text>
-                              <text x={cx} y={pT + cH + 8} fontSize="9" fill="#64748b" textAnchor="end" transform={`rotate(-40,${cx},${pT + cH + 8})`}>{shortName}</text>
-                            </g>
-                          );
-                        })}
-                      </svg>
+                  <div className="flex items-center gap-2">
+                    <Filter className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    <select
+                      value={cusCatFilter}
+                      onChange={e => setCusCatFilter(e.target.value)}
+                      className="text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 min-w-[200px]"
+                    >
+                      <option value="">All Customer Categories</option>
+                      {custCats.map(c => (
+                        <option key={c.cus_cat_id} value={c.cus_cat_id}>{c.cus_cat_title}</option>
+                      ))}
+                    </select>
+                    {cusCatFilter && (
+                      <button onClick={() => setCusCatFilter('')} className="text-gray-400 hover:text-red-500 text-lg leading-none">×</button>
                     )}
                   </div>
+                  <span className="text-xs font-medium px-2.5 py-1 rounded-full flex-shrink-0" style={{ background: light, color }}>Top {n}</span>
                 </div>
-              );
-            })()}
+                <div className="px-1 pb-3">
+                  {n === 0 ? (
+                    <div className="h-64 flex items-center justify-center text-gray-400 text-sm">
+                      {balanceLoading
+                        ? <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                        : 'No data available'}
+                    </div>
+                  ) : (
+                    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="300">
+                      <defs>
+                        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={color} />
+                          <stop offset="100%" stopColor={color} stopOpacity="0.3" />
+                        </linearGradient>
+                      </defs>
+                      <line x1={pL} y1={pT} x2={pL} y2={pT + cH} stroke="#e2e8f0" strokeWidth="1" />
+                      {[0, 0.25, 0.5, 0.75, 1].map(f => {
+                        const y = pT + cH * (1 - f);
+                        return (
+                          <g key={f}>
+                            <line x1={pL} y1={y} x2={W - pR} y2={y} stroke={f === 0 ? '#e2e8f0' : '#f8fafc'} strokeWidth="1" strokeDasharray={f === 0 ? '' : '4 4'} />
+                            <text x={pL - 6} y={y + 4} fontSize="11" fill="#cbd5e1" textAnchor="end">{fmtK(maxV * f)}</text>
+                          </g>
+                        );
+                      })}
+                      {rows.slice(0, n).map((r, i) => {
+                        const cx = pL + grpW * i + grpW / 2;
+                        const bH = Math.max((r.balance / maxV) * cH, 2);
+                        const bx = cx - barW / 2;
+                        const shortName = r.name.length > 14 ? r.name.slice(0, 13) + '…' : r.name;
+                        return (
+                          <g key={i}>
+                            <rect x={bx} y={pT + cH - bH} width={barW} height={bH} rx="4" fill={`url(#${gradId})`}>
+                              <title>{r.name}: PKR {r.balance.toLocaleString()}</title>
+                            </rect>
+                            <text x={bx + barW / 2} y={pT + cH - bH - 5} fontSize="10" fill={color} textAnchor="middle" fontWeight="700">{fmtK(r.balance)}</text>
+                            <text x={cx} y={pT + cH + 10} fontSize="11" fill="#64748b" textAnchor="end" transform={`rotate(-40,${cx},${pT + cH + 10})`}>{shortName}</text>
+                          </g>
+                        );
+                      })}
+                    </svg>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
-            {/* Supplier Balance Chart */}
-            {(() => {
-              const rows = balanceData.suppliers;
-              const color = '#f97316', gradId = 'balSuppG', light = '#fff7ed';
-              const fmtK = v => v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}K` : '0';
-              const n = Math.min(rows.length, 15);
-              const pL = 44, pR = 12, pT = 16, pB = 80, W = 600, H = 220;
-              const cW = W - pL - pR, cH = H - pT - pB;
-              const grpW = n > 0 ? cW / n : cW;
-              const barW = Math.min(grpW * 0.6, 44);
-              const maxV = n > 0 ? Math.max(...rows.slice(0, n).map(r => r.balance), 1) : 1;
-              const supCats = allCategories.filter(c => c.cus_cat_title.toLowerCase().includes('supplier'));
-              return (
-                <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 overflow-hidden">
-                  <div className="px-6 pt-5 pb-3">
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <h3 className="text-base font-semibold text-gray-900">Top Suppliers by Balance</h3>
-                        <p className="text-xs text-gray-400 mt-0.5">
-                          {balanceFilters.fromDate || balanceFilters.toDate ? 'Net activity in selected period' : 'Outstanding balance'}
-                        </p>
-                      </div>
-                      <span className="text-xs font-medium px-2.5 py-1 rounded-full flex-shrink-0" style={{ background: light, color }}>Top {n}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Filter className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                      <select
-                        value={supCatFilter}
-                        onChange={e => setSupCatFilter(e.target.value)}
-                        className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 flex-1 max-w-xs"
-                      >
-                        <option value="">All Supplier Categories</option>
-                        {supCats.map(c => (
-                          <option key={c.cus_cat_id} value={c.cus_cat_id}>{c.cus_cat_title}</option>
-                        ))}
-                      </select>
-                      {supCatFilter && (
-                        <button onClick={() => setSupCatFilter('')} className="text-sm text-gray-400 hover:text-red-500 leading-none">×</button>
-                      )}
-                    </div>
+          {/* Supplier Balance Chart — full width */}
+          {(() => {
+            const rows = balanceData.suppliers;
+            const color = '#f97316', gradId = 'balSuppG', light = '#fff7ed';
+            const fmtK = v => v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}K` : '0';
+            const n = Math.min(rows.length, 15);
+            const pL = 52, pR = 16, pT = 20, pB = 90, W = 1200, H = 260;
+            const cW = W - pL - pR, cH = H - pT - pB;
+            const grpW = n > 0 ? cW / n : cW;
+            const barW = Math.min(grpW * 0.55, 60);
+            const maxV = n > 0 ? Math.max(...rows.slice(0, n).map(r => r.balance), 1) : 1;
+            const supCats = allCategories.filter(c => c.cus_cat_title.toLowerCase().includes('supplier'));
+            return (
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 overflow-hidden">
+                <div className="px-6 pt-5 pb-4 flex flex-wrap items-center gap-4">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-base font-semibold text-gray-900">Top Suppliers by Balance</h3>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {balanceFilters.fromDate || balanceFilters.toDate ? 'Net activity in selected period' : 'Outstanding balance'}
+                    </p>
                   </div>
-                  <div className="px-1 pb-2">
-                    {n === 0 ? (
-                      <div className="h-56 flex items-center justify-center text-gray-400 text-sm">
-                        {balanceLoading
-                          ? <div className="w-8 h-8 border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
-                          : 'No data available'}
-                      </div>
-                    ) : (
-                      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="260">
-                        <defs>
-                          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor={color} />
-                            <stop offset="100%" stopColor={color} stopOpacity="0.4" />
-                          </linearGradient>
-                        </defs>
-                        <line x1={pL} y1={pT} x2={pL} y2={pT + cH} stroke="#e2e8f0" strokeWidth="1" />
-                        {[0, 0.25, 0.5, 0.75, 1].map(f => {
-                          const y = pT + cH * (1 - f);
-                          return (
-                            <g key={f}>
-                              <line x1={pL} y1={y} x2={W - pR} y2={y} stroke={f === 0 ? '#e2e8f0' : '#f8fafc'} strokeWidth="1" strokeDasharray={f === 0 ? '' : '3 3'} />
-                              <text x={pL - 4} y={y + 4} fontSize="9" fill="#cbd5e1" textAnchor="end">{fmtK(maxV * f)}</text>
-                            </g>
-                          );
-                        })}
-                        {rows.slice(0, n).map((r, i) => {
-                          const cx = pL + grpW * i + grpW / 2;
-                          const bH = Math.max((r.balance / maxV) * cH, 2);
-                          const bx = cx - barW / 2;
-                          const shortName = r.name.length > 11 ? r.name.slice(0, 10) + '…' : r.name;
-                          return (
-                            <g key={i}>
-                              <rect x={bx} y={pT + cH - bH} width={barW} height={bH} rx="3" fill={`url(#${gradId})`}>
-                                <title>{r.name}: PKR {r.balance.toLocaleString()}</title>
-                              </rect>
-                              <text x={bx + barW / 2} y={pT + cH - bH - 4} fontSize="8" fill={color} textAnchor="middle" fontWeight="700">{fmtK(r.balance)}</text>
-                              <text x={cx} y={pT + cH + 8} fontSize="9" fill="#64748b" textAnchor="end" transform={`rotate(-40,${cx},${pT + cH + 8})`}>{shortName}</text>
-                            </g>
-                          );
-                        })}
-                      </svg>
+                  <div className="flex items-center gap-2">
+                    <Filter className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    <select
+                      value={supCatFilter}
+                      onChange={e => setSupCatFilter(e.target.value)}
+                      className="text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 min-w-[200px]"
+                    >
+                      <option value="">All Supplier Categories</option>
+                      {supCats.map(c => (
+                        <option key={c.cus_cat_id} value={c.cus_cat_id}>{c.cus_cat_title}</option>
+                      ))}
+                    </select>
+                    {supCatFilter && (
+                      <button onClick={() => setSupCatFilter('')} className="text-gray-400 hover:text-red-500 text-lg leading-none">×</button>
                     )}
                   </div>
+                  <span className="text-xs font-medium px-2.5 py-1 rounded-full flex-shrink-0" style={{ background: light, color }}>Top {n}</span>
                 </div>
-              );
-            })()}
-          </div>
+                <div className="px-1 pb-3">
+                  {n === 0 ? (
+                    <div className="h-64 flex items-center justify-center text-gray-400 text-sm">
+                      {balanceLoading
+                        ? <div className="w-8 h-8 border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
+                        : 'No data available'}
+                    </div>
+                  ) : (
+                    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="300">
+                      <defs>
+                        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={color} />
+                          <stop offset="100%" stopColor={color} stopOpacity="0.3" />
+                        </linearGradient>
+                      </defs>
+                      <line x1={pL} y1={pT} x2={pL} y2={pT + cH} stroke="#e2e8f0" strokeWidth="1" />
+                      {[0, 0.25, 0.5, 0.75, 1].map(f => {
+                        const y = pT + cH * (1 - f);
+                        return (
+                          <g key={f}>
+                            <line x1={pL} y1={y} x2={W - pR} y2={y} stroke={f === 0 ? '#e2e8f0' : '#f8fafc'} strokeWidth="1" strokeDasharray={f === 0 ? '' : '4 4'} />
+                            <text x={pL - 6} y={y + 4} fontSize="11" fill="#cbd5e1" textAnchor="end">{fmtK(maxV * f)}</text>
+                          </g>
+                        );
+                      })}
+                      {rows.slice(0, n).map((r, i) => {
+                        const cx = pL + grpW * i + grpW / 2;
+                        const bH = Math.max((r.balance / maxV) * cH, 2);
+                        const bx = cx - barW / 2;
+                        const shortName = r.name.length > 14 ? r.name.slice(0, 13) + '…' : r.name;
+                        return (
+                          <g key={i}>
+                            <rect x={bx} y={pT + cH - bH} width={barW} height={bH} rx="4" fill={`url(#${gradId})`}>
+                              <title>{r.name}: PKR {r.balance.toLocaleString()}</title>
+                            </rect>
+                            <text x={bx + barW / 2} y={pT + cH - bH - 5} fontSize="10" fill={color} textAnchor="middle" fontWeight="700">{fmtK(r.balance)}</text>
+                            <text x={cx} y={pT + cH + 10} fontSize="11" fill="#64748b" textAnchor="end" transform={`rotate(-40,${cx},${pT + cH + 10})`}>{shortName}</text>
+                          </g>
+                        );
+                      })}
+                    </svg>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Recent Activity */}
