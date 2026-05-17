@@ -128,11 +128,9 @@ function isOrderCustomerMemoLedgerEntry(entry) {
   return d > 0 && c > 0 && Math.abs(d - c) < 0.02;
 }
 
-/** Auto description for Receive / Pay payment modals: title, account, cash, bank+name, discount */
+/** Auto description for Debit / Credit payment modals: cash, bank+name, discount only (no prefix) */
 const buildFinancePaymentDescription = (mode, accountName, cashAmount, bankAmount, bankAccountId, bankAccountsList, discountAmount) => {
-  const title = mode === 'RECEIVE' ? 'RECEIVE AMOUNT' : 'PAY AMOUNT';
-  const head = `${title} — ${accountName || 'Account'}`;
-  const bits = [head];
+  const bits = [];
   const cash = parseFloat(cashAmount || 0);
   const bank = parseFloat(bankAmount || 0);
   const disc = parseFloat(discountAmount || 0);
@@ -3211,7 +3209,7 @@ export default function FinancePage() {
           px: 3,
           py: 2
         }}>
-          <Typography variant="h6" sx={{ fontWeight: 800 }}>RECEIVE AMOUNT</Typography>
+          <Typography variant="h6" sx={{ fontWeight: 800 }}>Credit Amount Form</Typography>
           <Typography variant="subtitle1" sx={{ fontWeight: 600, bgcolor: 'rgba(255,255,255,0.2)', px: 1.5, py: 0.5, borderRadius: 1 }}>
             Serial: #{ledgerEntries.length + 1}
           </Typography>
@@ -3433,7 +3431,7 @@ export default function FinancePage() {
           px: 3,
           py: 2
         }}>
-          <Typography variant="h6" sx={{ fontWeight: 800 }}>PAY AMOUNT</Typography>
+          <Typography variant="h6" sx={{ fontWeight: 800 }}>Debit Amount Form</Typography>
           <Typography variant="subtitle1" sx={{ fontWeight: 600, bgcolor: 'rgba(255,255,255,0.2)', px: 1.5, py: 0.5, borderRadius: 1 }}>
             Serial: #{ledgerEntries.length + 1}
           </Typography>
