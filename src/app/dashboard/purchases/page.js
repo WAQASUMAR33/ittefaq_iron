@@ -696,6 +696,7 @@ function PurchasesPageContent() {
       purchase_details: []
     });
     setSelectedBankAccount(null);
+    setSelectedCargoAccounts([]);
     setFormSelectedCustomer(null);
     setPurchaseType('new');
     setSelectedPurchaseForReturn(null);
@@ -1464,6 +1465,33 @@ function PurchasesPageContent() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Pre-auth validation — all checks before biometric/PIN prompt
+    if (!formData.cus_id) {
+      alert('Please select a customer');
+      return;
+    }
+
+    if (purchaseType === 'new' && !formData.vehicle_no) {
+      alert('Please select a vehicle');
+      return;
+    }
+
+    if (purchaseType === 'return' && !selectedPurchaseForReturn) {
+      alert('Please select a purchase to return');
+      return;
+    }
+
+    if (formData.purchase_details.length === 0) {
+      alert('Please add at least one product to the purchase');
+      return;
+    }
+
+    if (parseFloat(formData.bank_payment || 0) > 0 && !selectedBankAccount) {
+      alert('Please select a bank account for the bank payment');
+      return;
+    }
+
     const hasCash = parseFloat(formData.cash_payment || 0) > 0;
     const hasBank = parseFloat(formData.bank_payment || 0) > 0;
     // Match sales: confirm when cash/bank is used, and always for purchase returns
@@ -1475,28 +1503,6 @@ function PurchasesPageContent() {
     }
     setIsSubmitting(true);
     try {
-      // Validation
-      if (!formData.cus_id) {
-        alert('Please select a customer');
-        return;
-      }
-
-      // Validate vehicle only for new purchases
-      if (purchaseType === 'new' && !formData.vehicle_no) {
-        alert('Please select a vehicle');
-        return;
-      }
-
-      // Validate that purchase is selected for returns
-      if (purchaseType === 'return' && !selectedPurchaseForReturn) {
-        alert('Please select a purchase to return');
-        return;
-      }
-
-      if (formData.purchase_details.length === 0) {
-        alert('Please add at least one product to the purchase');
-        return;
-      }
 
       const url = editingPurchase ? '/api/purchases' : '/api/purchases';
       const method = editingPurchase ? 'PUT' : 'POST';
@@ -4285,13 +4291,7 @@ function PurchasesPageContent() {
                                   }}
                                   onKeyDown={(e) => {
                                     if (e.key === 'Tab') {
-                                      const available = cargoAccounts.filter(a => !(selectedCargoAccounts || []).some(s => s.cus_id === a.cus_id));
-                                      if (available.length > 0 && (selectedCargoAccounts || []).length === 0) {
-                                        e.preventDefault();
-                                        setSelectedCargoAccounts([available[0]]);
-                                        setFormData(prev => ({ ...prev, cargo_account_ids: [available[0].cus_id] }));
-                                        setTimeout(() => { outLabourInputRef.current?.focus(); }, 0);
-                                      }
+                                      setTimeout(() => { outLabourInputRef.current?.focus(); }, 0);
                                     }
                                   }}
                                   renderTags={() => null}

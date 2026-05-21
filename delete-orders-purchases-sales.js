@@ -27,6 +27,8 @@ async function getCounts() {
 
   try { c.ledger = await prisma.ledger.count(); c.hasLedger = true; } catch { c.hasLedger = false; }
 
+  try { c.customersWithBalance = await prisma.customer.count({ where: { cus_balance: { not: 0 } } }); } catch { c.customersWithBalance = 0; }
+
   return c;
 }
 
@@ -43,6 +45,7 @@ async function deleteAll() {
   if (counts.hasSplitPayment) console.log(`  • Split payments:   ${counts.splitPayment}`);
   if (counts.hasSale) console.log(`  • Sales:            ${counts.sale}`);
   if (counts.hasLedger) console.log(`  • Ledger entries:   ${counts.ledger}`);
+  console.log(`  • Customers with non-zero balance: ${counts.customersWithBalance}`);
 
   if (!forceDelete) {
     console.log('\n⚠️  Script requires --force to actually delete.');
@@ -101,6 +104,10 @@ async function deleteAll() {
     console.log(`✅ Deleted ${res.count} ledger entries`);
     total += res.count;
   }
+
+  // Reset all customer balances to 0
+  const balanceRes = await prisma.customer.updateMany({ where: { cus_balance: { not: 0 } }, data: { cus_balance: 0 } });
+  console.log(`✅ Reset ${balanceRes.count} customer balances to 0`);
 
   console.log(`\n📊 Total deleted: ${total}\n`);
 

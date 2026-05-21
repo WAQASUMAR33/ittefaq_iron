@@ -920,9 +920,8 @@ function SalesPageContent() {
 
   // Smart amount formatter: hide .00 for whole numbers
   const fmtAmt = (val) => {
-    const n = parseFloat(val || 0);
-    if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-    return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const n = Math.round(parseFloat(val || 0));
+    return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   };
 
   /** Same display name can exist for different accounts (e.g. cus_name "1781"); show id + category/type in the transport picker. */
@@ -1174,6 +1173,16 @@ function SalesPageContent() {
 
   // Save bill to database
   const handleSaveBill = async () => {
+    // Pre-auth validation — check these before triggering biometric/PIN
+    if ((parseFloat(paymentData.bank || 0)) > 0 && !paymentData.bankAccountId) {
+      showSnackbar('Please select a bank account for the bank payment', 'error');
+      return;
+    }
+    if ((parseFloat(paymentData.deliveryCharges) || 0) > 0 && transportOptions.length === 0) {
+      showSnackbar('Please select a transport account for the delivery charges', 'error');
+      return;
+    }
+
     const hasCash = parseFloat(paymentData.cash || 0) > 0;
     const hasBank = parseFloat(paymentData.bank || 0) > 0;
     if (hasCash || hasBank) {
@@ -1330,6 +1339,16 @@ function SalesPageContent() {
       // Additional validation
       if (totalAmount <= 0) {
         showSnackbar('Total amount must be greater than 0', 'error');
+        return;
+      }
+
+      if ((parseFloat(paymentData.deliveryCharges) || 0) > 0 && transportOptions.length === 0) {
+        showSnackbar('Please select a transport account for the delivery charges', 'error');
+        return;
+      }
+
+      if ((parseFloat(paymentData.bank) || 0) > 0 && !paymentData.bankAccountId) {
+        showSnackbar('Please select a bank account for the bank payment', 'error');
         return;
       }
 
@@ -1525,6 +1544,8 @@ function SalesPageContent() {
             deliveryCharges: 0,
             notes: ''
           });
+          setTransportOptions([]);
+          setNewTransport({ amount: 0, accountId: '' });
 
           // Reset screen stack for next sale only if we're at index 0
           setScreenStack([]);

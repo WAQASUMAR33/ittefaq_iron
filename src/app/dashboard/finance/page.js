@@ -1148,7 +1148,7 @@ export default function FinancePage() {
 
       autoTable(doc, {
         startY: 112,
-        head: [['S#', 'Date & Time', 'Type', 'Account', 'Description', 'Bill', 'Debit (PKR)', 'Credit (PKR)', 'Balance (PKR)']],
+        head: [['S#', 'Date & Time', 'Type', 'Account', 'Description', 'Bill', 'Credit (PKR)', 'Debit (PKR)', 'Balance (PKR)']],
         body: rows,
         foot: [['', '', '', '', '', 'TOTALS', fmtAmt(totalDebit), fmtAmt(totalCredit), fmtAmt(balance)]],
         styles: { fontSize: 7.5, cellPadding: 3 },
@@ -2086,7 +2086,7 @@ export default function FinancePage() {
                             letterSpacing: 0.5
                           }}
                         >
-                          DEBIT (PKR)
+                          CREDIT (PKR)
                         </TableCell>
                         <TableCell
                           sx={{
@@ -2101,7 +2101,7 @@ export default function FinancePage() {
                             letterSpacing: 0.5
                           }}
                         >
-                          CREDIT (PKR)
+                          DEBIT (PKR)
                         </TableCell>
                         <TableCell
                           sx={{
@@ -2312,7 +2312,7 @@ export default function FinancePage() {
                               )}
                             </TableCell>
 
-                            {/* Debit Amount */}
+                            {/* Credit label — shows debit_amount field (actual credit data) */}
                             <TableCell
                               sx={{
                                 borderRight: 1,
@@ -2344,7 +2344,7 @@ export default function FinancePage() {
                               )}
                             </TableCell>
 
-                            {/* Credit Amount */}
+                            {/* Debit label — shows credit_amount field (actual debit data) */}
                             <TableCell
                               sx={{
                                 borderRight: 1,
