@@ -971,8 +971,13 @@ export default function StoreStockPage() {
                               </TableCell>
                             <TableCell>
                               <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                                  {item.product?.pro_title || 'N/A'}
+                                {item.product?.pro_title || 'N/A'}
                               </Typography>
+                              {item.product?.pro_description && (
+                                <Typography variant="caption" color="text.secondary" display="block">
+                                  {item.product.pro_description}
+                                </Typography>
+                              )}
                             </TableCell>
                             <TableCell>
                               <Typography variant="body2" sx={{ fontWeight: 'bold' }}>

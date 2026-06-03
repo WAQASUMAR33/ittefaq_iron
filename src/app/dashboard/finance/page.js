@@ -839,7 +839,7 @@ export default function FinancePage() {
 
       const paymentData = {
         payment_date: new Date().toISOString().split('T')[0],
-        payment_type: 'RECEIVE',
+        payment_type: 'PAY',
         account_id: selectedCustomer,
         total_amount: totalAmount,
         discount_amount: discountAmount,
@@ -922,7 +922,7 @@ export default function FinancePage() {
 
       const paymentData = {
         payment_date: new Date().toISOString().split('T')[0],
-        payment_type: 'PAY',
+        payment_type: 'RECEIVE',
         account_id: selectedCustomer,
         total_amount: totalAmount,
         discount_amount: discountAmount,
@@ -951,7 +951,7 @@ export default function FinancePage() {
 
         const bankAcc = bankAccounts.find(b => b.cus_id === parseInt(payPaymentData.bank_account));
         const cashAcc = cashAccounts.find(c => c.cus_id === parseInt(payPaymentData.cash_account));
-        const remainingBalance = previousBalance - totalAmount;
+        const remainingBalance = previousBalance + totalAmount;
 
         setPaymentReceiptData({
           type: 'PAY',
@@ -1140,7 +1140,7 @@ export default function FinancePage() {
         const debit = parseFloat(entry.debit_amount || 0) > 0 ? fmtAmt(entry.debit_amount) : '';
         const credit = parseFloat(entry.credit_amount || 0) > 0 ? fmtAmt(entry.credit_amount) : '';
         const bal = fmtAmt(entry.closing_balance);
-        return [i + 1, date, type, account, desc, bill, debit, credit, bal];
+        return [i + 1, date, type, account, desc, bill, credit, debit, bal];
       });
 
       const totalDebit = finalLedgerEntries.reduce((s, e) => s + parseFloat(e.debit_amount || 0), 0);
@@ -1148,9 +1148,9 @@ export default function FinancePage() {
 
       autoTable(doc, {
         startY: 112,
-        head: [['S#', 'Date & Time', 'Type', 'Account', 'Description', 'Bill', 'Credit (PKR)', 'Debit (PKR)', 'Balance (PKR)']],
+        head: [['S#', 'Date & Time', 'Type', 'Account', 'Description', 'Credit (PKR)', 'Debit (PKR)', 'Balance (PKR)']],
         body: rows,
-        foot: [['', '', '', '', '', 'TOTALS', fmtAmt(totalDebit), fmtAmt(totalCredit), fmtAmt(balance)]],
+        foot: [['', '', '', '', '', 'TOTALS', fmtAmt(totalCredit), fmtAmt(totalDebit), fmtAmt(balance)]],
         styles: { fontSize: 7.5, cellPadding: 3 },
         headStyles: { fillColor: [31, 41, 55], textColor: 255, fontStyle: 'bold' },
         footStyles: { fillColor: [241, 245, 249], textColor: [0, 0, 0], fontStyle: 'bold' },
@@ -2057,22 +2057,6 @@ export default function FinancePage() {
                           DESCRIPTION
                         </TableCell>
 
-                        {/* New column: Name / Bill (helps quickly find supplier + bill for Cash/Bank rows) */}
-                        <TableCell
-                          sx={{
-                            fontWeight: 800,
-                            fontSize: '0.85rem',
-                            borderRight: 1,
-                            borderColor: '#e5e7eb',
-                            bgcolor: '#1f2937',
-                            color: 'white',
-                            minWidth: 180,
-                            letterSpacing: 0.5
-                          }}
-                        >
-                          BILL
-                        </TableCell>
-
                         <TableCell
                           sx={{
                             fontWeight: 800,
@@ -2287,64 +2271,7 @@ export default function FinancePage() {
                               )}
                             </TableCell>
 
-                            {/* BILL — show total bill amount (sum of all debits for this bill_no) */}
-                            <TableCell
-                              sx={{
-                                borderRight: 1,
-                                borderColor: 'divider',
-                                minWidth: 160,
-                                textAlign: 'right',
-                                bgcolor: rowBgColor
-                              }}
-                            >
-                              {entry.bill_no && billAmountMap[entry.bill_no] > 0 ? (
-                                <Typography
-                                  variant="body2"
-                                  sx={{ fontWeight: 700, color: entryTypeColor, fontFamily: 'monospace', fontSize: '0.95rem' }}
-                                >
-                                  {billAmountMap[entry.bill_no].toLocaleString('en-PK', {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2
-                                  })}
-                                </Typography>
-                              ) : (
-                                <Typography variant="body2" sx={{ color: '#d1d5db', fontWeight: 500 }}>-</Typography>
-                              )}
-                            </TableCell>
-
-                            {/* Credit label — shows debit_amount field (actual credit data) */}
-                            <TableCell
-                              sx={{
-                                borderRight: 1,
-                                borderColor: 'divider',
-                                textAlign: 'right',
-                                bgcolor: rowBgColor,
-                                fontWeight: 700
-                              }}
-                            >
-                              {parseFloat(entry.debit_amount) > 0 ? (
-                                <Typography
-                                  variant="body2"
-                                  sx={{
-                                    fontWeight: 700,
-                                    color: '#16a34a',
-                                    fontFamily: 'monospace',
-                                    fontSize: '0.95rem'
-                                  }}
-                                >
-                                  {parseFloat(entry.debit_amount).toLocaleString('en-PK', {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2
-                                  })}
-                                </Typography>
-                              ) : (
-                                <Typography variant="body2" sx={{ color: '#d1d5db', fontWeight: 500 }}>
-                                  -
-                                </Typography>
-                              )}
-                            </TableCell>
-
-                            {/* Debit label — shows credit_amount field (actual debit data) */}
+                            {/* Credit Amount */}
                             <TableCell
                               sx={{
                                 borderRight: 1,
@@ -2365,6 +2292,38 @@ export default function FinancePage() {
                                   }}
                                 >
                                   {parseFloat(entry.credit_amount).toLocaleString('en-PK', {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2
+                                  })}
+                                </Typography>
+                              ) : (
+                                <Typography variant="body2" sx={{ color: '#d1d5db', fontWeight: 500 }}>
+                                  -
+                                </Typography>
+                              )}
+                            </TableCell>
+
+                            {/* Debit Amount */}
+                            <TableCell
+                              sx={{
+                                borderRight: 1,
+                                borderColor: 'divider',
+                                textAlign: 'right',
+                                bgcolor: rowBgColor,
+                                fontWeight: 700
+                              }}
+                            >
+                              {parseFloat(entry.debit_amount) > 0 ? (
+                                <Typography
+                                  variant="body2"
+                                  sx={{
+                                    fontWeight: 700,
+                                    color: '#16a34a',
+                                    fontFamily: 'monospace',
+                                    fontSize: '0.95rem'
+                                  }}
+                                >
+                                  {parseFloat(entry.debit_amount).toLocaleString('en-PK', {
                                     minimumFractionDigits: 2,
                                     maximumFractionDigits: 2
                                   })}
@@ -2401,25 +2360,25 @@ export default function FinancePage() {
                         );
                       })}
                       <TableRow sx={{ bgcolor: '#f9fafb', borderTop: 2, borderColor: '#374151' }}>
-                        <TableCell colSpan={5} sx={{ borderRight: 1, borderColor: '#e5e7eb', bgcolor: '#1f2937' }}>
+                        <TableCell colSpan={4} sx={{ borderRight: 1, borderColor: '#e5e7eb', bgcolor: '#1f2937' }}>
                           <Typography variant="h6" sx={{ fontWeight: 700, textAlign: 'center', color: 'white' }}>
                             TOTAL SUMMARY
-                          </Typography>
-                        </TableCell>
-                        <TableCell sx={{ borderRight: 1, borderColor: '#e5e7eb', textAlign: 'right', bgcolor: '#f0fdf4' }}>
-                          <Typography variant="body2" sx={{ fontWeight: 800, color: '#16a34a', fontFamily: 'monospace', fontSize: '1rem' }}>
-                            {finalLedgerEntries.length > 0
-                              ? ledgerViewSummary.totalDebit.toLocaleString('en-PK', {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2
-                                })
-                              : '—'}
                           </Typography>
                         </TableCell>
                         <TableCell sx={{ borderRight: 1, borderColor: '#e5e7eb', textAlign: 'right', bgcolor: '#fef2f2' }}>
                           <Typography variant="body2" sx={{ fontWeight: 800, color: '#dc2626', fontFamily: 'monospace', fontSize: '1rem' }}>
                             {finalLedgerEntries.length > 0
                               ? ledgerViewSummary.totalCredit.toLocaleString('en-PK', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2
+                                })
+                              : '—'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell sx={{ borderRight: 1, borderColor: '#e5e7eb', textAlign: 'right', bgcolor: '#f0fdf4' }}>
+                          <Typography variant="body2" sx={{ fontWeight: 800, color: '#16a34a', fontFamily: 'monospace', fontSize: '1rem' }}>
+                            {finalLedgerEntries.length > 0
+                              ? ledgerViewSummary.totalDebit.toLocaleString('en-PK', {
                                   minimumFractionDigits: 2,
                                   maximumFractionDigits: 2
                                 })

@@ -450,8 +450,12 @@ export async function POST(request) {
         await Promise.all(storeStockUpdatePromises);
       }
 
-      // Supplier ledger (payable): purchase = DEBIT (balance goes negative), payment = CREDIT (moves toward 0)
-      // Cash/bank/cargo/labour (receivable): payment out = CREDIT (balance goes negative)
+      // All entries use RECEIVABLE formula: closing = opening + debit - credit
+      //   Supplier purchase = CREDIT (0 - 5000 = -5000, balance negative = we owe)
+      //   Supplier payment  = DEBIT  (-5000 + 4000 = -1000, balance rises toward 0)
+      //   Supplier cargo    = DEBIT  (-1000 + 1000 = 0, cargo deducted from payable)
+      //   Cash/bank payment = CREDIT (balance decreases when we pay out)
+      //   Cargo account     = DEBIT  (we owe them for transport)
       // NOTE: Only product amount (minus discount) goes to supplier ledger
 
       const ledgerEntries = [];
@@ -470,11 +474,11 @@ export async function POST(request) {
         console.log(`   Opening Balance: ${runningSupplierBalance}`);
         console.log(`   Bill Amount (products + labour + delivery) [OUT charges excluded]: ${supplierAmount}${safeParseFloat(discount) > 0 ? ` (After Discount: ${safeParseFloat(discount)})` : ''}`);
 
-        const supplierEntry = createPayableLedgerEntry({
+        const supplierEntry = createLedgerEntry({
           cus_id: cus_id,
           opening_balance: runningSupplierBalance,
-          debit_amount: isReturn ? 0 : supplierAmount,
-          credit_amount: isReturn ? supplierAmount : 0,
+          debit_amount: isReturn ? supplierAmount : 0,
+          credit_amount: isReturn ? 0 : supplierAmount,
           bill_no: newPurchase.pur_id.toString(),
           trnx_type: 'PURCHASE',
           details: `${isReturn ? 'Purchase Return' : 'Purchase Invoice'}${invoice_number ? ` #${invoice_number}` : ''} ${isReturn ? 'to' : 'from'} ${supplierData?.cus_name || 'Supplier'}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}${safeParseFloat(discount) > 0 ? ` [After Discount: ${safeParseFloat(discount)}]` : ''}`,
@@ -489,7 +493,7 @@ export async function POST(request) {
         console.log(`   Note: OUT charges will NOT be credited to the supplier; they are posted to Labour/Cargo and offset against Cash/Bank.`);
       }
 
-      // 2. Payment entry against Supplier (payable: payment = CREDIT)
+      // 2. Payment entry against Supplier: DEBIT raises balance toward 0 (receivable formula)
       const totalPaymentAmount2 = cashPaymentAmount + bankPaymentAmount;
 
       if (totalPaymentAmount2 > 0) {
@@ -508,11 +512,11 @@ export async function POST(request) {
         if (bankPaymentAmount > 0) paymentParts.push(`${bankPaymentAmount.toLocaleString('en-PK')} Bank Account (${bankNameForDesc || 'Bank'})`);
         const paymentBreakdown = paymentParts.join(' + ');
 
-        const paymentEntry = createPayableLedgerEntry({
+        const paymentEntry = createLedgerEntry({
           cus_id: cus_id,
           opening_balance: runningSupplierBalance,
-          debit_amount: isReturn ? totalPaymentAmount2 : 0,
-          credit_amount: isReturn ? 0 : totalPaymentAmount2,
+          debit_amount: isReturn ? 0 : totalPaymentAmount2,
+          credit_amount: isReturn ? totalPaymentAmount2 : 0,
           bill_no: newPurchase.pur_id.toString(),
           trnx_type: 'PURCHASE',
           details: `${isReturn ? 'Payment received from' : 'Payment to'} ${supplierData?.cus_name || 'Supplier'} — ${paymentBreakdown}`,
@@ -635,14 +639,15 @@ export async function POST(request) {
       const outLabourAmt = safeParseFloat(out_labour_amount || 0);
       const totalOutCharges = outDeliveryAmt + outLabourAmt;
 
-      // Supplier DEBIT for out charges — cargo/delivery charges deducted from supplier payable balance.
+      // Supplier DEBIT for out charges — cargo charges deducted from what we owe, balance rises toward 0.
+      // RECEIVABLE formula: closing = opening + debit - credit → debit raises balance (-1000 + 1000 = 0)
       if (totalOutCharges > 0 && cus_id) {
         const supplierForOut = await tx.customer.findUnique({ where: { cus_id }, select: { cus_name: true } });
         const outParts = [];
         if (outDeliveryAmt > 0) outParts.push(`Delivery: ${outDeliveryAmt}`);
         if (outLabourAmt > 0) outParts.push(`Labour: ${outLabourAmt}`);
 
-        const supplierOutDebit = createPayableLedgerEntry({
+        const supplierOutDebit = createLedgerEntry({
           cus_id: cus_id,
           opening_balance: runningSupplierBalance,
           debit_amount: totalOutCharges,
@@ -655,7 +660,7 @@ export async function POST(request) {
         });
         ledgerEntries.push(supplierOutDebit);
         runningSupplierBalance = supplierOutDebit.closing_balance;
-        console.log(`📦 Supplier cargo deduction: ${supplierForOut?.cus_name} debited ${totalOutCharges}`);
+        console.log(`📦 Supplier cargo debit: ${supplierForOut?.cus_name} debited ${totalOutCharges} (balance rises toward 0)`);
       }
 
       // Debit cargo accounts for out_delivery
@@ -687,8 +692,8 @@ export async function POST(request) {
             const cargoEntry = createLedgerEntry({
               cus_id: cargoAcc.cus_id,
               opening_balance: parseFloat(cargoAcc.cus_balance || 0),
-              debit_amount: 0,
-              credit_amount: allocate,
+              debit_amount: allocate,
+              credit_amount: 0,
               bill_no: newPurchase.pur_id.toString(),
               trnx_type: 'PURCHASE',
               details: `Out Delivery - Purchase #${newPurchase.pur_id}${invoice_number ? ` (Inv: ${invoice_number})` : ''}`,
@@ -1057,11 +1062,11 @@ export async function PUT(request) {
         });
         runningSupplierBalance = parseFloat(supplierData?.cus_balance || 0);
 
-        const supplierEntry = createPayableLedgerEntry({
+        const supplierEntry = createLedgerEntry({
           cus_id: cus_id,
           opening_balance: runningSupplierBalance,
-          debit_amount: supplierAmount,
-          credit_amount: 0,
+          debit_amount: 0,
+          credit_amount: supplierAmount,
           bill_no: id.toString(),
           trnx_type: 'PURCHASE',
           details: `Purchase Update from ${supplierData?.cus_name || 'Supplier'}${invoice_number ? ` #${invoice_number}` : ''}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
@@ -1081,11 +1086,11 @@ export async function PUT(request) {
           select: { cus_name: true }
         });
 
-        const paymentEntry = createPayableLedgerEntry({
+        const paymentEntry = createLedgerEntry({
           cus_id: cus_id,
           opening_balance: runningSupplierBalance,
-          debit_amount: 0,
-          credit_amount: paymentAmount,
+          debit_amount: paymentAmount,
+          credit_amount: 0,
           bill_no: id.toString(),
           trnx_type: payment_type || 'CASH',
           details: `Payment to ${supplierData?.cus_name || 'Supplier'} - Purchase Update${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
@@ -1165,7 +1170,7 @@ export async function PUT(request) {
         if (outDeliveryAmtPUT > 0) outPartsPUT.push(`Delivery: ${outDeliveryAmtPUT}`);
         if (outLabourAmtPUT > 0) outPartsPUT.push(`Labour: ${outLabourAmtPUT}`);
 
-        const supplierOutDebitPUT = createPayableLedgerEntry({
+        const supplierOutDebitPUT = createLedgerEntry({
           cus_id: cus_id,
           opening_balance: runningSupplierBalance,
           debit_amount: totalOutChargesPUT,

@@ -326,10 +326,12 @@ export async function POST(request) {
           }
         } else {
           // account_id is customer/supplier — cash is OUR account
+          // PAY = customer pays us (credit their account) → cash INCREASES (DEBIT)
+          // RECEIVE = we charge customer (debit their account) → cash DECREASES (CREDIT)
           if (payment_type === 'RECEIVE') {
-            cashDebitAmount = parseFloat(cash_amount); // Cash increases when received
+            cashCreditAmount = parseFloat(cash_amount); // Cash goes out when debiting customer
           } else {
-            cashCreditAmount = parseFloat(cash_amount); // Cash decreases when paid out
+            cashDebitAmount = parseFloat(cash_amount); // Cash comes in when customer pays us
           }
         }
 
@@ -369,10 +371,12 @@ export async function POST(request) {
           }
         } else {
           // account_id is customer/supplier — bank_account_id is OUR bank
+          // PAY = customer pays us (credit their account) → bank INCREASES (DEBIT)
+          // RECEIVE = we charge customer (debit their account) → bank DECREASES (CREDIT)
           if (payment_type === 'RECEIVE') {
-            bankDebitAmount = parseFloat(bank_amount); // Our bank increases when received
+            bankCreditAmount = parseFloat(bank_amount); // Bank goes out when debiting customer
           } else {
-            bankCreditAmount = parseFloat(bank_amount); // Our bank decreases when paid out
+            bankDebitAmount = parseFloat(bank_amount); // Bank comes in when customer pays us
           }
         }
 

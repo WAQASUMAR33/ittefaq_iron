@@ -1413,6 +1413,7 @@ function SalesPageContent() {
         cash_payment: cashAmount, // Store cash payment in sale record
         bank_payment: bankAmount, // Store bank payment in sale record
         advance_payment: advancePayment, // Store advance payment separately
+        previous_balance: parseFloat(formSelectedCustomer?.cus_balance || 0), // Customer balance before this sale
         bank_title: selectedBankAccount?.cus_name || null, // Store bank account name (optional)
         debit_account_id: paymentData.bankAccountId || null,
         credit_account_id: null,
@@ -1483,6 +1484,7 @@ function SalesPageContent() {
           cash_payment: cashAmount, // Add cash payment details
           bank_payment: bankAmount, // Add bank payment details
           advance_payment: advancePayment, // Add advance payment details
+          previous_balance: parseFloat(formSelectedCustomer?.cus_balance || 0), // Customer's balance before this sale
           bank_title: selectedBankAccount?.cus_name || null, // Add bank title
           shipping_amount: totalShippingAmount,
           bill_type: billType || 'BILL',
@@ -4589,25 +4591,23 @@ function SalesPageContent() {
                   display: 'flex',
                   flexDirection: 'column'
                 }}>
-                  {/* ADVANCE PAYMENT - Hidden for Sale Return */}
-                  {billType !== 'SALE_RETURN' && (
+                  {/* PREVIOUS BALANCE - Show customer's balance before this sale */}
+                  {billType !== 'SALE_RETURN' && formSelectedCustomer && (
                     <Box sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 'medium', color: 'success.main', minWidth: '140px' }}>
-                        ADVANCE PAYMENT
+                      <Typography variant="body2" sx={{ fontWeight: 'medium', color: 'warning.main', minWidth: '140px' }}>
+                        PREVIOUS BALANCE
                       </Typography>
                       <TextField
                         size="small"
                         type="number"
-                        value={paymentData.advancePayment === 0 ? '' : paymentData.advancePayment}
-                        onChange={(e) => handlePaymentDataChange('advancePayment', e.target.value)}
-                        onFocus={(e) => e.target.select()}
-                        inputProps={{ step: 'any' }}
+                        value={parseFloat(formSelectedCustomer?.cus_balance || 0).toFixed(2)}
+                        inputProps={{ readOnly: true }}
                         sx={{
-                          bgcolor: 'success.50',
+                          bgcolor: '#fffbeb',
                           '& .MuiInputBase-input': {
                             padding: '8px',
                             fontWeight: 'bold',
-                            color: 'success.main'
+                            color: '#b45309'
                           },
                           flex: 1
                         }}
@@ -5252,14 +5252,14 @@ function SalesPageContent() {
                                 </TableCell>
                               </TableRow>
                             )}
-                            {/* Show advance payment if advance payment exists */}
-                            {currentBillData.advance_payment > 0 && (
+                            {/* Show previous balance */}
+                            {currentBillData.previous_balance !== undefined && (
                               <TableRow>
                                 <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                  پیشگی ادائیگی
+                                  پچھلا بقایا
                                 </TableCell>
                                 <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                  {fmtAmt(currentBillData.advance_payment)}
+                                  {fmtAmt(currentBillData.previous_balance)}
                                 </TableCell>
                               </TableRow>
                             )}
@@ -5503,10 +5503,10 @@ function SalesPageContent() {
                         <Typography sx={{ fontSize: '10px' }}>{fmtAmt(currentBillData.bank_payment)}</Typography>
                       </Box>
                     )}
-                    {parseFloat(currentBillData.advance_payment || 0) > 0 && (
+                    {currentBillData.previous_balance !== undefined && (
                       <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <Typography sx={{ fontSize: '10px' }}>Advance</Typography>
-                        <Typography sx={{ fontSize: '10px' }}>{fmtAmt(currentBillData.advance_payment)}</Typography>
+                        <Typography sx={{ fontSize: '10px' }}>Prev Balance</Typography>
+                        <Typography sx={{ fontSize: '10px' }}>{fmtAmt(currentBillData.previous_balance)}</Typography>
                       </Box>
                     )}
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
@@ -5832,13 +5832,13 @@ function SalesPageContent() {
                                     </TableCell>
                                   </TableRow>
                                 )}
-                                {currentBillData.advance_payment > 0 && (
+                                {currentBillData.previous_balance !== undefined && (
                                   <TableRow>
                                     <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                      پیشگی ادائیگی
+                                      پچھلا بقایا
                                     </TableCell>
                                     <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                      {fmtAmt(currentBillData.advance_payment)}
+                                      {fmtAmt(currentBillData.previous_balance)}
                                     </TableCell>
                                   </TableRow>
                                 )}
@@ -7939,7 +7939,7 @@ function SalesPageContent() {
                   {/* Left Side - Balance Section */}
                   <Box sx={{ flex: '0 0 48%' }}>
                     {(() => {
-                      const prevBalance = parseFloat(selectedBill.customer?.cus_balance || 0);
+                      const prevBalance = parseFloat(selectedBill.previous_balance || 0);
                       const currentBillAmount = parseFloat(selectedBill.total_amount || 0);
                       const payment = parseFloat(selectedBill.payment || 0);
                       const totalBalance = prevBalance + currentBillAmount - payment;
@@ -8045,8 +8045,8 @@ function SalesPageContent() {
                               }
                             }
 
-                            // Get advance payment amount
-                            const advanceAmount = parseFloat(selectedBill.advance_payment || 0);
+                            // Get previous balance at time of sale
+                            const prevBalAmount = parseFloat(selectedBill.previous_balance || 0);
 
                             return (
                               <>
@@ -8072,14 +8072,14 @@ function SalesPageContent() {
                                   </TableRow>
                                 )}
 
-                                {/* Show advance payment row if advance payment exists */}
-                                {advanceAmount > 0 && (
+                                {/* Show previous balance row if it exists */}
+                                {prevBalAmount > 0 && (
                                   <TableRow>
                                     <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                      پیشگی ادائیگی
+                                      پچھلا بقایا
                                     </TableCell>
                                     <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                      {fmtAmt(advanceAmount)}
+                                      {fmtAmt(prevBalAmount)}
                                     </TableCell>
                                   </TableRow>
                                 )}
@@ -8095,7 +8095,7 @@ function SalesPageContent() {
                           <TableRow sx={{ bgcolor: '#d0d0d0' }}>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>بقايا رقم</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {fmtAmt(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.payment || 0))}
+                              {fmtAmt(parseFloat(selectedBill.total_amount || 0) + parseFloat(selectedBill.previous_balance || 0) - parseFloat(selectedBill.payment || 0))}
                             </TableCell>
                           </TableRow>
                         </TableBody>

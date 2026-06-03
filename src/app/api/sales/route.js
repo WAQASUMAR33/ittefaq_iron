@@ -355,7 +355,7 @@ export async function GET(request) {
             const sales = await prisma.$queryRaw`
               SELECT 
                 s.sale_id, s.total_amount, s.discount, s.payment, s.payment_type,
-                s.cash_payment, s.bank_payment, s.bank_title, s.advance_payment,
+                s.cash_payment, s.bank_payment, s.bank_title, s.advance_payment, s.previous_balance,
                 s.shipping_amount, s.bill_type, s.reference, s.cus_id, s.loader_id,
                 s.debit_account_id, s.credit_account_id, s.store_id,
                 CASE 
@@ -559,6 +559,7 @@ export async function GET(request) {
                 bank_payment: Number(sale.bank_payment) || 0,
                 bank_title: sale.bank_title || null,
                 advance_payment: Number(sale.advance_payment) || 0,
+                previous_balance: Number(sale.previous_balance) || 0,
                 shipping_amount: Number(sale.shipping_amount) || 0,
                 bill_type: sale.bill_type,
                 reference: sale.reference,
@@ -644,6 +645,7 @@ export async function POST(request) {
       bank_payment,
       bank_title,
       advance_payment, // Added advance_payment field
+      previous_balance, // Customer balance before this sale
       debit_account_id,
       credit_account_id,
       loader_id,
@@ -786,6 +788,7 @@ export async function POST(request) {
             bank_payment: Number(eff_bank.toFixed(2)),
             bank_title: bank_title || null,
             advance_payment: Number(parseFloat(advance_payment || 0).toFixed(2)),
+            previous_balance: Number(parseFloat(previous_balance || 0).toFixed(2)),
             debit_account_id: debit_account_id || null,
             credit_account_id: credit_account_id || null,
             loader_id: loader_id || null,
@@ -1238,12 +1241,40 @@ export async function POST(request) {
           );
         }
 
-        // 5. Transporter Entry (if loader_id is provided - skip for now as Loader is not a customer)
-        // Transporter charges are handled separately and not part of ledger entries
-        // if (loader_id) {
-        //   // Skip transporter ledger entry as loaders are not customer accounts
-        // }
+        // 5. Transport account entries — credit each transport account for its delivery charge share
+        if (transport_details && transport_details.length > 0) {
+          for (const td of transport_details) {
+            const transportAmount = parseFloat(td.amount) || 0;
+            if (!td.account_id || transportAmount <= 0) continue;
 
+            const transportAccount = await tx.customer.findUnique({ where: { cus_id: parseInt(td.account_id) } });
+            if (!transportAccount) {
+              console.warn(`⚠️ Transport account ${td.account_id} not found — skipping ledger entry`);
+              continue;
+            }
+
+            const transportEntry = createLedgerEntry({
+              cus_id: transportAccount.cus_id,
+              opening_balance: transportAccount.cus_balance,
+              debit_amount: 0,
+              credit_amount: Number(transportAmount.toFixed(2)),
+              bill_no: sale.sale_id.toString(),
+              trnx_type: 'SALE',
+              details: `Transport Charges - ${bill_type || 'BILL'} - ${customer?.cus_name || 'Customer'} (Credit)`,
+              payments: 0,
+              updated_by: validatedUpdatedBy
+            });
+
+            ledgerEntries.push(transportEntry);
+
+            await tx.customer.update({
+              where: { cus_id: transportAccount.cus_id },
+              data: { cus_balance: transportEntry.closing_balance }
+            });
+
+            console.log(`🚚 Transport Entry: Account=${transportAccount.cus_name}, Credit=${transportAmount}, Closing=${transportEntry.closing_balance}`);
+          }
+        }
 
         // 6. Split Payment Entries (if any) - Skip entries for bank/cash accounts (already created separately)
         // For ORDER: do not add split lines that post to the sale customer (advance is not a customer A/R line)
@@ -1490,81 +1521,6 @@ export async function POST(request) {
                     cus_balance: splitLedgerEntry.closing_balance
                   }
                 });
-              }
-            }
-          }
-        }
-
-        // 6. Transport Entries (if any) - Skip for quotations
-        if (transport_details && transport_details.length > 0) {
-          for (const transport of transport_details) {
-            const transportAmount = parseFloat(transport.amount);
-
-            if (transport.account_id && transportAmount > 0) {
-              const transportAccount = await tx.customer.findUnique({
-                where: { cus_id: transport.account_id }
-              });
-
-              if (transportAccount) {
-                // Debit Transport Account
-                await tx.ledger.create({
-                  data: {
-                    cus_id: transport.account_id,
-                    opening_balance: transportAccount.cus_balance,
-                    debit_amount: transportAmount,
-                    credit_amount: 0,
-                    closing_balance: transportAccount.cus_balance + transportAmount,
-                    bill_no: sale.sale_id.toString(),
-                    trnx_type: 'CASH',
-                    details: `Transport Charges - ${bill_type || 'BILL'} #${sale.sale_id} - ${transport.description || 'Transport'} - ${customer.cus_address || ''} ${customer.city?.city_name || ''}`.trim(),
-                    payments: 0,
-                    cash_payment: 0,
-                    bank_payment: 0,
-                    updated_by: validatedUpdatedBy
-                  }
-                });
-
-                // Credit Sundry Debtors Account
-                if (specialAccounts.sundryDebtors) {
-                  await tx.ledger.create({
-                    data: {
-                      cus_id: specialAccounts.sundryDebtors.cus_id,
-                      opening_balance: specialAccounts.sundryDebtors.cus_balance,
-                      debit_amount: 0,
-                      credit_amount: transportAmount,
-                      closing_balance: specialAccounts.sundryDebtors.cus_balance - transportAmount,
-                      bill_no: sale.sale_id.toString(),
-                      trnx_type: 'CASH',
-                      details: `Transport Charges - ${bill_type || 'BILL'} #${sale.sale_id} - Sundry Debtors - ${customer.cus_address || ''} ${customer.city?.city_name || ''}`.trim(),
-                      payments: 0,
-                      cash_payment: 0,
-                      bank_payment: 0,
-                      updated_by: validatedUpdatedBy
-                    }
-                  });
-                }
-
-                // Update transport account balance
-                await tx.customer.update({
-                  where: { cus_id: transport.account_id },
-                  data: {
-                    cus_balance: {
-                      increment: transportAmount
-                    }
-                  }
-                });
-
-                // Update sundry debtors balance
-                if (specialAccounts.sundryDebtors) {
-                  await tx.customer.update({
-                    where: { cus_id: specialAccounts.sundryDebtors.cus_id },
-                    data: {
-                      cus_balance: {
-                        decrement: transportAmount
-                      }
-                    }
-                  });
-                }
               }
             }
           }

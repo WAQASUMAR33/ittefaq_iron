@@ -304,6 +304,7 @@ model Sale {
   bank_payment      Float          @default(0)
   bank_title        String?
   advance_payment   Float          @default(0)
+  previous_balance  Float          @default(0)
   debit_account_id  Int?
   credit_account_id Int?
   loader_id         Int?
@@ -883,6 +884,97 @@ model DraftSale {
   @@index([is_active], map: "draft_sales_is_active_idx")
   @@index([created_at], map: "draft_sales_created_at_idx")
   @@map("draft_sales")
+}
+
+model Employee {
+  emp_id        Int          @id @default(autoincrement())
+  emp_name      String
+  emp_phone     String?
+  emp_cnic      String?      @unique
+  emp_address   String?
+  designation   String?
+  department    String?
+  join_date     DateTime     @db.Date
+  basic_salary  Decimal      @default(0.00) @db.Decimal(10, 2)
+  status        EmpStatus    @default(ACTIVE)
+  created_at    DateTime     @default(now())
+  updated_at    DateTime     @updatedAt
+  attendance    Attendance[]
+  payrolls      Payroll[]
+
+  @@map("employees")
+}
+
+model Attendance {
+  att_id     Int              @id @default(autoincrement())
+  emp_id     Int
+  att_date   DateTime         @db.Date
+  in_time    String?
+  out_time   String?
+  status     AttendanceStatus @default(PRESENT)
+  notes      String?
+  created_at DateTime         @default(now())
+  updated_at DateTime         @updatedAt
+  employee   Employee         @relation(fields: [emp_id], references: [emp_id], onDelete: Cascade)
+
+  @@unique([emp_id, att_date])
+  @@index([emp_id])
+  @@index([att_date])
+  @@map("attendance")
+}
+
+model Payroll {
+  payroll_id        Int           @id @default(autoincrement())
+  emp_id            Int
+  month             Int
+  year              Int
+  basic_salary      Decimal       @db.Decimal(10, 2)
+  total_days        Int           @default(30)
+  days_present      Int           @default(0)
+  leaves_taken      Int           @default(0)
+  allowed_leaves    Int           @default(0)
+  excess_leaves     Int           @default(0)
+  deduction_per_day Decimal       @default(0.00) @db.Decimal(10, 2)
+  total_deduction   Decimal       @default(0.00) @db.Decimal(10, 2)
+  net_salary        Decimal       @default(0.00) @db.Decimal(10, 2)
+  status            PayrollStatus @default(PENDING)
+  payment_date      DateTime?
+  notes             String?
+  created_at        DateTime      @default(now())
+  updated_at        DateTime      @updatedAt
+  employee          Employee      @relation(fields: [emp_id], references: [emp_id], onDelete: Cascade)
+
+  @@unique([emp_id, month, year])
+  @@index([emp_id])
+  @@map("payrolls")
+}
+
+model HrSettings {
+  id                      Int      @id @default(autoincrement())
+  allowed_leaves_per_month Int     @default(2)
+  allowed_leaves_per_year  Int     @default(24)
+  updated_at              DateTime @updatedAt
+
+  @@map("hr_settings")
+}
+
+enum EmpStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  HALF_DAY
+  LEAVE
+  HOLIDAY
+}
+
+enum PayrollStatus {
+  PENDING
+  PAID
+  CANCELLED
 }
 
 enum UserRole {

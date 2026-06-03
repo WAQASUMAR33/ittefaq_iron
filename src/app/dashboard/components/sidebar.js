@@ -52,7 +52,10 @@ import {
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
   Menu as MenuIcon,
-  ListAlt as ListAltIcon
+  ListAlt as ListAltIcon,
+  Badge as BadgeIcon,
+  EventNote as EventNoteIcon,
+  Payments as PaymentsIcon,
 } from '@mui/icons-material';
 import { isAdminRole as isAdminRoleName, getStaffRoleName, SALESMAN_ALLOWED_MENU_IDS } from '@/lib/staff-access';
 
@@ -135,6 +138,11 @@ export default function Sidebar({
     { id: 'purchase-report', name: 'Purchase Report', icon: ShoppingBagIcon, category: 'reports', parent: 'Reports' },
     { id: 'rebate-report', name: 'Rebate Report', icon: PieChartIcon, category: 'reports', parent: 'Reports' },
     { id: 'balance-sheet', name: 'Balance Sheet', icon: TableChartIcon, category: 'reports', parent: 'Reports' },
+
+    // HR Management
+    { id: 'employees', name: 'Employees', icon: BadgeIcon, category: 'hr-management', parent: 'HR Management' },
+    { id: 'attendance', name: 'Attendance', icon: EventNoteIcon, category: 'hr-management', parent: 'HR Management' },
+    { id: 'payroll', name: 'Payroll / Salary', icon: PaymentsIcon, category: 'hr-management', parent: 'HR Management' },
 
     // System Management
     { id: 'usermanagement', name: 'User Management', icon: PersonIcon, category: 'system', parent: 'System' },
@@ -262,6 +270,12 @@ export default function Sidebar({
       router.push('/dashboard/store-stock');
     } else if (itemId === 'stock-transfer') {
       router.push('/dashboard/stock-transfer');
+    } else if (itemId === 'employees') {
+      router.push('/dashboard/employees');
+    } else if (itemId === 'attendance') {
+      router.push('/dashboard/attendance');
+    } else if (itemId === 'payroll') {
+      router.push('/dashboard/payroll');
     } else if (itemId === 'settings') {
       router.push('/dashboard/settings');
     } else if (itemId === 'dashboard') {
@@ -545,6 +559,7 @@ export default function Sidebar({
           {renderMenuSection('sales-operations', 'Sales', ShoppingCartIcon)}
           {renderMenuSection('purchase-operations', 'Purchase', ShoppingBagIcon)}
           {renderMenuSection('cargo-operations', 'Cargo', LocalShippingIcon)}
+          {renderMenuSection('hr-management', 'HR Management', BadgeIcon)}
           {renderMenuSection('reports', 'Reports', DashboardIcon)}
 
           {/* System section */}

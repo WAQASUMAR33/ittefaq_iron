@@ -29,6 +29,7 @@ export default function DashboardLayout({ children }) {
     'sales-operations': false,
     'purchase-operations': false,
     'cargo-operations': false,
+    'hr-management': false,
     'system': false
   });
   const [isClient, setIsClient] = useState(false);

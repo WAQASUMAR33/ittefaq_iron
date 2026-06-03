@@ -53,7 +53,8 @@ export async function GET(request) {
                   select: {
                     pro_id: true,
                     pro_title: true,
-                    pro_unit: true
+                    pro_unit: true,
+                    pro_description: true
                   }
                 }
               }
@@ -70,7 +71,8 @@ export async function GET(request) {
             ss.stock_quantity,
             p.pro_id as product_pro_id,
             p.pro_title as product_pro_title,
-            p.pro_unit as product_pro_unit
+            p.pro_unit as product_pro_unit,
+            p.pro_description as product_pro_description
           FROM stores s
           LEFT JOIN store_stocks ss ON s.storeid = ss.store_id
           LEFT JOIN products p ON ss.pro_id = p.pro_id
@@ -100,7 +102,8 @@ export async function GET(request) {
               product: {
                 pro_id: row.product_pro_id,
                 pro_title: row.product_pro_title,
-                pro_unit: row.product_pro_unit
+                pro_unit: row.product_pro_unit,
+                pro_description: row.product_pro_description
               }
             });
           }
