@@ -6,19 +6,17 @@ import {
   Box,
   Drawer,
   List,
-  ListItem,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
   Typography,
   IconButton,
   Avatar,
-  Divider,
   Collapse,
   Tooltip,
   InputBase,
+  ListItemButton,
+  ListItemIcon,
+  Divider,
   useTheme,
-  useMediaQuery
+  useMediaQuery,
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -51,7 +49,6 @@ import {
   PieChart as PieChartIcon,
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
-  Menu as MenuIcon,
   ListAlt as ListAltIcon,
   Badge as BadgeIcon,
   EventNote as EventNoteIcon,
@@ -60,7 +57,23 @@ import {
 import { isAdminRole as isAdminRoleName, getStaffRoleName, SALESMAN_ALLOWED_MENU_IDS } from '@/lib/staff-access';
 
 const COLLAPSED_WIDTH = 64;
-const EXPANDED_WIDTH = 320;
+const EXPANDED_WIDTH = 280;
+const SIDEBAR_BG = '#0d1421';
+
+const PILL_COLORS = [
+  '#cce840',
+  '#36c46c',
+  '#e07240',
+  '#7858d4',
+  '#e04858',
+  '#22c4d4',
+  '#e8d440',
+];
+
+const PILL_WIDTHS = [
+  '95%', '80%', '90%', '74%', '97%', '83%', '88%',
+  '77%', '93%', '85%', '72%', '96%', '79%', '87%',
+];
 
 export default function Sidebar({
   sidebarOpen,
@@ -86,22 +99,18 @@ export default function Sidebar({
     { id: 'bank-report', name: 'Bank Report', icon: CreditCardIcon, category: 'main' },
     { id: 'ledger', name: 'Ledger', icon: DescriptionIcon, category: 'main' },
 
-    // Accounts
     { id: 'customercategory', name: 'Account Categories', icon: LabelIcon, category: 'customer-management', parent: 'Accounts' },
     { id: 'customers', name: 'Accounts', icon: PeopleIcon, category: 'customer-management', parent: 'Accounts' },
 
-    // Product Management
     { id: 'categories', name: 'Category Management', icon: FolderIcon, category: 'product-management', parent: 'Product Management' },
     { id: 'sub-categories', name: 'Sub Category Management', icon: FolderOpenIcon, category: 'product-management', parent: 'Product Management' },
     { id: 'products', name: 'Product List', icon: InventoryIcon, category: 'product-management', parent: 'Product Management' },
 
-    // Financial Management
     { id: 'expense-titles', name: 'Expense Titles', icon: LabelIcon, category: 'financial', parent: 'Finance' },
     { id: 'expenses', name: 'Expense Management', icon: AttachMoneyIcon, category: 'financial', parent: 'Finance' },
     { id: 'journal', name: 'Journal Entries', icon: MenuBookIcon, category: 'financial', parent: 'Finance' },
     { id: 'day-end', name: 'Day End / Day Close', icon: CalendarIcon, category: 'financial', parent: 'Finance' },
 
-    // Sales Operations
     { id: 'orders', name: 'Order List', icon: ListAltIcon, category: 'sales-operations', parent: 'Sales' },
     { id: 'sales', name: 'Sales', icon: ShoppingCartIcon, category: 'sales-operations', parent: 'Sales' },
     { id: 'hold-bills', name: 'Hold Bills', icon: InventoryIcon, category: 'sales-operations', parent: 'Sales' },
@@ -110,17 +119,14 @@ export default function Sidebar({
     { id: 'quotations', name: 'Quotations', icon: ReceiptIcon, category: 'sales-operations', parent: 'Sales' },
     { id: 'sales-analytics', name: 'Sales Analytics', icon: TrendingUpIcon, category: 'sales-operations', parent: 'Sales' },
 
-    // Purchase Operations
     { id: 'new-purchase', name: 'Create New Purchase', icon: AddIcon, category: 'purchase-operations', parent: 'Purchase' },
     { id: 'purchase-list', name: 'Purchase List', icon: ShoppingBagIcon, category: 'purchase-operations', parent: 'Purchase' },
     { id: 'purchase-returns', name: 'Purchase Returns', icon: AssignmentReturnIcon, category: 'purchase-operations', parent: 'Purchase' },
     { id: 'vehicles', name: 'Vehicle Management', icon: LocalShippingIcon, category: 'purchase-operations', parent: 'Purchase' },
     { id: 'purchase-details', name: 'Purchase Details', icon: TableChartIcon, category: 'purchase-operations', parent: 'Purchase' },
 
-    // Cargo Operations
     { id: 'cargo', name: 'Cargo Management', icon: LocalShippingIcon, category: 'cargo-operations', parent: 'Cargo' },
 
-    // Reports
     { id: 'reports-dashboard', name: 'Reports Dashboard', icon: DashboardIcon, category: 'reports', parent: 'Reports' },
     { id: 'sales-by-date', name: 'Sales (By Date)', icon: CalendarIcon, category: 'reports', parent: 'Reports' },
     { id: 'sales-by-customer', name: 'Sales (Customer Wise)', icon: PeopleIcon, category: 'reports', parent: 'Reports' },
@@ -139,12 +145,10 @@ export default function Sidebar({
     { id: 'rebate-report', name: 'Rebate Report', icon: PieChartIcon, category: 'reports', parent: 'Reports' },
     { id: 'balance-sheet', name: 'Balance Sheet', icon: TableChartIcon, category: 'reports', parent: 'Reports' },
 
-    // HR Management
     { id: 'employees', name: 'Employees', icon: BadgeIcon, category: 'hr-management', parent: 'HR Management' },
     { id: 'attendance', name: 'Attendance', icon: EventNoteIcon, category: 'hr-management', parent: 'HR Management' },
     { id: 'payroll', name: 'Payroll / Salary', icon: PaymentsIcon, category: 'hr-management', parent: 'HR Management' },
 
-    // System Management
     { id: 'usermanagement', name: 'User Management', icon: PersonIcon, category: 'system', parent: 'System' },
     { id: 'stores', name: 'Store Management', icon: StoreIcon, category: 'system', parent: 'System' },
     { id: 'store-stock', name: 'Store Stock', icon: InventoryIcon, category: 'system', parent: 'System' },
@@ -159,7 +163,6 @@ export default function Sidebar({
     if (item.adminOnly && !isAdmin) return false;
     if (isAdmin) return true;
     if (roleName === 'SALESMAN') return SALESMAN_ALLOWED_MENU_IDS.has(item.id);
-    // Unknown / non-admin: same limited menu as salesman
     return SALESMAN_ALLOWED_MENU_IDS.has(item.id);
   });
 
@@ -282,7 +285,6 @@ export default function Sidebar({
       router.push('/dashboard');
     }
 
-    // Close sidebar on mobile
     setSidebarOpen(false);
   };
 
@@ -292,188 +294,275 @@ export default function Sidebar({
   const drawerWidth = collapsed && !isMobile ? COLLAPSED_WIDTH : EXPANDED_WIDTH;
   const isCollapsed = collapsed && !isMobile;
 
-  const renderMenuSection = (category, title, IconComponent) => {
+  const GoldCoin = () => (
+    <Box sx={{
+      width: 32,
+      height: 32,
+      borderRadius: '50%',
+      flexShrink: 0,
+      ml: 1,
+      background: 'radial-gradient(circle at 35% 30%, #fff59d, #ffc107 50%, #e65100)',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.5), inset 0 1px 3px rgba(255,255,255,0.5)',
+      border: '1.5px solid rgba(255,200,50,0.6)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    }}>
+      <Box sx={{
+        width: 16,
+        height: 16,
+        borderRadius: '50%',
+        background: 'radial-gradient(circle at 40% 35%, #fff9c4, #ffd54f 55%, #ff6f00)',
+        border: '1px solid rgba(255,255,255,0.5)',
+      }} />
+    </Box>
+  );
+
+  const renderPillItem = (item, colorIdx) => {
+    const color = PILL_COLORS[colorIdx % PILL_COLORS.length];
+    const width = PILL_WIDTHS[colorIdx % PILL_WIDTHS.length];
+    const isActive = activeTab === item.id;
+
+    return (
+      <Box key={`${item.id}-${item.category}`} sx={{ mb: 0.9, px: 1.5 }}>
+        <Box
+          onClick={() => handleNavigation(item.id)}
+          sx={{
+            width,
+            bgcolor: color,
+            borderRadius: '28px',
+            display: 'flex',
+            alignItems: 'center',
+            px: 1.5,
+            py: 0.9,
+            cursor: 'pointer',
+            outline: isActive ? '2.5px solid rgba(255,255,255,0.7)' : 'none',
+            outlineOffset: '1px',
+            boxShadow: isActive
+              ? `0 4px 20px ${color}90`
+              : '0 2px 8px rgba(0,0,0,0.4)',
+            transition: 'all 0.15s ease',
+            '&:hover': {
+              boxShadow: `0 4px 16px ${color}80`,
+              filter: 'brightness(1.06)',
+              transform: 'translateX(2px)',
+            },
+          }}
+        >
+          <Box sx={{
+            color: 'rgba(0,0,0,0.65)',
+            display: 'flex',
+            alignItems: 'center',
+            mr: 1.5,
+            flexShrink: 0,
+          }}>
+            <item.icon sx={{ fontSize: 20 }} />
+          </Box>
+          <Typography sx={{
+            fontWeight: 700,
+            color: '#111',
+            flex: 1,
+            fontSize: '0.78rem',
+            letterSpacing: 0.3,
+            lineHeight: 1.3,
+            userSelect: 'none',
+          }}>
+            {item.name}
+          </Typography>
+          <GoldCoin />
+        </Box>
+      </Box>
+    );
+  };
+
+  const renderCollapsedIcon = (item) => (
+    <Tooltip key={item.id} title={item.name} placement="right" arrow>
+      <ListItemButton
+        onClick={() => handleNavigation(item.id)}
+        sx={{
+          borderRadius: 2,
+          mb: 0.5,
+          minHeight: 44,
+          justifyContent: 'center',
+          px: 1,
+          backgroundColor: activeTab === item.id ? 'rgba(255,255,255,0.15)' : 'transparent',
+          color: activeTab === item.id ? '#fff' : 'rgba(255,255,255,0.5)',
+          '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' },
+        }}
+      >
+        <ListItemIcon sx={{ minWidth: 0, color: 'inherit', justifyContent: 'center' }}>
+          <item.icon fontSize="small" />
+        </ListItemIcon>
+      </ListItemButton>
+    </Tooltip>
+  );
+
+  const SECTION_COLORS = [
+    '#1e3a5f',
+    '#1a3d2e',
+    '#3d1e1e',
+    '#2a1a4a',
+    '#1e3040',
+    '#3d2a00',
+    '#1a2d3d',
+    '#2d1a3d',
+  ];
+
+  const renderMenuSection = (category, title, sectionIdx) => {
     const items = filteredItems.filter(item => item.category === category);
     if (items.length === 0) return null;
     const isExpanded = isCollapsed ? false : (isSearching ? true : expandedDropdowns[category]);
+    const sectionBg = SECTION_COLORS[sectionIdx % SECTION_COLORS.length];
 
     if (isCollapsed) {
-      // Collapsed: show only icons with tooltips, no section header
       return (
         <Box key={category} sx={{ mb: 0.5 }}>
-          {items.map((item) => (
-            <Tooltip key={item.id} title={item.name} placement="right" arrow>
-              <ListItemButton
-                onClick={() => handleNavigation(item.id)}
-                sx={{
-                  borderRadius: 2,
-                  mb: 0.5,
-                  minHeight: 44,
-                  justifyContent: 'center',
-                  px: 1,
-                  backgroundColor: activeTab === item.id ? 'primary.light' : 'transparent',
-                  color: activeTab === item.id ? 'primary.contrastText' : 'text.primary',
-                  '&:hover': {
-                    backgroundColor: activeTab === item.id ? 'primary.main' : 'action.hover',
-                  },
-                }}
-              >
-                <ListItemIcon sx={{ minWidth: 0, color: 'inherit', justifyContent: 'center' }}>
-                  <item.icon fontSize="small" />
-                </ListItemIcon>
-              </ListItemButton>
-            </Tooltip>
-          ))}
-          <Divider sx={{ my: 0.5, opacity: 0.4 }} />
+          {items.map(renderCollapsedIcon)}
+          <Divider sx={{ my: 0.5, borderColor: 'rgba(255,255,255,0.07)' }} />
         </Box>
       );
     }
 
     return (
-      <Box key={category}>
-        <ListItemButton
-          onClick={() => toggleDropdown(category)}
-          sx={{
-            borderRadius: 2,
-            mb: 1,
-            '&:hover': { backgroundColor: 'action.hover' },
-          }}
-        >
-          <ListItemIcon sx={{ minWidth: 40 }}>
-            <IconComponent />
-          </ListItemIcon>
-          <ListItemText
-            primary={
-              <Typography variant="body2" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                {title}
-              </Typography>
-            }
-          />
-          {isExpanded ? <ExpandLess /> : <ExpandMore />}
-        </ListItemButton>
+      <Box key={category} sx={{ mb: 0.5 }}>
+        {/* Section header pill */}
+        <Box sx={{ px: 1.5, mb: 0.5, mt: 1 }}>
+          <Box
+            onClick={() => toggleDropdown(category)}
+            sx={{
+              width: '100%',
+              bgcolor: sectionBg,
+              borderRadius: '22px',
+              display: 'flex',
+              alignItems: 'center',
+              px: 2,
+              py: 0.9,
+              cursor: 'pointer',
+              border: '1px solid rgba(255,255,255,0.1)',
+              transition: 'all 0.15s ease',
+              '&:hover': {
+                bgcolor: `${sectionBg}dd`,
+                border: '1px solid rgba(255,255,255,0.2)',
+              },
+            }}
+          >
+            <Typography sx={{
+              color: 'rgba(255,255,255,0.85)',
+              fontWeight: 700,
+              letterSpacing: 0.8,
+              textTransform: 'uppercase',
+              fontSize: '0.68rem',
+              flex: 1,
+              userSelect: 'none',
+            }}>
+              {title}
+            </Typography>
+            {isExpanded
+              ? <ExpandLess sx={{ fontSize: 16, color: 'rgba(255,255,255,0.6)' }} />
+              : <ExpandMore sx={{ fontSize: 16, color: 'rgba(255,255,255,0.6)' }} />}
+          </Box>
+        </Box>
 
         <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-          <List component="div" disablePadding>
-            {items.map((item) => (
-              <ListItemButton
-                key={item.id}
-                onClick={() => handleNavigation(item.id)}
-                sx={{
-                  pl: 4,
-                  borderRadius: 2,
-                  mb: 0.5,
-                  backgroundColor: activeTab === item.id ? 'primary.light' : 'transparent',
-                  color: activeTab === item.id ? 'primary.contrastText' : 'text.primary',
-                  '&:hover': {
-                    backgroundColor: activeTab === item.id ? 'primary.main' : 'action.hover',
-                  },
-                }}
-              >
-                <ListItemIcon sx={{ minWidth: 40, color: 'inherit' }}>
-                  <item.icon />
-                </ListItemIcon>
-                <ListItemText
-                  primary={
-                    <Typography variant="body2" sx={{ fontWeight: activeTab === item.id ? 600 : 400 }}>
-                      {item.name}
-                    </Typography>
-                  }
-                />
-              </ListItemButton>
-            ))}
-          </List>
+          <Box sx={{ pt: 0.25, pb: 0.5 }}>
+            {items.map((item) => {
+              const globalIdx = visibleMenuItems.findIndex(i => i === item);
+              return renderPillItem(item, globalIdx);
+            })}
+          </Box>
         </Collapse>
       </Box>
     );
   };
 
+  const mainItems = filteredItems.filter(item => item.category === 'main');
+  const systemItems = filteredItems.filter(item => item.category === 'system');
+
   const drawerContent = (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: SIDEBAR_BG }}>
       {/* Header */}
       <Box sx={{
         p: isCollapsed ? 1 : 2,
-        borderBottom: 1,
-        borderColor: 'divider',
+        borderBottom: '1px solid rgba(255,255,255,0.07)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: isCollapsed ? 'center' : 'space-between',
-        minHeight: 72
+        minHeight: 68,
+        bgcolor: '#0a0f1a',
       }}>
         {!isCollapsed && (
           <Box sx={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
-            <Avatar sx={{ bgcolor: 'primary.main', mr: 1.5, width: 40, height: 40, flexShrink: 0 }}>
-              <DashboardIcon />
+            <Avatar sx={{
+              background: 'linear-gradient(135deg, #cce840, #36c46c)',
+              mr: 1.5,
+              width: 38,
+              height: 38,
+              flexShrink: 0,
+            }}>
+              <DashboardIcon sx={{ color: '#111', fontSize: 20 }} />
             </Avatar>
             <Box sx={{ minWidth: 0 }}>
               <Typography variant="body2" sx={{
-                fontWeight: 'bold',
-                background: 'linear-gradient(45deg, #2196F3 30%, #9C27B0 90%)',
-                backgroundClip: 'text',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                fontSize: '0.8rem',
-                lineHeight: 1.2
+                fontWeight: 800,
+                color: '#cce840',
+                fontSize: '0.85rem',
+                lineHeight: 1.2,
+                letterSpacing: 0.5,
               }}>
                 Ittefaq Iron
               </Typography>
-              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>
+              <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)', fontWeight: 500 }}>
                 POS System
               </Typography>
             </Box>
           </Box>
         )}
 
-        {/* Collapse toggle (desktop) */}
         {!isMobile && (
           <Tooltip title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} placement="right">
             <IconButton
               onClick={() => setCollapsed(!collapsed)}
               size="small"
-              sx={{ flexShrink: 0 }}
+              sx={{ color: 'rgba(255,255,255,0.45)', flexShrink: 0, '&:hover': { color: '#cce840' } }}
             >
               {isCollapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
             </IconButton>
           </Tooltip>
         )}
 
-        {/* Close button (mobile) */}
         {isMobile && (
-          <IconButton onClick={() => setSidebarOpen(false)}>
+          <IconButton onClick={() => setSidebarOpen(false)} sx={{ color: 'rgba(255,255,255,0.5)' }}>
             <CloseIcon />
           </IconButton>
         )}
       </Box>
 
-      {/* Search Bar - hidden when collapsed */}
+      {/* Search */}
       {!isCollapsed && (
-        <Box sx={{ px: 2, py: 1.5, borderBottom: 1, borderColor: 'divider' }}>
+        <Box sx={{ px: 1.5, py: 1.2, borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
           <Box sx={{
             display: 'flex',
             alignItems: 'center',
             gap: 1,
             px: 1.5,
-            py: 0.75,
-            borderRadius: 2,
-            border: 1,
-            borderColor: 'divider',
-            backgroundColor: 'action.hover',
-            '&:focus-within': {
-              borderColor: 'primary.main',
-              backgroundColor: 'background.paper',
-            }
+            py: 0.7,
+            borderRadius: '20px',
+            border: '1px solid rgba(255,255,255,0.1)',
+            bgcolor: 'rgba(255,255,255,0.05)',
+            '&:focus-within': { borderColor: '#cce840', bgcolor: 'rgba(204,232,64,0.06)' },
           }}>
-            <SearchIcon sx={{ color: 'text.secondary', fontSize: 18 }} />
+            <SearchIcon sx={{ color: 'rgba(255,255,255,0.35)', fontSize: 17 }} />
             <InputBase
               placeholder="Search menu..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               fullWidth
-              sx={{ fontSize: 13 }}
+              sx={{ fontSize: 12.5, color: 'rgba(255,255,255,0.75)' }}
               inputProps={{ 'aria-label': 'search sidebar menu' }}
             />
             {searchQuery && (
-              <IconButton size="small" onClick={() => setSearchQuery('')} sx={{ p: 0.25 }}>
-                <CloseIcon sx={{ fontSize: 16 }} />
+              <IconButton size="small" onClick={() => setSearchQuery('')} sx={{ p: 0.25, color: 'rgba(255,255,255,0.35)' }}>
+                <CloseIcon sx={{ fontSize: 15 }} />
               </IconButton>
             )}
           </Box>
@@ -481,159 +570,93 @@ export default function Sidebar({
       )}
 
       {/* Navigation */}
-      <Box sx={{ flex: 1, overflow: 'auto', p: isCollapsed ? 0.5 : 2 }}>
+      <Box sx={{ flex: 1, overflow: 'auto', py: 1, px: isCollapsed ? 0.5 : 0 }}>
         <List disablePadding>
-          {/* Overview section */}
-          {filteredItems.some(i => i.category === 'main') && (
-            <Box sx={{ mb: isCollapsed ? 0 : 2 }}>
+          {/* Overview */}
+          {mainItems.length > 0 && (
+            <Box sx={{ mb: 0.5 }}>
               {!isCollapsed && (
-                <Typography variant="overline" sx={{
-                  px: 2,
-                  py: 1,
-                  color: 'text.secondary',
-                  fontWeight: 600,
-                  letterSpacing: 1,
-                  display: 'block'
-                }}>
-                  Overview
-                </Typography>
+                <Box sx={{ px: 1.5, mb: 0.5 }}>
+                  <Box sx={{
+                    width: '100%',
+                    bgcolor: '#0f2744',
+                    borderRadius: '22px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    px: 2,
+                    py: 0.9,
+                    border: '1px solid rgba(204,232,64,0.2)',
+                  }}>
+                    <Typography sx={{
+                      color: '#cce840',
+                      fontWeight: 700,
+                      letterSpacing: 0.8,
+                      textTransform: 'uppercase',
+                      fontSize: '0.68rem',
+                      userSelect: 'none',
+                    }}>
+                      Overview
+                    </Typography>
+                  </Box>
+                </Box>
               )}
-              {filteredItems.filter(item => item.category === 'main').map((item) => (
-                isCollapsed ? (
-                  <Tooltip key={item.id} title={item.name} placement="right" arrow>
-                    <ListItemButton
-                      onClick={() => handleNavigation(item.id)}
-                      sx={{
-                        borderRadius: 2,
-                        mb: 0.5,
-                        minHeight: 44,
-                        justifyContent: 'center',
-                        px: 1,
-                        backgroundColor: activeTab === item.id ? 'primary.light' : 'transparent',
-                        color: activeTab === item.id ? 'primary.contrastText' : 'text.primary',
-                        '&:hover': {
-                          backgroundColor: activeTab === item.id ? 'primary.main' : 'action.hover',
-                        },
-                      }}
-                    >
-                      <ListItemIcon sx={{ minWidth: 0, color: 'inherit', justifyContent: 'center' }}>
-                        <item.icon fontSize="small" />
-                      </ListItemIcon>
-                    </ListItemButton>
-                  </Tooltip>
-                ) : (
-                  <ListItemButton
-                    key={item.id}
-                    onClick={() => handleNavigation(item.id)}
-                    sx={{
-                      borderRadius: 2,
-                      mb: 0.5,
-                      backgroundColor: activeTab === item.id ? 'primary.light' : 'transparent',
-                      color: activeTab === item.id ? 'primary.contrastText' : 'text.primary',
-                      '&:hover': {
-                        backgroundColor: activeTab === item.id ? 'primary.main' : 'action.hover',
-                      },
-                    }}
-                  >
-                    <ListItemIcon sx={{ minWidth: 40, color: 'inherit' }}>
-                      <item.icon />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={
-                        <Typography variant="body2" sx={{ fontWeight: activeTab === item.id ? 600 : 400 }}>
-                          {item.name}
-                        </Typography>
-                      }
-                    />
-                  </ListItemButton>
-                )
-              ))}
-              {isCollapsed && <Divider sx={{ my: 0.5, opacity: 0.4 }} />}
+              {mainItems.map((item) => {
+                if (isCollapsed) return renderCollapsedIcon(item);
+                const globalIdx = visibleMenuItems.findIndex(i => i === item);
+                return renderPillItem(item, globalIdx);
+              })}
+              {isCollapsed && <Divider sx={{ my: 0.5, borderColor: 'rgba(255,255,255,0.07)' }} />}
             </Box>
           )}
 
-          {/* Menu Sections */}
-          {renderMenuSection('customer-management', 'Account Management', PeopleIcon)}
-          {renderMenuSection('product-management', 'Product Management', InventoryIcon)}
-          {renderMenuSection('financial', 'Finance', AttachMoneyIcon)}
-          {renderMenuSection('sales-operations', 'Sales', ShoppingCartIcon)}
-          {renderMenuSection('purchase-operations', 'Purchase', ShoppingBagIcon)}
-          {renderMenuSection('cargo-operations', 'Cargo', LocalShippingIcon)}
-          {renderMenuSection('hr-management', 'HR Management', BadgeIcon)}
-          {renderMenuSection('reports', 'Reports', DashboardIcon)}
+          {renderMenuSection('customer-management', 'Accounts', 0)}
+          {renderMenuSection('product-management', 'Products', 1)}
+          {renderMenuSection('financial', 'Finance', 2)}
+          {renderMenuSection('sales-operations', 'Sales', 3)}
+          {renderMenuSection('purchase-operations', 'Purchase', 4)}
+          {renderMenuSection('cargo-operations', 'Cargo', 5)}
+          {renderMenuSection('hr-management', 'HR Management', 6)}
+          {renderMenuSection('reports', 'Reports', 7)}
 
-          {/* System section */}
-          {filteredItems.some(i => i.category === 'system') && (
-            <Box sx={{ mb: 2 }}>
+          {/* System */}
+          {systemItems.length > 0 && (
+            <Box sx={{ mb: 1 }}>
               {!isCollapsed && (
-                <Typography variant="overline" sx={{
-                  px: 2,
-                  py: 1,
-                  color: 'text.secondary',
-                  fontWeight: 600,
-                  letterSpacing: 1,
-                  display: 'block'
-                }}>
-                  System
-                </Typography>
+                <Box sx={{ px: 1.5, mb: 0.5, mt: 1 }}>
+                  <Box sx={{
+                    width: '100%',
+                    bgcolor: '#1a1a2e',
+                    borderRadius: '22px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    px: 2,
+                    py: 0.9,
+                    border: '1px solid rgba(255,255,255,0.1)',
+                  }}>
+                    <Typography sx={{
+                      color: 'rgba(255,255,255,0.85)',
+                      fontWeight: 700,
+                      letterSpacing: 0.8,
+                      textTransform: 'uppercase',
+                      fontSize: '0.68rem',
+                      userSelect: 'none',
+                    }}>
+                      System
+                    </Typography>
+                  </Box>
+                </Box>
               )}
-              {filteredItems.filter(item => item.category === 'system').map((item) => (
-                isCollapsed ? (
-                  <Tooltip key={item.id} title={item.name} placement="right" arrow>
-                    <ListItemButton
-                      onClick={() => handleNavigation(item.id)}
-                      sx={{
-                        borderRadius: 2,
-                        mb: 0.5,
-                        minHeight: 44,
-                        justifyContent: 'center',
-                        px: 1,
-                        backgroundColor: activeTab === item.id ? 'primary.light' : 'transparent',
-                        color: activeTab === item.id ? 'primary.contrastText' : 'text.primary',
-                        '&:hover': {
-                          backgroundColor: activeTab === item.id ? 'primary.main' : 'action.hover',
-                        },
-                      }}
-                    >
-                      <ListItemIcon sx={{ minWidth: 0, color: 'inherit', justifyContent: 'center' }}>
-                        <item.icon fontSize="small" />
-                      </ListItemIcon>
-                    </ListItemButton>
-                  </Tooltip>
-                ) : (
-                  <ListItemButton
-                    key={item.id}
-                    onClick={() => handleNavigation(item.id)}
-                    sx={{
-                      borderRadius: 2,
-                      mb: 0.5,
-                      backgroundColor: activeTab === item.id ? 'primary.light' : 'transparent',
-                      color: activeTab === item.id ? 'primary.contrastText' : 'text.primary',
-                      '&:hover': {
-                        backgroundColor: activeTab === item.id ? 'primary.main' : 'action.hover',
-                      },
-                    }}
-                  >
-                    <ListItemIcon sx={{ minWidth: 40, color: 'inherit' }}>
-                      <item.icon />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={
-                        <Typography variant="body2" sx={{ fontWeight: activeTab === item.id ? 600 : 400 }}>
-                          {item.name}
-                        </Typography>
-                      }
-                    />
-                  </ListItemButton>
-                )
-              ))}
+              {systemItems.map((item) => {
+                if (isCollapsed) return renderCollapsedIcon(item);
+                const globalIdx = visibleMenuItems.findIndex(i => i === item);
+                return renderPillItem(item, globalIdx);
+              })}
             </Box>
           )}
 
-          {/* No results */}
           {isSearching && filteredItems.length === 0 && (
             <Box sx={{ px: 2, py: 4, textAlign: 'center' }}>
-              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.35)' }}>
                 No results for "{searchQuery}"
               </Typography>
             </Box>
@@ -642,36 +665,43 @@ export default function Sidebar({
       </Box>
 
       {/* User Profile */}
-      <Box sx={{ p: isCollapsed ? 0.5 : 2, borderTop: 1, borderColor: 'divider' }}>
+      <Box sx={{ p: isCollapsed ? 0.5 : 1.5, borderTop: '1px solid rgba(255,255,255,0.07)' }}>
         {isCollapsed ? (
-          <Tooltip title={`${user?.email} (${user?.role?.displayName || user?.role?.name || user?.role}) — Logout`} placement="right" arrow>
-            <IconButton onClick={handleLogout} sx={{ width: '100%', borderRadius: 2, py: 1 }}>
+          <Tooltip title={`${user?.email} — Logout`} placement="right" arrow>
+            <IconButton onClick={handleLogout} sx={{ width: '100%', borderRadius: 2, py: 1, color: 'rgba(255,255,255,0.5)' }}>
               <LogoutIcon />
             </IconButton>
           </Tooltip>
         ) : (
           <Box sx={{
-            p: 2,
-            borderRadius: 2,
-            border: 1,
-            borderColor: 'divider',
+            p: 1.5,
+            borderRadius: '16px',
+            border: '1px solid rgba(255,255,255,0.08)',
+            bgcolor: 'rgba(255,255,255,0.04)',
             display: 'flex',
-            alignItems: 'center'
+            alignItems: 'center',
           }}>
-            <Avatar sx={{ bgcolor: 'primary.main', mr: 2, width: 40, height: 40 }}>
+            <Avatar sx={{
+              background: 'linear-gradient(135deg, #7858d4, #22c4d4)',
+              mr: 1.5,
+              width: 34,
+              height: 34,
+              fontSize: '0.85rem',
+              fontWeight: 700,
+            }}>
               {user?.email?.charAt(0).toUpperCase()}
             </Avatar>
             <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: 'rgba(255,255,255,0.8)', fontSize: '0.75rem' }} noWrap>
                 {user?.email}
               </Typography>
-              <Typography variant="caption" sx={{ color: 'text.secondary', textTransform: 'uppercase' }}>
+              <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', fontSize: '0.6rem' }}>
                 {user?.role?.displayName || user?.role?.name || user?.role}
               </Typography>
             </Box>
             <Tooltip title="Logout">
-              <IconButton onClick={handleLogout} size="small">
-                <LogoutIcon />
+              <IconButton onClick={handleLogout} size="small" sx={{ color: 'rgba(255,255,255,0.35)', '&:hover': { color: '#e04858' } }}>
+                <LogoutIcon sx={{ fontSize: 18 }} />
               </IconButton>
             </Tooltip>
           </Box>
@@ -681,33 +711,31 @@ export default function Sidebar({
   );
 
   return (
-    <>
-      <Drawer
-        variant={isMobile ? 'temporary' : 'permanent'}
-        open={isMobile ? sidebarOpen : true}
-        onClose={() => setSidebarOpen(false)}
-        sx={{
+    <Drawer
+      variant={isMobile ? 'temporary' : 'permanent'}
+      open={isMobile ? sidebarOpen : true}
+      onClose={() => setSidebarOpen(false)}
+      sx={{
+        width: drawerWidth,
+        flexShrink: 0,
+        transition: theme.transitions.create('width', {
+          easing: theme.transitions.easing.sharp,
+          duration: theme.transitions.duration.enteringScreen,
+        }),
+        '& .MuiDrawer-paper': {
           width: drawerWidth,
-          flexShrink: 0,
+          boxSizing: 'border-box',
+          borderRight: '1px solid rgba(255,255,255,0.06)',
+          bgcolor: SIDEBAR_BG,
+          overflowX: 'hidden',
           transition: theme.transitions.create('width', {
             easing: theme.transitions.easing.sharp,
             duration: theme.transitions.duration.enteringScreen,
           }),
-          '& .MuiDrawer-paper': {
-            width: drawerWidth,
-            boxSizing: 'border-box',
-            borderRight: 1,
-            borderColor: 'divider',
-            overflowX: 'hidden',
-            transition: theme.transitions.create('width', {
-              easing: theme.transitions.easing.sharp,
-              duration: theme.transitions.duration.enteringScreen,
-            }),
-          },
-        }}
-      >
-        {drawerContent}
-      </Drawer>
-    </>
+        },
+      }}
+    >
+      {drawerContent}
+    </Drawer>
   );
 }

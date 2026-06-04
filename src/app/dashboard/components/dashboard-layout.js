@@ -22,15 +22,15 @@ export default function DashboardLayout({ children }) {
   const [collapsed, setCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [expandedDropdowns, setExpandedDropdowns] = useState({
-    'dashboard': false,
-    'customer-management': false,
-    'product-management': false,
-    'financial': false,
-    'sales-operations': false,
-    'purchase-operations': false,
-    'cargo-operations': false,
-    'hr-management': false,
-    'system': false
+    'dashboard': true,
+    'customer-management': true,
+    'product-management': true,
+    'financial': true,
+    'sales-operations': true,
+    'purchase-operations': true,
+    'cargo-operations': true,
+    'hr-management': true,
+    'system': true
   });
   const [isClient, setIsClient] = useState(false);
 
