@@ -58,7 +58,18 @@ import { isAdminRole as isAdminRoleName, getStaffRoleName, SALESMAN_ALLOWED_MENU
 
 const COLLAPSED_WIDTH = 64;
 const EXPANDED_WIDTH = 280;
-const SIDEBAR_BG = '#0d1421';
+const SIDEBAR_BG = '#ffffff';
+
+const SECTION_COLORS = [
+  '#cce840',
+  '#36c46c',
+  '#e07240',
+  '#7858d4',
+  '#e04858',
+  '#22c4d4',
+  '#e8d440',
+  '#3a9ef5',
+];
 
 const PILL_COLORS = [
   '#cce840',
@@ -68,6 +79,9 @@ const PILL_COLORS = [
   '#e04858',
   '#22c4d4',
   '#e8d440',
+  '#3a9ef5',
+  '#f5a623',
+  '#50e3c2',
 ];
 
 const PILL_WIDTHS = [
@@ -296,21 +310,21 @@ export default function Sidebar({
 
   const GoldCoin = () => (
     <Box sx={{
-      width: 32,
-      height: 32,
+      width: 30,
+      height: 30,
       borderRadius: '50%',
       flexShrink: 0,
       ml: 1,
       background: 'radial-gradient(circle at 35% 30%, #fff59d, #ffc107 50%, #e65100)',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.5), inset 0 1px 3px rgba(255,255,255,0.5)',
+      boxShadow: '0 2px 6px rgba(0,0,0,0.25), inset 0 1px 3px rgba(255,255,255,0.5)',
       border: '1.5px solid rgba(255,200,50,0.6)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
     }}>
       <Box sx={{
-        width: 16,
-        height: 16,
+        width: 14,
+        height: 14,
         borderRadius: '50%',
         background: 'radial-gradient(circle at 40% 35%, #fff9c4, #ffd54f 55%, #ff6f00)',
         border: '1px solid rgba(255,255,255,0.5)',
@@ -318,7 +332,8 @@ export default function Sidebar({
     </Box>
   );
 
-  const renderPillItem = (item, colorIdx) => {
+  // Colorful pill item with icon + text + optional gold coin
+  const renderPillItem = (item, colorIdx, showCoin = false) => {
     const color = PILL_COLORS[colorIdx % PILL_COLORS.length];
     const width = PILL_WIDTHS[colorIdx % PILL_WIDTHS.length];
     const isActive = activeTab === item.id;
@@ -336,11 +351,11 @@ export default function Sidebar({
             px: 1.5,
             py: 0.9,
             cursor: 'pointer',
-            outline: isActive ? '2.5px solid rgba(255,255,255,0.7)' : 'none',
+            outline: isActive ? '2.5px solid rgba(0,0,0,0.35)' : 'none',
             outlineOffset: '1px',
             boxShadow: isActive
               ? `0 4px 20px ${color}90`
-              : '0 2px 8px rgba(0,0,0,0.4)',
+              : `0 2px 8px ${color}60`,
             transition: 'all 0.15s ease',
             '&:hover': {
               boxShadow: `0 4px 16px ${color}80`,
@@ -369,7 +384,7 @@ export default function Sidebar({
           }}>
             {item.name}
           </Typography>
-          <GoldCoin />
+          {showCoin && <GoldCoin />}
         </Box>
       </Box>
     );
@@ -385,9 +400,9 @@ export default function Sidebar({
           minHeight: 44,
           justifyContent: 'center',
           px: 1,
-          backgroundColor: activeTab === item.id ? 'rgba(255,255,255,0.15)' : 'transparent',
-          color: activeTab === item.id ? '#fff' : 'rgba(255,255,255,0.5)',
-          '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' },
+          backgroundColor: activeTab === item.id ? 'rgba(0,0,0,0.08)' : 'transparent',
+          color: activeTab === item.id ? '#111' : '#888',
+          '&:hover': { backgroundColor: 'rgba(0,0,0,0.05)' },
         }}
       >
         <ListItemIcon sx={{ minWidth: 0, color: 'inherit', justifyContent: 'center' }}>
@@ -397,69 +412,59 @@ export default function Sidebar({
     </Tooltip>
   );
 
-  const SECTION_COLORS = [
-    '#1e3a5f',
-    '#1a3d2e',
-    '#3d1e1e',
-    '#2a1a4a',
-    '#1e3040',
-    '#3d2a00',
-    '#1a2d3d',
-    '#2d1a3d',
-  ];
-
   const renderMenuSection = (category, title, sectionIdx) => {
     const items = filteredItems.filter(item => item.category === category);
     if (items.length === 0) return null;
     const isExpanded = isCollapsed ? false : (isSearching ? true : expandedDropdowns[category]);
-    const sectionBg = SECTION_COLORS[sectionIdx % SECTION_COLORS.length];
+    const sectionColor = SECTION_COLORS[sectionIdx % SECTION_COLORS.length];
 
     if (isCollapsed) {
       return (
         <Box key={category} sx={{ mb: 0.5 }}>
           {items.map(renderCollapsedIcon)}
-          <Divider sx={{ my: 0.5, borderColor: 'rgba(255,255,255,0.07)' }} />
+          <Divider sx={{ my: 0.5, borderColor: 'rgba(0,0,0,0.08)' }} />
         </Box>
       );
     }
 
     return (
       <Box key={category} sx={{ mb: 0.5 }}>
-        {/* Section header pill */}
-        <Box sx={{ px: 1.5, mb: 0.5, mt: 1 }}>
+        {/* Section header — colorful pill */}
+        <Box sx={{ px: 1.5, mb: 0.3, mt: 1 }}>
           <Box
             onClick={() => toggleDropdown(category)}
             sx={{
               width: '100%',
-              bgcolor: sectionBg,
+              bgcolor: sectionColor,
               borderRadius: '22px',
               display: 'flex',
               alignItems: 'center',
               px: 2,
               py: 0.9,
               cursor: 'pointer',
-              border: '1px solid rgba(255,255,255,0.1)',
+              boxShadow: `0 2px 8px ${sectionColor}50`,
               transition: 'all 0.15s ease',
               '&:hover': {
-                bgcolor: `${sectionBg}dd`,
-                border: '1px solid rgba(255,255,255,0.2)',
+                filter: 'brightness(1.06)',
+                boxShadow: `0 4px 14px ${sectionColor}70`,
               },
             }}
           >
             <Typography sx={{
-              color: 'rgba(255,255,255,0.85)',
-              fontWeight: 700,
-              letterSpacing: 0.8,
+              color: '#111',
+              fontWeight: 800,
+              letterSpacing: 0.6,
               textTransform: 'uppercase',
-              fontSize: '0.68rem',
+              fontSize: '0.72rem',
               flex: 1,
               userSelect: 'none',
             }}>
               {title}
             </Typography>
             {isExpanded
-              ? <ExpandLess sx={{ fontSize: 16, color: 'rgba(255,255,255,0.6)' }} />
-              : <ExpandMore sx={{ fontSize: 16, color: 'rgba(255,255,255,0.6)' }} />}
+              ? <ExpandLess sx={{ fontSize: 16, color: 'rgba(0,0,0,0.5)' }} />
+              : <ExpandMore sx={{ fontSize: 16, color: 'rgba(0,0,0,0.5)' }} />}
+            <GoldCoin />
           </Box>
         </Box>
 
@@ -483,12 +488,12 @@ export default function Sidebar({
       {/* Header */}
       <Box sx={{
         p: isCollapsed ? 1 : 2,
-        borderBottom: '1px solid rgba(255,255,255,0.07)',
+        borderBottom: '1px solid rgba(0,0,0,0.08)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: isCollapsed ? 'center' : 'space-between',
         minHeight: 68,
-        bgcolor: '#0a0f1a',
+        bgcolor: '#ffffff',
       }}>
         {!isCollapsed && (
           <Box sx={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
@@ -504,14 +509,14 @@ export default function Sidebar({
             <Box sx={{ minWidth: 0 }}>
               <Typography variant="body2" sx={{
                 fontWeight: 800,
-                color: '#cce840',
+                color: '#111',
                 fontSize: '0.85rem',
                 lineHeight: 1.2,
                 letterSpacing: 0.5,
               }}>
                 Ittefaq Iron
               </Typography>
-              <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)', fontWeight: 500 }}>
+              <Typography variant="caption" sx={{ color: '#888', fontWeight: 500 }}>
                 POS System
               </Typography>
             </Box>
@@ -523,7 +528,7 @@ export default function Sidebar({
             <IconButton
               onClick={() => setCollapsed(!collapsed)}
               size="small"
-              sx={{ color: 'rgba(255,255,255,0.45)', flexShrink: 0, '&:hover': { color: '#cce840' } }}
+              sx={{ color: '#aaa', flexShrink: 0, '&:hover': { color: '#333' } }}
             >
               {isCollapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
             </IconButton>
@@ -531,7 +536,7 @@ export default function Sidebar({
         )}
 
         {isMobile && (
-          <IconButton onClick={() => setSidebarOpen(false)} sx={{ color: 'rgba(255,255,255,0.5)' }}>
+          <IconButton onClick={() => setSidebarOpen(false)} sx={{ color: '#888' }}>
             <CloseIcon />
           </IconButton>
         )}
@@ -539,7 +544,7 @@ export default function Sidebar({
 
       {/* Search */}
       {!isCollapsed && (
-        <Box sx={{ px: 1.5, py: 1.2, borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+        <Box sx={{ px: 1.5, py: 1.2, borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
           <Box sx={{
             display: 'flex',
             alignItems: 'center',
@@ -547,21 +552,21 @@ export default function Sidebar({
             px: 1.5,
             py: 0.7,
             borderRadius: '20px',
-            border: '1px solid rgba(255,255,255,0.1)',
-            bgcolor: 'rgba(255,255,255,0.05)',
-            '&:focus-within': { borderColor: '#cce840', bgcolor: 'rgba(204,232,64,0.06)' },
+            border: '1px solid rgba(0,0,0,0.12)',
+            bgcolor: '#f5f5f5',
+            '&:focus-within': { borderColor: '#36c46c', bgcolor: '#f0fff4' },
           }}>
-            <SearchIcon sx={{ color: 'rgba(255,255,255,0.35)', fontSize: 17 }} />
+            <SearchIcon sx={{ color: '#aaa', fontSize: 17 }} />
             <InputBase
               placeholder="Search menu..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               fullWidth
-              sx={{ fontSize: 12.5, color: 'rgba(255,255,255,0.75)' }}
+              sx={{ fontSize: 12.5, color: '#333' }}
               inputProps={{ 'aria-label': 'search sidebar menu' }}
             />
             {searchQuery && (
-              <IconButton size="small" onClick={() => setSearchQuery('')} sx={{ p: 0.25, color: 'rgba(255,255,255,0.35)' }}>
+              <IconButton size="small" onClick={() => setSearchQuery('')} sx={{ p: 0.25, color: '#aaa' }}>
                 <CloseIcon sx={{ fontSize: 15 }} />
               </IconButton>
             )}
@@ -576,23 +581,23 @@ export default function Sidebar({
           {mainItems.length > 0 && (
             <Box sx={{ mb: 0.5 }}>
               {!isCollapsed && (
-                <Box sx={{ px: 1.5, mb: 0.5 }}>
+                <Box sx={{ px: 1.5, mb: 0.3, mt: 0.5 }}>
                   <Box sx={{
                     width: '100%',
-                    bgcolor: '#0f2744',
+                    bgcolor: '#111',
                     borderRadius: '22px',
                     display: 'flex',
                     alignItems: 'center',
                     px: 2,
                     py: 0.9,
-                    border: '1px solid rgba(204,232,64,0.2)',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
                   }}>
                     <Typography sx={{
                       color: '#cce840',
-                      fontWeight: 700,
-                      letterSpacing: 0.8,
+                      fontWeight: 800,
+                      letterSpacing: 0.6,
                       textTransform: 'uppercase',
-                      fontSize: '0.68rem',
+                      fontSize: '0.72rem',
                       userSelect: 'none',
                     }}>
                       Overview
@@ -603,9 +608,9 @@ export default function Sidebar({
               {mainItems.map((item) => {
                 if (isCollapsed) return renderCollapsedIcon(item);
                 const globalIdx = visibleMenuItems.findIndex(i => i === item);
-                return renderPillItem(item, globalIdx);
+                return renderPillItem(item, globalIdx, true);
               })}
-              {isCollapsed && <Divider sx={{ my: 0.5, borderColor: 'rgba(255,255,255,0.07)' }} />}
+              {isCollapsed && <Divider sx={{ my: 0.5, borderColor: 'rgba(0,0,0,0.08)' }} />}
             </Box>
           )}
 
@@ -622,23 +627,23 @@ export default function Sidebar({
           {systemItems.length > 0 && (
             <Box sx={{ mb: 1 }}>
               {!isCollapsed && (
-                <Box sx={{ px: 1.5, mb: 0.5, mt: 1 }}>
+                <Box sx={{ px: 1.5, mb: 0.3, mt: 1 }}>
                   <Box sx={{
                     width: '100%',
-                    bgcolor: '#1a1a2e',
+                    bgcolor: '#555',
                     borderRadius: '22px',
                     display: 'flex',
                     alignItems: 'center',
                     px: 2,
                     py: 0.9,
-                    border: '1px solid rgba(255,255,255,0.1)',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
                   }}>
                     <Typography sx={{
-                      color: 'rgba(255,255,255,0.85)',
-                      fontWeight: 700,
-                      letterSpacing: 0.8,
+                      color: '#fff',
+                      fontWeight: 800,
+                      letterSpacing: 0.6,
                       textTransform: 'uppercase',
-                      fontSize: '0.68rem',
+                      fontSize: '0.72rem',
                       userSelect: 'none',
                     }}>
                       System
@@ -656,7 +661,7 @@ export default function Sidebar({
 
           {isSearching && filteredItems.length === 0 && (
             <Box sx={{ px: 2, py: 4, textAlign: 'center' }}>
-              <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.35)' }}>
+              <Typography variant="body2" sx={{ color: '#aaa' }}>
                 No results for "{searchQuery}"
               </Typography>
             </Box>
@@ -665,10 +670,10 @@ export default function Sidebar({
       </Box>
 
       {/* User Profile */}
-      <Box sx={{ p: isCollapsed ? 0.5 : 1.5, borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+      <Box sx={{ p: isCollapsed ? 0.5 : 1.5, borderTop: '1px solid rgba(0,0,0,0.08)' }}>
         {isCollapsed ? (
           <Tooltip title={`${user?.email} — Logout`} placement="right" arrow>
-            <IconButton onClick={handleLogout} sx={{ width: '100%', borderRadius: 2, py: 1, color: 'rgba(255,255,255,0.5)' }}>
+            <IconButton onClick={handleLogout} sx={{ width: '100%', borderRadius: 2, py: 1, color: '#888' }}>
               <LogoutIcon />
             </IconButton>
           </Tooltip>
@@ -676,8 +681,8 @@ export default function Sidebar({
           <Box sx={{
             p: 1.5,
             borderRadius: '16px',
-            border: '1px solid rgba(255,255,255,0.08)',
-            bgcolor: 'rgba(255,255,255,0.04)',
+            border: '1px solid rgba(0,0,0,0.08)',
+            bgcolor: '#f8f8f8',
             display: 'flex',
             alignItems: 'center',
           }}>
@@ -692,15 +697,15 @@ export default function Sidebar({
               {user?.email?.charAt(0).toUpperCase()}
             </Avatar>
             <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography variant="body2" sx={{ fontWeight: 600, color: 'rgba(255,255,255,0.8)', fontSize: '0.75rem' }} noWrap>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: '#222', fontSize: '0.75rem' }} noWrap>
                 {user?.email}
               </Typography>
-              <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', fontSize: '0.6rem' }}>
+              <Typography variant="caption" sx={{ color: '#888', textTransform: 'uppercase', fontSize: '0.6rem' }}>
                 {user?.role?.displayName || user?.role?.name || user?.role}
               </Typography>
             </Box>
             <Tooltip title="Logout">
-              <IconButton onClick={handleLogout} size="small" sx={{ color: 'rgba(255,255,255,0.35)', '&:hover': { color: '#e04858' } }}>
+              <IconButton onClick={handleLogout} size="small" sx={{ color: '#bbb', '&:hover': { color: '#e04858' } }}>
                 <LogoutIcon sx={{ fontSize: 18 }} />
               </IconButton>
             </Tooltip>
@@ -725,7 +730,7 @@ export default function Sidebar({
         '& .MuiDrawer-paper': {
           width: drawerWidth,
           boxSizing: 'border-box',
-          borderRight: '1px solid rgba(255,255,255,0.06)',
+          borderRight: '1px solid rgba(0,0,0,0.1)',
           bgcolor: SIDEBAR_BG,
           overflowX: 'hidden',
           transition: theme.transitions.create('width', {

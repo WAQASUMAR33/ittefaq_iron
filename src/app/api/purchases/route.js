@@ -920,6 +920,9 @@ export async function PUT(request) {
       incity_charges_total = 0,
       discount = 0,
       payment,
+      cash_payment = 0,
+      bank_payment = 0,
+      bank_account_id = null,
       payment_type,
       vehicle_no,
       invoice_number,
@@ -927,11 +930,19 @@ export async function PUT(request) {
       purchase_details = []
     } = body;
 
+    const bankAccountIdInt = bank_account_id ? parseInt(bank_account_id) : null;
+    const cashPaymentAmt = parseFloat(cash_payment || 0);
+    const bankPaymentAmt = parseFloat(bank_payment || 0);
+
+    // Normalize SPLIT → BANK_TRANSFER (SPLIT is not in DB enum)
+    let normalizedPaymentType = payment_type;
+    if (normalizedPaymentType === 'SPLIT') normalizedPaymentType = 'BANK_TRANSFER';
+
     if (!id) return errorResponse('Purchase ID is required');
     if (!cus_id) return errorResponse('Customer ID is required');
     if (!total_amount || total_amount <= 0) return errorResponse('Total amount is required and must be greater than 0');
-    if (!payment || payment < 0) return errorResponse('Payment amount is required and must be non-negative');
-    if (!payment_type || !['CASH', 'CHEQUE', 'BANK_TRANSFER'].includes(payment_type)) {
+    if (payment === undefined || payment === null || parseFloat(payment) < 0) return errorResponse('Payment amount must be non-negative');
+    if (!normalizedPaymentType || !['CASH', 'CHEQUE', 'BANK_TRANSFER'].includes(normalizedPaymentType)) {
       return errorResponse('Valid payment type is required (CASH, CHEQUE, BANK_TRANSFER)');
     }
 
@@ -969,15 +980,42 @@ export async function PUT(request) {
 
     // Update purchase with details and ledger entries in a transaction
     const result = await prisma.$transaction(async (tx) => {
-      // Get customer's current balance
-      const customerData = await tx.customer.findUnique({
-        where: { cus_id },
-        select: { cus_balance: true }
+      // ── Step 1: Capture the balance that was in effect BEFORE this purchase ──
+      // This is the opening_balance of the first ledger entry ever written for this bill.
+      // We use it as the starting point for the regenerated ledger chain so that
+      // editing an amount doesn't compound on top of an already-applied stale balance.
+      let balanceBeforePurchase = 0;
+      const firstSupplierEntry = await tx.ledger.findFirst({
+        where: { bill_no: String(id), cus_id: parseInt(cus_id) },
+        orderBy: { l_id: 'asc' },
+        select: { opening_balance: true }
       });
+      if (firstSupplierEntry) {
+        balanceBeforePurchase = parseFloat(firstSupplierEntry.opening_balance || 0);
+      } else {
+        // No prior ledger entry exists — fall back to current balance minus old entries' net effect
+        const customerData = await tx.customer.findUnique({ where: { cus_id: parseInt(cus_id) }, select: { cus_balance: true } });
+        balanceBeforePurchase = parseFloat(customerData?.cus_balance || 0);
+      }
 
-      const currentBalance = parseFloat(customerData?.cus_balance || 0);
+      // ── Step 2: Read old purchase details so we can reverse their stock ──
+      const oldDetails = await tx.purchaseDetail.findMany({ where: { pur_id: id } });
 
-      // Update the purchase
+      // ── Step 3: Delete old ledger entries for this bill ──
+      await tx.ledger.deleteMany({ where: { bill_no: String(id) } });
+
+      // ── Step 4: Reverse stock for old quantities ──
+      for (const old of oldDetails) {
+        const oldStoreId = old.store_id || store_id;
+        if (oldStoreId && old.pro_id && old.qnty) {
+          await updateStoreStock(oldStoreId, old.pro_id, old.qnty, 'decrement', updated_by, tx);
+        }
+      }
+
+      // ── Step 5: Delete old purchase details ──
+      await tx.purchaseDetail.deleteMany({ where: { pur_id: id } });
+
+      // ── Step 6: Update the purchase record ──
       const updatedPurchase = await tx.purchase.update({
         where: { pur_id: id },
         data: {
@@ -993,7 +1031,6 @@ export async function PUT(request) {
           out_labour_amount: parseFloat(out_labour_amount),
           out_delivery_amount: parseFloat(out_delivery_amount),
           include_cargo_in_costprice: include_cargo_in_costprice ? true : false,
-          // Incity fields
           incity_own_labour: parseFloat(incity_own_labour),
           incity_own_delivery: parseFloat(incity_own_delivery),
           incity_charges_total: parseFloat(incity_charges_total),
@@ -1002,21 +1039,13 @@ export async function PUT(request) {
           cargo_account_ids: cargo_account_ids ? (Array.isArray(cargo_account_ids) ? JSON.stringify(cargo_account_ids) : String(cargo_account_ids)) : null,
           net_total: parseFloat(net_total),
           payment: parseFloat(payment),
-          payment_type,
+          cash_payment: cashPaymentAmt,
+          bank_payment: bankPaymentAmt,
+          payment_type: normalizedPaymentType,
           vehicle_no: vehicle_no || null,
           invoice_number: invoice_number || null,
           updated_by: updated_by || existingPurchase.updated_by
         }
-      });
-
-      // Delete existing purchase details
-      await tx.purchaseDetail.deleteMany({
-        where: { pur_id: id }
-      });
-
-      // Delete existing ledger entries for this purchase
-      await tx.ledger.deleteMany({
-        where: { bill_no: id ? String(id) : null }
       });
 
       // Create new purchase details if provided
@@ -1047,9 +1076,11 @@ export async function PUT(request) {
         await Promise.all(storeStockUpdatePromises);
       }
 
-      // Create comprehensive ledger entries (similar to POST method)
+      // Create comprehensive ledger entries
       const ledgerEntries = [];
-      let runningSupplierBalance = 0;
+      // Use the balance captured BEFORE the original purchase so the regenerated
+      // ledger chain starts from the correct pre-purchase position.
+      let runningSupplierBalance = balanceBeforePurchase;
 
       // Calculate supplier amount — EXCLUDE OUT charges (Out labour/Out delivery are not billed to supplier)
       const supplierAmount = safeParseFloat(total_amount) - safeParseFloat(discount) + safeParseFloat(labour_amount) + safeParseFloat(transport_amount);
@@ -1058,9 +1089,8 @@ export async function PUT(request) {
       if (cus_id) {
         const supplierData = await tx.customer.findUnique({
           where: { cus_id: cus_id },
-          select: { cus_balance: true, cus_name: true }
+          select: { cus_name: true }
         });
-        runningSupplierBalance = parseFloat(supplierData?.cus_balance || 0);
 
         const supplierEntry = createLedgerEntry({
           cus_id: cus_id,
@@ -1078,7 +1108,7 @@ export async function PUT(request) {
         runningSupplierBalance = supplierEntry.closing_balance;
       }
 
-      // 2. Payment Entry - only if payment > 0
+      // 2. Payment Entry on supplier account - only if payment > 0
       const paymentAmount = safeParseFloat(payment);
       if (paymentAmount > 0 && cus_id) {
         const supplierData = await tx.customer.findUnique({
@@ -1092,11 +1122,11 @@ export async function PUT(request) {
           debit_amount: paymentAmount,
           credit_amount: 0,
           bill_no: id.toString(),
-          trnx_type: payment_type || 'CASH',
+          trnx_type: normalizedPaymentType || 'CASH',
           details: `Payment to ${supplierData?.cus_name || 'Supplier'} - Purchase Update${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
           payments: paymentAmount,
-          cash_payment: payment_type === 'CASH' ? paymentAmount : 0,
-          bank_payment: payment_type === 'BANK_TRANSFER' ? paymentAmount : 0,
+          cash_payment: cashPaymentAmt,
+          bank_payment: bankPaymentAmt,
           updated_by: updated_by ? parseInt(updated_by) : null
         });
 
@@ -1104,26 +1134,25 @@ export async function PUT(request) {
         runningSupplierBalance = paymentEntry.closing_balance;
       }
 
-      // 3. Cash Account Entry (if payment_type is CASH)
-      if (payment_type === 'CASH' && paymentAmount > 0 && credit_account_id) {
+      // 3. Cash Account Entry (if cash was paid)
+      if (cashPaymentAmt > 0 && credit_account_id) {
         const cashAccountData = await tx.customer.findUnique({
           where: { cus_id: credit_account_id },
           select: { cus_balance: true, cus_name: true }
         });
         const cashCurrentBalance = parseFloat(cashAccountData?.cus_balance || 0);
-
-        const supplierForPaymentUpdateCash = await tx.customer.findUnique({ where: { cus_id }, select: { cus_name: true } });
+        const supplierName = (await tx.customer.findUnique({ where: { cus_id }, select: { cus_name: true } }))?.cus_name || 'Supplier';
 
         const cashEntry = createLedgerEntry({
           cus_id: credit_account_id,
           opening_balance: cashCurrentBalance,
           debit_amount: 0,
-          credit_amount: paymentAmount,
+          credit_amount: cashPaymentAmt,
           bill_no: id.toString(),
           trnx_type: 'CASH',
-          details: `Cash Payment for Purchase Update to ${supplierForPaymentUpdateCash?.cus_name || 'Supplier'}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
-          payments: paymentAmount,
-          cash_payment: paymentAmount,
+          details: `Cash Payment for Purchase Update to ${supplierName}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
+          payments: cashPaymentAmt,
+          cash_payment: cashPaymentAmt,
           bank_payment: 0,
           updated_by: updated_by ? parseInt(updated_by) : null
         });
@@ -1131,27 +1160,27 @@ export async function PUT(request) {
         ledgerEntries.push(cashEntry);
       }
 
-      // 4. Bank Account Entry (if payment_type is BANK_TRANSFER)
-      if (payment_type === 'BANK_TRANSFER' && paymentAmount > 0 && credit_account_id) {
+      // 4. Bank Account Entry (if bank was paid)
+      const bankAccIdForEntry = bankAccountIdInt || (normalizedPaymentType === 'BANK_TRANSFER' ? (credit_account_id || null) : null);
+      if (bankPaymentAmt > 0 && bankAccIdForEntry) {
         const bankAccountData = await tx.customer.findUnique({
-          where: { cus_id: credit_account_id },
+          where: { cus_id: bankAccIdForEntry },
           select: { cus_balance: true, cus_name: true }
         });
         const bankCurrentBalance = parseFloat(bankAccountData?.cus_balance || 0);
-
-        const supplierForPaymentUpdateBank = await tx.customer.findUnique({ where: { cus_id }, select: { cus_name: true } });
+        const supplierName = (await tx.customer.findUnique({ where: { cus_id }, select: { cus_name: true } }))?.cus_name || 'Supplier';
 
         const bankEntry = createLedgerEntry({
-          cus_id: credit_account_id,
+          cus_id: bankAccIdForEntry,
           opening_balance: bankCurrentBalance,
           debit_amount: 0,
-          credit_amount: paymentAmount,
+          credit_amount: bankPaymentAmt,
           bill_no: id.toString(),
           trnx_type: 'BANK_TRANSFER',
-          details: `Bank Payment for Purchase Update to ${supplierForPaymentUpdateBank?.cus_name || 'Supplier'}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
-          payments: paymentAmount,
+          details: `Bank Payment for Purchase Update to ${supplierName}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
+          payments: bankPaymentAmt,
           cash_payment: 0,
-          bank_payment: paymentAmount,
+          bank_payment: bankPaymentAmt,
           updated_by: updated_by ? parseInt(updated_by) : null
         });
 
@@ -1524,12 +1553,15 @@ export async function PUT(request) {
         }
       }
 
-      // Update cash/bank account balances (use the latest ledger entry for the account)
-      if (credit_account_id) {
-        const acctEntries = ledgerEntries.filter(e => e.cus_id === credit_account_id);
+      // Update cash/bank account balances (use the latest ledger entry for each account)
+      const paymentAccountIds = new Set();
+      if (credit_account_id) paymentAccountIds.add(parseInt(credit_account_id));
+      if (bankAccIdForEntry) paymentAccountIds.add(parseInt(bankAccIdForEntry));
+      for (const accId of paymentAccountIds) {
+        const acctEntries = ledgerEntries.filter(e => e.cus_id === accId);
         if (acctEntries.length > 0) {
           const lastAcctEntry = acctEntries[acctEntries.length - 1];
-          await tx.customer.update({ where: { cus_id: credit_account_id }, data: { cus_balance: lastAcctEntry.closing_balance } });
+          await tx.customer.update({ where: { cus_id: accId }, data: { cus_balance: lastAcctEntry.closing_balance } });
         }
       }
 
