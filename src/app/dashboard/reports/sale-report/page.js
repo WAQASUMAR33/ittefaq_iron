@@ -29,6 +29,7 @@ export default function SaleReport() {
   const [selectedBillType, setSelectedBillType] = useState('');
   const [minAmount, setMinAmount] = useState('');
   const [maxAmount, setMaxAmount] = useState('');
+  const [itemSearch, setItemSearch] = useState('');
 
   // Sale details modal state
   const [showDetailsModal, setShowDetailsModal] = useState(false);
@@ -137,6 +138,14 @@ export default function SaleReport() {
             const amount = parseFloat(s.total_amount || 0);
             return amount >= min && amount <= max;
           });
+        }
+        if (itemSearch) {
+          const q = itemSearch.toLowerCase();
+          filteredData.sales = filteredData.sales.filter(s =>
+            s.sale_details && s.sale_details.some(d =>
+              (d.product?.pro_title || d.product_name || '').toLowerCase().includes(q)
+            )
+          );
         }
         filteredData.summary = {
           totalSales: filteredData.sales.length,
@@ -449,6 +458,11 @@ export default function SaleReport() {
               <input type="number" value={maxAmount} onChange={(e) => setMaxAmount(e.target.value)} placeholder="∞"
                 className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
             </div>
+            <div className="flex-1 min-w-[160px] max-w-[220px]">
+              <label className="block text-xs font-semibold text-slate-600 mb-1">SEARCH BY ITEM</label>
+              <input type="text" value={itemSearch} onChange={(e) => setItemSearch(e.target.value)} placeholder="Product name..."
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+            </div>
             <div className="flex-1"></div>
           </div>
         </div>
@@ -620,6 +634,8 @@ export default function SaleReport() {
                         </button>
                       </th>
 
+                      <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Items &amp; Qty</th>
+
                       <th className="px-3 py-3 text-center text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Type</th>
 
                       <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">
@@ -668,6 +684,21 @@ export default function SaleReport() {
                           <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200 print:border-black whitespace-nowrap">{formatDate(sale.created_at)}</td>
                           <td className="px-3 py-2.5 text-slate-600 border-r border-slate-200 print:border-black font-mono text-xs">INV-{sale.sale_id}</td>
                           <td className="px-3 py-2.5 text-slate-900 font-medium border-r border-slate-200 print:border-black">{sale.customer?.cus_name || '-'}</td>
+                          <td className="px-3 py-2.5 border-r border-slate-200 print:border-black">
+                            {(sale.sale_details || []).length === 0 ? (
+                              <span className="text-slate-400 text-xs">—</span>
+                            ) : (
+                              <div className="flex flex-col gap-0.5">
+                                {sale.sale_details.map((d, i) => (
+                                  <div key={i} className="flex items-center gap-1 text-xs">
+                                    <span className="text-slate-700 font-medium truncate max-w-[140px]">{d.product?.pro_title || d.product_name || `Item ${i+1}`}</span>
+                                    <span className="text-slate-400">×</span>
+                                    <span className="text-slate-600 font-semibold tabular-nums whitespace-nowrap">{parseFloat(d.qnty || 0)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </td>
                           <td className="px-3 py-2.5 text-center border-r border-slate-200 print:border-black">
                             <button onClick={(e) => { e.stopPropagation(); setSelectedSale(sale); setShowDetailsModal(true); }} className={`px-2 py-0.5 rounded text-xs font-medium ${sale.bill_type === 'Cash' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'} print:bg-transparent print:text-black`}>
                               {sale.bill_type}
@@ -682,12 +713,12 @@ export default function SaleReport() {
                       );
                     })}
                     {reportData.sales.length === 0 && (
-                      <tr><td colSpan="10" className="px-6 py-12 text-center text-slate-500">No sales transactions found for the selected period</td></tr>
+                      <tr><td colSpan="11" className="px-6 py-12 text-center text-slate-500">No sales transactions found for the selected period</td></tr>
                     )}
                   </tbody>
                   <tfoot>
                     <tr className="bg-slate-800 text-white font-bold print:bg-gray-200 print:text-black">
-                      <td colSpan="5" className="px-3 py-3 text-right uppercase text-xs tracking-wider border-r border-slate-600 print:border-black">Grand Total</td>
+                      <td colSpan="6" className="px-3 py-3 text-right uppercase text-xs tracking-wider border-r border-slate-600 print:border-black">Grand Total</td>
                       <td className="px-3 py-3 text-right border-r border-slate-600 print:border-black tabular-nums">{formatCurrency(reportData.summary.totalAmount)}</td>
                       <td className="px-3 py-3 text-right border-r border-slate-600 print:border-black tabular-nums">{formatCurrency(reportData.summary.totalDiscount)}</td>
                       <td className="px-3 py-3 text-right border-r border-slate-600 print:border-black tabular-nums">{formatCurrency(reportData.summary.netTotal)}</td>

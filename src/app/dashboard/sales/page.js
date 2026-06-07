@@ -101,6 +101,7 @@ function SalesPageContent() {
   const [filterBalanceStatus, setFilterBalanceStatus] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [filterItem, setFilterItem] = useState('');
 
   // Bill view state
   const [viewBillDialog, setViewBillDialog] = useState(false);
@@ -3194,7 +3195,15 @@ function SalesPageContent() {
         sale.customer?.cus_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         sale.reference?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         sale.bill_number?.toString().includes(searchTerm) ||
-        getBillDisplayNo(sale).toLowerCase().includes(searchTerm.toLowerCase());
+        getBillDisplayNo(sale).toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (sale.sale_details && sale.sale_details.some(d =>
+          (d.product?.pro_title || d.product_name || '').toLowerCase().includes(searchTerm.toLowerCase())
+        ));
+
+      const matchesItem = filterItem === '' ||
+        (sale.sale_details && sale.sale_details.some(d =>
+          (d.product?.pro_title || d.product_name || '').toLowerCase().includes(filterItem.toLowerCase())
+        ));
 
       const matchesCustomer = filterCustomer === '' ||
         sale.customer?.cus_id?.toString() === filterCustomer;
@@ -3235,7 +3244,7 @@ function SalesPageContent() {
 
       const result = matchesSearch && matchesCustomer && matchesBillType && matchesStore &&
         matchesPaymentType && matchesMinAmount && matchesMaxAmount &&
-        matchesBalanceStatus && matchesDateFrom && matchesDateTo;
+        matchesBalanceStatus && matchesDateFrom && matchesDateTo && matchesItem;
 
       if (!result) {
         console.log('🔍 Sale', sale.sale_id, 'filtered out:', {
@@ -3262,7 +3271,7 @@ function SalesPageContent() {
       console.log('🔍 First filtered sale:', filtered[0]);
     }
     return filtered;
-  }, [sales, searchTerm, filterCustomer, filterBillType, filterStore, filterPaymentType, filterMinAmount, filterMaxAmount, filterBalanceStatus, dateFrom, dateTo]);
+  }, [sales, searchTerm, filterItem, filterCustomer, filterBillType, filterStore, filterPaymentType, filterMinAmount, filterMaxAmount, filterBalanceStatus, dateFrom, dateTo]);
 
   console.log('🔍 Filtered sales count:', filteredSales.length);
   console.log('🔍 Sales state:', sales);
@@ -3450,6 +3459,7 @@ function SalesPageContent() {
 
   const clearFilters = () => {
     setSearchTerm('');
+    setFilterItem('');
     setSelectedCustomer(null);
     setSortBy('created_at');
     setSortOrder('desc');
@@ -6868,6 +6878,26 @@ function SalesPageContent() {
                     </FormControl>
                   </Box>
 
+                  {/* Item Filter */}
+                  <Box>
+                    <TextField
+                      fullWidth
+                      label="Search by Item"
+                      placeholder="Product name..."
+                      value={filterItem}
+                      onChange={(e) => setFilterItem(e.target.value)}
+                      onFocus={(e) => e.target.select()}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <SearchIcon size={18} sx={{ color: '#94a3b8' }} />
+                          </InputAdornment>
+                        ),
+                      }}
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
+                    />
+                  </Box>
+
                   {/* Sort */}
                   <Autocomplete
                     fullWidth
@@ -6924,6 +6954,7 @@ function SalesPageContent() {
                   <TableRow>
                     <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Sale ID</TableCell>
                     <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Customer</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Items &amp; Qty</TableCell>
                     <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Reference</TableCell>
                     <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Total Amount</TableCell>
                     <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Discount</TableCell>
@@ -6938,7 +6969,7 @@ function SalesPageContent() {
                 <TableBody>
                   {filteredSales.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={11} align="center">
+                      <TableCell colSpan={12} align="center">
                         <Box sx={{ py: 8, textAlign: 'center' }}>
                           <ShoppingCartIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
                           <Typography variant="h6" color="text.secondary" gutterBottom>
@@ -6978,6 +7009,25 @@ function SalesPageContent() {
                         >
                           <TableCell sx={{ fontWeight: 'medium' }}>{getBillDisplayNo(sale)}</TableCell>
                           <TableCell>{sale.customer?.cus_name || 'N/A'}</TableCell>
+                          <TableCell sx={{ minWidth: 160, maxWidth: 220 }}>
+                            {(sale.sale_details || []).length === 0 ? (
+                              <Typography sx={{ color: 'text.disabled', fontSize: '0.8rem' }}>—</Typography>
+                            ) : (
+                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                                {sale.sale_details.map((d, i) => (
+                                  <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    <Typography sx={{ fontSize: '0.78rem', color: '#334155', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 150 }}>
+                                      {d.product?.pro_title || d.product_name || `Item ${i+1}`}
+                                    </Typography>
+                                    <Typography sx={{ fontSize: '0.78rem', color: '#64748b' }}>×</Typography>
+                                    <Typography sx={{ fontSize: '0.78rem', color: '#1e293b', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                                      {parseFloat(d.qnty || 0)}
+                                    </Typography>
+                                  </Box>
+                                ))}
+                              </Box>
+                            )}
+                          </TableCell>
                           <TableCell sx={{ color: 'text.secondary', fontSize: '0.85rem' }}>{sale.reference || '—'}</TableCell>
                           <TableCell sx={{ fontWeight: 'bold' }}>{parseFloat(sale.total_amount).toFixed(2)}</TableCell>
                           <TableCell>{parseFloat(sale.discount || 0).toFixed(2)}</TableCell>
