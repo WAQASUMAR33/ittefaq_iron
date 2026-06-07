@@ -1630,15 +1630,18 @@ export async function PUT(request) {
     const {
       id,
       cus_id,
-      store_id, // Added store_id for multi-store functionality
+      store_id,
       total_amount,
       discount,
       payment,
       payment_type,
+      cash_payment = 0,
+      bank_payment = 0,
       debit_account_id,
       credit_account_id,
       loader_id,
       shipping_amount,
+      labour_charges = 0,
       bill_type,
       reference,
       sale_details,
@@ -1685,12 +1688,38 @@ export async function PUT(request) {
         throw new Error('Customer not found');
       }
 
+      // ── Validate updated_by BEFORE it is used anywhere below ──
+      let validatedUpdatedBy = null;
+      if (updated_by) {
+        try {
+          const userId = parseInt(updated_by);
+          if (!isNaN(userId)) {
+            const userExists = await tx.users.findUnique({ where: { user_id: userId } });
+            if (userExists) validatedUpdatedBy = userId;
+          }
+        } catch (e) { /* leave null */ }
+      }
+
+      // ── Capture the balance that was in effect BEFORE this sale ──
+      // Use the opening_balance of the first ledger entry for this bill so that
+      // changing the amount doesn't compound on top of the already-applied balance.
+      const isSkipLedger = bill_type === 'QUOTATION' || bill_type === 'ORDER' || bill_type === 'ORDER_TRASH';
+      let balanceBeforeSale = parseFloat(customer.cus_balance || 0);
+      if (!isSkipLedger) {
+        const firstEntry = await tx.ledger.findFirst({
+          where: { bill_no: String(id), cus_id },
+          orderBy: { l_id: 'asc' },
+          select: { opening_balance: true }
+        });
+        if (firstEntry) balanceBeforeSale = parseFloat(firstEntry.opening_balance || 0);
+      }
+
       // Delete existing sale details
       await tx.saleDetail.deleteMany({
         where: { sale_id: id }
       });
 
-      // Delete existing ledger entries for this sale (cleanup if previously generated)
+      // Delete existing ledger entries for this sale
       await tx.ledger.deleteMany({
         where: { bill_no: id ? String(id) : null }
       });
@@ -1714,15 +1743,18 @@ export async function PUT(request) {
         where: { sale_id: id },
         data: {
           cus_id,
-          store_id: store_id ? parseInt(store_id) : existingSale.store_id, // Update store_id if provided
+          store_id: store_id ? parseInt(store_id) : existingSale.store_id,
           total_amount: Number(parseFloat(total_amount).toFixed(2)),
           discount: Number(parseFloat(discount || 0).toFixed(2)),
           payment: Number(parseFloat(payment).toFixed(2)),
+          cash_payment: Number(parseFloat(cash_payment || 0).toFixed(2)),
+          bank_payment: Number(parseFloat(bank_payment || 0).toFixed(2)),
           payment_type,
           debit_account_id: debit_account_id || null,
           credit_account_id: credit_account_id || null,
           loader_id: loader_id || null,
           shipping_amount: Number(parseFloat(shipping_amount || 0).toFixed(2)),
+          labour_charges: Number(parseFloat(labour_charges || 0).toFixed(2)),
           bill_type: bill_type || 'BILL',
           reference: reference || null,
           updated_by: validatedUpdatedBy
@@ -1756,27 +1788,6 @@ export async function PUT(request) {
       await tx.splitPayment.deleteMany({
         where: { sale_id: id }
       });
-
-      // Validate updated_by user exists (if provided)
-      let validatedUpdatedBy = null;
-      if (updated_by) {
-        try {
-          const userId = parseInt(updated_by);
-          if (!isNaN(userId)) {
-            const userExists = await tx.users.findUnique({
-              where: { user_id: userId }
-            });
-            if (userExists) {
-              validatedUpdatedBy = userId;
-            } else {
-              console.warn(`⚠️ User ID ${userId} not found in database, setting updated_by to null`);
-            }
-          }
-        } catch (e) {
-          // User validation failed, set to null
-          console.warn(`⚠️ User ID validation failed for ${updated_by}, setting updated_by to null`, e);
-        }
-      }
 
       // Create new split payments if provided
       if (split_payments && split_payments.length > 0) {
@@ -1825,14 +1836,15 @@ export async function PUT(request) {
       // Calculate net amount owed by customer (total - payment received)
       const customerNetAmount = netTotal - parseFloat(payment);
 
-      // 1. Customer Bill Entry - Debit Customer Account (skip for quotations)
-      if (!isNewBillQuotationOrOrder) {
+      // 1. Customer Bill Entry — use balanceBeforeSale so the regenerated chain
+      //    starts from the correct pre-sale position, not the stale current balance.
+      if (!isSkipLedger) {
         ledgerEntries.push({
           cus_id,
-          opening_balance: customer.cus_balance,
+          opening_balance: balanceBeforeSale,
           debit_amount: netTotal,
           credit_amount: 0,
-          closing_balance: customer.cus_balance + netTotal,
+          closing_balance: balanceBeforeSale + netTotal,
           bill_no: sale.sale_id.toString(),
           trnx_type: 'CASH',
           details: `Sale Bill - ${bill_type || 'BILL'} - Customer Account (Debit)`,
@@ -1841,18 +1853,20 @@ export async function PUT(request) {
         });
       }
 
-      // 2. Customer Payment Entry - Credit Customer Account (skip for quotations)
-      if (!isNewBillQuotationOrOrder && parseFloat(payment) > 0) {
+      // 2. Customer Payment Entry - Credit Customer Account
+      if (!isSkipLedger && parseFloat(payment) > 0) {
         ledgerEntries.push({
           cus_id,
-          opening_balance: customer.cus_balance + netTotal,
+          opening_balance: balanceBeforeSale + netTotal,
           debit_amount: 0,
           credit_amount: parseFloat(payment),
-          closing_balance: customer.cus_balance + netTotal - parseFloat(payment),
+          closing_balance: balanceBeforeSale + netTotal - parseFloat(payment),
           bill_no: sale.sale_id.toString(),
           trnx_type: payment_type || 'CASH',
           details: `Payment Received - ${bill_type || 'BILL'} - Customer Account (Credit)`,
           payments: parseFloat(payment),
+          cash_payment: parseFloat(cash_payment || 0),
+          bank_payment: parseFloat(bank_payment || 0),
           updated_by: validatedUpdatedBy
         });
 
@@ -1875,7 +1889,7 @@ export async function PUT(request) {
       }
 
       // 4. Transporter Entry (if loader_id is provided)
-      if (!isQuotation && loader_id) {
+      if (!isSkipLedger && loader_id) {
         const loader = await tx.loader.findUnique({
           where: { loader_id }
         });
@@ -1914,7 +1928,7 @@ export async function PUT(request) {
       }
 
       // 5. Split Payment Entries (if any)
-      if (!isQuotation && split_payments && split_payments.length > 0) {
+      if (!isSkipLedger && split_payments && split_payments.length > 0) {
         for (const splitPayment of split_payments) {
           const splitAmount = parseFloat(splitPayment.amount);
 
@@ -1968,8 +1982,8 @@ export async function PUT(request) {
         }
       }
 
-      // Create all ledger entries and update balances (skip for quotations)
-      if (!isQuotation) {
+      // Create all ledger entries and update balances (skip for quotations/orders)
+      if (!isSkipLedger) {
         for (const entry of ledgerEntries) {
           await tx.ledger.create({
             data: {
@@ -1989,9 +2003,8 @@ export async function PUT(request) {
           });
         }
 
-        // Update customer balance (skip for quotations)
-        const currentBalance = parseFloat(customer.cus_balance) || 0;
-        const newBalance = currentBalance + parseFloat(netTotal) - parseFloat(payment);
+        // Update customer balance using the pre-sale balance as the baseline
+        const newBalance = balanceBeforeSale + parseFloat(netTotal) - parseFloat(payment);
 
         await tx.customer.update({
           where: { cus_id },
@@ -2002,7 +2015,7 @@ export async function PUT(request) {
       }
 
       // Update special account balances
-      if (!isQuotation && parseFloat(payment) > 0) {
+      if (!isSkipLedger && parseFloat(payment) > 0) {
         const paymentAccount = payment_type === 'CASH' ? specialAccounts.cash : specialAccounts.bank;
         if (paymentAccount) {
           const accountCurrentBalance = parseFloat(paymentAccount.cus_balance) || 0;
@@ -2018,7 +2031,7 @@ export async function PUT(request) {
       }
 
       // Update transporter balance
-      if (!isQuotation && loader_id && parseFloat(shipping_amount || 0) > 0) {
+      if (!isSkipLedger && loader_id && parseFloat(shipping_amount || 0) > 0) {
         await tx.loader.update({
           where: { loader_id },
           data: {
@@ -2030,7 +2043,7 @@ export async function PUT(request) {
       }
 
       // Update sundry debtors balance
-      if (!isQuotation && loader_id && specialAccounts && specialAccounts.sundryDebtors && parseFloat(shipping_amount || 0) > 0) {
+      if (!isSkipLedger && loader_id && specialAccounts && specialAccounts.sundryDebtors && parseFloat(shipping_amount || 0) > 0) {
         await tx.customer.update({
           where: { cus_id: specialAccounts.sundryDebtors.cus_id },
           data: {
@@ -2042,7 +2055,7 @@ export async function PUT(request) {
       }
 
       // Update split payment account balances
-      if (!isQuotation && split_payments && split_payments.length > 0) {
+      if (!isSkipLedger && split_payments && split_payments.length > 0) {
         for (const splitPayment of split_payments) {
           const splitAmount = parseFloat(splitPayment.amount);
 

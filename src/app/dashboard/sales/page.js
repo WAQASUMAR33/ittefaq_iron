@@ -533,6 +533,7 @@ function SalesPageContent() {
   // Clear form to new sale state
   const clearFormState = () => {
     console.log('🧹 Clearing form state');
+    setEditingSale(null);
     setFormSelectedCustomer(null);
     setFormSelectedProduct(null);
     setFormSelectedStore(null);
@@ -1445,13 +1446,13 @@ function SalesPageContent() {
       // Show loading
       setLoading(true);
 
-      // Call API
+      // Use PUT when editing an existing sale, POST for new
+      const isEditing = !!editingSale;
+      const apiBody = isEditing ? { ...saleData, id: editingSale.sale_id } : saleData;
       const response = await fetch('/api/sales', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(saleData),
+        method: isEditing ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(apiBody),
       });
 
       if (response.ok) {
@@ -1509,6 +1510,22 @@ function SalesPageContent() {
 
         // Open receipt dialog
         setReceiptDialogOpen(true);
+
+        // If we were editing, clear edit state and return to list
+        if (editingSale) {
+          setEditingSale(null);
+          setFormSelectedCustomer(null);
+          setFormSelectedProduct(null);
+          setFormSelectedStore(null);
+          setProductTableData([]);
+          setPaymentData({ cash: '', bank: '', bankAccountId: '', totalCashReceived: 0, advancePayment: 0, discount: '', labour: '', deliveryCharges: '', notes: '' });
+          setTransportOptions([]);
+          setBillType('BILL');
+          setCurrentView('list');
+          fetchData();
+          showSnackbar('Sale updated successfully! Ledger adjusted.', 'success');
+          return;
+        }
 
         // After successful sale creation, restore previous screen state if available
         if (currentScreenIndex > 0) {
@@ -3347,8 +3364,60 @@ function SalesPageContent() {
       return 0;
     });
 
-  const handleEdit = (sale) => {
-    showSnackbar('Edit functionality will be implemented soon', 'info');
+  const [editingSale, setEditingSale] = useState(null);
+
+  const handleEdit = async (sale) => {
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/sales?id=${sale.sale_id}`);
+      const fullSale = res.ok ? await res.json() : sale;
+
+      setEditingSale(fullSale);
+
+      // Customer
+      const customer = customers.find(c => c.cus_id === fullSale.cus_id);
+      setFormSelectedCustomer(customer || fullSale.customer || null);
+
+      // Store
+      const store = stores.find(s => s.storeid === fullSale.store_id);
+      setFormSelectedStore(store || (stores.length > 0 ? stores[0] : null));
+
+      // Bill type
+      setBillType(fullSale.bill_type === 'SALE_RETURN' ? 'BILL' : (fullSale.bill_type || 'BILL'));
+
+      // Product rows
+      setProductTableData((fullSale.sale_details || []).map(detail => ({
+        pro_id: detail.pro_id,
+        product_name: detail.product?.pro_title || `Product #${detail.pro_id}`,
+        quantity: parseFloat(detail.qnty),
+        rate: parseFloat(detail.unit_rate),
+        amount: parseFloat(detail.total_amount),
+        stock: 0,
+        unit: detail.unit || 'PCS',
+        crate: parseFloat(detail.unit_rate)
+      })));
+
+      // Payment data
+      const cashAmt = parseFloat(fullSale.cash_payment || 0);
+      const bankAmt = parseFloat(fullSale.bank_payment || 0);
+      setPaymentData({
+        cash: cashAmt > 0 ? cashAmt.toString() : '',
+        bank: bankAmt > 0 ? bankAmt.toString() : '',
+        bankAccountId: fullSale.debit_account_id || '',
+        totalCashReceived: parseFloat(fullSale.payment || 0),
+        advancePayment: parseFloat(fullSale.advance_payment || 0),
+        discount: fullSale.discount?.toString() || '',
+        labour: fullSale.labour_charges?.toString() || '',
+        deliveryCharges: fullSale.shipping_amount?.toString() || '',
+        notes: fullSale.reference || ''
+      });
+
+      setCurrentView('create');
+    } catch (err) {
+      showSnackbar('Failed to load sale for editing', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDelete = async (saleId) => {
@@ -3413,7 +3482,7 @@ function SalesPageContent() {
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <IconButton
-                onClick={() => setCurrentView('list')}
+                onClick={() => { setCurrentView('list'); setEditingSale(null); }}
                 color="primary"
                 sx={{
                   bgcolor: 'primary.main',
@@ -3429,11 +3498,11 @@ function SalesPageContent() {
                 <SearchIcon />
               </IconButton>
               <Box>
-                <Typography variant="h5" component="h1" sx={{ fontWeight: 'bold', color: billType === 'SALE_RETURN' ? '#d32f2f' : 'text.primary' }}>
-                  {billType === 'SALE_RETURN' ? 'Return Sale' : 'Create New Sale'}
+                <Typography variant="h5" component="h1" sx={{ fontWeight: 'bold', color: billType === 'SALE_RETURN' ? '#d32f2f' : editingSale ? '#1565c0' : 'text.primary' }}>
+                  {editingSale ? `Edit Sale #${editingSale.bill_number || editingSale.sale_id}` : billType === 'SALE_RETURN' ? 'Return Sale' : 'Create New Sale'}
                 </Typography>
                 <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                  {billType === 'SALE_RETURN' ? 'Select an invoice to return items' : 'Select products and create sale order'}
+                  {editingSale ? 'Update sale details — ledger will be adjusted automatically' : billType === 'SALE_RETURN' ? 'Select an invoice to return items' : 'Select products and create sale order'}
                 </Typography>
               </Box>
             </Box>
@@ -5043,10 +5112,10 @@ function SalesPageContent() {
                   {loading ? (
                     <>
                       <CircularProgress size={16} sx={{ mr: 1, color: 'white' }} />
-                      Saving...
+                      {editingSale ? 'Updating...' : 'Saving...'}
                     </>
                   ) : (
-                    'Save Sale'
+                    editingSale ? 'Update Sale' : 'Save Sale'
                   )}
                 </Button>
               </Box>
@@ -6937,6 +7006,14 @@ function SalesPageContent() {
                               title="View Details"
                             >
                               <VisibilityIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              color="warning"
+                              onClick={() => handleEdit(sale)}
+                              title="Edit Sale"
+                            >
+                              <EditIcon fontSize="small" />
                             </IconButton>
                             <IconButton
                               size="small"
