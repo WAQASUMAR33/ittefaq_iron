@@ -2003,29 +2003,62 @@ export async function PUT(request) {
           });
         }
 
-        // Update customer balance using the pre-sale balance as the baseline
-        const newBalance = balanceBeforeSale + parseFloat(netTotal) - parseFloat(payment);
+        // ── Recalculate the entire customer ledger chain from this bill forward ──
+        // Find the newly-created entries for this bill (ordered oldest-first).
+        const newBillEntries = await tx.ledger.findMany({
+          where: { bill_no: sale.sale_id.toString(), cus_id },
+          orderBy: { l_id: 'asc' },
+          select: { l_id: true, closing_balance: true }
+        });
+
+        let finalCustomerBalance = balanceBeforeSale + parseFloat(netTotal) - parseFloat(payment);
+
+        if (newBillEntries.length > 0) {
+          const maxNewLId = newBillEntries[newBillEntries.length - 1].l_id;
+          const lastNewClosing = parseFloat(newBillEntries[newBillEntries.length - 1].closing_balance || 0);
+
+          // Walk all subsequent entries for this customer and rechain them
+          const subsequentEntries = await tx.ledger.findMany({
+            where: { cus_id, l_id: { gt: maxNewLId } },
+            orderBy: { l_id: 'asc' },
+            select: { l_id: true, debit_amount: true, credit_amount: true }
+          });
+
+          let running = lastNewClosing;
+          for (const e of subsequentEntries) {
+            const newOpen = running;
+            const newClose = newOpen + parseFloat(e.debit_amount || 0) - parseFloat(e.credit_amount || 0);
+            await tx.ledger.update({
+              where: { l_id: e.l_id },
+              data: { opening_balance: newOpen, closing_balance: newClose }
+            });
+            running = newClose;
+          }
+
+          // The authoritative customer balance is the end of the chain
+          finalCustomerBalance = subsequentEntries.length > 0 ? running : lastNewClosing;
+        }
 
         await tx.customer.update({
           where: { cus_id },
-          data: {
-            cus_balance: newBalance
-          }
+          data: { cus_balance: finalCustomerBalance }
         });
       }
 
-      // Update special account balances
-      if (!isSkipLedger && parseFloat(payment) > 0) {
-        const paymentAccount = payment_type === 'CASH' ? specialAccounts.cash : specialAccounts.bank;
-        if (paymentAccount) {
-          const accountCurrentBalance = parseFloat(paymentAccount.cus_balance) || 0;
-          const accountNewBalance = accountCurrentBalance + parseFloat(payment);
+      // Update special account balances — restore old payment first, then apply new
+      if (!isSkipLedger) {
+        const oldPayment = parseFloat(existingSale.payment || 0);
+        const newPayment = parseFloat(payment || 0);
+        const paymentAccount = payment_type === 'CASH' ? specialAccounts?.cash : specialAccounts?.bank;
+
+        if (paymentAccount && (oldPayment !== newPayment || newPayment > 0)) {
+          // Base balance = current stored balance minus the old payment that is now being replaced
+          const restoredBase = parseFloat(paymentAccount.cus_balance || 0) - oldPayment;
+          const accountNewBalance = restoredBase + newPayment;
 
           await tx.customer.update({
             where: { cus_id: paymentAccount.cus_id },
-            data: {
-              cus_balance: accountNewBalance
-            }
+            data: { cus_balance: accountNewBalance }
           });
         }
       }
