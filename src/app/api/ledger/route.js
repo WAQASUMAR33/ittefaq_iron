@@ -102,7 +102,7 @@ export async function POST(request) {
     if (!cus_id) {
       return errorResponse('Customer ID is required');
     }
-    if (!trnx_type || !['CASH', 'CHEQUE', 'BANK_TRANSFER', 'REBATE', 'PURCHASE', 'PURCHASE_RETURN', 'SALE', 'SALE_RETURN', 'CASH_PAYMENT', 'BANK_PAYMENT'].includes(trnx_type)) {
+    if (!trnx_type || !['CASH', 'CHEQUE', 'BANK_TRANSFER', 'REBATE', 'PURCHASE', 'PURCHASE_RETURN', 'SALE', 'SALE_RETURN', 'CASH_PAYMENT', 'BANK_PAYMENT', 'ADJUSTMENT'].includes(trnx_type)) {
       return errorResponse('Valid transaction type is required');
     }
     if (debit_amount < 0 || credit_amount < 0) {
@@ -204,6 +204,11 @@ export async function POST(request) {
 // ========================================
 // PUT — Update an existing ledger entry
 // ========================================
+// Payment/Receiving entries: original entry kept intact; a new ADJUSTMENT entry
+// is created for the net amount difference and the customer balance is updated
+// by that delta only.
+// Sale / Purchase / Return entries: cannot be edited here — edit the source
+// document instead (which handles its own ledger adjustments).
 export async function PUT(request) {
   try {
     const body = await request.json();
@@ -215,96 +220,99 @@ export async function PUT(request) {
       bill_no,
       trnx_type,
       details,
-      payments = 0,
       updated_by
     } = body;
 
-    if (!id) return errorResponse('Ledger ID is required');
+    if (!id)     return errorResponse('Ledger ID is required');
     if (!cus_id) return errorResponse('Customer ID is required');
-    if (!trnx_type || !['CASH', 'CHEQUE', 'BANK_TRANSFER', 'REBATE', 'PURCHASE', 'PURCHASE_RETURN', 'SALE', 'SALE_RETURN', 'CASH_PAYMENT', 'BANK_PAYMENT'].includes(trnx_type)) {
-      return errorResponse('Valid transaction type is required');
-    }
-    if (debit_amount < 0 || credit_amount < 0) {
+    if (parseFloat(debit_amount) < 0 || parseFloat(credit_amount) < 0) {
       return errorResponse('Debit and credit amounts must be non-negative');
     }
-    if (debit_amount === 0 && credit_amount === 0) {
-      return errorResponse('Either debit or credit amount must be greater than 0');
+
+    // Fetch existing entry
+    const existingLedger = await prisma.ledger.findUnique({ where: { l_id: id } });
+    if (!existingLedger) return errorResponse('Ledger entry not found', 404);
+
+    // Only payment/receiving entries may be edited here
+    const NON_EDITABLE = ['SALE', 'SALE_RETURN', 'PURCHASE', 'PURCHASE_RETURN', 'ORDER'];
+    if (NON_EDITABLE.includes(existingLedger.trnx_type)) {
+      return errorResponse(
+        'Sale, purchase and order ledger entries cannot be edited here. Edit the source document instead.',
+        403
+      );
     }
 
-    // Check if ledger entry exists
-    const existingLedger = await prisma.ledger.findUnique({
-      where: { l_id: id }
-    });
+    // Fetch customer
+    const customer = await prisma.customer.findUnique({ where: { cus_id } });
+    if (!customer) return errorResponse('Customer not found', 404);
 
-    if (!existingLedger) {
-      return errorResponse('Ledger entry not found', 404);
-    }
-
-    // Check if customer exists
-    const customer = await prisma.customer.findUnique({
-      where: { cus_id }
-    });
-
-    if (!customer) {
-      return errorResponse('Customer not found', 404);
-    }
-
-    // Update ledger entry in a transaction
     const result = await prisma.$transaction(async (tx) => {
-      // Get customer's current balance
-      const customerData = await tx.customer.findUnique({
-        where: { cus_id },
-        select: { cus_balance: true }
-      });
+      // ── Calculate net change in customer balance ──
+      // Old effect on balance = old_debit - old_credit
+      // Desired new effect    = new_debit - new_credit
+      // Adjustment            = desired - old
+      const oldDebit  = Number(parseFloat(existingLedger.debit_amount  || 0).toFixed(2));
+      const oldCredit = Number(parseFloat(existingLedger.credit_amount || 0).toFixed(2));
+      const newDebit  = Number(parseFloat(debit_amount  || 0).toFixed(2));
+      const newCredit = Number(parseFloat(credit_amount || 0).toFixed(2));
+      const netChange = Number(((newDebit - newCredit) - (oldDebit - oldCredit)).toFixed(2));
 
-      const openingBalance = parseFloat(customerData?.cus_balance || 0);
-      const closingBalance = openingBalance + parseFloat(debit_amount) - parseFloat(credit_amount);
-
-      // Update the ledger entry
+      // ── Update only the metadata on the original entry (amounts unchanged) ──
       const updatedLedger = await tx.ledger.update({
         where: { l_id: id },
         data: {
-          cus_id,
-          opening_balance: openingBalance,
-          debit_amount: parseFloat(debit_amount),
-          credit_amount: parseFloat(credit_amount),
-          closing_balance: closingBalance,
-          bill_no: bill_no ? String(bill_no) : null,
-          trnx_type,
-          details: details || null,
-          payments: parseFloat(payments),
+          bill_no:    bill_no !== undefined ? (bill_no ? String(bill_no) : null) : existingLedger.bill_no,
+          trnx_type:  trnx_type  || existingLedger.trnx_type,
+          details:    details    !== undefined ? (details || null) : existingLedger.details,
           updated_by: updated_by || existingLedger.updated_by
         }
       });
 
-      // Update customer balance
-      await tx.customer.update({
-        where: { cus_id },
-        data: { cus_balance: closingBalance }
-      });
+      // ── Create adjustment entry if the amount changed ──
+      if (netChange !== 0) {
+        const currentBalance = Number(parseFloat(customer.cus_balance || 0).toFixed(2));
+        const isIncrease     = netChange > 0;
+        const adjustmentAmt  = Math.abs(netChange);
+        const newBalance     = Number((currentBalance + netChange).toFixed(2));
+        const entryBillNo    = bill_no ? String(bill_no) : existingLedger.bill_no;
+        const entryDesc      = details || existingLedger.details || '';
+        const typeLabel      = isIncrease ? 'Debit' : 'Credit';
+
+        await tx.ledger.create({
+          data: {
+            cus_id,
+            opening_balance: currentBalance,
+            debit_amount:    isIncrease ? adjustmentAmt : 0,
+            credit_amount:   isIncrease ? 0 : adjustmentAmt,
+            closing_balance: newBalance,
+            bill_no:         entryBillNo,
+            trnx_type:       'ADJUSTMENT',
+            details:         `Payment Edit - ${typeLabel} Adjustment ${adjustmentAmt}${entryDesc ? ' | ' + entryDesc : ''}`,
+            payments:        0,
+            cash_payment:    0,
+            bank_payment:    0,
+            updated_by:      updated_by || null
+          }
+        });
+
+        await tx.customer.update({
+          where: { cus_id },
+          data: { cus_balance: newBalance }
+        });
+      }
 
       return updatedLedger;
     });
 
-    // Fetch the complete updated ledger entry with relations
+    // Return updated entry with relations
     const completeLedger = await prisma.ledger.findUnique({
       where: { l_id: result.l_id },
       include: {
         customer: {
-          select: {
-            cus_id: true,
-            cus_name: true,
-            cus_phone_no: true,
-            cus_category: true,
-            cus_type: true
-          }
+          select: { cus_id: true, cus_name: true, cus_phone_no: true, cus_category: true, cus_type: true }
         },
         updated_by_user: {
-          select: {
-            user_id: true,
-            full_name: true,
-            role: true
-          }
+          select: { user_id: true, full_name: true, role: true }
         }
       }
     });
