@@ -1700,28 +1700,11 @@ export async function PUT(request) {
         } catch (e) { /* leave null */ }
       }
 
-      // ── Capture the balance that was in effect BEFORE this sale ──
-      // Use the opening_balance of the first ledger entry for this bill so that
-      // changing the amount doesn't compound on top of the already-applied balance.
       const isSkipLedger = bill_type === 'QUOTATION' || bill_type === 'ORDER' || bill_type === 'ORDER_TRASH';
-      let balanceBeforeSale = parseFloat(customer.cus_balance || 0);
-      if (!isSkipLedger) {
-        const firstEntry = await tx.ledger.findFirst({
-          where: { bill_no: String(id), cus_id },
-          orderBy: { l_id: 'asc' },
-          select: { opening_balance: true }
-        });
-        if (firstEntry) balanceBeforeSale = parseFloat(firstEntry.opening_balance || 0);
-      }
 
-      // Delete existing sale details
+      // Delete existing sale details (stock + sale record updated; ledger entries kept intact)
       await tx.saleDetail.deleteMany({
         where: { sale_id: id }
-      });
-
-      // Delete existing ledger entries for this sale
-      await tx.ledger.deleteMany({
-        where: { bill_no: id ? String(id) : null }
       });
 
       // Restore store stock quantities from old sale details
@@ -1829,288 +1812,56 @@ export async function PUT(request) {
         await Promise.all(storeStockUpdatePromises);
       }
 
-      // Special accounts already fetched before transaction
-      // Create comprehensive ledger entries (skip for quotations)
-      const ledgerEntries = [];
-
-      // Calculate net amount owed by customer (total - payment received)
-      const customerNetAmount = netTotal - parseFloat(payment);
-
-      // 1. Customer Bill Entry — use balanceBeforeSale so the regenerated chain
-      //    starts from the correct pre-sale position, not the stale current balance.
+      // ── Ledger Adjustment Entry for Bill Edit ──
+      // Old entries are preserved. A single NEW entry is created for the net change
+      // in what the customer owes (bill amount delta minus payment delta).
       if (!isSkipLedger) {
-        ledgerEntries.push({
-          cus_id,
-          opening_balance: balanceBeforeSale,
-          debit_amount: netTotal,
-          credit_amount: 0,
-          closing_balance: balanceBeforeSale + netTotal,
-          bill_no: sale.sale_id.toString(),
-          trnx_type: 'CASH',
-          details: `Sale Bill - ${bill_type || 'BILL'} - Customer Account (Debit)`,
-          payments: 0,
-          updated_by: validatedUpdatedBy
-        });
-      }
+        const oldTotal = Number(parseFloat(existingSale.total_amount || 0).toFixed(2));
+        const oldPaid  = Number(parseFloat(existingSale.payment || 0).toFixed(2));
+        const newTotal = Number(parseFloat(netTotal).toFixed(2));
+        const newPaid  = Number(parseFloat(payment || 0).toFixed(2));
 
-      // 2. Customer Payment Entry - Credit Customer Account
-      if (!isSkipLedger && parseFloat(payment) > 0) {
-        ledgerEntries.push({
-          cus_id,
-          opening_balance: balanceBeforeSale + netTotal,
-          debit_amount: 0,
-          credit_amount: parseFloat(payment),
-          closing_balance: balanceBeforeSale + netTotal - parseFloat(payment),
-          bill_no: sale.sale_id.toString(),
-          trnx_type: payment_type || 'CASH',
-          details: `Payment Received - ${bill_type || 'BILL'} - Customer Account (Credit)`,
-          payments: parseFloat(payment),
-          cash_payment: parseFloat(cash_payment || 0),
-          bank_payment: parseFloat(bank_payment || 0),
-          updated_by: validatedUpdatedBy
-        });
+        const oldOwed   = oldTotal - oldPaid;
+        const newOwed   = newTotal - newPaid;
+        const netChange = Number((newOwed - oldOwed).toFixed(2));
 
-        // 3. Payment Entry - Credit Cash/Bank Account (payment received reduces cash/bank balance)
-        const paymentAccount = payment_type === 'CASH' ? specialAccounts.cash : specialAccounts.bank;
-        if (paymentAccount) {
-          ledgerEntries.push({
-            cus_id: paymentAccount.cus_id,
-            opening_balance: paymentAccount.cus_balance,
-            debit_amount: 0,
-            credit_amount: parseFloat(payment),
-            closing_balance: paymentAccount.cus_balance - parseFloat(payment),
-            bill_no: sale.sale_id.toString(),
-            trnx_type: payment_type,
-            details: `Payment Received - ${bill_type || 'BILL'} - ${payment_type} Account (Credit)`,
-            payments: parseFloat(payment),
-            updated_by: validatedUpdatedBy
-          });
-        }
-      }
+        if (netChange !== 0) {
+          const currentBalance = Number(parseFloat(customer.cus_balance || 0).toFixed(2));
+          const isIncrease     = netChange > 0;
+          const adjustmentAmt  = Math.abs(netChange);
+          const newCusBalance  = Number((currentBalance + netChange).toFixed(2));
 
-      // 4. Transporter Entry (if loader_id is provided)
-      if (!isSkipLedger && loader_id) {
-        const loader = await tx.loader.findUnique({
-          where: { loader_id }
-        });
-
-        if (loader) {
-          // Debit Transporter Account
-          ledgerEntries.push({
-            cus_id: loader_id,
-            opening_balance: loader.loader_balance,
-            debit_amount: parseFloat(shipping_amount || 0),
-            credit_amount: 0,
-            closing_balance: loader.loader_balance + parseFloat(shipping_amount || 0),
-            bill_no: sale.sale_id.toString(),
-            trnx_type: 'CASH',
-            details: `Transporter Charges - ${bill_type || 'BILL'} #${sale.sale_id} - Transport Account (Debit) - ${customer.cus_address || ''} ${customer.city?.city_name || ''}`.trim(),
-            payments: 0,
-            updated_by: validatedUpdatedBy
-          });
-
-          // Credit Sundry Debtors Account
-          if (specialAccounts && specialAccounts.sundryDebtors) {
-            ledgerEntries.push({
-              cus_id: specialAccounts.sundryDebtors.cus_id,
-              opening_balance: specialAccounts.sundryDebtors.cus_balance,
-              debit_amount: 0,
-              credit_amount: parseFloat(shipping_amount || 0),
-              closing_balance: specialAccounts.sundryDebtors.cus_balance - parseFloat(shipping_amount || 0),
-              bill_no: sale.sale_id.toString(),
-              trnx_type: 'CASH',
-              details: `Transporter Charges - ${bill_type || 'BILL'} #${sale.sale_id} - Sundry Debtors (Credit) - ${customer.cus_address || ''} ${customer.city?.city_name || ''}`.trim(),
-              payments: 0,
-              updated_by: validatedUpdatedBy
-            });
-          }
-        }
-      }
-
-      // 5. Split Payment Entries (if any)
-      if (!isSkipLedger && split_payments && split_payments.length > 0) {
-        for (const splitPayment of split_payments) {
-          const splitAmount = parseFloat(splitPayment.amount);
-
-          // Debit Split Payment Account
-          if (splitPayment.debit_account_id) {
-            const debitAccount = await tx.customer.findUnique({
-              where: { cus_id: splitPayment.debit_account_id }
-            });
-
-            if (debitAccount) {
-              ledgerEntries.push({
-                cus_id: splitPayment.debit_account_id,
-                opening_balance: debitAccount.cus_balance,
-                debit_amount: splitAmount,
-                credit_amount: 0,
-                closing_balance: debitAccount.cus_balance + splitAmount,
-                bill_no: sale.sale_id.toString(),
-                trnx_type: splitPayment.payment_type,
-                details: `Split Payment - ${bill_type || 'BILL'} - Debit Account`,
-                payments: splitAmount,
-                cash_payment: splitPayment.payment_type === 'CASH' ? splitAmount : 0,
-                bank_payment: splitPayment.payment_type === 'BANK_TRANSFER' ? splitAmount : 0,
-                updated_by: validatedUpdatedBy
-              });
-            }
-          }
-
-          // Credit Split Payment Account
-          if (splitPayment.credit_account_id) {
-            const creditAccount = await tx.customer.findUnique({
-              where: { cus_id: splitPayment.credit_account_id }
-            });
-
-            if (creditAccount) {
-              ledgerEntries.push({
-                cus_id: splitPayment.credit_account_id,
-                opening_balance: creditAccount.cus_balance,
-                debit_amount: 0,
-                credit_amount: splitAmount,
-                closing_balance: creditAccount.cus_balance - splitAmount,
-                bill_no: sale.sale_id.toString(),
-                trnx_type: splitPayment.payment_type,
-                details: `Split Payment - ${bill_type || 'BILL'} - Credit Account`,
-                payments: splitAmount,
-                cash_payment: splitPayment.payment_type === 'CASH' ? splitAmount : 0,
-                bank_payment: splitPayment.payment_type === 'BANK_TRANSFER' ? splitAmount : 0,
-                updated_by: validatedUpdatedBy
-              });
-            }
-          }
-        }
-      }
-
-      // Create all ledger entries and update balances (skip for quotations/orders)
-      if (!isSkipLedger) {
-        for (const entry of ledgerEntries) {
           await tx.ledger.create({
             data: {
-              cus_id: entry.cus_id,
-              opening_balance: entry.opening_balance,
-              debit_amount: entry.debit_amount,
-              credit_amount: entry.credit_amount,
-              closing_balance: entry.closing_balance,
-              bill_no: entry.bill_no,
-              trnx_type: entry.trnx_type,
-              details: entry.details,
-              payments: entry.payments,
-              cash_payment: entry.cash_payment || 0,
-              bank_payment: entry.bank_payment || 0,
-              updated_by: validatedUpdatedBy
+              cus_id,
+              opening_balance: currentBalance,
+              debit_amount:    isIncrease ? adjustmentAmt : 0,
+              credit_amount:   isIncrease ? 0 : adjustmentAmt,
+              closing_balance: newCusBalance,
+              bill_no:         sale.sale_id.toString(),
+              trnx_type:       'ADJUSTMENT',
+              details:         `Bill Edit - INV-${sale.sale_id} - Amount ${isIncrease ? 'Increased' : 'Decreased'} by ${adjustmentAmt}`,
+              payments:        0,
+              cash_payment:    0,
+              bank_payment:    0,
+              updated_by:      validatedUpdatedBy
             }
           });
-        }
-
-        // ── Recalculate the entire customer ledger chain from this bill forward ──
-        // Find the newly-created entries for this bill (ordered oldest-first).
-        const newBillEntries = await tx.ledger.findMany({
-          where: { bill_no: sale.sale_id.toString(), cus_id },
-          orderBy: { l_id: 'asc' },
-          select: { l_id: true, closing_balance: true }
-        });
-
-        let finalCustomerBalance = balanceBeforeSale + parseFloat(netTotal) - parseFloat(payment);
-
-        if (newBillEntries.length > 0) {
-          const maxNewLId = newBillEntries[newBillEntries.length - 1].l_id;
-          const lastNewClosing = parseFloat(newBillEntries[newBillEntries.length - 1].closing_balance || 0);
-
-          // Walk all subsequent entries for this customer and rechain them
-          const subsequentEntries = await tx.ledger.findMany({
-            where: { cus_id, l_id: { gt: maxNewLId } },
-            orderBy: { l_id: 'asc' },
-            select: { l_id: true, debit_amount: true, credit_amount: true }
-          });
-
-          let running = lastNewClosing;
-          for (const e of subsequentEntries) {
-            const newOpen = running;
-            const newClose = newOpen + parseFloat(e.debit_amount || 0) - parseFloat(e.credit_amount || 0);
-            await tx.ledger.update({
-              where: { l_id: e.l_id },
-              data: { opening_balance: newOpen, closing_balance: newClose }
-            });
-            running = newClose;
-          }
-
-          // The authoritative customer balance is the end of the chain
-          finalCustomerBalance = subsequentEntries.length > 0 ? running : lastNewClosing;
-        }
-
-        await tx.customer.update({
-          where: { cus_id },
-          data: { cus_balance: finalCustomerBalance }
-        });
-      }
-
-      // Update special account balances — restore old payment first, then apply new
-      if (!isSkipLedger) {
-        const oldPayment = parseFloat(existingSale.payment || 0);
-        const newPayment = parseFloat(payment || 0);
-        const paymentAccount = payment_type === 'CASH' ? specialAccounts?.cash : specialAccounts?.bank;
-
-        if (paymentAccount && (oldPayment !== newPayment || newPayment > 0)) {
-          // Base balance = current stored balance minus the old payment that is now being replaced
-          const restoredBase = parseFloat(paymentAccount.cus_balance || 0) - oldPayment;
-          const accountNewBalance = restoredBase + newPayment;
 
           await tx.customer.update({
-            where: { cus_id: paymentAccount.cus_id },
-            data: { cus_balance: accountNewBalance }
+            where: { cus_id },
+            data: { cus_balance: newCusBalance }
           });
         }
-      }
 
-      // Update transporter balance
-      if (!isSkipLedger && loader_id && parseFloat(shipping_amount || 0) > 0) {
-        await tx.loader.update({
-          where: { loader_id },
-          data: {
-            loader_balance: {
-              increment: parseFloat(shipping_amount || 0)
-            }
-          }
-        });
-      }
-
-      // Update sundry debtors balance
-      if (!isSkipLedger && loader_id && specialAccounts && specialAccounts.sundryDebtors && parseFloat(shipping_amount || 0) > 0) {
-        await tx.customer.update({
-          where: { cus_id: specialAccounts.sundryDebtors.cus_id },
-          data: {
-            cus_balance: {
-              decrement: parseFloat(shipping_amount || 0)
-            }
-          }
-        });
-      }
-
-      // Update split payment account balances
-      if (!isSkipLedger && split_payments && split_payments.length > 0) {
-        for (const splitPayment of split_payments) {
-          const splitAmount = parseFloat(splitPayment.amount);
-
-          if (splitPayment.debit_account_id) {
+        // ── Payment account: apply only the delta in payment received ──
+        const paymentDelta = Number((newPaid - oldPaid).toFixed(2));
+        if (paymentDelta !== 0 && specialAccounts) {
+          const paymentAccount = payment_type === 'CASH' ? specialAccounts.cash : specialAccounts.bank;
+          if (paymentAccount) {
             await tx.customer.update({
-              where: { cus_id: splitPayment.debit_account_id },
-              data: {
-                cus_balance: {
-                  increment: splitAmount
-                }
-              }
-            });
-          }
-
-          if (splitPayment.credit_account_id) {
-            await tx.customer.update({
-              where: { cus_id: splitPayment.credit_account_id },
-              data: {
-                cus_balance: {
-                  decrement: splitAmount
-                }
-              }
+              where: { cus_id: paymentAccount.cus_id },
+              data: { cus_balance: { increment: paymentDelta } }
             });
           }
         }
