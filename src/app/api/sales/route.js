@@ -989,7 +989,7 @@ export async function POST(request) {
         console.log(`Bill Type: ${bill_type} (${isOrder ? 'ORDER' : 'REGULAR BILL'})`);
         console.log(`Is Loaded Order: ${actualIsLoadedOrder}`);
         console.log(`Today's Payments: Cash=${eff_cash}, Bank=${eff_bank}, Advance=${parseFloat(advance_payment || 0)}`);
-        console.log(`Expected Final Balance: ${runningBalance + parseFloat(total_amount) - (eff_cash + eff_bank + parseFloat(advance_payment || 0))}`);
+        console.log(`Expected Final Balance: ${runningBalance + parseFloat(total_amount) - (eff_cash + eff_bank)}`);
         console.log(`${'='.repeat(60)}\n`);
 
         // ORDER: no full SALE debit (only payment credits). Regular BILL: full amount debit.
@@ -1061,29 +1061,6 @@ export async function POST(request) {
           const orderTotal = parseFloat(total_amount) || 0;
           const orderPrepaid = parseFloat(advance_payment || 0);
           const remaining = Math.max(0, orderTotal - orderPrepaid - cashAmount - bankAmount);
-
-          // Re-credit advance ONLY when bill is partially paid (remaining > 0).
-          // When fully paid (remaining = 0), advance already in cus_balance cancels naturally:
-          //   net = bill - (cash+bank) = advance → restores pre-order balance.
-          // When partially paid: re-credit advance so net = remaining (new obligation on customer).
-          if (remaining > 0 && orderPrepaid > 0) {
-            const advEntry = createLedgerEntry({
-              cus_id,
-              opening_balance: runningBalance,
-              debit_amount: 0,
-              credit_amount: orderPrepaid,
-              bill_no: sale.sale_id.toString(),
-              trnx_type: 'SALE',
-              details: `Advance Payment (from original order) - Customer Account (Credit) [${orderPrepaid}]`,
-              payments: orderPrepaid,
-              cash_payment: 0,
-              bank_payment: 0,
-              updated_by: validatedUpdatedBy
-            });
-            console.log(`💳 Advance credit (partial bill): ${orderPrepaid}, remaining=${remaining}, Closing=${advEntry.closing_balance}`);
-            ledgerEntries.push(advEntry);
-            runningBalance = advEntry.closing_balance;
-          }
 
           // Single combined payment credit (cash + bank)
           const totalNewPayment = cashAmount + bankAmount;
