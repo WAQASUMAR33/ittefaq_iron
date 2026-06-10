@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Download, Printer, Search, ShoppingBag, Package, Truck, CreditCard, Clock } from 'lucide-react';
+import { ArrowLeft, Download, Printer, Search, ShoppingBag, Package, Truck, CreditCard, Clock, Eye, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
 import { Autocomplete, TextField, InputAdornment } from '@mui/material';
@@ -16,6 +16,8 @@ export default function OrderReport() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [accounts, setAccounts] = useState([]);
   const [selectedAccount, setSelectedAccount] = useState('');
+  const [selectedBill, setSelectedBill] = useState(null);
+  const [viewBillDialog, setViewBillDialog] = useState(false);
 
   // Set default dates on mount
   useEffect(() => {
@@ -38,6 +40,20 @@ export default function OrderReport() {
     if (selectedCategory) { fetchAccountsByCategory(selectedCategory); }
     else { setAccounts([]); setSelectedAccount(''); }
   }, [selectedCategory]);
+
+  const handleViewBill = async (order) => {
+    try {
+      const response = await fetch(`/api/sales?id=${order.sale_id}`);
+      if (!response.ok) throw new Error('Failed to fetch order details');
+      const data = await response.json();
+      setSelectedBill(data);
+      setViewBillDialog(true);
+    } catch (error) {
+      console.error('Error fetching order details:', error);
+      setSelectedBill(order);
+      setViewBillDialog(true);
+    }
+  };
 
   const fetchCategories = async () => {
     try {
@@ -311,7 +327,8 @@ export default function OrderReport() {
                       <th className="px-2 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Disc</th>
                       <th className="px-2 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Net</th>
                       <th className="px-2 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Paid</th>
-                      <th className="px-2 py-3 text-right text-xs font-bold uppercase tracking-wider">Pending</th>
+                      <th className="px-2 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Pending</th>
+                      <th className="px-2 py-3 text-center text-xs font-bold uppercase tracking-wider print:hidden">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 print:divide-black">
@@ -333,8 +350,17 @@ export default function OrderReport() {
                           <td className="px-2 py-2.5 text-slate-900 text-right border-r border-slate-200 print:border-black tabular-nums">{formatCurrency(order.discount)}</td>
                           <td className="px-2 py-2.5 text-slate-900 text-right font-semibold border-r border-slate-200 print:border-black tabular-nums">{formatCurrency(netTotal)}</td>
                           <td className="px-2 py-2.5 text-emerald-600 print:text-black text-right border-r border-slate-200 print:border-black tabular-nums">{formatCurrency(order.payment)}</td>
-                          <td className={`px-2 py-2.5 text-right font-semibold tabular-nums ${pending > 0 ? 'text-amber-600 print:text-black' : 'text-emerald-600 print:text-black'}`}>
+                          <td className={`px-2 py-2.5 text-right font-semibold tabular-nums border-r border-slate-200 print:border-black ${pending > 0 ? 'text-amber-600 print:text-black' : 'text-emerald-600 print:text-black'}`}>
                             {formatCurrency(pending)}
+                          </td>
+                          <td className="px-2 py-2.5 text-center print:hidden">
+                            <button
+                              onClick={() => handleViewBill(order)}
+                              className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 hover:bg-blue-200 text-blue-700 transition-colors"
+                            >
+                              <Eye className="w-3.5 h-3.5 mr-1" />
+                              View
+                            </button>
                           </td>
                         </tr>
                       );
@@ -350,7 +376,8 @@ export default function OrderReport() {
                       <td className="px-2 py-3 text-right border-r border-slate-600 print:border-black tabular-nums">{formatCurrency(reportData.summary.totalDiscount)}</td>
                       <td className="px-2 py-3 text-right border-r border-slate-600 print:border-black tabular-nums">{formatCurrency(reportData.summary.netTotal)}</td>
                       <td className="px-2 py-3 text-right border-r border-slate-600 print:border-black tabular-nums">{formatCurrency(reportData.summary.netTotal - reportData.summary.pendingPayment)}</td>
-                      <td className="px-2 py-3 text-right tabular-nums">{formatCurrency(reportData.summary.pendingPayment)}</td>
+                      <td className="px-2 py-3 text-right tabular-nums border-r border-slate-600 print:border-black">{formatCurrency(reportData.summary.pendingPayment)}</td>
+                      <td className="print:hidden"></td>
                     </tr>
                   </tfoot>
                 </table>
@@ -376,6 +403,169 @@ export default function OrderReport() {
           </div>
         )}
       </div>
+
+      {/* Order Detail Modal */}
+      {viewBillDialog && selectedBill && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 print:hidden" onClick={() => setViewBillDialog(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-[700px] max-w-[95vw] max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between bg-blue-700 text-white px-4 py-3 rounded-t-xl">
+              <div className="flex items-center gap-2">
+                <ShoppingBag className="w-5 h-5" />
+                <span className="font-bold text-sm">
+                  Order Details — {selectedBill.bill_number ? `O-${selectedBill.bill_number}` : `ORD-${selectedBill.sale_id}`}
+                </span>
+              </div>
+              <button onClick={() => setViewBillDialog(false)} className="p-1 hover:bg-white/10 rounded">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4">
+              {/* Company Header */}
+              <div className="text-center border-b-2 border-black pb-3 mb-3">
+                <div className="text-xl font-bold" style={{ direction: 'rtl' }}>اتفاق آئرن اینڈ سیمنٹ سٹور</div>
+                <div className="text-sm text-gray-600" style={{ direction: 'rtl' }}>گجرات سرگودھا روڈ، پاہڑیانوالی</div>
+                <div className="text-sm mt-0.5">Ph:- 0346-7560306, 0300-7560306</div>
+                <div className="font-bold uppercase tracking-wider mt-1 text-sm">SALE INVOICE</div>
+              </div>
+
+              {/* Customer & Invoice Info */}
+              <div className="flex justify-between border-b border-gray-200 pb-3 mb-3 text-sm">
+                <div className="space-y-1">
+                  <p><strong>Customer:</strong> {selectedBill.customer?.cus_name || 'N/A'}</p>
+                  <p><strong>Phone:</strong> {selectedBill.customer?.cus_phone_no || 'N/A'}</p>
+                  {selectedBill.customer?.cus_address && <p><strong>Address:</strong> {selectedBill.customer.cus_address}</p>}
+                </div>
+                <div className="space-y-1 text-right">
+                  <p><strong>Invoice No:</strong> {selectedBill.bill_number ? `O-${selectedBill.bill_number}` : `#${selectedBill.sale_id}`}</p>
+                  <p><strong>Date:</strong> {new Date(selectedBill.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
+                  <p><strong>Time:</strong> {new Date(selectedBill.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</p>
+                  <p><strong>Bill Type:</strong> {selectedBill.bill_type || 'ORDER'}</p>
+                </div>
+              </div>
+
+              {/* Items Table */}
+              <table className="w-full text-sm border border-gray-300 mb-3">
+                <thead>
+                  <tr className="bg-gray-500 text-white">
+                    <th className="px-2 py-1.5 text-left font-semibold">S#</th>
+                    <th className="px-2 py-1.5 text-left font-semibold">Product</th>
+                    <th className="px-2 py-1.5 text-right font-semibold">Qty</th>
+                    <th className="px-2 py-1.5 text-right font-semibold">Rate</th>
+                    <th className="px-2 py-1.5 text-right font-semibold">Amount</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {selectedBill.sale_details?.length > 0 ? selectedBill.sale_details.map((d, i) => (
+                    <tr key={d.sale_detail_id || i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                      <td className="px-2 py-1">{i + 1}</td>
+                      <td className="px-2 py-1">{d.product?.pro_title || d.product?.pro_name || 'N/A'}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{formatCurrency(d.qnty || 0)}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{formatCurrency(d.unit_rate)}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{formatCurrency(d.total_amount)}</td>
+                    </tr>
+                  )) : (
+                    <tr><td colSpan="5" className="px-4 py-4 text-center text-gray-500">No items</td></tr>
+                  )}
+                </tbody>
+              </table>
+
+              {/* Payment Summary */}
+              <div className="flex gap-4 text-sm">
+                {/* Left: Balance */}
+                <div className="flex-1">
+                  <table className="w-full border border-gray-300">
+                    <tbody>
+                      <tr className="border-b border-gray-200">
+                        <td className="px-2 py-1 font-bold" style={{ direction: 'rtl' }}>سابقہ بقایا</td>
+                        <td className="px-2 py-1 text-right tabular-nums">{formatCurrency(selectedBill.customer?.cus_balance)}</td>
+                      </tr>
+                      <tr className="border-b border-gray-200">
+                        <td className="px-2 py-1 font-bold" style={{ direction: 'rtl' }}>موجوده بقايا</td>
+                        <td className="px-2 py-1 text-right tabular-nums">{formatCurrency(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.payment || 0))}</td>
+                      </tr>
+                      <tr className="bg-gray-100">
+                        <td className="px-2 py-1 font-bold" style={{ direction: 'rtl' }}>كل بقايا</td>
+                        <td className="px-2 py-1 text-right tabular-nums font-bold">{formatCurrency(parseFloat(selectedBill.customer?.cus_balance || 0) + parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.payment || 0))}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  {selectedBill.notes && <p className="text-xs mt-2 text-gray-600"><strong>Notes:</strong> {selectedBill.notes}</p>}
+                </div>
+
+                {/* Right: Amounts */}
+                <div className="flex-1">
+                  <table className="w-full border border-gray-300">
+                    <tbody>
+                      <tr className="border-b border-gray-200">
+                        <td className="px-2 py-1 font-bold" style={{ direction: 'rtl' }}>رقم بل</td>
+                        <td className="px-2 py-1 text-right tabular-nums">{formatCurrency((selectedBill.sale_details || []).reduce((s, d) => s + parseFloat(d.total_amount || 0), 0))}</td>
+                      </tr>
+                      {parseFloat(selectedBill.labour || 0) > 0 && (
+                        <tr className="border-b border-gray-200">
+                          <td className="px-2 py-1 font-bold" style={{ direction: 'rtl' }}>مزدوری</td>
+                          <td className="px-2 py-1 text-right tabular-nums">{formatCurrency(selectedBill.labour)}</td>
+                        </tr>
+                      )}
+                      {parseFloat(selectedBill.shipping_amount || 0) > 0 && (
+                        <tr className="border-b border-gray-200">
+                          <td className="px-2 py-1 font-bold" style={{ direction: 'rtl' }}>کرایہ</td>
+                          <td className="px-2 py-1 text-right tabular-nums">{formatCurrency(selectedBill.shipping_amount)}</td>
+                        </tr>
+                      )}
+                      {parseFloat(selectedBill.discount || 0) > 0 && (
+                        <tr className="border-b border-gray-200">
+                          <td className="px-2 py-1 font-bold" style={{ direction: 'rtl' }}>رعایت</td>
+                          <td className="px-2 py-1 text-right tabular-nums">{formatCurrency(selectedBill.discount)}</td>
+                        </tr>
+                      )}
+                      <tr className="bg-gray-100 border-b border-gray-200">
+                        <td className="px-2 py-1 font-bold" style={{ direction: 'rtl' }}>كل رقم</td>
+                        <td className="px-2 py-1 text-right tabular-nums font-bold">{formatCurrency(selectedBill.total_amount)}</td>
+                      </tr>
+                      <tr className="border-b border-gray-200">
+                        <td className="px-2 py-1 font-bold" style={{ direction: 'rtl' }}>نقد كيش</td>
+                        <td className="px-2 py-1 text-right tabular-nums">{formatCurrency(
+                          selectedBill.hasOwnProperty('cash_payment') ? selectedBill.cash_payment :
+                          (selectedBill.payment_type === 'CASH' || !selectedBill.payment_type ? selectedBill.payment : 0)
+                        )}</td>
+                      </tr>
+                      {(() => {
+                        const bankAmt = selectedBill.hasOwnProperty('bank_payment') ?
+                          parseFloat(selectedBill.bank_payment || 0) :
+                          (selectedBill.payment_type !== 'CASH' && selectedBill.payment_type ? parseFloat(selectedBill.payment || 0) : 0);
+                        const bankName = selectedBill.bank_title || selectedBill.debit_account?.cus_name || 'بینک';
+                        return bankAmt > 0 ? (
+                          <tr className="border-b border-gray-200">
+                            <td className="px-2 py-1 font-bold" style={{ direction: 'rtl' }}>{bankName}</td>
+                            <td className="px-2 py-1 text-right tabular-nums">{formatCurrency(bankAmt)}</td>
+                          </tr>
+                        ) : null;
+                      })()}
+                      <tr className="bg-gray-100 border-b border-gray-200">
+                        <td className="px-2 py-1 font-bold" style={{ direction: 'rtl' }}>كل رقم وصول</td>
+                        <td className="px-2 py-1 text-right tabular-nums font-bold">{formatCurrency(selectedBill.payment)}</td>
+                      </tr>
+                      <tr className="bg-gray-300">
+                        <td className="px-2 py-1 font-bold" style={{ direction: 'rtl' }}>بقايا رقم</td>
+                        <td className="px-2 py-1 text-right tabular-nums font-bold">{formatCurrency(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.payment || 0))}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end px-4 py-3 bg-gray-50 border-t border-gray-200 rounded-b-xl">
+              <button onClick={() => setViewBillDialog(false)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-100 transition-colors">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style jsx global>{`
         @media print {

@@ -256,6 +256,11 @@ export default function FinancePage() {
   const [isSendingPaymentWhatsApp, setIsSendingPaymentWhatsApp] = useState(false);
   const [isSendingLedgerWhatsApp, setIsSendingLedgerWhatsApp] = useState(false);
 
+  // Print Ledger Dialog states
+  const [showPrintLedgerDialog, setShowPrintLedgerDialog] = useState(false);
+  const [printFromDate, setPrintFromDate] = useState('');
+  const [printToDate, setPrintToDate] = useState('');
+
   // Fetch data
   useEffect(() => {
     fetchData();
@@ -1389,6 +1394,150 @@ export default function FinancePage() {
     setSortOrder('asc');
   };
 
+  // Print Ledger between two dates
+  const handlePrintLedger = () => {
+    if (!printFromDate || !printToDate) {
+      alert('Please select both From and To dates');
+      return;
+    }
+    if (new Date(printFromDate) > new Date(printToDate)) {
+      alert('From date cannot be after To date');
+      return;
+    }
+
+    const from = new Date(printFromDate);
+    from.setHours(0, 0, 0, 0);
+    const to = new Date(printToDate);
+    to.setHours(23, 59, 59, 999);
+
+    // Filter entries by date range (from the currently visible/filtered entries)
+    const dateFilteredEntries = finalLedgerEntries.filter(entry => {
+      const entryDate = new Date(entry.created_at);
+      return entryDate >= from && entryDate <= to;
+    });
+
+    if (dateFilteredEntries.length === 0) {
+      alert('No ledger entries found in the selected date range.');
+      return;
+    }
+
+    const customer = selectedCustomer ? customers.find(c => c.cus_id === selectedCustomer) : null;
+    const custName = customer?.cus_name || 'All Accounts';
+    const balance = dateFilteredEntries.length > 0 ? parseFloat(dateFilteredEntries[dateFilteredEntries.length - 1].closing_balance || 0) : 0;
+
+    // Calculate totals for filtered entries
+    const filteredNonMemo = dateFilteredEntries.filter(e => !isOrderCustomerMemoLedgerEntry(e));
+    const printTotalDebit = filteredNonMemo.reduce((s, e) => s + parseFloat(e.debit_amount || 0), 0);
+    const printTotalCredit = filteredNonMemo.reduce((s, e) => s + parseFloat(e.credit_amount || 0), 0);
+
+    const fromFormatted = new Date(printFromDate).toLocaleDateString('en-GB');
+    const toFormatted = new Date(printToDate).toLocaleDateString('en-GB');
+
+    // Build table rows
+    const tableRows = dateFilteredEntries.map((entry, i) => {
+      const date = entry.created_at
+        ? new Date(entry.created_at).toLocaleDateString('en-GB') + ' ' + new Date(entry.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+        : '—';
+      const account = entry.customer?.cus_name || '—';
+      const desc = entry.details
+        ? String(entry.details).replace(/\{.*?\}/g, '').replace(/\|/g, ' ').trim().slice(0, 80)
+        : '—';
+      const bill = entry.bill_no || '—';
+      const credit = parseFloat(entry.credit_amount || 0);
+      const debit = parseFloat(entry.debit_amount || 0);
+      const bal = parseFloat(entry.closing_balance || 0);
+      const isDebitRow = debit > 0;
+      const rowBg = isDebitRow ? '#f0fdf4' : '#fef2f2';
+
+      return `<tr style="background:${rowBg}">
+        <td style="padding:6px 8px;border:1px solid #d1d5db;text-align:center;font-weight:600">${i + 1}</td>
+        <td style="padding:6px 8px;border:1px solid #d1d5db;font-size:11px">${date}</td>
+        <td style="padding:6px 8px;border:1px solid #d1d5db;font-weight:600">${account}</td>
+        <td style="padding:6px 8px;border:1px solid #d1d5db;font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis">${desc}${entry.bill_no ? '<br/><span style="color:#6b7280;font-size:10px">Bill: ' + bill + '</span>' : ''}</td>
+        <td style="padding:6px 8px;border:1px solid #d1d5db;text-align:right;color:#dc2626;font-weight:600">${credit > 0 ? fmtAmt(credit) : '-'}</td>
+        <td style="padding:6px 8px;border:1px solid #d1d5db;text-align:right;color:#16a34a;font-weight:600">${debit > 0 ? fmtAmt(debit) : '-'}</td>
+        <td style="padding:6px 8px;border:1px solid #d1d5db;text-align:right;font-weight:700;color:${bal >= 0 ? '#16a34a' : '#dc2626'}">${fmtAmt(bal)}</td>
+      </tr>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Ledger - ${custName}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;background:white;padding:20px;color:#111}
+  @media print{body{padding:10px}@page{size:A4 landscape;margin:8mm 10mm}}
+  table{width:100%;border-collapse:collapse}
+  .header{text-align:center;padding-bottom:12px;border-bottom:3px solid #1f2937;margin-bottom:16px}
+  .header h1{font-size:20px;font-weight:bold;direction:rtl;margin-bottom:4px}
+  .header p{font-size:12px;color:#555;margin:2px 0}
+  .header .ledger-title{font-size:16px;font-weight:800;letter-spacing:1px;margin-top:8px;color:#1f2937}
+  .meta{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:14px;padding:10px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px}
+  .meta .left h3{font-size:15px;font-weight:700;color:#1e293b;margin-bottom:2px}
+  .meta .left p{font-size:11px;color:#64748b}
+  .meta .right{text-align:right}
+  .meta .right p{font-size:11px;color:#64748b;margin:2px 0}
+  .meta .right strong{color:#1e293b}
+  thead th{background:#1f2937;color:white;padding:8px 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;border:1px solid #374151}
+  .footer-row td{background:#1f2937;color:white;padding:10px 8px;font-weight:700;font-size:12px;border:1px solid #374151}
+  .footer-row .credit-total{color:#fca5a5}
+  .footer-row .debit-total{color:#86efac}
+  .footer-row .balance-total{color:#fbbf24}
+  .print-footer{margin-top:30px;display:flex;justify-content:space-between}
+  .print-footer .sig{text-align:center;flex:1;margin:0 20px}
+  .print-footer .sig-line{border-top:1px solid #000;padding-top:6px;font-size:11px;color:#555}
+</style></head><body>
+<div class="header">
+  <h1>اتفاق آئرن اینڈ سیمنٹ سٹور</h1>
+  <p style="direction:rtl">گجرات سرگودھا روڈ، پاہڑیانوالی</p>
+  <p>Ph:- 0346-7560306, 0300-7560306</p>
+  <div class="ledger-title">GENERAL LEDGER</div>
+</div>
+<div class="meta">
+  <div class="left">
+    <h3>${custName}</h3>
+    <p>${dateFilteredEntries.length} entries</p>
+  </div>
+  <div class="right">
+    <p><strong>From:</strong> ${fromFormatted}</p>
+    <p><strong>To:</strong> ${toFormatted}</p>
+    <p><strong>Closing Balance:</strong> PKR ${fmtAmt(balance)}</p>
+  </div>
+</div>
+<table>
+  <thead>
+    <tr>
+      <th style="width:35px;text-align:center">S#</th>
+      <th style="width:120px">Date & Time</th>
+      <th style="width:140px">Account</th>
+      <th>Description</th>
+      <th style="width:90px;text-align:right">Credit (PKR)</th>
+      <th style="width:90px;text-align:right">Debit (PKR)</th>
+      <th style="width:100px;text-align:right">Balance (PKR)</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${tableRows}
+    <tr class="footer-row">
+      <td colspan="4" style="text-align:center;font-size:13px">TOTAL SUMMARY</td>
+      <td class="credit-total" style="text-align:right">${fmtAmt(printTotalCredit)}</td>
+      <td class="debit-total" style="text-align:right">${fmtAmt(printTotalDebit)}</td>
+      <td class="balance-total" style="text-align:right">${fmtAmt(balance)}</td>
+    </tr>
+  </tbody>
+</table>
+<div class="print-footer">
+  <div class="sig"><div class="sig-line">Prepared By</div></div>
+  <div class="sig"><div class="sig-line">Checked By</div></div>
+  <div class="sig"><div class="sig-line">Authorized Signature</div></div>
+</div>
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`;
+
+    const win = window.open('', '_blank', 'width=1100,height=700');
+    win.document.write(html);
+    win.document.close();
+    setShowPrintLedgerDialog(false);
+  };
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -1962,6 +2111,34 @@ export default function FinancePage() {
                         }}
                       >
                         {isSendingLedgerWhatsApp ? 'Sending…' : 'Send Ledger'}
+                      </Button>
+                      <Button
+                        variant="contained"
+                        size="small"
+                        startIcon={<Print size={16} />}
+                        onClick={() => {
+                          setPrintFromDate('');
+                          setPrintToDate('');
+                          setShowPrintLedgerDialog(true);
+                        }}
+                        sx={{
+                          background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                          color: 'white',
+                          fontWeight: 600,
+                          textTransform: 'none',
+                          px: 2,
+                          py: 1,
+                          borderRadius: 1.5,
+                          boxShadow: '0 4px 6px -1px rgba(99, 102, 241, 0.2)',
+                          '&:hover': {
+                            background: 'linear-gradient(135deg, #4f46e5, #4338ca)',
+                            boxShadow: '0 10px 15px -3px rgba(99, 102, 241, 0.3)',
+                            transform: 'translateY(-1px)',
+                          },
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        Print Ledger
                       </Button>
                     </Box>
                   )}
@@ -4158,6 +4335,198 @@ export default function FinancePage() {
         </DialogContent>
         <DialogActions sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
           <Button onClick={() => { setViewSaleDialogOpen(false); setViewingSale(null); }}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Print Ledger Between Dates Dialog */}
+      <Dialog
+        open={showPrintLedgerDialog}
+        onClose={() => setShowPrintLedgerDialog(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3, overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' } }}
+      >
+        <DialogTitle sx={{ p: 0 }}>
+          <Box sx={{
+            background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #7c3aed 100%)',
+            px: 3, py: 2.5,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{
+                width: 44, height: 44, borderRadius: 2,
+                bgcolor: 'rgba(255,255,255,0.2)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Print size={22} color="white" />
+              </Box>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 800, color: 'white', lineHeight: 1.2 }}>
+                  Print Ledger
+                </Typography>
+                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.75)' }}>
+                  Select date range to print ledger statement
+                </Typography>
+              </Box>
+            </Box>
+            <IconButton
+              onClick={() => setShowPrintLedgerDialog(false)}
+              sx={{
+                color: 'white',
+                bgcolor: 'rgba(255,255,255,0.15)',
+                '&:hover': { bgcolor: 'rgba(255,255,255,0.25)' },
+              }}
+            >
+              <X size={20} />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+
+        <DialogContent sx={{ p: 0, bgcolor: '#f8fafc' }}>
+          <Box sx={{ p: 3 }}>
+            {/* Selected Account Info */}
+            {selectedCustomer && (
+              <Box sx={{ p: 2, mb: 3, bgcolor: '#eff6ff', borderRadius: 2, border: '1px solid #bfdbfe' }}>
+                <Typography variant="caption" sx={{ color: '#1e40af', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Selected Account
+                </Typography>
+                <Typography variant="h6" sx={{ fontWeight: 700, color: '#1e3a8a' }}>
+                  {customers.find(c => c.cus_id === selectedCustomer)?.cus_name || 'Unknown'}
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#3b82f6', fontWeight: 600 }}>
+                  Balance: PKR {fmtAmt(currentBalance)}
+                </Typography>
+              </Box>
+            )}
+
+            {/* Date Range Pickers */}
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, mb: 1, display: 'block' }}>
+                  From Date *
+                </Typography>
+                <TextField
+                  fullWidth
+                  type="date"
+                  value={printFromDate}
+                  onChange={(e) => setPrintFromDate(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Calendar size={16} color="#6366f1" />
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 2,
+                      bgcolor: 'white',
+                      '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#6366f1' },
+                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#6366f1' },
+                    }
+                  }}
+                />
+              </Box>
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, mb: 1, display: 'block' }}>
+                  To Date *
+                </Typography>
+                <TextField
+                  fullWidth
+                  type="date"
+                  value={printToDate}
+                  onChange={(e) => setPrintToDate(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Calendar size={16} color="#6366f1" />
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 2,
+                      bgcolor: 'white',
+                      '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#6366f1' },
+                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#6366f1' },
+                    }
+                  }}
+                />
+              </Box>
+            </Box>
+
+            {/* Quick Date Range Buttons */}
+            <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+              <Typography variant="caption" sx={{ width: '100%', color: '#94a3b8', fontWeight: 600, mb: 0.5 }}>Quick Select:</Typography>
+              {[
+                { label: 'Today', fn: () => { const t = new Date().toISOString().split('T')[0]; setPrintFromDate(t); setPrintToDate(t); } },
+                { label: 'Last 7 Days', fn: () => { const t = new Date(); const f = new Date(t); f.setDate(f.getDate() - 7); setPrintFromDate(f.toISOString().split('T')[0]); setPrintToDate(t.toISOString().split('T')[0]); } },
+                { label: 'Last 30 Days', fn: () => { const t = new Date(); const f = new Date(t); f.setDate(f.getDate() - 30); setPrintFromDate(f.toISOString().split('T')[0]); setPrintToDate(t.toISOString().split('T')[0]); } },
+                { label: 'This Month', fn: () => { const t = new Date(); const f = new Date(t.getFullYear(), t.getMonth(), 1); setPrintFromDate(f.toISOString().split('T')[0]); setPrintToDate(t.toISOString().split('T')[0]); } },
+                { label: 'Last Month', fn: () => { const t = new Date(); const f = new Date(t.getFullYear(), t.getMonth() - 1, 1); const to = new Date(t.getFullYear(), t.getMonth(), 0); setPrintFromDate(f.toISOString().split('T')[0]); setPrintToDate(to.toISOString().split('T')[0]); } },
+                { label: 'This Year', fn: () => { const t = new Date(); const f = new Date(t.getFullYear(), 0, 1); setPrintFromDate(f.toISOString().split('T')[0]); setPrintToDate(t.toISOString().split('T')[0]); } },
+              ].map((btn) => (
+                <Chip
+                  key={btn.label}
+                  label={btn.label}
+                  onClick={btn.fn}
+                  size="small"
+                  sx={{
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    bgcolor: '#f1f5f9',
+                    color: '#475569',
+                    border: '1px solid #e2e8f0',
+                    '&:hover': {
+                      bgcolor: '#6366f1',
+                      color: 'white',
+                      borderColor: '#6366f1',
+                    },
+                    transition: 'all 0.2s',
+                  }}
+                />
+              ))}
+            </Box>
+
+            {/* Preview info */}
+            {printFromDate && printToDate && (
+              <Box sx={{ mt: 2, p: 2, bgcolor: '#f0fdf4', borderRadius: 2, border: '1px solid #bbf7d0' }}>
+                <Typography variant="body2" sx={{ color: '#15803d', fontWeight: 600 }}>
+                  {(() => {
+                    const from = new Date(printFromDate); from.setHours(0,0,0,0);
+                    const to = new Date(printToDate); to.setHours(23,59,59,999);
+                    const count = finalLedgerEntries.filter(e => { const d = new Date(e.created_at); return d >= from && d <= to; }).length;
+                    return `${count} entries found between ${new Date(printFromDate).toLocaleDateString('en-GB')} and ${new Date(printToDate).toLocaleDateString('en-GB')}`;
+                  })()}
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        </DialogContent>
+
+        <DialogActions sx={{ px: 3, py: 2.5, borderTop: '1px solid #e2e8f0', bgcolor: 'white', gap: 1.5 }}>
+          <Button
+            onClick={() => setShowPrintLedgerDialog(false)}
+            variant="outlined"
+            sx={{ borderColor: '#e2e8f0', color: '#64748b', '&:hover': { bgcolor: '#f8fafc', borderColor: '#cbd5e1' }, px: 3, borderRadius: 2 }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<Print size={18} />}
+            onClick={handlePrintLedger}
+            disabled={!printFromDate || !printToDate}
+            sx={{
+              background: !printFromDate || !printToDate ? undefined : 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+              '&:hover': { background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)' },
+              px: 4, fontWeight: 700, borderRadius: 2,
+              boxShadow: !printFromDate || !printToDate ? 'none' : '0 4px 14px rgba(99,102,241,0.4)',
+              minWidth: 160,
+            }}
+          >
+            Print Ledger
+          </Button>
         </DialogActions>
       </Dialog>
 

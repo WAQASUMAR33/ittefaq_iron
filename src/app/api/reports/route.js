@@ -545,9 +545,10 @@ async function getCashReport(startDate, endDate) {
     }
   });
 
-  // Also get cash sales
+  // Also get cash sales (exclude ORDER type)
   const salesWhere = {
-    payment_type: 'CASH'
+    payment_type: 'CASH',
+    bill_type: 'BILL'
   };
 
   if (startDate && endDate) {
@@ -1340,12 +1341,12 @@ async function getItemSaleReport(startDate, endDate, proId) {
       },
       include: { purchase_return: { include: { purchase: { include: { customer: true } } } } }
     }),
-    // Sales (BILL and ORDER both reduce stock)
+    // Sales (BILL only — exclude ORDER type)
     prisma.saleDetail.findMany({
       where: {
         pro_id: proId,
         sale: {
-          bill_type: { in: ['BILL', 'ORDER'] },
+          bill_type: 'BILL',
           ...(dateFilter ? { created_at: dateFilter } : {})
         }
       },
@@ -1479,7 +1480,7 @@ async function getItemSaleReport(startDate, endDate, proId) {
         _sum: { return_quantity: true }
       }),
       prisma.saleDetail.aggregate({
-        where: { pro_id: proId, sale: { bill_type: { in: ['BILL', 'ORDER'] }, created_at: { lt: beforeStart } } },
+        where: { pro_id: proId, sale: { bill_type: 'BILL', created_at: { lt: beforeStart } } },
         _sum: { qnty: true }
       }),
       prisma.saleReturnDetail.aggregate({
@@ -1513,7 +1514,7 @@ async function getItemSaleReport(startDate, endDate, proId) {
   let running = openingStock;
   const finalRows = rows.map(r => {
     const preStock = running;
-    const outSale = (r.saleQty || 0) + (r.orderQty || 0);
+    const outSale = r.saleQty || 0;
     running = running + r.purchaseQty - r.purchaseReturnQty - outSale + r.saleReturnQty;
     return { ...r, preStock, updatedStock: running };
   });

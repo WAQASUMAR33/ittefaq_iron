@@ -3202,7 +3202,8 @@ function SalesPageContent() {
 
       const matchesItem = filterItem === '' ||
         (sale.sale_details && sale.sale_details.some(d =>
-          (d.product?.pro_title || d.product_name || '').toLowerCase().includes(filterItem.toLowerCase())
+          (d.product?.pro_title || d.product_name || '').toLowerCase().includes(filterItem.toLowerCase()) ||
+          String(d.qnty || '').includes(filterItem.trim())
         ));
 
       const matchesCustomer = filterCustomer === '' ||
@@ -6883,7 +6884,7 @@ function SalesPageContent() {
                     <TextField
                       fullWidth
                       label="Search by Item"
-                      placeholder="Product name..."
+                      placeholder="Product name or quantity..."
                       value={filterItem}
                       onChange={(e) => setFilterItem(e.target.value)}
                       onFocus={(e) => e.target.select()}
