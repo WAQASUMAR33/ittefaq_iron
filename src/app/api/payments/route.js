@@ -275,9 +275,9 @@ export async function POST(request) {
       } else if (mainAccountIsSupplier) {
         // Supplier (payable): bill/purchase = debit, payment = credit
         if (payment_type === 'RECEIVE') {
-          mainDebitAmount = parseFloat(total_amount);
-        } else {
           mainCreditAmount = parseFloat(total_amount);
+        } else {
+          mainDebitAmount = parseFloat(total_amount);
         }
       } else {
         // Customer (receivable): RECEIVE = DEBIT, PAY = CREDIT
@@ -518,7 +518,7 @@ export async function DELETE(request) {
 
       // Note: In a real application, you might want to create reversing ledger entries
       // For now, we'll just mark the payment as cancelled
-    });
+    }, { timeout: 20000 });
 
     return NextResponse.json({ message: 'Payment cancelled successfully' });
   } catch (error) {
