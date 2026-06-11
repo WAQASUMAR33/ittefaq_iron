@@ -455,7 +455,7 @@ export async function POST(request) {
       //   Supplier payment  = DEBIT  (-5000 + 4000 = -1000, balance rises toward 0)
       //   Supplier cargo    = DEBIT  (-1000 + 1000 = 0, cargo deducted from payable)
       //   Cash/bank payment = CREDIT (balance decreases when we pay out)
-      //   Cargo account     = DEBIT  (we owe them for transport)
+      //   Cargo account     = CREDIT (we owe them for transport)
       // NOTE: Only product amount (minus discount) goes to supplier ledger
 
       const ledgerEntries = [];
@@ -692,8 +692,8 @@ export async function POST(request) {
             const cargoEntry = createLedgerEntry({
               cus_id: cargoAcc.cus_id,
               opening_balance: parseFloat(cargoAcc.cus_balance || 0),
-              debit_amount: allocate,
-              credit_amount: 0,
+              debit_amount: 0,
+              credit_amount: allocate,
               bill_no: newPurchase.pur_id.toString(),
               trnx_type: 'PURCHASE',
               details: `Out Delivery - Purchase #${newPurchase.pur_id}${invoice_number ? ` (Inv: ${invoice_number})` : ''}`,
@@ -701,10 +701,10 @@ export async function POST(request) {
               updated_by: updated_by ? parseInt(updated_by) : null
             });
             ledgerEntries.push(cargoEntry);
-            console.log(`📦 Cargo account ${cargoAcc.cus_name} debited ${allocate}`);
+            console.log(`📦 Cargo account ${cargoAcc.cus_name} credited ${allocate}`);
           }
         } else {
-          console.log('⚠️ Out delivery present but no cargo account selected — supplier already credited, cargo debit skipped');
+          console.log('⚠️ Out delivery present but no cargo account selected — supplier already credited, cargo credit skipped');
         }
       }
 
@@ -1253,10 +1253,10 @@ export async function PUT(request) {
               updated_by: updated_by ? parseInt(updated_by) : null
             });
             ledgerEntries.push(cargoEntry);
-            console.log(`📦 Cargo account ${cargoAcc.cus_name} debited ${allocatePUT} (PUT)`);
+            console.log(`📦 Cargo account ${cargoAcc.cus_name} credited ${allocatePUT} (PUT)`);
           }
         } else {
-          console.log('⚠️ Out delivery present but no cargo account selected — supplier already credited, cargo debit skipped (PUT)');
+          console.log('⚠️ Out delivery present but no cargo account selected — supplier already credited, cargo credit skipped (PUT)');
         }
       }
 

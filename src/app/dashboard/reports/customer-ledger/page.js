@@ -318,8 +318,16 @@ export default function CustomerLedgerReport() {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {reportData.ledgerEntries.map((entry, index) => (
-                        <tr key={entry.l_id} className="hover:bg-gray-50 print:hover:bg-white">
+                      {reportData.ledgerEntries.map((entry, index) => {
+                        const isCredit = parseFloat(entry.credit_amount || 0) > 0;
+                        const isDebit = parseFloat(entry.debit_amount || 0) > 0 && !isCredit;
+                        const rowBg = isCredit
+                          ? 'bg-green-50 hover:bg-green-100 print:bg-green-50'
+                          : isDebit
+                            ? 'bg-red-50 hover:bg-red-100 print:bg-red-50'
+                            : 'hover:bg-gray-50 print:hover:bg-white';
+                        return (
+                        <tr key={entry.l_id} className={rowBg}>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {new Date(entry.created_at).toLocaleDateString()}
                           </td>
@@ -350,20 +358,21 @@ export default function CustomerLedgerReport() {
                               </td>
                             );
                           })() }
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600">
                             {fmtAmt(entry.debit_amount)}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600">
                             {fmtAmt(entry.credit_amount)}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-gray-900">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-blue-600">
                             {fmtAmt(entry.closing_balance)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-blue-600">
                             {fmtAmt(entry.payments)}
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                     <tfoot className="bg-gray-50 font-semibold">
                       <tr>
@@ -374,7 +383,7 @@ export default function CustomerLedgerReport() {
                       </tr>
                       <tr>
                         <td colSpan="4" className="px-6 py-4 text-right text-sm text-gray-900">Total Debit:</td>
-                        <td className="px-6 py-4 text-right text-sm text-green-600">
+                        <td className="px-6 py-4 text-right text-sm text-red-600">
                           {fmtAmt(reportData.summary.totalDebit)}
                         </td>
                         <td colSpan="3"></td>
@@ -382,14 +391,14 @@ export default function CustomerLedgerReport() {
                       <tr>
                         <td colSpan="4" className="px-6 py-4 text-right text-sm text-gray-900">Total Credit:</td>
                         <td colSpan="1"></td>
-                        <td className="px-6 py-4 text-right text-sm text-red-600">
+                        <td className="px-6 py-4 text-right text-sm text-green-600">
                           {fmtAmt(reportData.summary.totalCredit)}
                         </td>
                         <td colSpan="2"></td>
                       </tr>
-                      <tr className="border-t-2 border-gray-300">
-                        <td colSpan="4" className="px-6 py-4 text-right text-sm text-gray-900">Closing Balance:</td>
-                        <td colSpan="4" className="px-6 py-4 text-right text-sm font-bold text-gray-900">
+                      <tr className="border-t-2 border-blue-300 bg-blue-50">
+                        <td colSpan="4" className="px-6 py-4 text-right text-sm font-bold text-blue-800">Closing Balance:</td>
+                        <td colSpan="4" className="px-6 py-4 text-right text-sm font-bold text-blue-800">
                           {fmtAmt(reportData.summary.closingBalance)}
                         </td>
                       </tr>

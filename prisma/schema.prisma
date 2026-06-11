@@ -157,6 +157,7 @@ model Customer {
   subscriptions         Subscription[]
   draft_sales           DraftSale[]
   expenses_paid         Expense[]          @relation("ExpensePaidFrom")
+  expenses_bank_paid    Expense[]          @relation("ExpenseBankPaidFrom")
   payments_account      Payment[]          @relation("PaymentAccount")
   payments_cash         Payment[]          @relation("PaymentCashAccount")
   payments_bank         Payment[]          @relation("PaymentBankAccount")
@@ -277,6 +278,9 @@ model Expense {
   exp_amount            Decimal
   is_paid               Boolean      @default(false)
   paid_from_account_id  Int?
+  cash_amount           Decimal      @default(0) @db.Decimal(10, 2)
+  bank_account_id       Int?
+  bank_amount           Decimal      @default(0) @db.Decimal(10, 2)
   payment_date          DateTime?
   payment_reference     String?
   created_at            DateTime     @default(now())
@@ -284,11 +288,13 @@ model Expense {
   updated_by            Int?
   expense_title         ExpenseTitle @relation(fields: [exp_type], references: [id])
   paid_from_account     Customer?    @relation("ExpensePaidFrom", fields: [paid_from_account_id], references: [cus_id])
+  bank_account          Customer?    @relation("ExpenseBankPaidFrom", fields: [bank_account_id], references: [cus_id])
   updated_by_user       Users?       @relation(fields: [updated_by], references: [user_id])
 
   @@index([exp_type], map: "expenses_exp_type_fkey")
   @@index([updated_by], map: "expenses_updated_by_fkey")
   @@index([paid_from_account_id], map: "expenses_paid_from_account_id_fkey")
+  @@index([bank_account_id], map: "expenses_bank_account_id_fkey")
   @@map("expenses")
 }
 

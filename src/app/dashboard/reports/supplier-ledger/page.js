@@ -276,9 +276,9 @@ export default function SupplierLedgerReport() {
                   <div className="text-sm font-medium text-green-600 mb-1">Total Credit (Payment)</div>
                   <div className="text-2xl font-bold text-green-900">{fmtAmt(reportData.summary.totalCredit)}</div>
                 </div>
-                <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
-                  <div className="text-sm font-medium text-amber-600 mb-1">Closing Balance</div>
-                  <div className="text-2xl font-bold text-amber-900">{fmtAmt(reportData.summary.closingBalance)}</div>
+                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                  <div className="text-sm font-medium text-blue-600 mb-1">Closing Balance</div>
+                  <div className="text-2xl font-bold text-blue-900">{fmtAmt(reportData.summary.closingBalance)}</div>
                 </div>
               </div>
             </div>
@@ -303,8 +303,16 @@ export default function SupplierLedgerReport() {
                       </tr>
                     </thead>
                     <tbody>
-                      {reportData.ledgerEntries.map((entry, index) => (
-                        <tr key={index} className="border-b border-gray-200 hover:bg-gray-50">
+                      {reportData.ledgerEntries.map((entry, index) => {
+                        const isCredit = parseFloat(entry.credit_amount || 0) > 0;
+                        const isDebit = parseFloat(entry.debit_amount || 0) > 0 && !isCredit;
+                        const rowBg = isCredit
+                          ? 'border-b border-green-200 bg-green-50 hover:bg-green-100 print:bg-green-50'
+                          : isDebit
+                            ? 'border-b border-red-200 bg-red-50 hover:bg-red-100 print:bg-red-50'
+                            : 'border-b border-gray-200 hover:bg-gray-50';
+                        return (
+                        <tr key={index} className={rowBg}>
                           <td className="px-6 py-3 text-gray-700">{new Date(entry.created_at).toLocaleDateString()}</td>
                           <td className="px-6 py-3">
                             <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
@@ -342,17 +350,18 @@ export default function SupplierLedgerReport() {
                             );
                           })()}
 
-                          <td className="px-6 py-3 text-right font-medium">{fmtAmt(entry.debit_amount)}</td>
-                          <td className="px-6 py-3 text-right font-medium">{fmtAmt(entry.credit_amount)}</td>
+                          <td className="px-6 py-3 text-right font-medium text-red-600">{fmtAmt(entry.debit_amount)}</td>
+                          <td className="px-6 py-3 text-right font-medium text-green-600">{fmtAmt(entry.credit_amount)}</td>
                           <td className="px-6 py-3 text-right text-blue-600 font-medium">
                             {entry.cash_payment > 0 ? fmtAmt(entry.cash_payment) : '-'}
                           </td>
                           <td className="px-6 py-3 text-right text-purple-600 font-medium">
                             {entry.bank_payment > 0 ? fmtAmt(entry.bank_payment) : '-'}
                           </td>
-                          <td className="px-6 py-3 text-right font-bold text-gray-900">{fmtAmt(entry.closing_balance)}</td>
+                          <td className="px-6 py-3 text-right font-bold text-blue-600">{fmtAmt(entry.closing_balance)}</td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

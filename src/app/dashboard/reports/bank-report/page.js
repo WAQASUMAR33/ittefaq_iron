@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Download, Printer, Search, Building2, ArrowUpRight, ArrowDownLeft, Landmark } from 'lucide-react';
+import { ArrowLeft, Download, Printer, Search, Building2, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
 import { Autocomplete, TextField, InputAdornment } from '@mui/material';
@@ -137,12 +137,10 @@ export default function BankReport() {
     a.click();
   };
 
-  // Bank (asset): deposits = debits, withdrawals = credits; net ≈ debits - credits + sales - purchases
+  // Bank: net = debits - credits from ledger entries only
   const netFlow = reportData
     ? (parseFloat(reportData.summary.totalLedgerDebit || 0) -
-        parseFloat(reportData.summary.totalLedgerCredit || 0) +
-        parseFloat(reportData.summary.totalBankSales || 0) -
-        parseFloat(reportData.summary.totalBankPurchases || 0))
+        parseFloat(reportData.summary.totalLedgerCredit || 0))
     : 0;
 
   return (
@@ -266,34 +264,28 @@ export default function BankReport() {
               </div>
 
               {/* Summary Cards - Screen */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 print:hidden">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4 print:hidden">
                 <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-200 rounded-xl p-4">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wide">Deposits</p>
+                    <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wide">Total Debit (Deposits)</p>
                     <ArrowDownLeft className="w-4 h-4 text-emerald-500" />
                   </div>
                   <p className="text-2xl font-bold text-emerald-800 mt-1">Rs. {formatCurrency(reportData.summary.totalLedgerDebit)}</p>
                 </div>
                 <div className="bg-gradient-to-br from-red-50 to-red-100 border border-red-200 rounded-xl p-4">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold text-red-600 uppercase tracking-wide">Withdrawals</p>
+                    <p className="text-xs font-semibold text-red-600 uppercase tracking-wide">Total Credit (Withdrawals)</p>
                     <ArrowUpRight className="w-4 h-4 text-red-500" />
                   </div>
                   <p className="text-2xl font-bold text-red-800 mt-1">Rs. {formatCurrency(reportData.summary.totalLedgerCredit)}</p>
                 </div>
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl p-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Bank Sales</p>
-                    <Landmark className="w-4 h-4 text-blue-500" />
-                  </div>
-                  <p className="text-2xl font-bold text-blue-800 mt-1">Rs. {formatCurrency(reportData.summary.totalBankSales)}</p>
-                </div>
                 <div className={`bg-gradient-to-br ${netFlow >= 0 ? 'from-cyan-50 to-cyan-100 border-cyan-200' : 'from-orange-50 to-orange-100 border-orange-200'} border rounded-xl p-4`}>
                   <div className="flex items-center justify-between">
-                    <p className={`text-xs font-semibold ${netFlow >= 0 ? 'text-cyan-600' : 'text-orange-600'} uppercase tracking-wide`}>Net Bank Flow</p>
+                    <p className={`text-xs font-semibold ${netFlow >= 0 ? 'text-cyan-600' : 'text-orange-600'} uppercase tracking-wide`}>Net Balance</p>
                     <Building2 className={`w-4 h-4 ${netFlow >= 0 ? 'text-cyan-500' : 'text-orange-500'}`} />
                   </div>
                   <p className={`text-2xl font-bold ${netFlow >= 0 ? 'text-cyan-800' : 'text-orange-800'} mt-1`}>Rs. {formatCurrency(netFlow)}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Debit − Credit</p>
                 </div>
               </div>
 
@@ -302,20 +294,16 @@ export default function BankReport() {
                 <table className="w-full text-sm">
                   <tbody>
                     <tr className="border-b border-gray-400">
-                      <td className="px-4 py-2 font-medium border-r border-gray-400">Total Deposits:</td>
-                      <td className="px-4 py-2 text-right font-bold border-r border-gray-400">{formatCurrency(reportData.summary.totalLedgerDebit)}</td>
-                      <td className="px-4 py-2 font-medium border-r border-gray-400">Bank Sales:</td>
-                      <td className="px-4 py-2 text-right font-bold">{formatCurrency(reportData.summary.totalBankSales)}</td>
+                      <td className="px-4 py-2 font-medium border-r border-gray-400 w-1/3">Total Debit (Deposits):</td>
+                      <td className="px-4 py-2 text-right font-bold border-r border-gray-400 w-1/3">{formatCurrency(reportData.summary.totalLedgerDebit)}</td>
+                      <td rowSpan="2" className="px-4 py-2 text-center w-1/3">
+                        <div className="font-semibold text-xs uppercase">Net Balance</div>
+                        <div className="text-lg font-bold mt-1">{formatCurrency(netFlow)}</div>
+                      </td>
                     </tr>
-                    <tr className="border-b border-gray-400">
-                      <td className="px-4 py-2 font-medium border-r border-gray-400">Total Withdrawals:</td>
+                    <tr>
+                      <td className="px-4 py-2 font-medium border-r border-gray-400">Total Credit (Withdrawals):</td>
                       <td className="px-4 py-2 text-right font-bold border-r border-gray-400">{formatCurrency(reportData.summary.totalLedgerCredit)}</td>
-                      <td className="px-4 py-2 font-medium border-r border-gray-400">Bank Purchases:</td>
-                      <td className="px-4 py-2 text-right font-bold">{formatCurrency(reportData.summary.totalBankPurchases)}</td>
-                    </tr>
-                    <tr className="bg-gray-100">
-                      <td colSpan="2" className="px-4 py-2 font-bold text-right border-r border-gray-400">Net Bank Flow:</td>
-                      <td colSpan="2" className="px-4 py-2 text-right font-bold">{formatCurrency(netFlow)}</td>
                     </tr>
                   </tbody>
                 </table>

@@ -1,7 +1,7 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Box,
   Drawer,
@@ -89,6 +89,66 @@ const PILL_WIDTHS = [
   '77%', '93%', '85%', '72%', '96%', '79%', '87%',
 ];
 
+// Map item IDs to their route paths for URL-based active detection
+const ROUTE_MAP = {
+  'dashboard': '/dashboard',
+  'usermanagement': '/dashboard/usermanagement',
+  'customercategory': '/dashboard/customercategory',
+  'customers': '/dashboard/customers',
+  'categories': '/dashboard/categories',
+  'sub-categories': '/dashboard/subcategories',
+  'products': '/dashboard/products',
+  'purchases': '/dashboard/purchases',
+  'new-purchase': '/dashboard/purchases',
+  'purchase-list': '/dashboard/purchases',
+  'purchase-returns': '/dashboard/purchases',
+  'vehicles': '/dashboard/vehicles',
+  'ledger': '/dashboard/finance',
+  'sales': '/dashboard/sales',
+  'hold-bills': '/dashboard/hold-bills',
+  'sale-returns': '/dashboard/sales',
+  'loaders': '/dashboard/loaders',
+  'expense-titles': '/dashboard/expense-titles',
+  'expenses': '/dashboard/expenses',
+  'journal': '/dashboard/journal',
+  'day-end': '/dashboard/day-end',
+  'cargo': '/dashboard/cargo',
+  'new-sale': '/dashboard/sales',
+  'orders': '/dashboard/orders',
+  'quotations': '/dashboard/quotations',
+  'sales-analytics': '/dashboard/sales/analytics',
+  'reports-dashboard': '/dashboard/reports',
+  'sales-by-date': '/dashboard/reports/sales-by-date',
+  'sales-by-customer': '/dashboard/reports/sales-by-customer',
+  'customer-balance-report': '/dashboard/reports/customer-balance-report',
+  'customers-balance': '/dashboard/reports/customers-balance',
+  'customer-ledger': '/dashboard/reports/customer-ledger',
+  'purchases-by-date': '/dashboard/reports/purchases-by-date',
+  'purchases-by-supplier': '/dashboard/reports/purchases-by-supplier',
+  'expenses-by-date': '/dashboard/reports/expenses-by-date',
+  'cash-report': '/dashboard/reports/cash-report',
+  'bank-report': '/dashboard/reports/bank-report',
+  'order-report': '/dashboard/reports/order-report',
+  'stock-report': '/dashboard/reports/stock-report',
+  'sale-report': '/dashboard/reports/sale-report',
+  'item-sale-report': '/dashboard/reports/item-sale-report',
+  'profit-report': '/dashboard/reports/profit-report',
+  'purchase-report': '/dashboard/reports/purchase-report',
+  'purchase-details': '/dashboard/purchases',
+  'rebate-report': '/dashboard/reports/rebate',
+  'balance-sheet': '/dashboard/reports/balance-sheet',
+  'stores': '/dashboard/stores',
+  'store-stock': '/dashboard/store-stock',
+  'stock-transfer': '/dashboard/stock-transfer',
+  'employees': '/dashboard/employees',
+  'attendance': '/dashboard/attendance',
+  'payroll': '/dashboard/payroll',
+  'settings': '/dashboard/settings',
+};
+
+// Reverse lookup: path → { itemId, category }
+const PATH_TO_ITEM = {};
+
 export default function Sidebar({
   sidebarOpen,
   setSidebarOpen,
@@ -102,7 +162,9 @@ export default function Sidebar({
   setCollapsed
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [searchQuery, setSearchQuery] = useState('');
+  const scrollContainerRef = useRef(null);
 
   const menuItems = [
     { id: 'dashboard', name: 'Dashboard', icon: DashboardIcon, category: 'main' },
@@ -180,16 +242,101 @@ export default function Sidebar({
     return SALESMAN_ALLOWED_MENU_IDS.has(item.id);
   });
 
+  // Derive activeTab and auto-expand the correct parent section from the URL pathname
+  const detectActiveFromPath = useCallback((currentPath) => {
+    if (!currentPath) return null;
+
+    // Order matters: check more specific paths first
+    const pathMappings = [
+      { path: '/dashboard/usermanagement', id: 'usermanagement', category: 'system' },
+      { path: '/dashboard/customercategory', id: 'customercategory', category: 'customer-management' },
+      { path: '/dashboard/customers', id: 'customers', category: 'customer-management' },
+      { path: '/dashboard/categories', id: 'categories', category: 'product-management' },
+      { path: '/dashboard/subcategories', id: 'sub-categories', category: 'product-management' },
+      { path: '/dashboard/products', id: 'products', category: 'product-management' },
+      { path: '/dashboard/vehicles', id: 'vehicles', category: 'purchase-operations' },
+      { path: '/dashboard/finance', id: 'ledger', category: 'main' },
+      { path: '/dashboard/sales/analytics', id: 'sales-analytics', category: 'sales-operations' },
+      { path: '/dashboard/sales', id: 'sales', category: 'sales-operations' },
+      { path: '/dashboard/hold-bills', id: 'hold-bills', category: 'sales-operations' },
+      { path: '/dashboard/purchases', id: 'purchases', category: 'purchase-operations' },
+      { path: '/dashboard/expense-titles', id: 'expense-titles', category: 'financial' },
+      { path: '/dashboard/expenses', id: 'expenses', category: 'financial' },
+      { path: '/dashboard/journal', id: 'journal', category: 'financial' },
+      { path: '/dashboard/day-end', id: 'day-end', category: 'financial' },
+      { path: '/dashboard/cargo', id: 'cargo', category: 'cargo-operations' },
+      { path: '/dashboard/orders', id: 'orders', category: 'sales-operations' },
+      { path: '/dashboard/quotations', id: 'quotations', category: 'sales-operations' },
+      { path: '/dashboard/loaders', id: 'loaders', category: 'sales-operations' },
+      { path: '/dashboard/reports/sales-by-date', id: 'sales-by-date', category: 'reports' },
+      { path: '/dashboard/reports/sales-by-customer', id: 'sales-by-customer', category: 'reports' },
+      { path: '/dashboard/reports/customer-balance-report', id: 'customer-balance-report', category: 'reports' },
+      { path: '/dashboard/reports/customers-balance', id: 'customers-balance', category: 'reports' },
+      { path: '/dashboard/reports/customer-ledger', id: 'customer-ledger', category: 'reports' },
+      { path: '/dashboard/reports/purchases-by-date', id: 'purchases-by-date', category: 'reports' },
+      { path: '/dashboard/reports/purchases-by-supplier', id: 'purchases-by-supplier', category: 'reports' },
+      { path: '/dashboard/reports/expenses-by-date', id: 'expenses-by-date', category: 'reports' },
+      { path: '/dashboard/reports/cash-report', id: 'cash-report', category: 'main' },
+      { path: '/dashboard/reports/bank-report', id: 'bank-report', category: 'main' },
+      { path: '/dashboard/reports/order-report', id: 'order-report', category: 'reports' },
+      { path: '/dashboard/reports/stock-report', id: 'stock-report', category: 'reports' },
+      { path: '/dashboard/reports/sale-report', id: 'sale-report', category: 'reports' },
+      { path: '/dashboard/reports/item-sale-report', id: 'item-sale-report', category: 'reports' },
+      { path: '/dashboard/reports/profit-report', id: 'profit-report', category: 'reports' },
+      { path: '/dashboard/reports/purchase-report', id: 'purchase-report', category: 'reports' },
+      { path: '/dashboard/reports/rebate', id: 'rebate-report', category: 'reports' },
+      { path: '/dashboard/reports/balance-sheet', id: 'balance-sheet', category: 'reports' },
+      { path: '/dashboard/reports', id: 'reports-dashboard', category: 'reports' },
+      { path: '/dashboard/stores', id: 'stores', category: 'system' },
+      { path: '/dashboard/store-stock', id: 'store-stock', category: 'system' },
+      { path: '/dashboard/stock-transfer', id: 'stock-transfer', category: 'system' },
+      { path: '/dashboard/employees', id: 'employees', category: 'hr-management' },
+      { path: '/dashboard/attendance', id: 'attendance', category: 'hr-management' },
+      { path: '/dashboard/payroll', id: 'payroll', category: 'hr-management' },
+      { path: '/dashboard/settings', id: 'settings', category: 'system' },
+      { path: '/dashboard', id: 'dashboard', category: 'main' },
+    ];
+
+    for (const mapping of pathMappings) {
+      if (mapping.path === '/dashboard') {
+        if (currentPath === '/dashboard' || currentPath === '/dashboard/') {
+          return mapping;
+        }
+      } else if (currentPath.startsWith(mapping.path)) {
+        return mapping;
+      }
+    }
+    return null;
+  }, []);
+
+  // Sync active tab and expanded section from pathname
+  useEffect(() => {
+    const match = detectActiveFromPath(pathname);
+    if (match) {
+      setActiveTab(match.id);
+      // Only auto-expand the parent section (accordion: only one open)
+      if (match.category !== 'main') {
+        setExpandedDropdowns({ [match.category]: true });
+      }
+    }
+  }, [pathname, detectActiveFromPath, setActiveTab, setExpandedDropdowns]);
+
   const isSearching = searchQuery.trim().length > 0;
   const filteredItems = isSearching
     ? visibleMenuItems.filter(item => item.name.toLowerCase().includes(searchQuery.toLowerCase()))
     : visibleMenuItems;
 
+  // Accordion toggle: only one section can be open at a time
   const toggleDropdown = (category) => {
-    setExpandedDropdowns(prev => ({
-      ...prev,
-      [category]: !prev[category]
-    }));
+    setExpandedDropdowns(prev => {
+      const isCurrentlyOpen = prev[category];
+      if (isCurrentlyOpen) {
+        // Close this one → all closed
+        return {};
+      }
+      // Open this one → close all others
+      return { [category]: true };
+    });
   };
 
   const handleNavigation = (itemId) => {
@@ -333,6 +480,7 @@ export default function Sidebar({
   );
 
   // Colorful pill item with icon + text + optional gold coin
+  // Active items are bold + outlined; inactive items are slightly faded
   const renderPillItem = (item, colorIdx, showCoin = false) => {
     const color = PILL_COLORS[colorIdx % PILL_COLORS.length];
     const width = PILL_WIDTHS[colorIdx % PILL_WIDTHS.length];
@@ -344,7 +492,7 @@ export default function Sidebar({
           onClick={() => handleNavigation(item.id)}
           sx={{
             width,
-            bgcolor: color,
+            bgcolor: isActive ? color : `${color}88`,
             borderRadius: '28px',
             display: 'flex',
             alignItems: 'center',
@@ -355,32 +503,38 @@ export default function Sidebar({
             outlineOffset: '1px',
             boxShadow: isActive
               ? `0 4px 20px ${color}90`
-              : `0 2px 8px ${color}60`,
-            transition: 'all 0.15s ease',
+              : `0 1px 4px ${color}30`,
+            opacity: isActive ? 1 : 0.75,
+            transform: isActive ? 'scale(1.02)' : 'scale(1)',
+            transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
             '&:hover': {
+              opacity: 1,
               boxShadow: `0 4px 16px ${color}80`,
               filter: 'brightness(1.06)',
-              transform: 'translateX(2px)',
+              transform: 'translateX(3px) scale(1.02)',
+              bgcolor: color,
             },
           }}
         >
           <Box sx={{
-            color: 'rgba(0,0,0,0.65)',
+            color: isActive ? 'rgba(0,0,0,0.8)' : 'rgba(0,0,0,0.5)',
             display: 'flex',
             alignItems: 'center',
             mr: 1.5,
             flexShrink: 0,
+            transition: 'color 0.2s ease',
           }}>
-            <item.icon sx={{ fontSize: 20 }} />
+            <item.icon sx={{ fontSize: 21 }} />
           </Box>
           <Typography sx={{
-            fontWeight: 700,
-            color: '#111',
+            fontWeight: isActive ? 800 : 600,
+            color: isActive ? '#000' : '#333',
             flex: 1,
-            fontSize: '0.78rem',
+            fontSize: '0.84rem',
             letterSpacing: 0.3,
             lineHeight: 1.3,
             userSelect: 'none',
+            transition: 'all 0.2s ease',
           }}>
             {item.name}
           </Typography>
@@ -417,6 +571,7 @@ export default function Sidebar({
     if (items.length === 0) return null;
     const isExpanded = isCollapsed ? false : (isSearching ? true : expandedDropdowns[category]);
     const sectionColor = SECTION_COLORS[sectionIdx % SECTION_COLORS.length];
+    const hasActiveChild = items.some(item => activeTab === item.id);
 
     if (isCollapsed) {
       return (
@@ -435,18 +590,23 @@ export default function Sidebar({
             onClick={() => toggleDropdown(category)}
             sx={{
               width: '100%',
-              bgcolor: sectionColor,
+              bgcolor: hasActiveChild ? sectionColor : `${sectionColor}99`,
               borderRadius: '22px',
               display: 'flex',
               alignItems: 'center',
               px: 2,
               py: 0.9,
               cursor: 'pointer',
-              boxShadow: `0 2px 8px ${sectionColor}50`,
-              transition: 'all 0.15s ease',
+              boxShadow: hasActiveChild
+                ? `0 3px 12px ${sectionColor}70`
+                : `0 2px 8px ${sectionColor}30`,
+              outline: hasActiveChild ? `2px solid ${sectionColor}` : 'none',
+              outlineOffset: '1px',
+              transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
               '&:hover': {
                 filter: 'brightness(1.06)',
                 boxShadow: `0 4px 14px ${sectionColor}70`,
+                bgcolor: sectionColor,
               },
             }}
           >
@@ -455,20 +615,20 @@ export default function Sidebar({
               fontWeight: 800,
               letterSpacing: 0.6,
               textTransform: 'uppercase',
-              fontSize: '0.72rem',
+              fontSize: '0.78rem',
               flex: 1,
               userSelect: 'none',
             }}>
               {title}
             </Typography>
             {isExpanded
-              ? <ExpandLess sx={{ fontSize: 16, color: 'rgba(0,0,0,0.5)' }} />
-              : <ExpandMore sx={{ fontSize: 16, color: 'rgba(0,0,0,0.5)' }} />}
+              ? <ExpandLess sx={{ fontSize: 18, color: 'rgba(0,0,0,0.5)', transition: 'transform 0.3s ease' }} />
+              : <ExpandMore sx={{ fontSize: 18, color: 'rgba(0,0,0,0.5)', transition: 'transform 0.3s ease' }} />}
             <GoldCoin />
           </Box>
         </Box>
 
-        <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+        <Collapse in={isExpanded} timeout={300} easing="cubic-bezier(0.4, 0, 0.2, 1)">
           <Box sx={{ pt: 0.25, pb: 0.5 }}>
             {items.map((item) => {
               const globalIdx = visibleMenuItems.findIndex(i => i === item);
@@ -510,7 +670,7 @@ export default function Sidebar({
               <Typography variant="body2" sx={{
                 fontWeight: 800,
                 color: '#111',
-                fontSize: '0.85rem',
+                fontSize: '0.9rem',
                 lineHeight: 1.2,
                 letterSpacing: 0.5,
               }}>
@@ -562,7 +722,7 @@ export default function Sidebar({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               fullWidth
-              sx={{ fontSize: 12.5, color: '#333' }}
+              sx={{ fontSize: 13, color: '#333' }}
               inputProps={{ 'aria-label': 'search sidebar menu' }}
             />
             {searchQuery && (
@@ -575,7 +735,23 @@ export default function Sidebar({
       )}
 
       {/* Navigation */}
-      <Box sx={{ flex: 1, overflow: 'auto', py: 1, px: isCollapsed ? 0.5 : 0 }}>
+      <Box
+        ref={scrollContainerRef}
+        sx={{
+          flex: 1,
+          overflow: 'auto',
+          py: 1,
+          px: isCollapsed ? 0.5 : 0,
+          scrollBehavior: 'smooth',
+          '&::-webkit-scrollbar': { width: 5 },
+          '&::-webkit-scrollbar-track': { background: 'transparent' },
+          '&::-webkit-scrollbar-thumb': {
+            background: 'rgba(0,0,0,0.12)',
+            borderRadius: 10,
+            '&:hover': { background: 'rgba(0,0,0,0.2)' },
+          },
+        }}
+      >
         <List disablePadding>
           {/* Overview */}
           {mainItems.length > 0 && (
@@ -597,7 +773,7 @@ export default function Sidebar({
                       fontWeight: 800,
                       letterSpacing: 0.6,
                       textTransform: 'uppercase',
-                      fontSize: '0.72rem',
+                      fontSize: '0.78rem',
                       userSelect: 'none',
                     }}>
                       Overview
@@ -643,7 +819,7 @@ export default function Sidebar({
                       fontWeight: 800,
                       letterSpacing: 0.6,
                       textTransform: 'uppercase',
-                      fontSize: '0.72rem',
+                      fontSize: '0.78rem',
                       userSelect: 'none',
                     }}>
                       System
@@ -662,7 +838,7 @@ export default function Sidebar({
           {isSearching && filteredItems.length === 0 && (
             <Box sx={{ px: 2, py: 4, textAlign: 'center' }}>
               <Typography variant="body2" sx={{ color: '#aaa' }}>
-                No results for "{searchQuery}"
+                No results for &quot;{searchQuery}&quot;
               </Typography>
             </Box>
           )}
@@ -697,10 +873,10 @@ export default function Sidebar({
               {user?.email?.charAt(0).toUpperCase()}
             </Avatar>
             <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography variant="body2" sx={{ fontWeight: 600, color: '#222', fontSize: '0.75rem' }} noWrap>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: '#222', fontSize: '0.8rem' }} noWrap>
                 {user?.email}
               </Typography>
-              <Typography variant="caption" sx={{ color: '#888', textTransform: 'uppercase', fontSize: '0.6rem' }}>
+              <Typography variant="caption" sx={{ color: '#888', textTransform: 'uppercase', fontSize: '0.65rem' }}>
                 {user?.role?.displayName || user?.role?.name || user?.role}
               </Typography>
             </Box>

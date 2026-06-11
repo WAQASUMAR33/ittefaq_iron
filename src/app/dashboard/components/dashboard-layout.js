@@ -21,17 +21,7 @@ export default function DashboardLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [expandedDropdowns, setExpandedDropdowns] = useState({
-    'dashboard': true,
-    'customer-management': true,
-    'product-management': true,
-    'financial': true,
-    'sales-operations': true,
-    'purchase-operations': true,
-    'cargo-operations': true,
-    'hr-management': true,
-    'system': true
-  });
+  const [expandedDropdowns, setExpandedDropdowns] = useState({});
   const [isClient, setIsClient] = useState(false);
 
   const router = useRouter();
@@ -48,47 +38,6 @@ export default function DashboardLayout({ children }) {
     try {
       const parsedUser = JSON.parse(userData);
       setUser(parsedUser);
-
-      const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
-      if (currentPath.startsWith('/dashboard/usermanagement')) {
-        setActiveTab('usermanagement');
-      } else if (currentPath.startsWith('/dashboard/customercategory')) {
-        setActiveTab('customercategory');
-      } else if (currentPath.startsWith('/dashboard/customers')) {
-        setActiveTab('customers');
-      } else if (currentPath.startsWith('/dashboard/categories')) {
-        setActiveTab('categories');
-      } else if (currentPath.startsWith('/dashboard/subcategories')) {
-        setActiveTab('sub-categories');
-      } else if (currentPath.startsWith('/dashboard/finance')) {
-        setActiveTab('ledger');
-      } else if (currentPath.startsWith('/dashboard/sales/analytics')) {
-        setActiveTab('sales-analytics');
-      } else if (currentPath.startsWith('/dashboard/sales')) {
-        setActiveTab('sales');
-      } else if (currentPath.startsWith('/dashboard/purchases')) {
-        setActiveTab('purchases');
-      } else if (currentPath.startsWith('/dashboard/expense-titles')) {
-        setActiveTab('expense-titles');
-      } else if (currentPath.startsWith('/dashboard/expenses')) {
-        setActiveTab('expenses');
-      } else if (currentPath.startsWith('/dashboard/cargo')) {
-        setActiveTab('cargo');
-      } else if (currentPath.startsWith('/dashboard/new-sale')) {
-        setActiveTab('sales');
-      } else if (currentPath.startsWith('/dashboard/orders')) {
-        setActiveTab('orders');
-      } else if (currentPath.startsWith('/dashboard/quotations')) {
-        setActiveTab('quotations');
-      } else if (currentPath.startsWith('/dashboard/reports/rebate')) {
-        setActiveTab('rebate-report');
-      } else if (currentPath.startsWith('/dashboard/reports')) {
-        setActiveTab('reports');
-      } else if (currentPath.startsWith('/dashboard/stores')) {
-        setActiveTab('stores');
-      } else if (currentPath === '/dashboard') {
-        setActiveTab('dashboard');
-      }
     } catch (error) {
       router.push('/login');
     }

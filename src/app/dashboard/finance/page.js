@@ -1057,8 +1057,8 @@ export default function FinancePage() {
       });
       const imageBase64 = canvas.toDataURL('image/png');
       const caption = isPay
-        ? `Debit Amount — Payment voucher PAY-${d.paymentId} — ${d.customer?.cus_name || ''}`
-        : `Credit Amount — Receipt voucher PAY-${d.paymentId} — ${d.customer?.cus_name || ''}`;
+        ? `Pay Amount — Payment voucher PAY-${d.paymentId} — ${d.customer?.cus_name || ''}`
+        : `Receive Amount — Receipt voucher PAY-${d.paymentId} — ${d.customer?.cus_name || ''}`;
       const totalAmount = Number(d.totalAmount || 0);
       const response = await fetch('/api/whatsapp', {
         method: 'POST',
@@ -1076,7 +1076,7 @@ export default function FinancePage() {
           templateKey: 'finance_receipt',
           templateVariables: {
             1: d.customer?.cus_name || 'Customer',
-            2: `${isPay ? 'Payment voucher (Debit Amount)' : 'Receipt voucher (Credit Amount)'} – ref PAY-${d.paymentId} | PKR ${totalAmount.toLocaleString()} · ${d.date || new Date().toISOString().slice(0, 10)}`,
+            2: `${isPay ? 'Payment voucher (Pay Amount)' : 'Receipt voucher (Receive Amount)'} – ref PAY-${d.paymentId} | PKR ${totalAmount.toLocaleString()} · ${d.date || new Date().toISOString().slice(0, 10)}`,
           },
         }),
       });
@@ -1446,17 +1446,17 @@ export default function FinancePage() {
       const credit = parseFloat(entry.credit_amount || 0);
       const debit = parseFloat(entry.debit_amount || 0);
       const bal = parseFloat(entry.closing_balance || 0);
-      const isDebitRow = debit > 0;
-      const rowBg = isDebitRow ? '#f0fdf4' : '#fef2f2';
+      const isCreditRow = credit > 0;
+      const rowBg = isCreditRow ? '#f0fdf4' : '#fef2f2';
 
       return `<tr style="background:${rowBg}">
         <td style="padding:6px 8px;border:1px solid #d1d5db;text-align:center;font-weight:600">${i + 1}</td>
         <td style="padding:6px 8px;border:1px solid #d1d5db;font-size:11px">${date}</td>
         <td style="padding:6px 8px;border:1px solid #d1d5db;font-weight:600">${account}</td>
         <td style="padding:6px 8px;border:1px solid #d1d5db;font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis">${desc}${entry.bill_no ? '<br/><span style="color:#6b7280;font-size:10px">Bill: ' + bill + '</span>' : ''}</td>
-        <td style="padding:6px 8px;border:1px solid #d1d5db;text-align:right;color:#dc2626;font-weight:600">${credit > 0 ? fmtAmt(credit) : '-'}</td>
-        <td style="padding:6px 8px;border:1px solid #d1d5db;text-align:right;color:#16a34a;font-weight:600">${debit > 0 ? fmtAmt(debit) : '-'}</td>
-        <td style="padding:6px 8px;border:1px solid #d1d5db;text-align:right;font-weight:700;color:${bal >= 0 ? '#16a34a' : '#dc2626'}">${fmtAmt(bal)}</td>
+        <td style="padding:6px 8px;border:1px solid #d1d5db;text-align:right;color:#16a34a;font-weight:600">${credit > 0 ? fmtAmt(credit) : '-'}</td>
+        <td style="padding:6px 8px;border:1px solid #d1d5db;text-align:right;color:#dc2626;font-weight:600">${debit > 0 ? fmtAmt(debit) : '-'}</td>
+        <td style="padding:6px 8px;border:1px solid #d1d5db;text-align:right;font-weight:700;color:#1d4ed8">${fmtAmt(bal)}</td>
       </tr>`;
     }).join('');
 
@@ -1478,9 +1478,9 @@ export default function FinancePage() {
   .meta .right strong{color:#1e293b}
   thead th{background:#1f2937;color:white;padding:8px 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;border:1px solid #374151}
   .footer-row td{background:#1f2937;color:white;padding:10px 8px;font-weight:700;font-size:12px;border:1px solid #374151}
-  .footer-row .credit-total{color:#fca5a5}
-  .footer-row .debit-total{color:#86efac}
-  .footer-row .balance-total{color:#fbbf24}
+  .footer-row .credit-total{color:#86efac}
+  .footer-row .debit-total{color:#fca5a5}
+  .footer-row .balance-total{color:#93c5fd}
   .print-footer{margin-top:30px;display:flex;justify-content:space-between}
   .print-footer .sig{text-align:center;flex:1;margin:0 20px}
   .print-footer .sig-line{border-top:1px solid #000;padding-top:6px;font-size:11px;color:#555}
@@ -2063,7 +2063,7 @@ export default function FinancePage() {
                           transition: 'all 0.2s'
                         }}
                       >
-                        Credit Amount
+                        Receive Amount
                       </Button>
                       <Button
                         variant="contained"
@@ -2087,7 +2087,7 @@ export default function FinancePage() {
                           transition: 'all 0.2s'
                         }}
                       >
-                        Debit Amount
+                        Pay Amount
                       </Button>
                       <Button
                         variant="contained"
@@ -2328,9 +2328,9 @@ export default function FinancePage() {
                           }
                         }
 
-                        // Color coding: Green for Debit, Red for Credit
-                        const rowBgColor = isDebit ? '#dcfce7' : '#fee2e2';
-                        const entryTypeColor = isDebit ? '#16a34a' : '#dc2626';
+                        // Color coding: Green for Credit, Red for Debit
+                        const rowBgColor = isCredit ? '#dcfce7' : '#fee2e2';
+                        const entryTypeColor = isCredit ? '#16a34a' : '#dc2626';
 
                         return (
                           <TableRow
@@ -2338,7 +2338,7 @@ export default function FinancePage() {
                             sx={{
                               bgcolor: rowBgColor,
                               '&:hover': {
-                                bgcolor: isDebit ? '#bbf7d0' : '#fecaca',
+                                bgcolor: isCredit ? '#bbf7d0' : '#fecaca',
                                 cursor: 'pointer',
                                 '& .edit-icon': {
                                   opacity: 1
@@ -2449,90 +2449,90 @@ export default function FinancePage() {
                             </TableCell>
 
                             {/* Credit Amount */}
-                            <TableCell
-                              sx={{
-                                borderRight: 1,
-                                borderColor: 'divider',
-                                textAlign: 'right',
-                                bgcolor: rowBgColor,
-                                fontWeight: 700
-                              }}
-                            >
-                              {parseFloat(entry.credit_amount) > 0 ? (
-                                <Typography
-                                  variant="body2"
-                                  sx={{
-                                    fontWeight: 700,
-                                    color: '#dc2626',
-                                    fontFamily: 'monospace',
-                                    fontSize: '0.95rem'
-                                  }}
-                                >
-                                  {parseFloat(entry.credit_amount).toLocaleString('en-PK', {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2
-                                  })}
-                                </Typography>
-                              ) : (
-                                <Typography variant="body2" sx={{ color: '#d1d5db', fontWeight: 500 }}>
-                                  -
-                                </Typography>
-                              )}
-                            </TableCell>
+                             <TableCell
+                               sx={{
+                                 borderRight: 1,
+                                 borderColor: 'divider',
+                                 textAlign: 'right',
+                                 bgcolor: rowBgColor,
+                                 fontWeight: 700
+                               }}
+                             >
+                               {parseFloat(entry.credit_amount) > 0 ? (
+                                 <Typography
+                                   variant="body2"
+                                   sx={{
+                                     fontWeight: 700,
+                                     color: '#16a34a',
+                                     fontFamily: 'monospace',
+                                     fontSize: '0.95rem'
+                                   }}
+                                 >
+                                   {parseFloat(entry.credit_amount).toLocaleString('en-PK', {
+                                     minimumFractionDigits: 2,
+                                     maximumFractionDigits: 2
+                                   })}
+                                 </Typography>
+                               ) : (
+                                 <Typography variant="body2" sx={{ color: '#d1d5db', fontWeight: 500 }}>
+                                   -
+                                 </Typography>
+                               )}
+                             </TableCell>
 
                             {/* Debit Amount */}
-                            <TableCell
-                              sx={{
-                                borderRight: 1,
-                                borderColor: 'divider',
-                                textAlign: 'right',
-                                bgcolor: rowBgColor,
-                                fontWeight: 700
-                              }}
-                            >
-                              {parseFloat(entry.debit_amount) > 0 ? (
-                                <Typography
-                                  variant="body2"
-                                  sx={{
-                                    fontWeight: 700,
-                                    color: '#16a34a',
-                                    fontFamily: 'monospace',
-                                    fontSize: '0.95rem'
-                                  }}
-                                >
-                                  {parseFloat(entry.debit_amount).toLocaleString('en-PK', {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2
-                                  })}
-                                </Typography>
-                              ) : (
-                                <Typography variant="body2" sx={{ color: '#d1d5db', fontWeight: 500 }}>
-                                  -
-                                </Typography>
-                              )}
-                            </TableCell>
+                             <TableCell
+                               sx={{
+                                 borderRight: 1,
+                                 borderColor: 'divider',
+                                 textAlign: 'right',
+                                 bgcolor: rowBgColor,
+                                 fontWeight: 700
+                               }}
+                             >
+                               {parseFloat(entry.debit_amount) > 0 ? (
+                                 <Typography
+                                   variant="body2"
+                                   sx={{
+                                     fontWeight: 700,
+                                     color: '#dc2626',
+                                     fontFamily: 'monospace',
+                                     fontSize: '0.95rem'
+                                   }}
+                                 >
+                                   {parseFloat(entry.debit_amount).toLocaleString('en-PK', {
+                                     minimumFractionDigits: 2,
+                                     maximumFractionDigits: 2
+                                   })}
+                                 </Typography>
+                               ) : (
+                                 <Typography variant="body2" sx={{ color: '#d1d5db', fontWeight: 500 }}>
+                                   -
+                                 </Typography>
+                               )}
+                             </TableCell>
 
                             {/* Running Balance */}
-                            <TableCell sx={{ textAlign: 'right', bgcolor: rowBgColor }}>
-                              <Typography
-                                variant="body2"
-                                sx={{
-                                  fontWeight: 700,
-                                  fontFamily: 'monospace',
-                                  color: parseFloat(entry.closing_balance) >= 0 ? '#16a34a' : '#dc2626',
-                                  bgcolor: parseFloat(entry.closing_balance) >= 0 ? '#e0ffe0' : '#ffcccc',
-                                  px: 1,
-                                  py: 0.5,
-                                  borderRadius: 1,
-                                  fontSize: '0.95rem'
-                                }}
-                              >
-                                {parseFloat(entry.closing_balance).toLocaleString('en-PK', {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2
-                                })}
-                              </Typography>
-                            </TableCell>
+                             <TableCell sx={{ textAlign: 'right', bgcolor: rowBgColor }}>
+                               <Typography
+                                 variant="body2"
+                                 sx={{
+                                   fontWeight: 700,
+                                   fontFamily: 'monospace',
+                                   color: '#1d4ed8',
+                                   bgcolor: '#eff6ff',
+                                   px: 1,
+                                   py: 0.5,
+                                   borderRadius: 1,
+                                   fontSize: '0.95rem'
+                                 }}
+                               >
+                                 {parseFloat(entry.closing_balance).toLocaleString('en-PK', {
+                                   minimumFractionDigits: 2,
+                                   maximumFractionDigits: 2
+                                 })}
+                               </Typography>
+                             </TableCell>
                           </TableRow>
                         );
                       })}
@@ -2542,56 +2542,48 @@ export default function FinancePage() {
                             TOTAL SUMMARY
                           </Typography>
                         </TableCell>
-                        <TableCell sx={{ borderRight: 1, borderColor: '#e5e7eb', textAlign: 'right', bgcolor: '#fef2f2' }}>
-                          <Typography variant="body2" sx={{ fontWeight: 800, color: '#dc2626', fontFamily: 'monospace', fontSize: '1rem' }}>
-                            {finalLedgerEntries.length > 0
-                              ? ledgerViewSummary.totalCredit.toLocaleString('en-PK', {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2
-                                })
-                              : '—'}
-                          </Typography>
-                        </TableCell>
-                        <TableCell sx={{ borderRight: 1, borderColor: '#e5e7eb', textAlign: 'right', bgcolor: '#f0fdf4' }}>
-                          <Typography variant="body2" sx={{ fontWeight: 800, color: '#16a34a', fontFamily: 'monospace', fontSize: '1rem' }}>
-                            {finalLedgerEntries.length > 0
-                              ? ledgerViewSummary.totalDebit.toLocaleString('en-PK', {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2
-                                })
-                              : '—'}
-                          </Typography>
-                        </TableCell>
-                        <TableCell sx={{ textAlign: 'right', bgcolor: '#e0ffe0' }}>
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              fontWeight: 800,
-                              fontFamily: 'monospace',
-                              color: finalLedgerEntries.length
-                                ? ledgerViewSummary.lastClosing >= 0
-                                  ? '#16a34a'
-                                  : '#dc2626'
-                                : '#111827',
-                              fontSize: '1rem',
-                              bgcolor: finalLedgerEntries.length
-                                ? ledgerViewSummary.lastClosing >= 0
-                                  ? '#e0ffe0'
-                                  : '#ffcccc'
-                                : 'transparent',
-                              px: 1,
-                              py: 0.5,
-                              borderRadius: 1
-                            }}
-                          >
-                            {finalLedgerEntries.length > 0
-                              ? ledgerViewSummary.lastClosing.toLocaleString('en-PK', {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2
-                                })
-                              : '—'}
-                          </Typography>
-                        </TableCell>
+                         <TableCell sx={{ borderRight: 1, borderColor: '#e5e7eb', textAlign: 'right', bgcolor: '#f0fdf4' }}>
+                           <Typography variant="body2" sx={{ fontWeight: 800, color: '#16a34a', fontFamily: 'monospace', fontSize: '1rem' }}>
+                             {finalLedgerEntries.length > 0
+                               ? ledgerViewSummary.totalCredit.toLocaleString('en-PK', {
+                                 minimumFractionDigits: 2,
+                                 maximumFractionDigits: 2
+                               })
+                               : '—'}
+                           </Typography>
+                         </TableCell>
+                         <TableCell sx={{ borderRight: 1, borderColor: '#e5e7eb', textAlign: 'right', bgcolor: '#fef2f2' }}>
+                           <Typography variant="body2" sx={{ fontWeight: 800, color: '#dc2626', fontFamily: 'monospace', fontSize: '1rem' }}>
+                             {finalLedgerEntries.length > 0
+                               ? ledgerViewSummary.totalDebit.toLocaleString('en-PK', {
+                                 minimumFractionDigits: 2,
+                                 maximumFractionDigits: 2
+                               })
+                               : '—'}
+                           </Typography>
+                         </TableCell>
+                         <TableCell sx={{ textAlign: 'right', bgcolor: '#eff6ff' }}>
+                           <Typography
+                             variant="body2"
+                             sx={{
+                               fontWeight: 800,
+                               fontFamily: 'monospace',
+                               color: '#1d4ed8',
+                               fontSize: '1rem',
+                               bgcolor: '#eff6ff',
+                               px: 1,
+                               py: 0.5,
+                               borderRadius: 1
+                             }}
+                           >
+                             {finalLedgerEntries.length > 0
+                               ? ledgerViewSummary.lastClosing.toLocaleString('en-PK', {
+                                 minimumFractionDigits: 2,
+                                 maximumFractionDigits: 2
+                               })
+                               : '—'}
+                           </Typography>
+                         </TableCell>
                       </TableRow>
                     </TableBody>
                   </Table>
@@ -2783,7 +2775,7 @@ export default function FinancePage() {
             <Grid container spacing={2} sx={{ mb: 3 }}>
               <Grid item xs={12} sm={4}>
                 <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, mb: 1, display: 'block' }}>
-                  Debit Amount
+                  Pay Amount
                 </Typography>
                 <TextField
                   fullWidth
@@ -2801,7 +2793,7 @@ export default function FinancePage() {
               </Grid>
               <Grid item xs={12} sm={4}>
                 <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, mb: 1, display: 'block' }}>
-                  Credit Amount
+                  Receive Amount
                 </Typography>
                 <TextField
                   fullWidth
@@ -3345,7 +3337,7 @@ export default function FinancePage() {
           px: 3,
           py: 2
         }}>
-          <Typography variant="h6" sx={{ fontWeight: 800 }}>Credit Amount Form</Typography>
+          <Typography variant="h6" sx={{ fontWeight: 800 }}>Receive Amount Form</Typography>
           <Typography variant="subtitle1" sx={{ fontWeight: 600, bgcolor: 'rgba(255,255,255,0.2)', px: 1.5, py: 0.5, borderRadius: 1 }}>
             Serial: #{ledgerEntries.length + 1}
           </Typography>
@@ -3376,10 +3368,10 @@ export default function FinancePage() {
             </Box>
             {receiveTotalPreview > 0 && (
               <Alert severity="info" sx={{ py: 0.5 }}>
-                <strong>After Credit Amount:</strong> account balance → PKR{' '}
+                <strong>After Receive Amount:</strong> account balance → PKR{' '}
                 {receiveBalanceAfter.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
                 <Typography component="span" variant="caption" display="block" color="text.secondary">
-                  Credit Amount credits the selected account (balance increases by the entered amount).
+                  Receive Amount credits the selected account (balance increases by the entered amount).
                 </Typography>
               </Alert>
             )}
@@ -3567,7 +3559,7 @@ export default function FinancePage() {
           px: 3,
           py: 2
         }}>
-          <Typography variant="h6" sx={{ fontWeight: 800 }}>Debit Amount Form</Typography>
+          <Typography variant="h6" sx={{ fontWeight: 800 }}>Pay Amount Form</Typography>
           <Typography variant="subtitle1" sx={{ fontWeight: 600, bgcolor: 'rgba(255,255,255,0.2)', px: 1.5, py: 0.5, borderRadius: 1 }}>
             Serial: #{ledgerEntries.length + 1}
           </Typography>
@@ -3598,10 +3590,10 @@ export default function FinancePage() {
             </Box>
             {payTotalPreview > 0 && (
               <Alert severity="info" sx={{ py: 0.5 }}>
-                <strong>After Debit Amount:</strong> account balance → PKR{' '}
+                <strong>After Pay Amount:</strong> account balance → PKR{' '}
                 {payBalanceAfter.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
                 <Typography component="span" variant="caption" display="block" color="text.secondary">
-                  Debit Amount debits the selected account (balance decreases by the entered amount).
+                  Pay Amount debits the selected account (balance decreases by the entered amount).
                 </Typography>
               </Alert>
             )}
@@ -4493,8 +4485,8 @@ export default function FinancePage() {
               <Box sx={{ mt: 2, p: 2, bgcolor: '#f0fdf4', borderRadius: 2, border: '1px solid #bbf7d0' }}>
                 <Typography variant="body2" sx={{ color: '#15803d', fontWeight: 600 }}>
                   {(() => {
-                    const from = new Date(printFromDate); from.setHours(0,0,0,0);
-                    const to = new Date(printToDate); to.setHours(23,59,59,999);
+                    const from = new Date(printFromDate); from.setHours(0, 0, 0, 0);
+                    const to = new Date(printToDate); to.setHours(23, 59, 59, 999);
                     const count = finalLedgerEntries.filter(e => { const d = new Date(e.created_at); return d >= from && d <= to; }).length;
                     return `${count} entries found between ${new Date(printFromDate).toLocaleDateString('en-GB')} and ${new Date(printToDate).toLocaleDateString('en-GB')}`;
                   })()}
