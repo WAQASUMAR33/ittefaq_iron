@@ -57,15 +57,13 @@ export async function POST(request) {
         }
 
         // Update sale price using salePercentage (if provided).
-        // IMPORTANT: if purchase% was provided above, apply sale% on the UPDATED purchase rate
-        // (so sale% is relative to the new purchase rate). Otherwise fall back to basePrice.
+        // Calculate based on the base price directly.
         if (saleVal !== null) {
           if (product.pro_sale_price !== null && product.pro_sale_price !== undefined) {
-            const baseForSale = (updatedData.pro_crate !== undefined) ? updatedData.pro_crate : basePrice;
-            const newSalePrice = parseFloat((baseForSale + baseForSale * (saleVal / 100)).toFixed(2));
+            const newSalePrice = parseFloat((basePrice + basePrice * (saleVal / 100)).toFixed(2));
             const finalSalePrice = parseFloat(Math.max(0, newSalePrice).toFixed(2));
             updatedData.pro_sale_price = finalSalePrice;
-            console.log(`  Sale: baseForSale ${baseForSale} → sale% ${saleVal}% = ${finalSalePrice} (${updatedData.pro_crate !== undefined ? 'based on updated purchase rate' : 'based on base price'})`);
+            console.log(`  Sale: basePrice ${basePrice} → sale% ${saleVal}% = ${finalSalePrice} (based on base price)`);
           }
         }
 

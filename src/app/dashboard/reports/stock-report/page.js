@@ -1379,7 +1379,7 @@ export default function StockReport() {
               <TextField fullWidth label="Sale % (e.g. 15 or -8)" type="number" inputProps={{ step: 0.1 }}
                 value={salePercentage} onChange={(e) => setSalePercentage(e.target.value)} size="small" sx={{ mb: 2 }} />
               <Alert severity="info" sx={{ fontSize: '0.78rem' }}>
-                New Purchase Rate = Base × (1 + purchase%/100) &nbsp;|&nbsp; New Sale Price = Purchase × (1 + sale%/100)
+                New Purchase Rate = Base × (1 + purchase%/100) &nbsp;|&nbsp; New Sale Price = Base × (1 + sale%/100)
               </Alert>
             </>
           )}
