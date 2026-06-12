@@ -67,11 +67,29 @@ export default function ExpensesPage() {
   const [showTypeDialog, setShowTypeDialog] = useState(false);
   const [newTypeName, setNewTypeName] = useState('');
   const [isSubmittingType, setIsSubmittingType] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch data
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Auto-select default cash account when loading or when payment method changes
+  useEffect(() => {
+    if (paymentAccounts.length > 0 && !formData.paid_from_account_id && (formData.paymentMethod === 'CASH' || formData.paymentMethod === 'PARTIAL')) {
+      const defaultCashAcc = paymentAccounts.find(acc => {
+        const typeTitle = acc.customer_type?.cus_type_title?.toLowerCase() || '';
+        const catTitle = acc.customer_category?.cus_cat_title?.toLowerCase() || '';
+        return typeTitle.includes('cash') && catTitle.includes('cash');
+      });
+      if (defaultCashAcc) {
+        setFormData(prev => ({
+          ...prev,
+          paid_from_account_id: defaultCashAcc.cus_id.toString()
+        }));
+      }
+    }
+  }, [paymentAccounts, formData.paymentMethod, formData.paid_from_account_id]);
 
   const fetchData = async () => {
     try {
@@ -199,53 +217,55 @@ export default function ExpensesPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validation
+    if (!formData.exp_title.trim()) {
+      alert('Please enter an expense title');
+      return;
+    }
+
+    if (!formData.exp_type) {
+      alert('Please select an expense type');
+      return;
+    }
+
+    if (!formData.exp_amount || parseFloat(formData.exp_amount) <= 0) {
+      alert('Please enter a valid amount');
+      return;
+    }
+
+    if (formData.paymentMethod === 'CASH') {
+      if (!formData.paid_from_account_id) {
+        alert('Please select a cash account');
+        return;
+      }
+    } else if (formData.paymentMethod === 'BANK') {
+      if (!formData.bank_account_id) {
+        alert('Please select a bank account');
+        return;
+      }
+    } else if (formData.paymentMethod === 'PARTIAL') {
+      if (!formData.paid_from_account_id || !formData.bank_account_id) {
+        alert('Please select both cash and bank accounts');
+        return;
+      }
+      const total = parseFloat(formData.exp_amount || 0);
+      const cash = parseFloat(formData.cash_amount || 0);
+      const bank = parseFloat(formData.bank_amount || 0);
+      
+      if (cash <= 0 || bank <= 0) {
+        alert('Both cash and bank amounts must be greater than zero for partial payments');
+        return;
+      }
+      
+      if (Math.abs(cash + bank - total) > 0.01) {
+        alert(`Sum of cash (Rs. ${cash.toLocaleString()}) and bank (Rs. ${bank.toLocaleString()}) must equal total amount (Rs. ${total.toLocaleString()})`);
+        return;
+      }
+    }
+
     try {
-      // Validation
-      if (!formData.exp_title.trim()) {
-        alert('Please enter an expense title');
-        return;
-      }
-
-      if (!formData.exp_type) {
-        alert('Please select an expense type');
-        return;
-      }
-
-      if (!formData.exp_amount || parseFloat(formData.exp_amount) <= 0) {
-        alert('Please enter a valid amount');
-        return;
-      }
-
-      if (formData.paymentMethod === 'CASH') {
-        if (!formData.paid_from_account_id) {
-          alert('Please select a cash account');
-          return;
-        }
-      } else if (formData.paymentMethod === 'BANK') {
-        if (!formData.bank_account_id) {
-          alert('Please select a bank account');
-          return;
-        }
-      } else if (formData.paymentMethod === 'PARTIAL') {
-        if (!formData.paid_from_account_id || !formData.bank_account_id) {
-          alert('Please select both cash and bank accounts');
-          return;
-        }
-        const total = parseFloat(formData.exp_amount || 0);
-        const cash = parseFloat(formData.cash_amount || 0);
-        const bank = parseFloat(formData.bank_amount || 0);
-        
-        if (cash <= 0 || bank <= 0) {
-          alert('Both cash and bank amounts must be greater than zero for partial payments');
-          return;
-        }
-        
-        if (Math.abs(cash + bank - total) > 0.01) {
-          alert(`Sum of cash (Rs. ${cash.toLocaleString()}) and bank (Rs. ${bank.toLocaleString()}) must equal total amount (Rs. ${total.toLocaleString()})`);
-          return;
-        }
-      }
-
+      setIsSubmitting(true);
       const url = '/api/expenses';
       const method = editingExpense ? 'PUT' : 'POST';
 
@@ -266,13 +286,18 @@ export default function ExpensesPage() {
         await fetchData();
         setCurrentView('list');
         setEditingExpense(null);
+        const defaultCashAcc = paymentAccounts.find(acc => {
+          const typeTitle = acc.customer_type?.cus_type_title?.toLowerCase() || '';
+          const catTitle = acc.customer_category?.cus_cat_title?.toLowerCase() || '';
+          return typeTitle.includes('cash') && catTitle.includes('cash');
+        });
         setFormData({
           exp_title: '',
           exp_type: '',
           exp_detail: '',
           exp_amount: '',
           is_paid: 'true',
-          paid_from_account_id: '',
+          paid_from_account_id: defaultCashAcc ? defaultCashAcc.cus_id.toString() : '',
           bank_account_id: '',
           cash_amount: '',
           bank_amount: '',
@@ -286,6 +311,8 @@ export default function ExpensesPage() {
     } catch (error) {
       console.error('Error saving expense:', error);
       alert('Failed to save expense');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -1078,9 +1105,24 @@ export default function ExpensesPage() {
                   </button>
                   <button
                     type="submit"
-                    className="px-8 py-3 bg-gradient-to-r from-red-500 to-pink-500 text-white font-medium rounded-xl hover:from-red-600 hover:to-pink-600 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105"
+                    disabled={isSubmitting}
+                    className={`px-8 py-3 bg-gradient-to-r from-red-500 to-pink-500 text-white font-medium rounded-xl transition-all duration-200 shadow-md hover:shadow-lg ${
+                      isSubmitting 
+                        ? 'opacity-60 cursor-not-allowed' 
+                        : 'hover:from-red-600 hover:to-pink-600 transform hover:scale-105'
+                    }`}
                   >
-                    {editingExpense ? 'Update Expense' : 'Create Expense'}
+                    {isSubmitting ? (
+                      <span className="flex items-center justify-center">
+                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        {editingExpense ? 'Updating...' : 'Creating...'}
+                      </span>
+                    ) : (
+                      editingExpense ? 'Update Expense' : 'Create Expense'
+                    )}
                   </button>
                 </div>
               </form>
