@@ -1600,7 +1600,7 @@ ALTER TABLE \`sale_details\` ADD CONSTRAINT \`sale_details_store_id_fkey\` FOREI
   }
 }
 
-// PUT - Update sale
+// PUT - Update sale (Reverse & Recreate ledger approach)
 export async function PUT(request) {
   try {
     const body = await request.json();
@@ -1614,6 +1614,8 @@ export async function PUT(request) {
       payment_type,
       cash_payment = 0,
       bank_payment = 0,
+      bank_title,
+      advance_payment = 0,
       debit_account_id,
       credit_account_id,
       loader_id,
@@ -1622,6 +1624,7 @@ export async function PUT(request) {
       bill_type,
       reference,
       sale_details,
+      transport_details,
       split_payments,
       updated_by
     } = body;
@@ -1631,31 +1634,42 @@ export async function PUT(request) {
     }
 
     // Calculate net total (what customer owes for the bill)
-    // IMPORTANT: Discount is NOT deducted from customer's bill - it's a company expense/profit sharing
-    // Customer owes exactly what is stated on the invoice (products + shipping)
     const netTotal = parseFloat(total_amount);
 
-    // Determine if this update is for a quotation (skip finance/stock)
+    // Determine if this update is for a quotation/order (skip finance)
     const isQuotationFromBody = bill_type === 'QUOTATION';
+    const isOrder = bill_type === 'ORDER' || bill_type === 'ORDER_TRASH';
+    const isSkipLedger = isQuotationFromBody || isOrder;
 
-    // Get special accounts BEFORE transaction (for better performance)
-    const specialAccounts = isQuotationFromBody ? null : await getSpecialAccountsForSale();
+    // Normalize effective cash/bank amounts
+    const payValNorm = parseFloat(payment) || 0;
+    let eff_cash = parseFloat(cash_payment ?? 0) || 0;
+    let eff_bank = parseFloat(bank_payment ?? 0) || 0;
+    const payTypeNorm = String(payment_type || 'CASH').toUpperCase();
+    if (payValNorm > 0 && eff_cash === 0 && eff_bank === 0) {
+      if (payTypeNorm === 'BANK_TRANSFER' || payTypeNorm === 'CHEQUE') {
+        eff_bank = payValNorm;
+      } else {
+        eff_cash = payValNorm;
+      }
+    }
 
-    // Use transaction to ensure data consistency with increased timeout (30 seconds)
+    // Get special accounts BEFORE transaction
+    const specialAccounts = isSkipLedger ? null : await getSpecialAccountsForSale();
+
     const result = await prisma.$transaction(async (tx) => {
-      // Get existing sale
+      // ═══════════════════════════════════════════
+      // 1. FETCH EXISTING DATA
+      // ═══════════════════════════════════════════
       const existingSale = await tx.sale.findUnique({
         where: { sale_id: id },
-        include: {
-          sale_details: true
-        }
+        include: { sale_details: true }
       });
 
       if (!existingSale) {
         throw new Error('Sale not found');
       }
 
-      // Get customer's current balance
       const customer = await tx.customer.findUnique({
         where: { cus_id },
         include: { city: true }
@@ -1665,7 +1679,7 @@ export async function PUT(request) {
         throw new Error('Customer not found');
       }
 
-      // ── Validate updated_by BEFORE it is used anywhere below ──
+      // Validate updated_by
       let validatedUpdatedBy = null;
       if (updated_by) {
         try {
@@ -1677,15 +1691,63 @@ export async function PUT(request) {
         } catch (e) { /* leave null */ }
       }
 
-      const isSkipLedger = bill_type === 'QUOTATION' || bill_type === 'ORDER' || bill_type === 'ORDER_TRASH';
+      // ═══════════════════════════════════════════
+      // 2. REVERSE OLD FINANCIAL EFFECTS
+      // ═══════════════════════════════════════════
+      const wasSkipLedger =
+        existingSale.bill_type === 'QUOTATION' ||
+        existingSale.bill_type === 'ORDER' ||
+        existingSale.bill_type === 'ORDER_TRASH';
 
-      // Delete existing sale details (stock + sale record updated; ledger entries kept intact)
-      await tx.saleDetail.deleteMany({
-        where: { sale_id: id }
-      });
+      if (!wasSkipLedger) {
+        // 2a. Find all old ledger entries for this sale
+        const oldLedgerEntries = await tx.ledger.findMany({
+          where: { bill_no: String(id) }
+        });
 
-      // Restore store stock quantities from old sale details
-      // CRITICAL FIX: Only restore stock if the previous bill was NOT quotation/order(-trash)
+        console.log(`\n${'='.repeat(60)}`);
+        console.log(`🔄 BILL EDIT: REVERSING OLD LEDGER ENTRIES`);
+        console.log(`   Sale ID: ${id}`);
+        console.log(`   Old ledger entries found: ${oldLedgerEntries.length}`);
+        console.log(`${'='.repeat(60)}`);
+
+        // 2b. Reverse balance changes for each affected account
+        // Group ledger entries by cus_id and calculate net effect per account
+        const accountEffects = {};
+        for (const entry of oldLedgerEntries) {
+          const accountId = entry.cus_id;
+          if (!accountEffects[accountId]) {
+            accountEffects[accountId] = { totalDebit: 0, totalCredit: 0 };
+          }
+          accountEffects[accountId].totalDebit += parseFloat(entry.debit_amount || 0);
+          accountEffects[accountId].totalCredit += parseFloat(entry.credit_amount || 0);
+        }
+
+        // Reverse each account's balance: undo (debit - credit) = subtract debit, add credit
+        for (const [accountIdStr, effect] of Object.entries(accountEffects)) {
+          const accountId = parseInt(accountIdStr);
+          const reversal = Number((effect.totalCredit - effect.totalDebit).toFixed(2));
+          if (reversal !== 0) {
+            await tx.customer.update({
+              where: { cus_id: accountId },
+              data: { cus_balance: { increment: reversal } }
+            });
+            console.log(`   🔄 Reversed account ${accountId}: ${reversal > 0 ? '+' : ''}${reversal}`);
+          }
+        }
+
+        // 2c. Delete all old ledger entries
+        await tx.ledger.deleteMany({
+          where: { bill_no: String(id) }
+        });
+        console.log(`   🗑️ Deleted ${oldLedgerEntries.length} old ledger entries`);
+      }
+
+      // ═══════════════════════════════════════════
+      // 3. UPDATE SALE RECORD & DETAILS
+      // ═══════════════════════════════════════════
+
+      // 3a. Restore store stock from old sale details
       const wasStockDeducted =
         existingSale.bill_type !== 'QUOTATION' &&
         existingSale.bill_type !== 'ORDER' &&
@@ -1698,7 +1760,10 @@ export async function PUT(request) {
         await Promise.all(stockRestorePromises);
       }
 
-      // Update sale
+      // 3b. Delete old sale details
+      await tx.saleDetail.deleteMany({ where: { sale_id: id } });
+
+      // 3c. Update sale record
       const sale = await tx.sale.update({
         where: { sale_id: id },
         data: {
@@ -1707,8 +1772,10 @@ export async function PUT(request) {
           total_amount: Number(parseFloat(total_amount).toFixed(2)),
           discount: Number(parseFloat(discount || 0).toFixed(2)),
           payment: Number(parseFloat(payment).toFixed(2)),
-          cash_payment: Number(parseFloat(cash_payment || 0).toFixed(2)),
-          bank_payment: Number(parseFloat(bank_payment || 0).toFixed(2)),
+          cash_payment: Number(eff_cash.toFixed(2)),
+          bank_payment: Number(eff_bank.toFixed(2)),
+          bank_title: bank_title || existingSale.bank_title || null,
+          advance_payment: Number(parseFloat(advance_payment || 0).toFixed(2)),
           payment_type,
           debit_account_id: debit_account_id || null,
           credit_account_id: credit_account_id || null,
@@ -1721,13 +1788,13 @@ export async function PUT(request) {
         }
       });
 
-      // Create new sale details
+      // 3d. Create new sale details
       const finalStoreId = store_id ? parseInt(store_id) : existingSale.store_id;
       const saleDetailPromises = sale_details.map(detail =>
         tx.saleDetail.create({
           data: {
             sale_id: sale.sale_id,
-            store_id: finalStoreId, // Added store_id
+            store_id: finalStoreId,
             pro_id: detail.pro_id,
             vehicle_no: detail.vehicle_no || null,
             qnty: Number(parseFloat(detail.qnty || 0).toFixed(2)),
@@ -1741,15 +1808,11 @@ export async function PUT(request) {
           }
         })
       );
-
       await Promise.all(saleDetailPromises);
 
-      // Delete existing split payments
-      await tx.splitPayment.deleteMany({
-        where: { sale_id: id }
-      });
+      // 3e. Delete and recreate split payments
+      await tx.splitPayment.deleteMany({ where: { sale_id: id } });
 
-      // Create new split payments if provided
       if (split_payments && split_payments.length > 0) {
         const splitPaymentPromises = split_payments.map(splitPayment =>
           tx.splitPayment.create({
@@ -1766,93 +1829,370 @@ export async function PUT(request) {
         await Promise.all(splitPaymentPromises);
       }
 
-      // Update store stock quantities - skip for quotations/orders
-      const finalStoreIdForStock = store_id ? parseInt(store_id) : existingSale.store_id;
-
-      // CRITICAL FIX: Determine if new bill type requires stock deduction
+      // 3f. Update store stock with new quantities
       const isNewBillQuotationOrOrder =
         bill_type === 'QUOTATION' || bill_type === 'ORDER' || bill_type === 'ORDER_TRASH';
 
-      if (!isNewBillQuotationOrOrder && finalStoreIdForStock) {
-        // Stock validation removed - allow negative stock
-        // for (const detail of sale_details) {
-        //   const hasStock = await checkStockAvailability(finalStoreIdForStock, detail.pro_id, parseInt(detail.qnty));
-        //   if (!hasStock) {
-        //     const currentStock = await getStoreStock(finalStoreIdForStock, detail.pro_id);
-        //     throw new Error(`Insufficient stock for product ${detail.pro_id}. Available: ${currentStock}, Required: ${detail.qnty}`);
-        //   }
-        // }
-
+      if (!isNewBillQuotationOrOrder && finalStoreId) {
         const storeStockUpdatePromises = sale_details.map(async detail => {
-          await updateStoreStock(finalStoreIdForStock, detail.pro_id, parseFloat(detail.qnty || 0), 'decrement', validatedUpdatedBy);
+          await updateStoreStock(finalStoreId, detail.pro_id, parseFloat(detail.qnty || 0), 'decrement', validatedUpdatedBy);
         });
         await Promise.all(storeStockUpdatePromises);
       }
 
-      // ── Ledger Adjustment Entry for Bill Edit ──
-      // Old entries are preserved. A single NEW entry is created for the net change
-      // in what the customer owes (bill amount delta minus payment delta).
+      // ═══════════════════════════════════════════
+      // 4. RECREATE ALL LEDGER ENTRIES (same as POST)
+      // ═══════════════════════════════════════════
       if (!isSkipLedger) {
-        const oldTotal = Number(parseFloat(existingSale.total_amount || 0).toFixed(2));
-        const oldPaid  = Number(parseFloat(existingSale.payment || 0).toFixed(2));
-        const newTotal = Number(parseFloat(netTotal).toFixed(2));
-        const newPaid  = Number(parseFloat(payment || 0).toFixed(2));
+        // Re-fetch customer balance AFTER reversals to get the clean pre-sale state
+        const freshCustomer = await tx.customer.findUnique({
+          where: { cus_id },
+          select: { cus_balance: true, cus_name: true }
+        });
+        let runningBalance = parseFloat(freshCustomer.cus_balance || 0);
+        const ledgerEntries = [];
 
-        const oldOwed   = oldTotal - oldPaid;
-        const newOwed   = newTotal - newPaid;
-        const netChange = Number((newOwed - oldOwed).toFixed(2));
+        console.log(`\n${'='.repeat(60)}`);
+        console.log(`📝 BILL EDIT: RECREATING LEDGER ENTRIES`);
+        console.log(`   Customer: ${freshCustomer.cus_name} (ID: ${cus_id})`);
+        console.log(`   Pre-sale Balance: ${runningBalance}`);
+        console.log(`   New Bill Amount: ${total_amount}`);
+        console.log(`   New Payment: Cash=${eff_cash}, Bank=${eff_bank}`);
+        console.log(`${'='.repeat(60)}`);
 
-        if (netChange !== 0) {
-          const currentBalance = Number(parseFloat(customer.cus_balance || 0).toFixed(2));
-          const isIncrease     = netChange > 0;
-          const adjustmentAmt  = Math.abs(netChange);
-          const newCusBalance  = Number((currentBalance + netChange).toFixed(2));
+        // ── 4a. Customer SALE debit (bill amount) ──
+        const debitAmount = parseFloat(total_amount);
+        if (debitAmount > 0) {
+          let billDetails = `Sale Bill - ${bill_type || 'BILL'} - Customer Account (Debit)`;
+          if (parseFloat(discount || 0) > 0) {
+            billDetails += ` [Discount Applied: ${parseFloat(discount || 0)}]`;
+          }
 
-          await tx.ledger.create({
-            data: {
-              cus_id,
-              opening_balance: currentBalance,
-              debit_amount:    isIncrease ? adjustmentAmt : 0,
-              credit_amount:   isIncrease ? 0 : adjustmentAmt,
-              closing_balance: newCusBalance,
-              bill_no:         sale.sale_id.toString(),
-              trnx_type:       'ADJUSTMENT',
-              details:         `Bill Edit - INV-${sale.sale_id} - Amount ${isIncrease ? 'Increased' : 'Decreased'} by ${adjustmentAmt}`,
-              payments:        0,
-              cash_payment:    0,
-              bank_payment:    0,
-              updated_by:      validatedUpdatedBy
-            }
+          const billEntry = createLedgerEntry({
+            cus_id,
+            opening_balance: runningBalance,
+            debit_amount: debitAmount,
+            credit_amount: 0,
+            bill_no: sale.sale_id.toString(),
+            trnx_type: 'SALE',
+            details: billDetails,
+            payments: 0,
+            updated_by: validatedUpdatedBy
           });
-
-          await tx.customer.update({
-            where: { cus_id },
-            data: { cus_balance: newCusBalance }
-          });
+          console.log(`   📝 Bill Debit: ${debitAmount}, Closing=${billEntry.closing_balance}`);
+          ledgerEntries.push(billEntry);
+          runningBalance = billEntry.closing_balance;
         }
 
-        // ── Payment account: apply only the delta in payment received ──
-        const paymentDelta = Number((newPaid - oldPaid).toFixed(2));
-        if (paymentDelta !== 0 && specialAccounts) {
-          const paymentAccount = payment_type === 'CASH' ? specialAccounts.cash : specialAccounts.bank;
-          if (paymentAccount) {
-            await tx.customer.update({
-              where: { cus_id: paymentAccount.cus_id },
-              data: { cus_balance: { increment: paymentDelta } }
+        // ── 4b. Customer payment credit ──
+        const cashAmount = eff_cash;
+        const bankAmount = eff_bank;
+        const totalPaymentForCustomer = cashAmount + bankAmount;
+
+        if (totalPaymentForCustomer > 0) {
+          const paymentParts = [];
+          if (cashAmount > 0) paymentParts.push(`Cash: ${cashAmount}`);
+          if (bankAmount > 0) paymentParts.push(`Bank (${bank_title || 'Bank Account'}): ${bankAmount}`);
+          const paymentDesc = paymentParts.length > 0 ? ` [${paymentParts.join(', ')}]` : '';
+
+          const paymentEntry = createLedgerEntry({
+            cus_id,
+            opening_balance: runningBalance,
+            debit_amount: 0,
+            credit_amount: totalPaymentForCustomer,
+            bill_no: sale.sale_id.toString(),
+            trnx_type: 'SALE',
+            details: `Payment Received - ${bill_type || 'BILL'} - Customer Account (Credit)${paymentDesc}`,
+            payments: totalPaymentForCustomer,
+            cash_payment: cashAmount,
+            bank_payment: bankAmount,
+            updated_by: validatedUpdatedBy
+          });
+          console.log(`   💳 Payment Credit: ${totalPaymentForCustomer}, Closing=${paymentEntry.closing_balance}`);
+          ledgerEntries.push(paymentEntry);
+          runningBalance = paymentEntry.closing_balance;
+        }
+
+        // ── 4c. Bank Account debit (bank payment received) ──
+        let usedBankAccountId = null;
+
+        if (eff_bank > 0 && specialAccounts) {
+          let bankAccountToUse = specialAccounts.bank;
+
+          // If a specific bank_title is provided, find that specific bank account
+          const effectiveBankTitle = bank_title || existingSale.bank_title;
+          if (effectiveBankTitle && effectiveBankTitle.trim() && bankAccountToUse) {
+            const specificBank = await tx.customer.findFirst({
+              where: {
+                cus_name: { contains: effectiveBankTitle },
+                cus_category: bankAccountToUse.cus_category
+              }
             });
+            if (specificBank) {
+              bankAccountToUse = specificBank;
+            }
+          }
+
+          if (bankAccountToUse) {
+            usedBankAccountId = bankAccountToUse.cus_id;
+            // Re-fetch current balance (after reversals)
+            const freshBank = await tx.customer.findUnique({
+              where: { cus_id: bankAccountToUse.cus_id },
+              select: { cus_balance: true }
+            });
+
+            const bankEntry = createLedgerEntry({
+              cus_id: bankAccountToUse.cus_id,
+              opening_balance: freshBank.cus_balance,
+              debit_amount: Number(eff_bank.toFixed(2)),
+              credit_amount: 0,
+              bill_no: sale.sale_id.toString(),
+              trnx_type: 'BANK_TRANSFER',
+              details: `Payment Received - ${bill_type || 'BILL'} - ${freshCustomer.cus_name} - BANK Account: ${bankAccountToUse.cus_name} (Debit)`,
+              payments: Number(eff_bank.toFixed(2)),
+              cash_payment: 0,
+              bank_payment: Number(eff_bank.toFixed(2)),
+              updated_by: validatedUpdatedBy
+            });
+            console.log(`   🏦 Bank Debit: ${eff_bank}, Closing=${bankEntry.closing_balance}`);
+            ledgerEntries.push(bankEntry);
           }
         }
-      }
+
+        // ── 4d. Cash Account debit (cash payment received) ──
+        if (eff_cash > 0 && specialAccounts?.cash) {
+          // Re-fetch current balance (after reversals)
+          const freshCash = await tx.customer.findUnique({
+            where: { cus_id: specialAccounts.cash.cus_id },
+            select: { cus_balance: true }
+          });
+
+          const cashEntry = createLedgerEntry({
+            cus_id: specialAccounts.cash.cus_id,
+            opening_balance: freshCash.cus_balance,
+            debit_amount: Number(eff_cash.toFixed(2)),
+            credit_amount: 0,
+            bill_no: sale.sale_id.toString(),
+            trnx_type: 'CASH',
+            details: `Payment Received - ${bill_type || 'BILL'} - ${freshCustomer.cus_name} - CASH Account (Debit)`,
+            payments: Number(eff_cash.toFixed(2)),
+            cash_payment: Number(eff_cash.toFixed(2)),
+            bank_payment: 0,
+            updated_by: validatedUpdatedBy
+          });
+          console.log(`   💵 Cash Debit: ${eff_cash}, Closing=${cashEntry.closing_balance}`);
+          ledgerEntries.push(cashEntry);
+        }
+
+        // ── 4e. Transport account entries ──
+        if (transport_details && transport_details.length > 0) {
+          for (const td of transport_details) {
+            const transportAmount = parseFloat(td.amount) || 0;
+            if (!td.account_id || transportAmount <= 0) continue;
+
+            const transportAccount = await tx.customer.findUnique({ where: { cus_id: parseInt(td.account_id) } });
+            if (!transportAccount) continue;
+
+            const transportEntry = createLedgerEntry({
+              cus_id: transportAccount.cus_id,
+              opening_balance: transportAccount.cus_balance,
+              debit_amount: 0,
+              credit_amount: Number(transportAmount.toFixed(2)),
+              bill_no: sale.sale_id.toString(),
+              trnx_type: 'SALE',
+              details: `Transport Charges - ${bill_type || 'BILL'} - ${freshCustomer.cus_name} (Credit)`,
+              payments: 0,
+              updated_by: validatedUpdatedBy
+            });
+            ledgerEntries.push(transportEntry);
+
+            await tx.customer.update({
+              where: { cus_id: transportAccount.cus_id },
+              data: { cus_balance: transportEntry.closing_balance }
+            });
+            console.log(`   🚚 Transport Credit: Account=${transportAccount.cus_name}, Amount=${transportAmount}`);
+          }
+        }
+
+        // ── 4f. Split Payment ledger entries ──
+        if (split_payments && split_payments.length > 0) {
+          for (const splitPayment of split_payments) {
+            const splitAmount = parseFloat(splitPayment.amount);
+
+            // Skip if already handled by bank/cash entries above
+            if (usedBankAccountId && splitPayment.debit_account_id === usedBankAccountId) continue;
+            if (splitPayment.debit_account_id === specialAccounts?.cash?.cus_id) continue;
+
+            // Debit split payment account
+            if (splitPayment.debit_account_id) {
+              const debitAccount = await tx.customer.findUnique({
+                where: { cus_id: splitPayment.debit_account_id }
+              });
+
+              if (debitAccount) {
+                const splitDebitEntry = createLedgerEntry({
+                  cus_id: splitPayment.debit_account_id,
+                  opening_balance: debitAccount.cus_balance,
+                  debit_amount: splitAmount,
+                  credit_amount: 0,
+                  bill_no: sale.sale_id.toString(),
+                  trnx_type: splitPayment.payment_type,
+                  details: `Split Payment - ${bill_type || 'BILL'} - Debit Account`,
+                  payments: splitAmount,
+                  updated_by: validatedUpdatedBy
+                });
+                ledgerEntries.push(splitDebitEntry);
+              }
+            }
+
+            // Credit split payment account
+            if (splitPayment.credit_account_id) {
+              const creditAccount = await tx.customer.findUnique({
+                where: { cus_id: splitPayment.credit_account_id }
+              });
+
+              if (creditAccount) {
+                const splitCreditEntry = createLedgerEntry({
+                  cus_id: splitPayment.credit_account_id,
+                  opening_balance: creditAccount.cus_balance,
+                  debit_amount: 0,
+                  credit_amount: splitAmount,
+                  bill_no: sale.sale_id.toString(),
+                  trnx_type: splitPayment.payment_type,
+                  details: `Split Payment - ${bill_type || 'BILL'} - Credit Account`,
+                  payments: splitAmount,
+                  updated_by: validatedUpdatedBy
+                });
+                ledgerEntries.push(splitCreditEntry);
+              }
+            }
+          }
+        }
+
+        // ═══════════════════════════════════════════
+        // 5. PERSIST LEDGER ENTRIES & UPDATE BALANCES
+        // ═══════════════════════════════════════════
+        console.log(`\n   📊 PERSISTING ${ledgerEntries.length} LEDGER ENTRIES`);
+
+        for (let i = 0; i < ledgerEntries.length; i++) {
+          const entry = ledgerEntries[i];
+          await tx.ledger.create({
+            data: {
+              cus_id: entry.cus_id,
+              opening_balance: entry.opening_balance,
+              debit_amount: entry.debit_amount,
+              credit_amount: entry.credit_amount,
+              closing_balance: entry.closing_balance,
+              bill_no: entry.bill_no,
+              trnx_type: entry.trnx_type,
+              details: entry.details,
+              payments: entry.payments,
+              cash_payment: entry.cash_payment || 0,
+              bank_payment: entry.bank_payment || 0,
+              updated_by: entry.updated_by
+            }
+          });
+          console.log(`   ✅ Entry ${i + 1}/${ledgerEntries.length}: ${entry.trnx_type} on account ${entry.cus_id}`);
+        }
+
+        // ── 5a. Update customer balance from ledger ──
+        const customerLedgerEntries = ledgerEntries.filter(e => e.cus_id === cus_id);
+        if (customerLedgerEntries.length > 0) {
+          const lastEntry = customerLedgerEntries[customerLedgerEntries.length - 1];
+          await tx.customer.update({
+            where: { cus_id },
+            data: { cus_balance: lastEntry.closing_balance }
+          });
+          console.log(`   ✅ Customer balance updated to ${lastEntry.closing_balance}`);
+        }
+
+        // ── 5b. Update Cash Account balance ──
+        if (eff_cash > 0 && specialAccounts?.cash) {
+          const cashLedgerEntry = ledgerEntries.find(e => e.cus_id === specialAccounts.cash.cus_id);
+          if (cashLedgerEntry) {
+            await tx.customer.update({
+              where: { cus_id: specialAccounts.cash.cus_id },
+              data: { cus_balance: cashLedgerEntry.closing_balance }
+            });
+            console.log(`   💵 Cash Account balance updated to ${cashLedgerEntry.closing_balance}`);
+          }
+        }
+
+        // ── 5c. Update Bank Account balance ──
+        if (eff_bank > 0 && usedBankAccountId) {
+          const bankLedgerEntry = ledgerEntries.find(e =>
+            e.cus_id === usedBankAccountId && e.trnx_type === 'BANK_TRANSFER'
+          );
+          if (bankLedgerEntry) {
+            await tx.customer.update({
+              where: { cus_id: usedBankAccountId },
+              data: { cus_balance: bankLedgerEntry.closing_balance }
+            });
+            console.log(`   🏦 Bank Account balance updated to ${bankLedgerEntry.closing_balance}`);
+          }
+        }
+
+        // ── 5d. Update split payment account balances ──
+        if (split_payments && split_payments.length > 0) {
+          for (const splitPayment of split_payments) {
+            if (splitPayment.debit_account_id) {
+              const splitEntry = ledgerEntries.find(e => e.cus_id === splitPayment.debit_account_id);
+              if (splitEntry) {
+                await tx.customer.update({
+                  where: { cus_id: splitPayment.debit_account_id },
+                  data: { cus_balance: splitEntry.closing_balance }
+                });
+              }
+            }
+            if (splitPayment.credit_account_id) {
+              const splitEntry = ledgerEntries.find(e => e.cus_id === splitPayment.credit_account_id);
+              if (splitEntry) {
+                await tx.customer.update({
+                  where: { cus_id: splitPayment.credit_account_id },
+                  data: { cus_balance: splitEntry.closing_balance }
+                });
+              }
+            }
+          }
+        }
+
+        // ── 5e. Update loader balance ──
+        if (loader_id && parseFloat(shipping_amount || 0) > 0) {
+          // Reverse old loader balance if existed
+          if (existingSale.loader_id && parseFloat(existingSale.shipping_amount || 0) > 0) {
+            await tx.loader.update({
+              where: { loader_id: existingSale.loader_id },
+              data: { loader_balance: { decrement: parseFloat(existingSale.shipping_amount || 0) } }
+            });
+          }
+          // Apply new loader balance
+          await tx.loader.update({
+            where: { loader_id },
+            data: { loader_balance: { increment: parseFloat(shipping_amount || 0) } }
+          });
+        } else if (existingSale.loader_id && parseFloat(existingSale.shipping_amount || 0) > 0) {
+          // Old sale had loader but new one doesn't — reverse old
+          await tx.loader.update({
+            where: { loader_id: existingSale.loader_id },
+            data: { loader_balance: { decrement: parseFloat(existingSale.shipping_amount || 0) } }
+          });
+        }
+
+        console.log(`\n${'='.repeat(60)}`);
+        console.log(`✅ BILL EDIT COMPLETE: ${ledgerEntries.length} ledger entries created`);
+        console.log(`${'='.repeat(60)}\n`);
+
+      } // End of if (!isSkipLedger)
 
       return sale;
     }, {
-      timeout: 120000 // 120 seconds (2 minutes) timeout for complex transactions with ledger entries
+      timeout: 120000 // 120 seconds timeout
     });
 
     return NextResponse.json(result);
   } catch (error) {
     console.error('Error updating sale:', error);
-    return NextResponse.json({ error: 'Failed to update sale' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update sale', details: error.message }, { status: 500 });
   }
 }
 
