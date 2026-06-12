@@ -5332,17 +5332,7 @@ function SalesPageContent() {
                                 </TableCell>
                               </TableRow>
                             )}
-                            {/* Show previous balance */}
-                            {currentBillData.previous_balance !== undefined && (
-                              <TableRow>
-                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                  پچھلا بقایا
-                                </TableCell>
-                                <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                  {fmtAmt(currentBillData.previous_balance)}
-                                </TableCell>
-                              </TableRow>
-                            )}
+
                             <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم وصول</TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
@@ -5909,16 +5899,6 @@ function SalesPageContent() {
                                     </TableCell>
                                     <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
                                       {fmtAmt(currentBillData.bank_payment)}
-                                    </TableCell>
-                                  </TableRow>
-                                )}
-                                {currentBillData.previous_balance !== undefined && (
-                                  <TableRow>
-                                    <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                      پچھلا بقایا
-                                    </TableCell>
-                                    <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                      {fmtAmt(currentBillData.previous_balance)}
                                     </TableCell>
                                   </TableRow>
                                 )}
@@ -8200,17 +8180,6 @@ function SalesPageContent() {
                                   </TableRow>
                                 )}
 
-                                {/* Show previous balance row if it exists */}
-                                {prevBalAmount > 0 && (
-                                  <TableRow>
-                                    <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                      پچھلا بقایا
-                                    </TableCell>
-                                    <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                      {fmtAmt(prevBalAmount)}
-                                    </TableCell>
-                                  </TableRow>
-                                )}
                               </>
                             );
                           })()}
