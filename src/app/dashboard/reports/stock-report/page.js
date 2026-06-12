@@ -335,7 +335,7 @@ export default function StockReport() {
     const rawRows = sortCombinedAllStockRows(getCombinedAllStockRows(products));
     let csv = 'STOCK REPORT (combined by store)\n';
     csv += `Generated: ${new Date().toLocaleDateString('en-GB')}\n\n`;
-    csv += 'S.No,Store,Category,Item Name,Unit,Qty,Base Rate,Cost Rate,Line Value,Low Stock Threshold,Status\n';
+    csv += 'S.No,Store,Category,Item Name,Unit,Qty,Base Rate,Sale Rate,Cost Rate,Line Value,Low Stock Threshold,Status\n';
     rawRows.forEach((row, i) => {
       const p = row.product;
       const qty = row.qty;
@@ -344,7 +344,7 @@ export default function StockReport() {
       const status = qty === 0 ? 'Out of Stock' : qty <= threshold ? 'Low Stock' : 'In Stock';
       const storeEsc = (row.storeName || '').replace(/"/g, '""');
       const titleEsc = (p.pro_title || '').replace(/"/g, '""');
-      csv += `${i + 1},"${storeEsc}",${p.category?.cat_name || ''},"${titleEsc}",${p.pro_unit || ''},${formatQty(qty)},${formatCurrency(p.pro_baser_price)},${formatCurrency(p.pro_cost_price)},${formatCurrency(val)},${threshold},${status}\n`;
+      csv += `${i + 1},"${storeEsc}",${p.category?.cat_name || ''},"${titleEsc}",${p.pro_unit || ''},${formatQty(qty)},${formatCurrency(p.pro_baser_price)},${formatCurrency(p.pro_sale_price)},${formatCurrency(p.pro_cost_price)},${formatCurrency(val)},${threshold},${status}\n`;
     });
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -443,6 +443,7 @@ export default function StockReport() {
           row.storeName || '—',
           formatQty(qty),
           formatCurrency(p.pro_baser_price),
+          formatCurrency(p.pro_sale_price),
           formatCurrency(p.pro_cost_price),
           formatCurrency(value),
           status,
@@ -452,11 +453,12 @@ export default function StockReport() {
       const totalValue = rawRows.reduce((s, r) => s + r.qty * parseFloat(r.product.pro_cost_price || 0), 0);
       autoTable(doc, {
         startY,
-        head: [['S#', 'Category', 'Item Name', 'Unit', 'Store', 'Qty', 'Base Rate', 'Cost Rate', 'Value', 'Status']],
-        body: body.length ? body : [[{ content: 'No products match the current filters.', colSpan: 10, styles: { halign: 'center' } }]],
+        head: [['S#', 'Category', 'Item Name', 'Unit', 'Store', 'Qty', 'Base Rate', 'Sale Rate', 'Cost Rate', 'Value', 'Status']],
+        body: body.length ? body : [[{ content: 'No products match the current filters.', colSpan: 11, styles: { halign: 'center' } }]],
         foot: body.length ? [[
           { content: 'Grand Total', colSpan: 5, styles: { halign: 'right', fontStyle: 'bold' } },
           { content: formatQty(totalQty), styles: { halign: 'right', fontStyle: 'bold' } },
+          '',
           '',
           '',
           { content: formatCurrency(totalValue), styles: { halign: 'right', fontStyle: 'bold' } },
@@ -471,11 +473,12 @@ export default function StockReport() {
           0: { halign: 'center', cellWidth: 22 },
           3: { halign: 'center', cellWidth: 30 },
           4: { halign: 'left', cellWidth: 70 },
-          5: { halign: 'right', cellWidth: 40 },
-          6: { halign: 'right', cellWidth: 50 },
-          7: { halign: 'right', cellWidth: 50 },
-          8: { halign: 'right', cellWidth: 55 },
-          9: { halign: 'center', cellWidth: 50 },
+          5: { halign: 'right', cellWidth: 35 },
+          6: { halign: 'right', cellWidth: 45 },
+          7: { halign: 'right', cellWidth: 45 },
+          8: { halign: 'right', cellWidth: 45 },
+          9: { halign: 'right', cellWidth: 50 },
+          10: { halign: 'center', cellWidth: 45 },
         },
       });
     } else if (activeTab === 'store-wise') {
@@ -497,6 +500,7 @@ export default function StockReport() {
             row.storeName || '—',
             formatQty(qty),
             formatCurrency(p.pro_baser_price),
+            formatCurrency(p.pro_sale_price),
             formatCurrency(p.pro_cost_price),
             formatCurrency(value),
             status,
@@ -506,11 +510,12 @@ export default function StockReport() {
         const totalValue = rawRows.reduce((s, r) => s + r.qty * parseFloat(r.product.pro_cost_price || 0), 0);
         autoTable(doc, {
           startY,
-          head: [['S#', 'Category', 'Item Name', 'Unit', 'Store', 'Qty', 'Base Rate', 'Cost Rate', 'Value', 'Status']],
+          head: [['S#', 'Category', 'Item Name', 'Unit', 'Store', 'Qty', 'Base Rate', 'Sale Rate', 'Cost Rate', 'Value', 'Status']],
           body,
           foot: [[
             { content: 'Grand Total', colSpan: 5, styles: { halign: 'right', fontStyle: 'bold' } },
             { content: formatQty(totalQty), styles: { halign: 'right', fontStyle: 'bold' } },
+            '',
             '',
             '',
             { content: formatCurrency(totalValue), styles: { halign: 'right', fontStyle: 'bold' } },
@@ -525,11 +530,12 @@ export default function StockReport() {
             0: { halign: 'center', cellWidth: 22 },
             3: { halign: 'center', cellWidth: 30 },
             4: { halign: 'left', cellWidth: 70 },
-            5: { halign: 'right', cellWidth: 40 },
-            6: { halign: 'right', cellWidth: 50 },
-            7: { halign: 'right', cellWidth: 50 },
-            8: { halign: 'right', cellWidth: 55 },
-            9: { halign: 'center', cellWidth: 50 },
+            5: { halign: 'right', cellWidth: 35 },
+            6: { halign: 'right', cellWidth: 45 },
+            7: { halign: 'right', cellWidth: 45 },
+            8: { halign: 'right', cellWidth: 45 },
+            9: { halign: 'right', cellWidth: 50 },
+            10: { halign: 'center', cellWidth: 45 },
           },
         });
       }
@@ -548,14 +554,15 @@ export default function StockReport() {
           formatQty(threshold),
           breakdown,
           formatCurrency(p.pro_baser_price),
+          formatCurrency(p.pro_sale_price),
           formatCurrency(p.pro_cost_price),
           formatCurrency(qty * parseFloat(p.pro_cost_price || 0)),
         ];
       });
       autoTable(doc, {
         startY,
-        head: [['S#', 'Category', 'Item Name', 'Unit', 'Qty', 'Threshold', 'Store Breakdown', 'Base Rate', 'Cost Rate', 'Value']],
-        body: body.length ? body : [[{ content: 'No low stock items — all products are well stocked.', colSpan: 10, styles: { halign: 'center' } }]],
+        head: [['S#', 'Category', 'Item Name', 'Unit', 'Qty', 'Threshold', 'Store Breakdown', 'Base Rate', 'Sale Rate', 'Cost Rate', 'Value']],
+        body: body.length ? body : [[{ content: 'No low stock items — all products are well stocked.', colSpan: 11, styles: { halign: 'center' } }]],
         theme: 'grid',
         headStyles: { fillColor: [217, 119, 6], textColor: 255, fontSize: 8, fontStyle: 'bold' },
         bodyStyles: { fontSize: 8 },
@@ -581,6 +588,7 @@ export default function StockReport() {
               formatQty(threshold),
               formatQty(shortage),
               formatCurrency(p.pro_baser_price),
+              formatCurrency(p.pro_sale_price),
               formatCurrency(p.pro_cost_price),
               formatCurrency(p._qty * parseFloat(p.pro_cost_price || 0)),
             ];
@@ -588,8 +596,8 @@ export default function StockReport() {
           autoTable(doc, {
             startY: y,
             head: [[
-              { content: `${g.catName} — ${g.products.length} low-stock items · Qty: ${formatQty(catTotalQty)} · Value: Rs. ${formatCurrency(catTotalValue)}`, colSpan: 9, styles: { halign: 'left', fillColor: [249, 115, 22], textColor: 255, fontStyle: 'bold' } },
-            ], ['S#', 'Item Name', 'Unit', 'Qty', 'Threshold', 'Shortage', 'Base Rate', 'Cost Rate', 'Value']],
+              { content: `${g.catName} — ${g.products.length} low-stock items · Qty: ${formatQty(catTotalQty)} · Value: Rs. ${formatCurrency(catTotalValue)}`, colSpan: 10, styles: { halign: 'left', fillColor: [249, 115, 22], textColor: 255, fontStyle: 'bold' } },
+            ], ['S#', 'Item Name', 'Unit', 'Qty', 'Threshold', 'Shortage', 'Base Rate', 'Sale Rate', 'Cost Rate', 'Value']],
             body,
             theme: 'grid',
             headStyles: { fillColor: [254, 243, 199], textColor: 92, fontSize: 8, fontStyle: 'bold' },
@@ -614,13 +622,14 @@ export default function StockReport() {
             formatQty(p._storeQty),
             formatQty(p.low_stock_quantity ?? 10),
             formatCurrency(p.pro_baser_price),
+            formatCurrency(p.pro_sale_price),
             formatCurrency(p.pro_cost_price),
           ]);
           autoTable(doc, {
             startY: y,
             head: [[
-              { content: `${g.store.store_name} — ${g.products.length} items need restocking`, colSpan: 8, styles: { halign: 'left', fillColor: [217, 119, 6], textColor: 255, fontStyle: 'bold' } },
-            ], ['S#', 'Category', 'Item Name', 'Unit', 'Store Qty', 'Min Threshold', 'Base Rate', 'Cost Rate']],
+              { content: `${g.store.store_name} — ${g.products.length} items need restocking`, colSpan: 9, styles: { halign: 'left', fillColor: [217, 119, 6], textColor: 255, fontStyle: 'bold' } },
+            ], ['S#', 'Category', 'Item Name', 'Unit', 'Store Qty', 'Min Threshold', 'Base Rate', 'Sale Rate', 'Cost Rate']],
             body,
             theme: 'grid',
             headStyles: { fillColor: [254, 243, 199], textColor: 92, fontSize: 8, fontStyle: 'bold' },
@@ -781,6 +790,7 @@ export default function StockReport() {
                 <th className="px-2 py-2.5 text-left text-xs font-bold uppercase border-r border-slate-600 min-w-[100px]">Store</th>
                 <th className="px-2 py-2.5 text-right text-xs font-bold uppercase border-r border-slate-600 w-24">Qty</th>
                 <th className="px-2 py-2.5 text-right text-xs font-bold uppercase border-r border-slate-600 w-24">Base Rate</th>
+                <th className="px-2 py-2.5 text-right text-xs font-bold uppercase border-r border-slate-600 w-24">Sale Rate</th>
                 <th className="px-2 py-2.5 text-right text-xs font-bold uppercase border-r border-slate-600 w-24">Cost</th>
                 <th className="px-2 py-2.5 text-right text-xs font-bold uppercase border-r border-slate-600 w-24">Value</th>
                 <th className="px-2 py-2.5 text-center text-xs font-bold uppercase w-20">Status</th>
@@ -788,7 +798,7 @@ export default function StockReport() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {rawRows.length === 0 ? (
-                <tr><td colSpan={10} className="py-10 text-center text-slate-400">No products found</td></tr>
+                <tr><td colSpan={11} className="py-10 text-center text-slate-400">No products found</td></tr>
               ) : rawRows.map((row, i) => {
                 const p = row.product;
                 const q = row.qty;
@@ -805,6 +815,7 @@ export default function StockReport() {
                       {formatQty(q)}
                     </td>
                     <td className="px-2 py-2 text-right text-slate-700 border-r border-slate-100 tabular-nums text-xs">{formatCurrency(p.pro_baser_price)}</td>
+                    <td className="px-2 py-2 text-right text-slate-700 border-r border-slate-100 tabular-nums text-xs">{formatCurrency(p.pro_sale_price)}</td>
                     <td className="px-2 py-2 text-right text-slate-700 border-r border-slate-100 tabular-nums text-xs">{formatCurrency(p.pro_cost_price)}</td>
                     <td className="px-2 py-2 text-right font-semibold text-slate-900 border-r border-slate-100 tabular-nums text-xs">{formatCurrency(q * parseFloat(p.pro_cost_price || 0))}</td>
                     <td className="px-2 py-2 text-center text-xs">{statusBadge(p, row.storeId)}</td>
@@ -817,6 +828,7 @@ export default function StockReport() {
                 <tr className="bg-slate-800 text-white font-bold text-xs">
                   <td colSpan={5} className="px-2 py-2.5 text-right uppercase border-r border-slate-600">Grand total (lines above)</td>
                   <td className="px-2 py-2.5 text-right tabular-nums border-r border-slate-600">{formatQty(grandTotalQty)}</td>
+                  <td className="px-2 py-2.5 border-r border-slate-600" />
                   <td className="px-2 py-2.5 border-r border-slate-600" />
                   <td className="px-2 py-2.5 border-r border-slate-600" />
                   <td className="px-2 py-2.5 text-right tabular-nums border-r border-slate-600">{formatCurrency(grandTotalValue)}</td>
@@ -862,6 +874,7 @@ export default function StockReport() {
                 <th className="px-3 py-2 text-left text-xs font-bold uppercase border-r border-slate-200 min-w-[100px]">Store</th>
                 <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-slate-200 w-24">Qty</th>
                 <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-slate-200 w-28">Base Rate</th>
+                <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-slate-200 w-28">Sale Rate</th>
                 <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-slate-200 w-28">Cost Rate</th>
                 <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-slate-200 w-28">Value</th>
                 <th className="px-3 py-2 text-center text-xs font-bold uppercase w-24">Status</th>
@@ -881,6 +894,7 @@ export default function StockReport() {
                     </td>
                     <td className={`px-3 py-2 text-right font-bold border-r border-slate-100 tabular-nums ${p._storeQty <= (p.low_stock_quantity ?? 10) ? 'text-amber-600' : 'text-slate-900'}`}>{formatQty(p._storeQty)}</td>
                     <td className="px-3 py-2 text-right text-slate-700 border-r border-slate-100 tabular-nums">{formatCurrency(p.pro_baser_price)}</td>
+                    <td className="px-3 py-2 text-right text-slate-700 border-r border-slate-100 tabular-nums">{formatCurrency(p.pro_sale_price)}</td>
                     <td className="px-3 py-2 text-right text-slate-700 border-r border-slate-100 tabular-nums">{formatCurrency(p.pro_cost_price)}</td>
                     <td className="px-3 py-2 text-right font-semibold border-r border-slate-100 tabular-nums">{formatCurrency(p._storeQty * parseFloat(p.pro_cost_price || 0))}</td>
                     <td className="px-3 py-2 text-center">{statusBadge(p, row.storeId)}</td>
@@ -892,6 +906,7 @@ export default function StockReport() {
               <tr className="bg-indigo-50 font-semibold text-indigo-900">
                 <td colSpan={5} className="px-3 py-2 text-right text-xs uppercase border-r border-slate-200">Grand total</td>
                 <td className="px-3 py-2 text-right tabular-nums border-r border-slate-200">{formatQty(lineQty)}</td>
+                <td className="px-3 py-2 border-r border-slate-200" />
                 <td className="px-3 py-2 border-r border-slate-200" />
                 <td className="px-3 py-2 border-r border-slate-200" />
                 <td className="px-3 py-2 text-right tabular-nums border-r border-slate-200">{formatCurrency(lineValue)}</td>
@@ -925,13 +940,14 @@ export default function StockReport() {
               <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-amber-200 w-24">Threshold</th>
               <th className="px-3 py-2 text-left text-xs font-bold uppercase border-r border-amber-200">Store Breakdown</th>
               <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-amber-200 w-28">Base Rate</th>
+              <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-amber-200 w-28">Sale Rate</th>
               <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-amber-200 w-28">Cost Rate</th>
               <th className="px-3 py-2 text-right text-xs font-bold uppercase w-28">Stock Value</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-amber-100">
             {products.length === 0 ? (
-              <tr><td colSpan={10} className="py-10 text-center text-green-600 font-semibold">✅ No low stock items — all products are well stocked!</td></tr>
+              <tr><td colSpan={11} className="py-10 text-center text-green-600 font-semibold">✅ No low stock items — all products are well stocked!</td></tr>
             ) : products.map((p, i) => {
               const qty = selectedStore ? getStoreQty(p, selectedStore) : getTotalQty(p);
               const threshold = p.low_stock_quantity ?? 10;
@@ -946,6 +962,7 @@ export default function StockReport() {
                   <td className="px-3 py-2 text-right text-slate-500 border-r border-amber-100 tabular-nums">{formatQty(threshold)}</td>
                   <td className="px-3 py-2 text-slate-500 text-xs border-r border-amber-100">{storeBreakdown}</td>
                   <td className="px-3 py-2 text-right text-slate-700 border-r border-amber-100 tabular-nums">{formatCurrency(p.pro_baser_price)}</td>
+                  <td className="px-3 py-2 text-right text-slate-700 border-r border-amber-100 tabular-nums">{formatCurrency(p.pro_sale_price)}</td>
                   <td className="px-3 py-2 text-right text-slate-700 border-r border-amber-100 tabular-nums">{formatCurrency(p.pro_cost_price)}</td>
                   <td className="px-3 py-2 text-right font-semibold text-slate-900 tabular-nums">{formatCurrency(qty * parseFloat(p.pro_cost_price || 0))}</td>
                 </tr>
@@ -988,6 +1005,7 @@ export default function StockReport() {
                   <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-amber-200 w-28">Store Qty</th>
                   <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-amber-200 w-24">Min Threshold</th>
                   <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-amber-200 w-28">Base Rate</th>
+                  <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-amber-200 w-28">Sale Rate</th>
                   <th className="px-3 py-2 text-right text-xs font-bold uppercase w-28">Cost Rate</th>
                 </tr>
               </thead>
@@ -1001,6 +1019,7 @@ export default function StockReport() {
                     <td className="px-3 py-2 text-right font-bold text-amber-700 border-r border-amber-100 tabular-nums">{formatQty(p._storeQty)}</td>
                     <td className="px-3 py-2 text-right text-slate-500 border-r border-amber-100 tabular-nums">{formatQty(p.low_stock_quantity ?? 10)}</td>
                     <td className="px-3 py-2 text-right text-slate-700 border-r border-amber-100 tabular-nums">{formatCurrency(p.pro_baser_price)}</td>
+                    <td className="px-3 py-2 text-right text-slate-700 border-r border-amber-100 tabular-nums">{formatCurrency(p.pro_sale_price)}</td>
                     <td className="px-3 py-2 text-right text-slate-700 tabular-nums">{formatCurrency(p.pro_cost_price)}</td>
                   </tr>
                 ))}
@@ -1061,6 +1080,7 @@ export default function StockReport() {
                     <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-amber-200 w-20">Shortage</th>
                     <th className="px-3 py-2 text-left text-xs font-bold uppercase border-r border-amber-200">Store Breakdown</th>
                     <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-amber-200 w-28">Base Rate</th>
+                    <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-amber-200 w-28">Sale Rate</th>
                     <th className="px-3 py-2 text-right text-xs font-bold uppercase border-r border-amber-200 w-28">Cost Rate</th>
                     <th className="px-3 py-2 text-right text-xs font-bold uppercase w-28">Value</th>
                   </tr>
@@ -1082,6 +1102,7 @@ export default function StockReport() {
                         <td className="px-3 py-2 text-right font-bold text-red-600 border-r border-amber-100 tabular-nums">{formatQty(shortage)}</td>
                         <td className="px-3 py-2 text-slate-500 text-xs border-r border-amber-100">{storeBreakdown}</td>
                         <td className="px-3 py-2 text-right text-slate-700 border-r border-amber-100 tabular-nums">{formatCurrency(p.pro_baser_price)}</td>
+                        <td className="px-3 py-2 text-right text-slate-700 border-r border-amber-100 tabular-nums">{formatCurrency(p.pro_sale_price)}</td>
                         <td className="px-3 py-2 text-right text-slate-700 border-r border-amber-100 tabular-nums">{formatCurrency(p.pro_cost_price)}</td>
                         <td className="px-3 py-2 text-right font-semibold text-slate-900 tabular-nums">{formatCurrency(p._qty * parseFloat(p.pro_cost_price || 0))}</td>
                       </tr>
