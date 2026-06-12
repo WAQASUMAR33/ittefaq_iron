@@ -142,7 +142,12 @@ const buildFinancePaymentDescription = (mode, accountName, cashAmount, bankAmoun
     bits.push(`Bank PKR ${fmtAmt(bank)}`);
   }
   if (disc > 0) bits.push(`Discount PKR ${fmtAmt(disc)}`);
-  return bits.join(' | ');
+  
+  const content = bits.join(' | ');
+  if (accountName && content) {
+    return `${accountName} - ${content}`;
+  }
+  return content;
 };
 
 const getInvoiceNet = (bill) => {
