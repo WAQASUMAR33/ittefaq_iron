@@ -191,13 +191,14 @@ async function runTests() {
 
         // Calculate expected values
         const netTotal = orderData.total_amount - orderData.discount + orderData.shipping_amount;
-        const expectedCustomerBalance = initialCustomerBalance + netTotal - orderData.payment;
+        // Business rule: For an order, customer balance is only adjusted by the paid payment (advance), ignoring order total.
+        const expectedCustomerBalance = initialCustomerBalance - orderData.payment;
         const expectedCashBalance = initialCashBalance + orderData.cash_payment;
         const expectedBankBalance = initialBankBalance + orderData.bank_payment;
 
         logInfo('Expected Results:');
         console.log(`  Net Total: ${netTotal}`);
-        console.log(`  Customer Balance: ${initialCustomerBalance} + ${netTotal} - ${orderData.payment} = ${expectedCustomerBalance}`);
+        console.log(`  Customer Balance: ${initialCustomerBalance} - ${orderData.payment} = ${expectedCustomerBalance}`);
         console.log(`  Cash Balance: ${initialCashBalance} + ${orderData.cash_payment} = ${expectedCashBalance}`);
         console.log(`  Bank Balance: ${initialBankBalance} + ${orderData.bank_payment} = ${expectedBankBalance}`);
 

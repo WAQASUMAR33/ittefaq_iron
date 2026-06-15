@@ -517,8 +517,18 @@ async function getExpensesByDateReport(startDate, endDate) {
 
 // Cash Report - All cash transactions
 async function getCashReport(startDate, endDate) {
+  // Find cash categories dynamically
+  const cashCategories = await prisma.customerCategory.findMany({
+    where: {
+      cus_cat_title: { contains: 'cash', mode: 'insensitive' }
+    }
+  });
+  const cashCategoryIds = cashCategories.map(c => c.cus_cat_id);
+
   const whereClause = {
-    trnx_type: 'CASH'
+    customer: {
+      cus_category: { in: cashCategoryIds }
+    }
   };
 
   if (startDate && endDate) {
@@ -654,8 +664,18 @@ async function getCashReport(startDate, endDate) {
 
 // Bank Report - All bank transactions
 async function getBankReport(startDate, endDate) {
+  // Find bank categories dynamically
+  const bankCategories = await prisma.customerCategory.findMany({
+    where: {
+      cus_cat_title: { contains: 'bank', mode: 'insensitive' }
+    }
+  });
+  const bankCategoryIds = bankCategories.map(c => c.cus_cat_id);
+
   const whereClause = {
-    trnx_type: 'BANK_TRANSFER'
+    customer: {
+      cus_category: { in: bankCategoryIds }
+    }
   };
 
   if (startDate && endDate) {

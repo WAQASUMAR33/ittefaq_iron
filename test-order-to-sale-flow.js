@@ -4,12 +4,12 @@
  * ============================================================
  * 
  * Test Scenario:
- * 1. Create an order for customer "zain" for 5000
+ * 1. Create an order for a customer for 5000
  * 2. Pay 1000 cash + 2000 bank (3000 total)
- * 3. Check initial balance = 2000
+ * 3. Check initial balance = initial - 3000 (payments only)
  * 4. Convert order to sale
  * 5. Pay remaining 500 cash + 1500 bank (2000 total)
- * 6. Check final balance = 0
+ * 6. Check final balance = initial (net change = 0)
  * 7. Verify all ledger entries
  * ============================================================
  */
@@ -18,12 +18,14 @@ const axios = require('axios');
 
 // Configuration
 const API_BASE_URL = 'http://localhost:3000/api';
-const CUSTOMER_ID = 21; // zain
-const STORE_ID = 2; // Default store
-const BANK_ACCOUNT_ID = 26; // Foji Bank
-const UPDATED_BY = 1; // Default user
+let CUSTOMER_ID = 21; 
+let STORE_ID = 2; 
+let BANK_ACCOUNT_ID = 26; 
+let BANK_TITLE = 'Foji Bank';
+let PRODUCT_ID = 2; 
+let UPDATED_BY = 1; 
 
-// Test values
+// Test values (mutated dynamically during runTests)
 const TEST_VALUES = {
   orderAmount: 5000,
   firstCashPayment: 1000,
@@ -32,8 +34,8 @@ const TEST_VALUES = {
   secondCashPayment: 500,
   secondBankPayment: 1500,
   secondTotalPayment: 2000,
-  expectedBalanceAfterOrder: 2000, // 5000 - 3000
-  expectedBalanceAfterConversion: 0, // 2000 - 2000
+  expectedBalanceAfterOrder: 0, 
+  expectedBalanceAfterConversion: 0, 
 };
 
 // Color codes for console output
@@ -110,6 +112,22 @@ async function createOrder(orderData) {
   }
 }
 
+async function updateSale(saleId, saleData) {
+  try {
+    log.info(`Updating/converting order to sale...`);
+    const response = await axios.put(`${API_BASE_URL}/sales`, {
+      id: saleId,
+      ...saleData
+    });
+    return response.data;
+  } catch (error) {
+    const errorMsg = error.response?.data?.error || error.response?.data || error.message;
+    log.error(`Failed to update/convert sale: ${JSON.stringify(errorMsg)}`);
+    console.error('Full error response:', error.response?.data);
+    return null;
+  }
+}
+
 async function step1_CreateOrder() {
   log.section('STEP 1: CREATE ORDER');
   
@@ -122,17 +140,17 @@ async function step1_CreateOrder() {
     payment_type: 'CASH',
     cash_payment: TEST_VALUES.firstCashPayment,
     bank_payment: TEST_VALUES.firstBankPayment,
-    bank_title: 'Foji Bank',
+    bank_title: BANK_TITLE,
     debit_account_id: BANK_ACCOUNT_ID,
     credit_account_id: null,
     loader_id: null,
     shipping_amount: 0,
-    bill_type: 'BILL',
+    bill_type: 'ORDER', // Must be ORDER for order stage payment-only logic
     reference: 'Test Order - Initial Creation',
     is_loaded_order: false,
     sale_details: [
       {
-        pro_id: 2, // crush dina
+        pro_id: PRODUCT_ID,
         vehicle_no: null,
         qnty: 50,
         unit: 'PCS',
@@ -166,7 +184,7 @@ async function step1_CreateOrder() {
   log.value('Cash Payment', `PKR ${TEST_VALUES.firstCashPayment}`);
   log.value('Bank Payment', `PKR ${TEST_VALUES.firstBankPayment}`);
   log.value('Total Payment', `PKR ${TEST_VALUES.firstTotalPayment}`);
-  log.value('Outstanding', `PKR ${TEST_VALUES.expectedBalanceAfterOrder}`);
+  log.value('Expected Balance After Order', `PKR ${TEST_VALUES.expectedBalanceAfterOrder}`);
 
   const order = await createOrder(orderData);
   if (!order) {
@@ -183,7 +201,7 @@ async function step1_CreateOrder() {
   const balance = await getCustomerBalance();
   log.value('Customer Balance After Order', `PKR ${balance}`);
   await assert(
-    balance === TEST_VALUES.expectedBalanceAfterOrder,
+    Math.abs(balance - TEST_VALUES.expectedBalanceAfterOrder) < 0.01,
     `Balance after order should be PKR ${TEST_VALUES.expectedBalanceAfterOrder}, got PKR ${balance}`
   );
 
@@ -202,17 +220,18 @@ async function step2_ConvertToSaleAndPayRemaining(orderId) {
     payment_type: 'CASH',
     cash_payment: TEST_VALUES.secondCashPayment,
     bank_payment: TEST_VALUES.secondBankPayment,
-    bank_title: 'Foji Bank',
+    advance_payment: TEST_VALUES.firstTotalPayment, // Pass advance payment from order stage
+    bank_title: BANK_TITLE,
     debit_account_id: BANK_ACCOUNT_ID,
     credit_account_id: null,
     loader_id: null,
     shipping_amount: 0,
-    bill_type: 'BILL',
+    bill_type: 'BILL', // Converting to sale
     reference: `Converted from Order #${orderId}. Final Payment`,
-    is_loaded_order: true, // This is the key flag!
+    is_loaded_order: true, // Key flag
     sale_details: [
       {
-        pro_id: 2,
+        pro_id: PRODUCT_ID,
         vehicle_no: null,
         qnty: 50,
         unit: 'PCS',
@@ -247,7 +266,7 @@ async function step2_ConvertToSaleAndPayRemaining(orderId) {
   log.value('Total Final Payment', `PKR ${TEST_VALUES.secondTotalPayment}`);
   log.value('Expected Final Balance', `PKR ${TEST_VALUES.expectedBalanceAfterConversion}`);
 
-  const sale = await createOrder(saleData);
+  const sale = await updateSale(orderId, saleData);
   if (!sale) {
     await assert(false, 'Sale conversion failed');
     return null;
@@ -262,7 +281,7 @@ async function step2_ConvertToSaleAndPayRemaining(orderId) {
   const balance = await getCustomerBalance();
   log.value('Customer Balance After Conversion', `PKR ${balance}`);
   await assert(
-    balance === TEST_VALUES.expectedBalanceAfterConversion,
+    Math.abs(balance - TEST_VALUES.expectedBalanceAfterConversion) < 0.01,
     `Balance after conversion should be PKR ${TEST_VALUES.expectedBalanceAfterConversion}, got PKR ${balance}`
   );
 
@@ -281,39 +300,60 @@ async function step3_VerifyLedgerEntries() {
 
   log.info(`Found ${ledgerEntries.length} ledger entries for customer ID ${CUSTOMER_ID}`);
   
-  // Get the last 2 entries (order and sale)
   const sortedEntries = ledgerEntries.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  const lastSaleEntry = sortedEntries[0];
-  const orderEntry = sortedEntries[1];
+  
+  // Find recreated ledger entries for the conversion transaction
+  const advanceEntry = sortedEntries.find(e => e.details.includes('Advance Payment'));
+  const debitEntry = sortedEntries.find(e => e.details.includes('Sale Bill'));
+  const finalPayEntry = sortedEntries.find(e => e.details.includes('Payment Received') && e.details.includes(String(TEST_VALUES.secondCashPayment)));
 
-  log.info('\n--- Order Ledger Entry ---');
-  if (orderEntry) {
-    log.value('Opening Balance', `PKR ${orderEntry.opening_balance}`);
-    log.value('Debit Amount', `PKR ${orderEntry.debit_amount}`);
-    log.value('Credit Amount', `PKR ${orderEntry.credit_amount}`);
-    log.value('Closing Balance', `PKR ${orderEntry.closing_balance}`);
-    log.value('Type', orderEntry.trnx_type);
-    log.value('Details', orderEntry.details);
+  log.info('\n--- Advance Payment Ledger Entry (Order Stage) ---');
+  if (advanceEntry) {
+    log.value('Opening Balance', `PKR ${advanceEntry.opening_balance}`);
+    log.value('Debit Amount', `PKR ${advanceEntry.debit_amount}`);
+    log.value('Credit Amount', `PKR ${advanceEntry.credit_amount}`);
+    log.value('Closing Balance', `PKR ${advanceEntry.closing_balance}`);
+    log.value('Details', advanceEntry.details);
 
     await assert(
-      parseFloat(orderEntry.closing_balance) === TEST_VALUES.expectedBalanceAfterOrder,
-      `Order closing balance should be PKR ${TEST_VALUES.expectedBalanceAfterOrder}, got PKR ${orderEntry.closing_balance}`
+      Math.abs(parseFloat(advanceEntry.closing_balance) - TEST_VALUES.expectedBalanceAfterOrder) < 0.01,
+      `Advance entry closing balance should be PKR ${TEST_VALUES.expectedBalanceAfterOrder}, got PKR ${advanceEntry.closing_balance}`
     );
+  } else {
+    await assert(false, 'Could not find Advance Payment ledger entry');
   }
 
-  log.info('\n--- Sale Ledger Entry ---');
-  if (lastSaleEntry) {
-    log.value('Opening Balance', `PKR ${lastSaleEntry.opening_balance}`);
-    log.value('Debit Amount', `PKR ${lastSaleEntry.debit_amount}`);
-    log.value('Credit Amount', `PKR ${lastSaleEntry.credit_amount}`);
-    log.value('Closing Balance', `PKR ${lastSaleEntry.closing_balance}`);
-    log.value('Type', lastSaleEntry.trnx_type);
-    log.value('Details', lastSaleEntry.details);
+  log.info('\n--- Sale Bill Debit Ledger Entry ---');
+  const expectedDebitClosing = TEST_VALUES.expectedBalanceAfterOrder + TEST_VALUES.orderAmount;
+  if (debitEntry) {
+    log.value('Opening Balance', `PKR ${debitEntry.opening_balance}`);
+    log.value('Debit Amount', `PKR ${debitEntry.debit_amount}`);
+    log.value('Credit Amount', `PKR ${debitEntry.credit_amount}`);
+    log.value('Closing Balance', `PKR ${debitEntry.closing_balance}`);
+    log.value('Details', debitEntry.details);
 
     await assert(
-      parseFloat(lastSaleEntry.closing_balance) === TEST_VALUES.expectedBalanceAfterConversion,
-      `Sale closing balance should be PKR ${TEST_VALUES.expectedBalanceAfterConversion}, got PKR ${lastSaleEntry.closing_balance}`
+      Math.abs(parseFloat(debitEntry.closing_balance) - expectedDebitClosing) < 0.01,
+      `Sale Bill debit closing balance should be PKR ${expectedDebitClosing}, got PKR ${debitEntry.closing_balance}`
     );
+  } else {
+    await assert(false, 'Could not find Sale Bill debit ledger entry');
+  }
+
+  log.info('\n--- Final Payment Ledger Entry ---');
+  if (finalPayEntry) {
+    log.value('Opening Balance', `PKR ${finalPayEntry.opening_balance}`);
+    log.value('Debit Amount', `PKR ${finalPayEntry.debit_amount}`);
+    log.value('Credit Amount', `PKR ${finalPayEntry.credit_amount}`);
+    log.value('Closing Balance', `PKR ${finalPayEntry.closing_balance}`);
+    log.value('Details', finalPayEntry.details);
+
+    await assert(
+      Math.abs(parseFloat(finalPayEntry.closing_balance) - TEST_VALUES.expectedBalanceAfterConversion) < 0.01,
+      `Final payment closing balance should be PKR ${TEST_VALUES.expectedBalanceAfterConversion}, got PKR ${finalPayEntry.closing_balance}`
+    );
+  } else {
+    await assert(false, 'Could not find Final Payment ledger entry');
   }
 
   // Print all entries for reference
@@ -334,7 +374,7 @@ async function step4_FinalVerification() {
   log.value('Final Customer Balance', `PKR ${finalBalance}`);
 
   await assert(
-    finalBalance === TEST_VALUES.expectedBalanceAfterConversion,
+    Math.abs(finalBalance - TEST_VALUES.expectedBalanceAfterConversion) < 0.01,
     `Final balance should be PKR ${TEST_VALUES.expectedBalanceAfterConversion}, got PKR ${finalBalance}`
   );
 
@@ -351,18 +391,18 @@ ${colors.bright}Test Results:${colors.reset}
   Total:  ${testResults.passed + testResults.failed}
 
 ${colors.bright}Expected Flow:${colors.reset}
-  1. Initial Balance: PKR 0
-  2. Order Created (PKR 5000) → Balance: PKR 2000 (paid PKR 3000)
-  3. Order Converted (pay remaining PKR 2000) → Balance: PKR 0
+  1. Initial Balance: PKR X
+  2. Order Created (PKR 5000) → Balance: PKR X - 3000 (paid PKR 3000)
+  3. Order Converted (pay remaining PKR 2000) → Balance: PKR X
   4. All ledger entries created with correct calculations
 
 ${colors.bright}Test Values Used:${colors.reset}
   - Order Amount: PKR ${TEST_VALUES.orderAmount}
   - First Payment: PKR ${TEST_VALUES.firstTotalPayment} (Cash: PKR ${TEST_VALUES.firstCashPayment} + Bank: PKR ${TEST_VALUES.firstBankPayment})
   - Second Payment: PKR ${TEST_VALUES.secondTotalPayment} (Cash: PKR ${TEST_VALUES.secondCashPayment} + Bank: PKR ${TEST_VALUES.secondBankPayment})
-  - Customer: zain (ID: ${CUSTOMER_ID})
-  - Store: Store 2
-  - Bank: Foji Bank (ID: ${BANK_ACCOUNT_ID})
+  - Customer ID: ${CUSTOMER_ID}
+  - Store ID: ${STORE_ID}
+  - Bank ID: ${BANK_ACCOUNT_ID} (Name: ${BANK_TITLE})
   `);
 
   if (testResults.failed === 0) {
@@ -384,6 +424,63 @@ ${colors.reset}
   `);
 
   try {
+    // Dynamically fetch valid Database accounts
+    log.info('Fetching valid database accounts dynamically...');
+    const customersRes = await axios.get(`${API_BASE_URL}/customers`);
+    const customersList = customersRes.data.value || customersRes.data || [];
+    
+    const catsRes = await axios.get(`${API_BASE_URL}/customer-category`);
+    const categories = catsRes.data || [];
+    
+    const typesRes = await axios.get(`${API_BASE_URL}/customer-types`);
+    const types = typesRes.data || [];
+    
+    // Find customer
+    const custCat = categories.find(c => c.cus_cat_title.toLowerCase().includes('customer'));
+    const testCustomer = custCat 
+      ? customersList.find(c => c.cus_category === custCat.cus_cat_id)
+      : customersList.find(c => c.cus_balance !== undefined);
+      
+    if (!testCustomer) throw new Error('No test customer found');
+    CUSTOMER_ID = testCustomer.cus_id;
+    const initialCustomerBalance = parseFloat(testCustomer.cus_balance) || 0;
+    log.success(`Using customer: "${testCustomer.cus_name}" (ID: ${CUSTOMER_ID}, Balance: ${initialCustomerBalance})`);
+    
+    // Find bank account
+    const bankCat = categories.find(c => c.cus_cat_title.toLowerCase().includes('bank'));
+    const bankType = types.find(t => t.cus_type_title.toLowerCase().includes('bank'));
+    const bankAccount = bankCat
+      ? customersList.find(c => c.cus_category === bankCat.cus_cat_id && (!bankType || c.cus_type === bankType.cus_type_id))
+      : customersList.find(c => c.cus_name.toLowerCase().includes('bank') || c.cus_name.toLowerCase().includes('ubl'));
+      
+    if (!bankAccount) throw new Error('No bank account found');
+    BANK_ACCOUNT_ID = bankAccount.cus_id;
+    BANK_TITLE = bankAccount.cus_name;
+    log.success(`Using bank account: "${BANK_TITLE}" (ID: ${BANK_ACCOUNT_ID})`);
+    
+    // Find store
+    const storesRes = await axios.get(`${API_BASE_URL}/stores`);
+    const storesList = storesRes.data.data || storesRes.data || [];
+    if (storesList.length === 0) throw new Error('No stores found');
+    STORE_ID = storesList[0].storeid;
+    log.success(`Using store: "${storesList[0].store_name}" (ID: ${STORE_ID})`);
+
+    // Find product
+    const productsRes = await axios.get(`${API_BASE_URL}/products`);
+    const productsList = productsRes.data || [];
+    if (productsList.length === 0) throw new Error('No products found');
+    PRODUCT_ID = productsList[0].pro_id;
+    log.success(`Using product: "${productsList[0].pro_title}" (ID: ${PRODUCT_ID})`);
+    
+    // Find user
+    const usersRes = await axios.get(`${API_BASE_URL}/users`).catch(() => ({ data: [] }));
+    const usersList = usersRes.data || [];
+    UPDATED_BY = usersList.length > 0 ? usersList[0].user_id : 1;
+
+    // Set expected test value balances dynamically
+    TEST_VALUES.expectedBalanceAfterOrder = initialCustomerBalance - TEST_VALUES.firstTotalPayment;
+    TEST_VALUES.expectedBalanceAfterConversion = initialCustomerBalance;
+
     // Step 1: Create Order
     const order = await step1_CreateOrder();
     if (!order) {

@@ -386,38 +386,46 @@ export default function CashReport() {
                         </tr>
                       );
                     })()}
-                    {reportData.ledgerEntries.map((entry, index) => (
-                      <tr key={entry.l_id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} hover:bg-emerald-50 print:bg-white transition-colors`}>
-                        <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200 print:border-black">{index + 1}</td>
-                        <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200 print:border-black whitespace-nowrap">{formatDate(entry.created_at)}</td>
-                        <td className="px-3 py-2.5 text-slate-900 font-medium border-r border-slate-200 print:border-black">{entry.customer?.cus_name || '-'}</td>
-                        <td className="px-3 py-2.5 text-slate-600 border-r border-slate-200 print:border-black">{entry.details || '-'}</td>
-                        {(() => {
-                          const firstIndex = reportData.ledgerEntries.findIndex(e => e.bill_no === entry.bill_no && ((e.cus_id || e.customer?.cus_id) === (entry.cus_id || entry.customer?.cus_id)));
-                          const isFirstBill = entry.bill_no && firstIndex === index;
-                          return (
-                            <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200 print:border-black">
-                              {entry.bill_no ? (
-                                isFirstBill ? (
-                                  <div>
-                                    Bill: {entry.bill_no}{' '}
-                                    {((entry.trnx_type === 'PURCHASE' && parseFloat(entry.debit_amount || 0) > 0) || (/incity \(own\) - (labour|delivery)/i).test(entry.details || '')) ? (
-                                      <div className="text-xs text-blue-600 font-bold">— {fmtAmt(entry.debit_amount)}</div>
-                                    ) : null}
-                                  </div>
-                                ) : ''
-                              ) : '-'}
+                    {(() => {
+                      let runningBalance = reportData.ledgerEntries[0] ? parseFloat(reportData.ledgerEntries[0].opening_balance || 0) : 0;
+                      return reportData.ledgerEntries.map((entry, index) => {
+                        // Cash Account: debit increases balance (cash in), credit decreases balance (cash out)
+                        runningBalance = runningBalance + parseFloat(entry.debit_amount || 0) - parseFloat(entry.credit_amount || 0);
+                        return (
+                          <tr key={entry.l_id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} hover:bg-emerald-50 print:bg-white transition-colors`}>
+                            <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200 print:border-black">{index + 1}</td>
+                            <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200 print:border-black whitespace-nowrap">{formatDate(entry.created_at)}</td>
+                            <td className="px-3 py-2.5 text-slate-900 font-medium border-r border-slate-200 print:border-black">{entry.customer?.cus_name || '-'}</td>
+                            <td className="px-3 py-2.5 text-slate-600 border-r border-slate-200 print:border-black">{entry.details || '-'}</td>
+                            {(() => {
+                              const firstIndex = reportData.ledgerEntries.findIndex(e => e.bill_no === entry.bill_no && ((e.cus_id || e.customer?.cus_id) === (entry.cus_id || entry.customer?.cus_id)));
+                              const isFirstBill = entry.bill_no && firstIndex === index;
+                              return (
+                                <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200 print:border-black">
+                                  {entry.bill_no ? (
+                                    isFirstBill ? (
+                                      <div>
+                                        Bill: {entry.bill_no}{' '}
+                                        {((entry.trnx_type === 'PURCHASE' && parseFloat(entry.debit_amount || 0) > 0) || (/incity \(own\) - (labour|delivery)/i).test(entry.details || '')) ? (
+                                          <div className="text-xs text-blue-600 font-bold">— {fmtAmt(entry.debit_amount)}</div>
+                                        ) : ''}
+                                      </div>
+                                    ) : ''
+                                  ) : '-'}
+                                </td>
+                              );
+                            })()}
+                            <td className="px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums">
+                              {parseFloat(entry.debit_amount) > 0 ? <span className="text-green-600 print:text-black">{formatCurrency(entry.debit_amount)}</span> : '-'}
                             </td>
-                          );
-                        })()}                        <td className="px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums">
-                          {parseFloat(entry.debit_amount) > 0 ? <span className="text-green-600 print:text-black">{formatCurrency(entry.debit_amount)}</span> : '-'}
-                        </td>
-                        <td className="px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums">
-                          {parseFloat(entry.credit_amount) > 0 ? <span className="text-red-600 print:text-black">{formatCurrency(entry.credit_amount)}</span> : '-'}
-                        </td>
-                        <td className="px-3 py-2.5 text-right font-semibold text-slate-900 tabular-nums">{formatCurrency(entry.closing_balance)}</td>
-                      </tr>
-                    ))}
+                            <td className="px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums">
+                              {parseFloat(entry.credit_amount) > 0 ? <span className="text-red-600 print:text-black">{formatCurrency(entry.credit_amount)}</span> : '-'}
+                            </td>
+                            <td className="px-3 py-2.5 text-right font-semibold text-slate-900 tabular-nums">{formatCurrency(runningBalance)}</td>
+                          </tr>
+                        );
+                      });
+                    })()}
                     {reportData.ledgerEntries.length === 0 && (
                       <tr><td colSpan="8" className="px-6 py-12 text-center text-slate-500">No cash transactions found for the selected period</td></tr>
                     )}

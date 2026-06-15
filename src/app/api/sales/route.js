@@ -1636,10 +1636,10 @@ export async function PUT(request) {
     // Calculate net total (what customer owes for the bill)
     const netTotal = parseFloat(total_amount);
 
-    // Determine if this update is for a quotation/order (skip finance)
+    // Determine if this update is for a quotation (skip finance)
     const isQuotationFromBody = bill_type === 'QUOTATION';
     const isOrder = bill_type === 'ORDER' || bill_type === 'ORDER_TRASH';
-    const isSkipLedger = isQuotationFromBody || isOrder;
+    const isSkipLedger = isQuotationFromBody;
 
     // Normalize effective cash/bank amounts
     const payValNorm = parseFloat(payment) || 0;
@@ -1695,9 +1695,7 @@ export async function PUT(request) {
       // 2. REVERSE OLD FINANCIAL EFFECTS
       // ═══════════════════════════════════════════
       const wasSkipLedger =
-        existingSale.bill_type === 'QUOTATION' ||
-        existingSale.bill_type === 'ORDER' ||
-        existingSale.bill_type === 'ORDER_TRASH';
+        existingSale.bill_type === 'QUOTATION';
 
       let oldAdvanceCash = 0;
       let oldAdvanceBank = 0;
@@ -1905,7 +1903,7 @@ export async function PUT(request) {
 
         // ── 4a. ORDER Stage Advance Payment entries ──
         const advPaymentAmt = parseFloat(advance_payment || 0);
-        if (advPaymentAmt > 0) {
+        if (!isOrder && advPaymentAmt > 0) {
           let advCash = oldAdvanceCash;
           let advBank = oldAdvanceBank;
           if (advCash === 0 && advBank === 0) {
@@ -1996,7 +1994,7 @@ export async function PUT(request) {
 
         // ── 4b. Customer SALE debit (bill amount) ──
         const debitAmount = parseFloat(total_amount);
-        if (debitAmount > 0) {
+        if (!isOrder && debitAmount > 0) {
           let billDetails = `Sale Bill - ${bill_type || 'BILL'} - Customer Account (Debit)`;
           if (parseFloat(discount || 0) > 0) {
             billDetails += ` [Discount Applied: ${parseFloat(discount || 0)}]`;
@@ -2027,7 +2025,17 @@ export async function PUT(request) {
           const paymentParts = [];
           if (cashAmount > 0) paymentParts.push(`Cash: ${cashAmount}`);
           if (bankAmount > 0) paymentParts.push(`Bank (${bank_title || 'Bank Account'}): ${bankAmount}`);
-          const paymentDesc = paymentParts.length > 0 ? ` [${paymentParts.join(', ')}]` : '';
+          
+          let paymentDetails;
+          if (isOrder) {
+            const advanceParts = [];
+            if (cashAmount > 0) advanceParts.push(`${cashAmount.toLocaleString('en-PK')} Cash Account`);
+            if (bankAmount > 0) advanceParts.push(`${bankAmount.toLocaleString('en-PK')} Bank Account (${bank_title || 'Bank'})`);
+            paymentDetails = `Advance Payment — ${advanceParts.join(' + ')}`;
+          } else {
+            const paymentDesc = paymentParts.length > 0 ? ` [${paymentParts.join(', ')}]` : '';
+            paymentDetails = `Payment Received - ${bill_type || 'BILL'} - Customer Account (Credit)${paymentDesc}`;
+          }
 
           const paymentEntry = createLedgerEntry({
             cus_id,
@@ -2036,7 +2044,7 @@ export async function PUT(request) {
             credit_amount: totalPaymentForCustomer,
             bill_no: sale.sale_id.toString(),
             trnx_type: 'SALE',
-            details: `Payment Received - ${bill_type || 'BILL'} - Customer Account (Credit)${paymentDesc}`,
+            details: paymentDetails,
             payments: totalPaymentForCustomer,
             cash_payment: cashAmount,
             bank_payment: bankAmount,
@@ -2100,7 +2108,7 @@ export async function PUT(request) {
             credit_amount: 0,
             bill_no: sale.sale_id.toString(),
             trnx_type: 'CASH',
-            details: `Payment Received - ${bill_type || 'BILL'} - ${freshCustomer.cus_name} - CASH Account (Debit)`,
+            details: `Payment Received - ${isOrder ? 'ORDER' : (bill_type || 'BILL')} - ${freshCustomer.cus_name} - CASH Account (Debit)`,
             payments: Number(eff_cash.toFixed(2)),
             cash_payment: Number(eff_cash.toFixed(2)),
             bank_payment: 0,
@@ -2402,14 +2410,45 @@ export async function DELETE(request) {
 
       if (existingSale.store_id && shouldRestoreStock) {
         const stockRestorePromises = existingSale.sale_details.map(async detail => {
-          await updateStoreStock(existingSale.store_id, detail.pro_id, detail.qnty, 'increment', updated_by || null);
+          await updateStoreStock(existingSale.store_id, detail.pro_id, detail.qnty, 'increment', null);
         });
         await Promise.all(stockRestorePromises);
       }
 
+      // Get all ledger entries associated with this sale/order before deleting them
+      const oldLedgerEntries = await tx.ledger.findMany({
+        where: { bill_no: String(id) }
+      });
+
+      console.log(`🗑️ DELETING SALE/ORDER: Reversing balances for ${oldLedgerEntries.length} ledger entries`);
+
+      // Calculate net effect on each account's balance
+      const accountEffects = {};
+      for (const entry of oldLedgerEntries) {
+        const accountId = entry.cus_id;
+        if (!accountEffects[accountId]) {
+          accountEffects[accountId] = { totalDebit: 0, totalCredit: 0 };
+        }
+        accountEffects[accountId].totalDebit += parseFloat(entry.debit_amount || 0);
+        accountEffects[accountId].totalCredit += parseFloat(entry.credit_amount || 0);
+      }
+
+      // Reverse balance changes: credit - debit = net customer credit. Reversing means we increment by (credit - debit)
+      for (const [accountIdStr, effect] of Object.entries(accountEffects)) {
+        const accountId = parseInt(accountIdStr);
+        const reversal = Number((effect.totalCredit - effect.totalDebit).toFixed(2));
+        if (reversal !== 0) {
+          await tx.customer.update({
+            where: { cus_id: accountId },
+            data: { cus_balance: { increment: reversal } }
+          });
+          console.log(`   🔄 Reversed account ${accountId} balance by ${reversal > 0 ? '+' : ''}${reversal}`);
+        }
+      }
+
       // Delete ledger entries for this sale
       await tx.ledger.deleteMany({
-        where: { bill_no: id ? String(id) : null }
+        where: { bill_no: String(id) }
       });
 
       // Delete sale details (cascade should handle this, but being explicit)
@@ -2428,6 +2467,6 @@ export async function DELETE(request) {
     return NextResponse.json({ message: 'Sale deleted successfully' });
   } catch (error) {
     console.error('Error deleting sale:', error);
-    return NextResponse.json({ error: 'Failed to delete sale' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to delete sale', details: error.message }, { status: 500 });
   }
 }
