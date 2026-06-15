@@ -520,7 +520,7 @@ async function getCashReport(startDate, endDate) {
   // Find cash categories dynamically
   const cashCategories = await prisma.customerCategory.findMany({
     where: {
-      cus_cat_title: { contains: 'cash', mode: 'insensitive' }
+      cus_cat_title: { contains: 'cash' }
     }
   });
   const cashCategoryIds = cashCategories.map(c => c.cus_cat_id);
@@ -667,7 +667,7 @@ async function getBankReport(startDate, endDate) {
   // Find bank categories dynamically
   const bankCategories = await prisma.customerCategory.findMany({
     where: {
-      cus_cat_title: { contains: 'bank', mode: 'insensitive' }
+      cus_cat_title: { contains: 'bank' }
     }
   });
   const bankCategoryIds = bankCategories.map(c => c.cus_cat_id);
