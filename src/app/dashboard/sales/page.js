@@ -3389,23 +3389,59 @@ function SalesPageContent() {
       setFormSelectedCustomer(customer || fullSale.customer || null);
 
       // Store
-      const store = stores.find(s => s.storeid === fullSale.store_id);
+      const finalStoreId = fullSale.store_id || (fullSale.sale_details && fullSale.sale_details.length > 0 ? fullSale.sale_details[0].store_id : null);
+      const store = stores.find(s => s.storeid === finalStoreId);
       setFormSelectedStore(store || (stores.length > 0 ? stores[0] : null));
 
       // Bill type
       setBillType(fullSale.bill_type === 'SALE_RETURN' ? 'BILL' : (fullSale.bill_type || 'BILL'));
 
       // Product rows
-      setProductTableData((fullSale.sale_details || []).map(detail => ({
-        pro_id: detail.pro_id,
-        product_name: detail.product?.pro_title || `Product #${detail.pro_id}`,
-        quantity: parseFloat(detail.qnty),
-        rate: parseFloat(detail.unit_rate),
-        amount: parseFloat(detail.total_amount),
-        stock: 0,
-        unit: detail.unit || 'PCS',
-        crate: parseFloat(detail.unit_rate)
-      })));
+      setProductTableData((fullSale.sale_details || []).map((detail, index) => {
+        const detailStoreId = detail.store_id || fullSale.store_id;
+        const matchingStore = stores.find(s => s.storeid === detailStoreId);
+        return {
+          id: detail.sale_detail_id || (Date.now() + index),
+          pro_id: detail.pro_id,
+          pro_title: detail.product?.pro_title || detail.pro_title || `Product #${detail.pro_id}`,
+          storeid: detailStoreId || '',
+          store_name: matchingStore?.store_name || detail.store?.store_name || '',
+          quantity: parseFloat(detail.qnty),
+          rate: parseFloat(detail.unit_rate),
+          amount: parseFloat(detail.total_amount),
+          stock: 0,
+          unit: detail.unit || 'PCS',
+          crate: parseFloat(detail.unit_rate)
+        };
+      }));
+
+      // Map Transport Options
+      if (fullSale.transport_details && Array.isArray(fullSale.transport_details)) {
+        const mappedTransport = fullSale.transport_details.map((item, index) => {
+          const account = transportAccounts.find(t => t.cus_id === item.account_id);
+          return {
+            id: Date.now() + index + 100, // Offset ID to avoid collision
+            name: account ? account.cus_name : (item.account?.cus_name || 'Unknown Account'),
+            amount: parseFloat(item.amount || 0),
+            accountId: item.account_id,
+            accountName: account ? account.cus_name : (item.account?.cus_name || 'Unknown Account')
+          };
+        });
+        setTransportOptions(mappedTransport);
+
+        // Pre-fill the newTransport state if we have at least one transport option
+        if (mappedTransport.length > 0) {
+          setNewTransport({
+            accountId: mappedTransport[0].accountId,
+            amount: mappedTransport[0].amount
+          });
+        } else {
+          setNewTransport({ amount: 0, accountId: '' });
+        }
+      } else {
+        setTransportOptions([]);
+        setNewTransport({ amount: 0, accountId: '' });
+      }
 
       // Payment data
       const cashAmt = parseFloat(fullSale.cash_payment || 0);

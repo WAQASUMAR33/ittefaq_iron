@@ -192,7 +192,42 @@ export async function GET(request) {
 
         // Fetch bill_number separately (not yet in Prisma schema until regenerated)
         const [bnRow] = await prisma.$queryRaw`SELECT bill_number FROM sales WHERE sale_id = ${id}`;
-        const saleWithBillNumber = { ...sale, bill_number: bnRow?.bill_number ?? null };
+
+        // Fetch transport details from ledger
+        const transportLedgerEntries = await prisma.ledger.findMany({
+          where: {
+            bill_no: id.toString(),
+            trnx_type: 'SALE',
+            credit_amount: { gt: 0 },
+            cus_id: { not: sale.cus_id }
+          },
+          include: {
+            customer: {
+              select: {
+                cus_id: true,
+                cus_name: true
+              }
+            }
+          }
+        });
+
+        const splitCreditAccountIds = (sale.split_payments || [])
+          .map(sp => sp.credit_account_id)
+          .filter(Boolean);
+
+        const transportDetails = transportLedgerEntries
+          .filter(entry => !splitCreditAccountIds.includes(entry.cus_id))
+          .map(entry => ({
+            account_id: entry.cus_id,
+            amount: parseFloat(entry.credit_amount),
+            account: entry.customer
+          }));
+
+        const saleWithBillNumber = { 
+          ...sale, 
+          bill_number: bnRow?.bill_number ?? null,
+          transport_details: transportDetails
+        };
 
         return NextResponse.json(saleWithBillNumber);
       } catch (prismaError) {
@@ -268,10 +303,37 @@ export async function GET(request) {
             } : null
           }));
 
+          // Fetch transport details from ledger for fallback path
+          const transportLedgerEntries = await prisma.$queryRaw`
+            SELECT l.*, c.cus_name
+            FROM ledger l
+            LEFT JOIN customers c ON l.cus_id = c.cus_id
+            WHERE l.bill_no = ${id.toString()}
+              AND l.trnx_type = 'SALE'
+              AND l.credit_amount > 0
+              AND l.cus_id != ${sale[0].cus_id}
+          `;
+
+          const splitCreditAccountIdsFallback = (transformedSplitPayments || [])
+            .map(sp => sp.credit_account_id)
+            .filter(Boolean);
+
+          const transportDetailsFallback = transportLedgerEntries
+            .filter(entry => !splitCreditAccountIdsFallback.includes(entry.cus_id))
+            .map(entry => ({
+              account_id: entry.cus_id,
+              amount: parseFloat(entry.credit_amount || 0),
+              account: {
+                cus_id: entry.cus_id,
+                cus_name: entry.cus_name
+              }
+            }));
+
           const result = {
             ...sale[0],
             sale_details: saleDetails || [],
-            split_payments: transformedSplitPayments || []
+            split_payments: transformedSplitPayments || [],
+            transport_details: transportDetailsFallback
           };
 
           return NextResponse.json(result);
