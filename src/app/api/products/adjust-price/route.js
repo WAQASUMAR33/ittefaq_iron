@@ -47,24 +47,25 @@ export async function POST(request) {
 
         const updatedData = {};
 
-        // Update purchase rate (pro_crate) using purchasePercentage (if provided).
-        // DO NOT modify `pro_cost_price` here — update the purchase rate shown in product form (`pro_crate`).
+        // Update purchase rate (pro_crate and pro_cost_price) using purchasePercentage (if provided) based on base rate.
         if (purchaseVal !== null) {
           const newPurchase = parseFloat((basePrice + basePrice * (purchaseVal / 100)).toFixed(2));
           const finalPurchase = parseFloat(Math.max(0, newPurchase).toFixed(2));
           updatedData.pro_crate = finalPurchase;
-          console.log(`  Purchase rate (pro_crate): base ${basePrice} → purchase% ${purchaseVal}% = ${finalPurchase}`);
+          updatedData.pro_cost_price = finalPurchase;
+          console.log(`  Purchase rate: base ${basePrice} → purchase% ${purchaseVal}% = ${finalPurchase}`);
         }
 
-        // Update sale price using salePercentage (if provided).
-        // Calculate based on the base price directly.
+        // Update sale price using salePercentage (if provided) based on the new/existing purchase rate.
         if (saleVal !== null) {
-          if (product.pro_sale_price !== null && product.pro_sale_price !== undefined) {
-            const newSalePrice = parseFloat((basePrice + basePrice * (saleVal / 100)).toFixed(2));
-            const finalSalePrice = parseFloat(Math.max(0, newSalePrice).toFixed(2));
-            updatedData.pro_sale_price = finalSalePrice;
-            console.log(`  Sale: basePrice ${basePrice} → sale% ${saleVal}% = ${finalSalePrice} (based on base price)`);
-          }
+          const refPurchaseRate = purchaseVal !== null
+            ? updatedData.pro_crate
+            : (parseFloat(product.pro_crate || product.pro_cost_price || 0));
+
+          const newSalePrice = parseFloat((refPurchaseRate + refPurchaseRate * (saleVal / 100)).toFixed(2));
+          const finalSalePrice = parseFloat(Math.max(0, newSalePrice).toFixed(2));
+          updatedData.pro_sale_price = finalSalePrice;
+          console.log(`  Sale: purchaseRate ${refPurchaseRate} → sale% ${saleVal}% = ${finalSalePrice}`);
         }
 
         // Only update if there's data to update
