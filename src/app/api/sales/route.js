@@ -141,6 +141,7 @@ async function recalculateLedgerBalances(tx, cus_id) {
   });
 
   let runningBalance = 0;
+  const updates = [];
   if (entries.length > 0) {
     runningBalance = parseFloat(entries[0].opening_balance || 0);
     
@@ -156,23 +157,30 @@ async function recalculateLedgerBalances(tx, cus_id) {
         Math.abs(parseFloat(entry.opening_balance) - opening) > 0.01 ||
         Math.abs(parseFloat(entry.closing_balance) - closing) > 0.01
       ) {
-        await tx.ledger.update({
-          where: { l_id: entry.l_id },
-          data: {
-            opening_balance: Number(opening.toFixed(2)),
-            closing_balance: Number(closing.toFixed(2))
-          }
-        });
+        updates.push(
+          tx.ledger.update({
+            where: { l_id: entry.l_id },
+            data: {
+              opening_balance: Number(opening.toFixed(2)),
+              closing_balance: Number(closing.toFixed(2))
+            }
+          })
+        );
       }
       runningBalance = closing;
     }
+  }
+
+  if (updates.length > 0) {
+    const client = typeof tx.$transaction === 'function' ? tx : prisma;
+    await client.$transaction(updates);
   }
 
   await tx.customer.update({
     where: { cus_id },
     data: { cus_balance: Number(runningBalance.toFixed(2)) }
   });
-  console.log(`   📊 Recalculated ledger for ${customer.cus_name} (ID: ${cus_id}). Final balance: ${runningBalance.toFixed(2)}`);
+  console.log(`   📊 Recalculated ledger for ${customer.cus_name} (ID: ${cus_id}). Final balance: ${runningBalance.toFixed(2)} (${updates.length} entries updated in batch)`);
 }
 
 // GET - Fetch all sales with related data
@@ -1772,8 +1780,9 @@ export async function PUT(request) {
     // Get special accounts BEFORE transaction
     const specialAccounts = isSkipLedger ? null : await getSpecialAccountsForSale();
 
+    const affectedCusIds = new Set();
+
     const result = await prisma.$transaction(async (tx) => {
-      const affectedCusIds = new Set();
       // ═══════════════════════════════════════════
       // 1. FETCH EXISTING DATA
       // ═══════════════════════════════════════════
@@ -2342,11 +2351,6 @@ export async function PUT(request) {
         // Add new ledger entries accounts to affected set
         ledgerEntries.forEach(entry => affectedCusIds.add(entry.cus_id));
 
-        // ── 5a. Recalculate balances chronologically for all affected accounts ──
-        for (const cid of affectedCusIds) {
-          await recalculateLedgerBalances(tx, cid);
-        }
-
         // ── 5b. Update sundry debtors balance ──
         if (loader_id && specialAccounts?.sundryDebtors && parseFloat(shipping_amount || 0) > 0) {
           await tx.customer.update({
@@ -2406,6 +2410,11 @@ export async function PUT(request) {
       timeout: 120000 // 120 seconds timeout
     });
 
+    // Recalculate balances chronologically for all affected accounts (outside transaction)
+    for (const cid of affectedCusIds) {
+      await recalculateLedgerBalances(prisma, cid);
+    }
+
     return NextResponse.json(result);
   } catch (error) {
     console.error('Error updating sale:', error);
@@ -2464,6 +2473,8 @@ export async function DELETE(request) {
     // Get special accounts BEFORE transaction
     const specialAccounts = await getSpecialAccountsForSale();
 
+    const affectedCusIds = new Set();
+
     // Use transaction to ensure data consistency
     await prisma.$transaction(async (tx) => {
       // Get existing sale with details
@@ -2497,7 +2508,6 @@ export async function DELETE(request) {
         where: { bill_no: String(id) }
       });
 
-      const affectedCusIds = new Set();
       oldLedgerEntries.forEach(entry => affectedCusIds.add(entry.cus_id));
 
       console.log(`🗑️ DELETING SALE/ORDER: Reversing balances for ${oldLedgerEntries.length} ledger entries`);
@@ -2506,11 +2516,6 @@ export async function DELETE(request) {
       await tx.ledger.deleteMany({
         where: { bill_no: String(id) }
       });
-
-      // Recalculate balances for all affected accounts after deleting entries
-      for (const cid of affectedCusIds) {
-        await recalculateLedgerBalances(tx, cid);
-      }
 
       // Reverse loader balance
       if (existingSale.loader_id && parseFloat(existingSale.shipping_amount || 0) > 0) {
@@ -2540,6 +2545,11 @@ export async function DELETE(request) {
     }, {
       timeout: 120000 // 120 seconds (2 minutes) timeout for complex transactions with ledger entries
     });
+
+    // Recalculate balances chronologically for all affected accounts (outside transaction)
+    for (const cid of affectedCusIds) {
+      await recalculateLedgerBalances(prisma, cid);
+    }
 
     return NextResponse.json({ message: 'Sale deleted successfully' });
   } catch (error) {
