@@ -1743,6 +1743,26 @@ function PurchasesPageContent() {
 
   const handleEdit = (purchase) => {
     setEditingPurchase(purchase);
+
+    // Calculate actual cash and bank payment from the database fields, or fall back to payment_type / payment
+    let cashPayment = parseFloat(purchase.cash_payment || 0);
+    let bankPayment = parseFloat(purchase.bank_payment || 0);
+
+    // Fallback logic for older records without cash_payment/bank_payment fields
+    if (cashPayment === 0 && bankPayment === 0 && parseFloat(purchase.payment || 0) > 0) {
+      const totalPayment = parseFloat(purchase.payment || 0);
+      if (purchase.payment_type === 'CASH') {
+        cashPayment = totalPayment;
+        bankPayment = 0;
+      } else if (purchase.payment_type === 'BANK_TRANSFER') {
+        cashPayment = 0;
+        bankPayment = totalPayment;
+      } else {
+        cashPayment = totalPayment;
+        bankPayment = 0;
+      }
+    }
+
     setFormData({
       cus_id: purchase.cus_id,
       store_id: purchase.store_id?.toString() || '',
@@ -1762,17 +1782,21 @@ function PurchasesPageContent() {
       include_labour: purchase.include_labour || false,
       include_cargo_in_costprice: purchase.include_cargo_in_costprice || false,
       discount: purchase.discount.toString(),
-      cash_payment: purchase.payment_type === 'CASH' ? purchase.payment.toString() : '',
-      bank_payment: purchase.payment_type === 'BANK_TRANSFER' ? purchase.payment.toString() : '',
-      payment_type: purchase.payment_type,
+      cash_payment: cashPayment > 0 ? cashPayment.toString() : '',
+      bank_payment: bankPayment > 0 ? bankPayment.toString() : '',
+      payment_type: (cashPayment > 0 && bankPayment > 0) ? 'SPLIT' : purchase.payment_type,
       vehicle_no: purchase.vehicle_no || '',
       invoice_number: purchase.invoice_number || '',
-      purchase_details: purchase.purchase_details || []
+      purchase_details: (purchase.purchase_details || []).map(detail => ({
+        ...detail,
+        store_id: detail.store_id || purchase.store_id?.toString() || ''
+      }))
     });
 
-    // Set selected bank account if credit_account_id exists
-    if (purchase.credit_account_id) {
-      const bankAccount = customers.find(customer => customer.cus_id === purchase.credit_account_id);
+    // Set selected bank account if bank_account_id (resolved from ledger/API) or credit_account_id exists
+    const bankAccountIdToFind = purchase.bank_account_id || (purchase.payment_type === 'BANK_TRANSFER' ? purchase.credit_account_id : null);
+    if (bankAccountIdToFind) {
+      const bankAccount = customers.find(customer => customer.cus_id === bankAccountIdToFind);
       setSelectedBankAccount(bankAccount || null);
     } else {
       setSelectedBankAccount(null);

@@ -125,7 +125,41 @@ export async function GET(request) {
         console.warn('Could not compute previous customer balance for purchase', purchase.pur_id, err.message);
       }
 
-      const purchaseWithPrev = Object.assign({}, purchase, { previous_customer_balance: previousCustomerBalance });
+      // Find bank account ID from ledger entries for this purchase
+      let bankAccountId = null;
+      try {
+        const bankLedgerEntry = await prisma.ledger.findFirst({
+          where: {
+            bill_no: String(purchase.pur_id),
+            customer: {
+              customer_category: { cus_cat_title: { contains: 'bank' } },
+              customer_type: { cus_type_title: { contains: 'bank' } }
+            }
+          },
+          select: { cus_id: true }
+        });
+        if (bankLedgerEntry) {
+          bankAccountId = bankLedgerEntry.cus_id;
+        } else if (parseFloat(purchase.bank_payment || 0) > 0) {
+          // Fallback if no ledger entry found but bank_payment > 0, check if credit_account_id is a bank account
+          const creditAcc = await prisma.customer.findUnique({
+            where: { cus_id: purchase.credit_account_id || 0 },
+            include: { customer_category: true, customer_type: true }
+          });
+          if (creditAcc &&
+              (creditAcc.customer_category?.cus_cat_title.toLowerCase().includes('bank') ||
+               creditAcc.customer_type?.cus_type_title.toLowerCase().includes('bank'))) {
+            bankAccountId = purchase.credit_account_id;
+          }
+        }
+      } catch (err) {
+        console.warn('Could not compute bank account ID for purchase', purchase.pur_id, err.message);
+      }
+
+      const purchaseWithPrev = Object.assign({}, purchase, { 
+        previous_customer_balance: previousCustomerBalance,
+        bank_account_id: bankAccountId
+      });
       return NextResponse.json(purchaseWithPrev);
     }
 
@@ -174,7 +208,40 @@ export async function GET(request) {
         console.warn('Could not compute previous customer balance for purchase (invoice lookup)', purchase.pur_id, err.message);
       }
 
-      const purchaseWithPrev = Object.assign({}, purchase, { previous_customer_balance: previousCustomerBalance });
+      // Find bank account ID from ledger entries for this purchase
+      let bankAccountId = null;
+      try {
+        const bankLedgerEntry = await prisma.ledger.findFirst({
+          where: {
+            bill_no: String(purchase.pur_id),
+            customer: {
+              customer_category: { cus_cat_title: { contains: 'bank' } },
+              customer_type: { cus_type_title: { contains: 'bank' } }
+            }
+          },
+          select: { cus_id: true }
+        });
+        if (bankLedgerEntry) {
+          bankAccountId = bankLedgerEntry.cus_id;
+        } else if (parseFloat(purchase.bank_payment || 0) > 0) {
+          const creditAcc = await prisma.customer.findUnique({
+            where: { cus_id: purchase.credit_account_id || 0 },
+            include: { customer_category: true, customer_type: true }
+          });
+          if (creditAcc &&
+              (creditAcc.customer_category?.cus_cat_title.toLowerCase().includes('bank') ||
+               creditAcc.customer_type?.cus_type_title.toLowerCase().includes('bank'))) {
+            bankAccountId = purchase.credit_account_id;
+          }
+        }
+      } catch (err) {
+        console.warn('Could not compute bank account ID for purchase (invoice lookup)', purchase.pur_id, err.message);
+      }
+
+      const purchaseWithPrev = Object.assign({}, purchase, { 
+        previous_customer_balance: previousCustomerBalance,
+        bank_account_id: bankAccountId
+      });
       return NextResponse.json(purchaseWithPrev);
     }
 
@@ -219,7 +286,38 @@ export async function GET(request) {
       orderBy: { created_at: 'desc' }
     });
 
-    return NextResponse.json(purchases);
+    // Resolve bank account ID for each purchase in list
+    const purchaseIds = purchases.map(p => String(p.pur_id));
+    let bankLedgerEntries = [];
+    try {
+      bankLedgerEntries = await prisma.ledger.findMany({
+        where: {
+          bill_no: { in: purchaseIds },
+          customer: {
+            customer_category: { cus_cat_title: { contains: 'bank' } },
+            customer_type: { cus_type_title: { contains: 'bank' } }
+          }
+        },
+        select: { bill_no: true, cus_id: true }
+      });
+    } catch (err) {
+      console.warn('Could not load bank ledger entries for purchase list', err.message);
+    }
+
+    const bankAccountMap = {};
+    bankLedgerEntries.forEach(entry => {
+      bankAccountMap[entry.bill_no] = entry.cus_id;
+    });
+
+    const enhancedPurchases = purchases.map(p => {
+      let resolvedBankAccountId = bankAccountMap[String(p.pur_id)] || null;
+      if (!resolvedBankAccountId && parseFloat(p.bank_payment || 0) > 0) {
+        resolvedBankAccountId = p.credit_account_id;
+      }
+      return Object.assign({}, p, { bank_account_id: resolvedBankAccountId });
+    });
+
+    return NextResponse.json(enhancedPurchases);
   } catch (err) {
     console.error('❌ Error fetching purchases:', err);
     return errorResponse('Failed to fetch purchases', 500);
