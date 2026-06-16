@@ -120,6 +120,59 @@ async function getSpecialAccountsForSale() {
   if (accounts.cash) return accounts;
   const cash = await findOrCreateCashAccount();
   return cash ? { ...accounts, cash } : accounts;
+}/** Chronologically recalculates all ledger entry opening/closing balances for a customer and updates their customer table balance. */
+async function recalculateLedgerBalances(tx, cus_id) {
+  const customer = await tx.customer.findUnique({
+    where: { cus_id },
+    include: { customer_category: true }
+  });
+  if (!customer) return;
+
+  const categoryTitle = (customer.customer_category?.cus_cat_title || '').toLowerCase();
+  const isPayable = categoryTitle.includes('supplier') || categoryTitle.includes('creditor');
+  const nature = isPayable ? 'PAYABLE' : 'RECEIVABLE';
+
+  const entries = await tx.ledger.findMany({
+    where: { cus_id },
+    orderBy: [
+      { created_at: 'asc' },
+      { l_id: 'asc' }
+    ]
+  });
+
+  let runningBalance = 0;
+  if (entries.length > 0) {
+    runningBalance = parseFloat(entries[0].opening_balance || 0);
+    
+    for (const entry of entries) {
+      const opening = runningBalance;
+      const debit = parseFloat(entry.debit_amount || 0);
+      const credit = parseFloat(entry.credit_amount || 0);
+      const closing = nature === 'PAYABLE'
+        ? opening - debit + credit
+        : opening + debit - credit;
+
+      if (
+        Math.abs(parseFloat(entry.opening_balance) - opening) > 0.01 ||
+        Math.abs(parseFloat(entry.closing_balance) - closing) > 0.01
+      ) {
+        await tx.ledger.update({
+          where: { l_id: entry.l_id },
+          data: {
+            opening_balance: Number(opening.toFixed(2)),
+            closing_balance: Number(closing.toFixed(2))
+          }
+        });
+      }
+      runningBalance = closing;
+    }
+  }
+
+  await tx.customer.update({
+    where: { cus_id },
+    data: { cus_balance: Number(runningBalance.toFixed(2)) }
+  });
+  console.log(`   📊 Recalculated ledger for ${customer.cus_name} (ID: ${cus_id}). Final balance: ${runningBalance.toFixed(2)}`);
 }
 
 // GET - Fetch all sales with related data
@@ -1720,6 +1773,7 @@ export async function PUT(request) {
     const specialAccounts = isSkipLedger ? null : await getSpecialAccountsForSale();
 
     const result = await prisma.$transaction(async (tx) => {
+      const affectedCusIds = new Set();
       // ═══════════════════════════════════════════
       // 1. FETCH EXISTING DATA
       // ═══════════════════════════════════════════
@@ -1768,6 +1822,7 @@ export async function PUT(request) {
         const oldLedgerEntries = await tx.ledger.findMany({
           where: { bill_no: String(id) }
         });
+        oldLedgerEntries.forEach(entry => affectedCusIds.add(entry.cus_id));
 
         console.log(`\n${'='.repeat(60)}`);
         console.log(`🔄 BILL EDIT: REVERSING OLD LEDGER ENTRIES`);
@@ -2277,52 +2332,22 @@ export async function PUT(request) {
               payments: entry.payments,
               cash_payment: entry.cash_payment || 0,
               bank_payment: entry.bank_payment || 0,
-              updated_by: entry.updated_by
+              updated_by: entry.updated_by,
+              created_at: existingSale.created_at // PRESERVE TIMESTAMP!
             }
           });
           console.log(`   ✅ Entry ${i + 1}/${ledgerEntries.length}: ${entry.trnx_type} on account ${entry.cus_id}`);
         }
 
-        // ── 5a. Update customer balance from ledger ──
-        const customerLedgerEntries = ledgerEntries.filter(e => e.cus_id === cus_id);
-        if (customerLedgerEntries.length > 0) {
-          const lastEntry = customerLedgerEntries[customerLedgerEntries.length - 1];
-          await tx.customer.update({
-            where: { cus_id },
-            data: { cus_balance: lastEntry.closing_balance }
-          });
-          console.log(`   ✅ Customer balance updated to ${lastEntry.closing_balance}`);
+        // Add new ledger entries accounts to affected set
+        ledgerEntries.forEach(entry => affectedCusIds.add(entry.cus_id));
+
+        // ── 5a. Recalculate balances chronologically for all affected accounts ──
+        for (const cid of affectedCusIds) {
+          await recalculateLedgerBalances(tx, cid);
         }
 
-        // ── 5b. Update Cash Account balance ──
-        if (specialAccounts?.cash) {
-          const cashLedgerEntries = ledgerEntries.filter(e => e.cus_id === specialAccounts.cash.cus_id);
-          if (cashLedgerEntries.length > 0) {
-            const lastCashEntry = cashLedgerEntries[cashLedgerEntries.length - 1];
-            await tx.customer.update({
-              where: { cus_id: specialAccounts.cash.cus_id },
-              data: { cus_balance: lastCashEntry.closing_balance }
-            });
-            console.log(`   💵 Cash Account balance updated to ${lastCashEntry.closing_balance}`);
-          }
-        }
-
-        // ── 5c. Update Bank Account balance ──
-        if (usedBankAccountId) {
-          const bankLedgerEntries = ledgerEntries.filter(e =>
-            e.cus_id === usedBankAccountId && e.trnx_type === 'BANK_TRANSFER'
-          );
-          if (bankLedgerEntries.length > 0) {
-            const lastBankEntry = bankLedgerEntries[bankLedgerEntries.length - 1];
-            await tx.customer.update({
-              where: { cus_id: usedBankAccountId },
-              data: { cus_balance: lastBankEntry.closing_balance }
-            });
-            console.log(`   🏦 Bank Account balance updated to ${lastBankEntry.closing_balance}`);
-          }
-        }
-
-        // ── 5d. Update sundry debtors balance ──
+        // ── 5b. Update sundry debtors balance ──
         if (loader_id && specialAccounts?.sundryDebtors && parseFloat(shipping_amount || 0) > 0) {
           await tx.customer.update({
             where: { cus_id: specialAccounts.sundryDebtors.cus_id },
@@ -2335,33 +2360,7 @@ export async function PUT(request) {
           console.log(`   🚚 Sundry debtors balance updated: -${parseFloat(shipping_amount || 0)}`);
         }
 
-        // ── 5e. Update split payment account balances ──
-        if (split_payments && split_payments.length > 0) {
-          for (const splitPayment of split_payments) {
-            if (splitPayment.debit_account_id) {
-              const splitEntries = ledgerEntries.filter(e => e.cus_id === splitPayment.debit_account_id);
-              if (splitEntries.length > 0) {
-                const lastSplitEntry = splitEntries[splitEntries.length - 1];
-                await tx.customer.update({
-                  where: { cus_id: splitPayment.debit_account_id },
-                  data: { cus_balance: lastSplitEntry.closing_balance }
-                });
-              }
-            }
-            if (splitPayment.credit_account_id) {
-              const splitEntries = ledgerEntries.filter(e => e.cus_id === splitPayment.credit_account_id);
-              if (splitEntries.length > 0) {
-                const lastSplitEntry = splitEntries[splitEntries.length - 1];
-                await tx.customer.update({
-                  where: { cus_id: splitPayment.credit_account_id },
-                  data: { cus_balance: lastSplitEntry.closing_balance }
-                });
-              }
-            }
-          }
-        }
-
-        // ── 5f. Update loader balance ──
+        // ── 5c. Update loader balance ──
         if (loader_id && parseFloat(shipping_amount || 0) > 0) {
           // Reverse old loader balance if existed
           if (existingSale.loader_id && parseFloat(existingSale.shipping_amount || 0) > 0) {
@@ -2383,8 +2382,21 @@ export async function PUT(request) {
           });
         }
 
+        // ── 5d. Update sale previous_balance to align with pre-sale state ──
+        const firstCustEntry = await tx.ledger.findFirst({
+          where: { bill_no: String(id), cus_id: cus_id },
+          orderBy: { l_id: 'asc' },
+          select: { opening_balance: true }
+        });
+        if (firstCustEntry) {
+          await tx.sale.update({
+            where: { sale_id: id },
+            data: { previous_balance: firstCustEntry.opening_balance }
+          });
+        }
+
         console.log(`\n${'='.repeat(60)}`);
-        console.log(`✅ BILL EDIT COMPLETE: ${ledgerEntries.length} ledger entries created`);
+        console.log(`✅ BILL EDIT COMPLETE: ${ledgerEntries.length} ledger entries created and balances recalculated`);
         console.log(`${'='.repeat(60)}\n`);
 
       } // End of if (!isSkipLedger)
@@ -2449,6 +2461,9 @@ export async function DELETE(request) {
       return NextResponse.json({ error: 'Sale ID is required' }, { status: 400 });
     }
 
+    // Get special accounts BEFORE transaction
+    const specialAccounts = await getSpecialAccountsForSale();
+
     // Use transaction to ensure data consistency
     await prisma.$transaction(async (tx) => {
       // Get existing sale with details
@@ -2482,36 +2497,36 @@ export async function DELETE(request) {
         where: { bill_no: String(id) }
       });
 
+      const affectedCusIds = new Set();
+      oldLedgerEntries.forEach(entry => affectedCusIds.add(entry.cus_id));
+
       console.log(`🗑️ DELETING SALE/ORDER: Reversing balances for ${oldLedgerEntries.length} ledger entries`);
-
-      // Calculate net effect on each account's balance
-      const accountEffects = {};
-      for (const entry of oldLedgerEntries) {
-        const accountId = entry.cus_id;
-        if (!accountEffects[accountId]) {
-          accountEffects[accountId] = { totalDebit: 0, totalCredit: 0 };
-        }
-        accountEffects[accountId].totalDebit += parseFloat(entry.debit_amount || 0);
-        accountEffects[accountId].totalCredit += parseFloat(entry.credit_amount || 0);
-      }
-
-      // Reverse balance changes: credit - debit = net customer credit. Reversing means we increment by (credit - debit)
-      for (const [accountIdStr, effect] of Object.entries(accountEffects)) {
-        const accountId = parseInt(accountIdStr);
-        const reversal = Number((effect.totalCredit - effect.totalDebit).toFixed(2));
-        if (reversal !== 0) {
-          await tx.customer.update({
-            where: { cus_id: accountId },
-            data: { cus_balance: { increment: reversal } }
-          });
-          console.log(`   🔄 Reversed account ${accountId} balance by ${reversal > 0 ? '+' : ''}${reversal}`);
-        }
-      }
 
       // Delete ledger entries for this sale
       await tx.ledger.deleteMany({
         where: { bill_no: String(id) }
       });
+
+      // Recalculate balances for all affected accounts after deleting entries
+      for (const cid of affectedCusIds) {
+        await recalculateLedgerBalances(tx, cid);
+      }
+
+      // Reverse loader balance
+      if (existingSale.loader_id && parseFloat(existingSale.shipping_amount || 0) > 0) {
+        await tx.loader.update({
+          where: { loader_id: existingSale.loader_id },
+          data: { loader_balance: { decrement: parseFloat(existingSale.shipping_amount || 0) } }
+        });
+      }
+
+      // Reverse sundry debtors balance
+      if (existingSale.loader_id && specialAccounts?.sundryDebtors && parseFloat(existingSale.shipping_amount || 0) > 0) {
+        await tx.customer.update({
+          where: { cus_id: specialAccounts.sundryDebtors.cus_id },
+          data: { cus_balance: { increment: parseFloat(existingSale.shipping_amount || 0) } }
+        });
+      }
 
       // Delete sale details (cascade should handle this, but being explicit)
       await tx.saleDetail.deleteMany({
