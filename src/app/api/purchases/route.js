@@ -8,6 +8,69 @@ function errorResponse(message, status = 400) {
   return NextResponse.json({ error: message }, { status });
 }
 
+/** Chronologically recalculates all ledger entry opening/closing balances for a customer/supplier/account and updates their customer table balance. */
+async function recalculateLedgerBalances(tx, cus_id) {
+  const customer = await tx.customer.findUnique({
+    where: { cus_id },
+    include: { customer_category: true }
+  });
+  if (!customer) return;
+
+  const categoryTitle = (customer.customer_category?.cus_cat_title || '').toLowerCase();
+  const isPayable = categoryTitle.includes('supplier') || categoryTitle.includes('creditor');
+  const nature = isPayable ? 'PAYABLE' : 'RECEIVABLE';
+
+  const entries = await tx.ledger.findMany({
+    where: { cus_id },
+    orderBy: [
+      { created_at: 'asc' },
+      { l_id: 'asc' }
+    ]
+  });
+
+  let runningBalance = 0;
+  const updates = [];
+  if (entries.length > 0) {
+    runningBalance = parseFloat(entries[0].opening_balance || 0);
+    
+    for (const entry of entries) {
+      const opening = runningBalance;
+      const debit = parseFloat(entry.debit_amount || 0);
+      const credit = parseFloat(entry.credit_amount || 0);
+      const closing = nature === 'PAYABLE'
+        ? opening - debit + credit
+        : opening + debit - credit;
+
+      if (
+        Math.abs(parseFloat(entry.opening_balance) - opening) > 0.01 ||
+        Math.abs(parseFloat(entry.closing_balance) - closing) > 0.01
+      ) {
+        updates.push(
+          tx.ledger.update({
+            where: { l_id: entry.l_id },
+            data: {
+              opening_balance: Number(opening.toFixed(2)),
+              closing_balance: Number(closing.toFixed(2))
+            }
+          })
+        );
+      }
+      runningBalance = closing;
+    }
+  }
+
+  if (updates.length > 0) {
+    const client = typeof tx.$transaction === 'function' ? tx : prisma;
+    await client.$transaction(updates);
+  }
+
+  await tx.customer.update({
+    where: { cus_id },
+    data: { cus_balance: Number(runningBalance.toFixed(2)) }
+  });
+  console.log(`   📊 Recalculated ledger for ${customer.cus_name} (ID: ${cus_id}). Final balance: ${runningBalance.toFixed(2)} (${updates.length} entries updated in batch)`);
+}
+
 // ========================================
 // GET — Get all purchases or one purchase
 // ========================================
@@ -978,6 +1041,8 @@ export async function PUT(request) {
       return errorResponse('Customer not found', 404);
     }
 
+    const affectedCusIds = new Set();
+
     // Update purchase with details and ledger entries in a transaction
     const result = await prisma.$transaction(async (tx) => {
       // ── Step 1: Capture the balance that was in effect BEFORE this purchase ──
@@ -1000,6 +1065,12 @@ export async function PUT(request) {
 
       // ── Step 2: Read old purchase details so we can reverse their stock ──
       const oldDetails = await tx.purchaseDetail.findMany({ where: { pur_id: id } });
+
+      // ── Collect affected account IDs for chronological recalculation ──
+      const oldLedgerEntries = await tx.ledger.findMany({
+        where: { bill_no: String(id) }
+      });
+      oldLedgerEntries.forEach(entry => affectedCusIds.add(entry.cus_id));
 
       // ── Step 3: Delete old ledger entries for this bill ──
       await tx.ledger.deleteMany({ where: { bill_no: String(id) } });
@@ -1534,75 +1605,22 @@ export async function PUT(request) {
             payments: entry.payments,
             cash_payment: entry.cash_payment,
             bank_payment: entry.bank_payment,
-            updated_by: entry.updated_by
+            updated_by: entry.updated_by,
+            created_at: existingPurchase.created_at // PRESERVE TIMESTAMP!
           }
         });
       }
 
-      // 6. Update Customer Balances
-      if (cus_id) {
-        const supplierLedgerEntries = ledgerEntries.filter(e => e.cus_id === cus_id);
-        if (supplierLedgerEntries.length > 0) {
-          const lastSupplierEntry = supplierLedgerEntries[supplierLedgerEntries.length - 1];
-          const supplierClosingBalance = parseFloat(lastSupplierEntry.closing_balance);
-
-          await tx.customer.update({
-            where: { cus_id: cus_id },
-            data: { cus_balance: supplierClosingBalance }
-          });
-        }
-      }
-
-      // Update cash/bank account balances (use the latest ledger entry for each account)
-      const paymentAccountIds = new Set();
-      if (credit_account_id) paymentAccountIds.add(parseInt(credit_account_id));
-      if (bankAccIdForEntry) paymentAccountIds.add(parseInt(bankAccIdForEntry));
-      for (const accId of paymentAccountIds) {
-        const acctEntries = ledgerEntries.filter(e => e.cus_id === accId);
-        if (acctEntries.length > 0) {
-          const lastAcctEntry = acctEntries[acctEntries.length - 1];
-          await tx.customer.update({ where: { cus_id: accId }, data: { cus_balance: lastAcctEntry.closing_balance } });
-        }
-      }
-
-      // Update Incity Labour/Delivery account balances (if we queued entries above)
-      if (typeof incityLabourAccount !== 'undefined' && incityLabourAccount && ledgerEntries.find(e => e.cus_id === incityLabourAccount.cus_id)) {
-        const labourLedgerEntry = ledgerEntries.find(e => e.cus_id === incityLabourAccount.cus_id);
-        await tx.customer.update({ where: { cus_id: incityLabourAccount.cus_id }, data: { cus_balance: labourLedgerEntry.closing_balance } });
-        console.log(`💼 Incity Labour account updated (PUT): ID=${incityLabourAccount.cus_id} balance=${labourLedgerEntry.closing_balance}`);
-      }
-
-      if (typeof incityDeliveryAccount !== 'undefined' && incityDeliveryAccount && ledgerEntries.find(e => e.cus_id === incityDeliveryAccount.cus_id)) {
-        const deliveryLedgerEntry = ledgerEntries.find(e => e.cus_id === incityDeliveryAccount.cus_id);
-        await tx.customer.update({ where: { cus_id: incityDeliveryAccount.cus_id }, data: { cus_balance: deliveryLedgerEntry.closing_balance } });
-        console.log(`💼 Incity Delivery account updated (PUT): ID=${incityDeliveryAccount.cus_id} balance=${deliveryLedgerEntry.closing_balance}`);
-      }
-
-      // --- Update OUT-Labour / Cargo / Out-Payment account balances (PUT) ---
-      // Labour account and Cargo account balances are updated via the generic otherAccountIds loop below.
-
-      try {
-        const cargoIdsUsed = [];
-        if (cargo_account_ids) {
-          cargoIdsUsed.push(...(Array.isArray(cargo_account_ids) ? cargo_account_ids.map(id => parseInt(id)) : (JSON.parse(cargo_account_ids || '[]') || [])));
-        } else if (cargo_account_id) {
-          cargoIdsUsed.push(parseInt(cargo_account_id));
-        }
-
-        for (const cid of cargoIdsUsed) {
-          const ledgerForCargo = ledgerEntries.filter(e => e.cus_id === cid);
-          if (ledgerForCargo && ledgerForCargo.length > 0) {
-            const lastCargoEntry = ledgerForCargo[ledgerForCargo.length - 1];
-            await tx.customer.update({ where: { cus_id: cid }, data: { cus_balance: lastCargoEntry.closing_balance } });
-            console.log(`💼 Cargo account updated (PUT): ID=${cid} balance=${lastCargoEntry.closing_balance}`);
-          }
-        }
-      } catch (err) {
-        console.log('⚠️ Error updating cargo account balances (PUT):', err.message);
-      }
+      // Add new ledger entries accounts to affected set
+      ledgerEntries.forEach(entry => affectedCusIds.add(entry.cus_id));
 
       return { purchase: updatedPurchase };
     }, { maxWait: 10000, timeout: 30000 });
+
+    // Recalculate balances chronologically for all affected accounts (outside transaction)
+    for (const cid of affectedCusIds) {
+      await recalculateLedgerBalances(prisma, cid);
+    }
 
     // Fetch the complete updated purchase with relations
     const completePurchase = await prisma.purchase.findUnique({
@@ -1650,22 +1668,52 @@ export async function DELETE(request) {
 
   try {
     const existingPurchase = await prisma.purchase.findUnique({
-      where: { pur_id: id }
+      where: { pur_id: id },
+      include: { purchase_details: true }
     });
 
     if (!existingPurchase) {
       return errorResponse('Purchase not found', 404);
     }
 
-    // Delete purchase details first (due to foreign key constraint)
-    await prisma.purchaseDetail.deleteMany({
-      where: { pur_id: id }
-    });
+    const affectedCusIds = new Set();
 
-    // Delete the purchase
-    await prisma.purchase.delete({
-      where: { pur_id: id }
-    });
+    // Use transaction to ensure data consistency
+    await prisma.$transaction(async (tx) => {
+      // 1. Reverse store stock
+      const storeId = existingPurchase.store_id;
+      for (const detail of existingPurchase.purchase_details) {
+        if (storeId && detail.pro_id && detail.qnty) {
+          await updateStoreStock(storeId, detail.pro_id, detail.qnty, 'decrement', existingPurchase.updated_by, tx);
+        }
+      }
+
+      // 2. Collect all affected accounts from ledger entries before deletion
+      const oldLedgerEntries = await tx.ledger.findMany({
+        where: { bill_no: String(id) }
+      });
+      oldLedgerEntries.forEach(entry => affectedCusIds.add(entry.cus_id));
+
+      // 3. Delete ledger entries for this bill
+      await tx.ledger.deleteMany({
+        where: { bill_no: String(id) }
+      });
+
+      // 5. Delete purchase details
+      await tx.purchaseDetail.deleteMany({
+        where: { pur_id: id }
+      });
+
+      // 6. Delete the purchase
+      await tx.purchase.delete({
+        where: { pur_id: id }
+      });
+    }, { maxWait: 10000, timeout: 30000 });
+
+    // Recalculate balances chronologically for all affected accounts (outside transaction)
+    for (const cid of affectedCusIds) {
+      await recalculateLedgerBalances(prisma, cid);
+    }
 
     return NextResponse.json({ message: 'Purchase deleted successfully' });
   } catch (err) {
