@@ -8,6 +8,97 @@ function errorResponse(message, status = 400) {
   return NextResponse.json({ error: message }, { status });
 }
 
+/** Resolves the correct opening balance for any customer/account at a target created_at timestamp. */
+async function resolveOpeningBalance(tx, cus_id, target_created_at) {
+  const priorEntry = await tx.ledger.findFirst({
+    where: { cus_id, created_at: { lt: target_created_at } },
+    orderBy: [
+      { created_at: 'desc' },
+      { l_id: 'desc' }
+    ],
+    select: { closing_balance: true }
+  });
+
+  if (priorEntry) {
+    return parseFloat(priorEntry.closing_balance || 0);
+  }
+
+  const nextEntry = await tx.ledger.findFirst({
+    where: { cus_id, created_at: { gte: target_created_at } },
+    orderBy: [
+      { created_at: 'asc' },
+      { l_id: 'asc' }
+    ],
+    select: { opening_balance: true }
+  });
+
+  if (nextEntry) {
+    return parseFloat(nextEntry.opening_balance || 0);
+  }
+
+  const customer = await tx.customer.findUnique({
+    where: { cus_id },
+    select: { cus_balance: true }
+  });
+  return parseFloat(customer?.cus_balance || 0);
+}
+
+/** Prepares a list of ledger entries about to be deleted by re-linking any subsequent entries to preserve the starting opening balance. */
+async function prepareLedgerDeletion(tx, bill_no) {
+  const entriesToDelete = await tx.ledger.findMany({
+    where: { bill_no: String(bill_no) },
+    orderBy: { l_id: 'asc' }
+  });
+
+  const accountEntries = {};
+  for (const entry of entriesToDelete) {
+    if (!accountEntries[entry.cus_id]) {
+      accountEntries[entry.cus_id] = [];
+    }
+    accountEntries[entry.cus_id].push(entry);
+  }
+
+  for (const cusIdStr in accountEntries) {
+    const cus_id = parseInt(cusIdStr);
+    const deletedForAccount = accountEntries[cus_id];
+    
+    deletedForAccount.sort((a, b) => {
+      const timeDiff = a.created_at.getTime() - b.created_at.getTime();
+      return timeDiff !== 0 ? timeDiff : a.l_id - b.l_id;
+    });
+
+    const earliestDeleted = deletedForAccount[0];
+    const latestDeleted = deletedForAccount[deletedForAccount.length - 1];
+
+    const nextEntry = await tx.ledger.findFirst({
+      where: {
+        cus_id,
+        bill_no: { not: String(bill_no) },
+        OR: [
+          { created_at: { gt: latestDeleted.created_at } },
+          {
+            created_at: latestDeleted.created_at,
+            l_id: { gt: latestDeleted.l_id }
+          }
+        ]
+      },
+      orderBy: [
+        { created_at: 'asc' },
+        { l_id: 'asc' }
+      ]
+    });
+
+    if (nextEntry) {
+      await tx.ledger.update({
+        where: { l_id: nextEntry.l_id },
+        data: { opening_balance: earliestDeleted.opening_balance }
+      });
+      console.log(`🔗 Re-linked next ledger entry for customer ${cus_id}: updated entry ${nextEntry.l_id} opening balance to ${earliestDeleted.opening_balance}`);
+    }
+  }
+}
+
+
 /** Chronologically recalculates all ledger entry opening/closing balances for a customer/supplier/account and updates their customer table balance. */
 async function recalculateLedgerBalances(tx, cus_id) {
   const customer = await tx.customer.findUnique({
@@ -627,8 +718,8 @@ export async function POST(request) {
 
       // 1. Supplier Account Entry — includes product + labour + delivery (OUT charges are NOT included)
       if (cus_id) {
-        const supplierData = await tx.customer.findUnique({ where: { cus_id: cus_id }, select: { cus_balance: true, cus_name: true } });
-        runningSupplierBalance = parseFloat(supplierData?.cus_balance || 0);
+        runningSupplierBalance = await resolveOpeningBalance(tx, cus_id, newPurchase.created_at);
+        const supplierData = await tx.customer.findUnique({ where: { cus_id: cus_id }, select: { cus_name: true } });
 
         console.log(`\n📊 PURCHASE LEDGER ENTRY DEBUG`);
         console.log(`   Supplier: ${supplierData?.cus_name} (ID: ${cus_id})`);
@@ -731,13 +822,15 @@ export async function POST(request) {
         if (bankAccountToUse) {
           usedBankAccountId = bankAccountToUse.cus_id;
           console.log(`🏦 BANK PAYMENT DETECTED: ${bank_payment}`);
-          console.log(`🏦 Bank Account Before: ID=${bankAccountToUse.cus_id}, Name=${bankAccountToUse.cus_name}, Balance=${bankAccountToUse.cus_balance}`);
+          
+          const bankOpeningBalance = await resolveOpeningBalance(tx, bankAccountToUse.cus_id, newPurchase.created_at);
+          console.log(`🏦 Bank Account Before: ID=${bankAccountToUse.cus_id}, Name=${bankAccountToUse.cus_name}, Resolved Balance=${bankOpeningBalance}`);
 
           const supplierForPayment = await tx.customer.findUnique({ where: { cus_id }, select: { cus_name: true } });
 
           const bankEntry = createLedgerEntry({
             cus_id: bankAccountToUse.cus_id,
-            opening_balance: bankAccountToUse.cus_balance,
+            opening_balance: bankOpeningBalance,
             debit_amount: isReturn ? parseFloat(bank_payment) : 0,
             credit_amount: isReturn ? 0 : parseFloat(bank_payment),
             bill_no: newPurchase.pur_id.toString(),
@@ -768,18 +861,18 @@ export async function POST(request) {
       if (cashPaymentAmount > 0 && effectiveCashAccountId) {
         const cashAccountData = await tx.customer.findUnique({
           where: { cus_id: effectiveCashAccountId },
-          select: { cus_balance: true, cus_name: true }
+          select: { cus_name: true }
         });
-        const cashCurrentBalance = parseFloat(cashAccountData?.cus_balance || 0);
+        const cashOpeningBalance = await resolveOpeningBalance(tx, effectiveCashAccountId, newPurchase.created_at);
 
         console.log(`💵 CASH PAYMENT DETECTED: ${cashPaymentAmount}`);
-        console.log(`💵 Cash Account Before: ID=${effectiveCashAccountId}, Name=${cashAccountData?.cus_name}, Balance=${cashCurrentBalance}`);
+        console.log(`💵 Cash Account Before: ID=${effectiveCashAccountId}, Name=${cashAccountData?.cus_name}, Resolved Balance=${cashOpeningBalance}`);
 
         const supplierForPaymentCash = await tx.customer.findUnique({ where: { cus_id }, select: { cus_name: true } });
 
         const cashEntry = createLedgerEntry({
           cus_id: effectiveCashAccountId,
-          opening_balance: cashCurrentBalance,
+          opening_balance: cashOpeningBalance,
           debit_amount: isReturn ? cashPaymentAmount : 0,
           credit_amount: isReturn ? 0 : cashPaymentAmount,
           bill_no: newPurchase.pur_id.toString(),
@@ -844,15 +937,16 @@ export async function POST(request) {
 
           for (let i = 0; i < cargoIds.length; i++) {
             const aid = parseInt(cargoIds[i]);
-            const cargoAcc = await tx.customer.findUnique({ where: { cus_id: aid }, select: { cus_id: true, cus_balance: true, cus_name: true } });
+            const cargoAcc = await tx.customer.findUnique({ where: { cus_id: aid }, select: { cus_id: true, cus_name: true } });
             if (!cargoAcc) { console.log(`⚠️ Cargo account ID ${aid} not found — skipping`); continue; }
 
             let allocate = perAccount;
             if (i === 0) allocate = parseFloat((perAccount + remainder).toFixed(2));
 
+            const cargoOpeningBalance = await resolveOpeningBalance(tx, cargoAcc.cus_id, newPurchase.created_at);
             const cargoEntry = createLedgerEntry({
               cus_id: cargoAcc.cus_id,
-              opening_balance: parseFloat(cargoAcc.cus_balance || 0),
+              opening_balance: cargoOpeningBalance,
               debit_amount: 0,
               credit_amount: allocate,
               bill_no: newPurchase.pur_id.toString(),
@@ -880,14 +974,14 @@ export async function POST(request) {
               { customer_type: { cus_type_title: { contains: 'Labour' } } }
             ]
           },
-          select: { cus_id: true, cus_balance: true, cus_name: true }
+          select: { cus_id: true, cus_name: true }
         });
 
         if (labourAccount) {
           const priorLabourEntries = ledgerEntries.filter(e => e.cus_id === labourAccount.cus_id);
           const labourOpeningBalance = priorLabourEntries.length > 0
             ? priorLabourEntries[priorLabourEntries.length - 1].closing_balance
-            : parseFloat(labourAccount.cus_balance || 0);
+            : await resolveOpeningBalance(tx, labourAccount.cus_id, newPurchase.created_at);
 
           const labourEntry = createLedgerEntry({
             cus_id: labourAccount.cus_id,
@@ -914,7 +1008,7 @@ export async function POST(request) {
       if (incityTotal > 0) {
         // Reuse the already-resolved cash account (never the supplier ID)
         const incityCashAccount = effectiveCashAccountId
-          ? await tx.customer.findUnique({ where: { cus_id: effectiveCashAccountId }, select: { cus_id: true, cus_balance: true, cus_name: true } })
+          ? await tx.customer.findUnique({ where: { cus_id: effectiveCashAccountId }, select: { cus_id: true, cus_name: true } })
           : null;
 
         if (incityCashAccount) {
@@ -922,7 +1016,7 @@ export async function POST(request) {
           const priorCashEntries = ledgerEntries.filter(e => e.cus_id === incityCashAccount.cus_id);
           const incityOpeningBalance = priorCashEntries.length > 0
             ? priorCashEntries[priorCashEntries.length - 1].closing_balance
-            : parseFloat(incityCashAccount.cus_balance || 0);
+            : await resolveOpeningBalance(tx, incityCashAccount.cus_id, newPurchase.created_at);
 
           const incityCashEntry = createLedgerEntry({
             cus_id: incityCashAccount.cus_id,
@@ -972,53 +1066,18 @@ export async function POST(request) {
 
       console.log(`📊 All ${ledgerEntries.length} ledger entries created successfully\n`);
 
-      // 6. Update Customer Balances from Ledger Entries
-      // Update supplier balance
-      if (cus_id) {
-        const supplierLedgerEntries = ledgerEntries.filter(e => e.cus_id === cus_id);
-        if (supplierLedgerEntries.length > 0) {
-          const lastSupplierEntry = supplierLedgerEntries[supplierLedgerEntries.length - 1];
-          const supplierClosingBalance = parseFloat(lastSupplierEntry.closing_balance);
-
-          await tx.customer.update({
-            where: { cus_id: cus_id },
-            data: { cus_balance: supplierClosingBalance }
-          });
-
-          console.log(`💰 SUPPLIER BALANCE UPDATED: ${cus_id} balance set to ${supplierClosingBalance}`);
-        }
-      }
-
-      // Update all non-supplier, non-bank accounts found in ledger entries (cash, incity cash, etc.)
-      const alreadyUpdated = new Set([cus_id, usedBankAccountId].filter(Boolean));
-      const otherAccountIds = [...new Set(ledgerEntries.map(e => e.cus_id).filter(id => !alreadyUpdated.has(id)))];
-      for (const accountId of otherAccountIds) {
-        const entries = ledgerEntries.filter(e => e.cus_id === accountId);
-        if (entries.length > 0) {
-          const lastEntry = entries[entries.length - 1];
-          await tx.customer.update({ where: { cus_id: accountId }, data: { cus_balance: lastEntry.closing_balance } });
-          console.log(`💵 ACCOUNT BALANCE UPDATED: ID=${accountId} balance set to ${lastEntry.closing_balance}`);
-        }
-      }
-
-      // Update bank account balance (use the last BANK_TRANSFER ledger entry for the used bank)
-      if (usedBankAccountId) {
-        const bankLedgerEntries = ledgerEntries.filter(e => e.cus_id === usedBankAccountId && e.trnx_type === 'BANK_TRANSFER');
-        if (bankLedgerEntries.length > 0) {
-          const lastBankEntry = bankLedgerEntries[bankLedgerEntries.length - 1];
-          await tx.customer.update({ where: { cus_id: usedBankAccountId }, data: { cus_balance: lastBankEntry.closing_balance } });
-          console.log(`🏦 BANK ACCOUNT BALANCE UPDATED: ${usedBankAccountId} balance set to ${lastBankEntry.closing_balance}`);
-        } else {
-          console.log(`🏦 DEBUG: No bank ledger entry found to update balance for ID ${usedBankAccountId}`);
-        }
-      } else {
-        console.log(`🏦 DEBUG: No bank balance update needed. usedBankAccountId=${usedBankAccountId}`);
-      }
+      const affectedCusIds = [...new Set(ledgerEntries.map(e => e.cus_id))];
 
       return {
         purchase: newPurchase,
+        affectedCusIds
       };
     }, { maxWait: 20000, timeout: 60000 });
+
+    // Recalculate balances chronologically for all affected accounts (outside transaction)
+    for (const cid of result.affectedCusIds) {
+      await recalculateLedgerBalances(prisma, cid);
+    }
 
     // Fetch the complete purchase with relations
     const completePurchase = await prisma.purchase.findUnique({
@@ -1143,25 +1202,7 @@ export async function PUT(request) {
 
     // Update purchase with details and ledger entries in a transaction
     const result = await prisma.$transaction(async (tx) => {
-      // ── Step 1: Capture the balance that was in effect BEFORE this purchase ──
-      // This is the opening_balance of the first ledger entry ever written for this bill.
-      // We use it as the starting point for the regenerated ledger chain so that
-      // editing an amount doesn't compound on top of an already-applied stale balance.
-      let balanceBeforePurchase = 0;
-      const firstSupplierEntry = await tx.ledger.findFirst({
-        where: { bill_no: String(id), cus_id: parseInt(cus_id) },
-        orderBy: { l_id: 'asc' },
-        select: { opening_balance: true }
-      });
-      if (firstSupplierEntry) {
-        balanceBeforePurchase = parseFloat(firstSupplierEntry.opening_balance || 0);
-      } else {
-        // No prior ledger entry exists — fall back to current balance minus old entries' net effect
-        const customerData = await tx.customer.findUnique({ where: { cus_id: parseInt(cus_id) }, select: { cus_balance: true } });
-        balanceBeforePurchase = parseFloat(customerData?.cus_balance || 0);
-      }
-
-      // ── Step 2: Read old purchase details so we can reverse their stock ──
+      // ── Step 1: Read old purchase details so we can reverse their stock ──
       const oldDetails = await tx.purchaseDetail.findMany({ where: { pur_id: id } });
 
       // ── Collect affected account IDs for chronological recalculation ──
@@ -1170,10 +1211,13 @@ export async function PUT(request) {
       });
       oldLedgerEntries.forEach(entry => affectedCusIds.add(entry.cus_id));
 
-      // ── Step 3: Delete old ledger entries for this bill ──
+      // ── Call prepareLedgerDeletion to re-link subsequent entries of deleted items ──
+      await prepareLedgerDeletion(tx, id);
+
+      // ── Step 2: Delete old ledger entries for this bill ──
       await tx.ledger.deleteMany({ where: { bill_no: String(id) } });
 
-      // ── Step 4: Reverse stock for old quantities ──
+      // ── Step 3: Reverse stock for old quantities ──
       for (const old of oldDetails) {
         const oldStoreId = old.store_id || store_id;
         if (oldStoreId && old.pro_id && old.qnty) {
@@ -1181,10 +1225,10 @@ export async function PUT(request) {
         }
       }
 
-      // ── Step 5: Delete old purchase details ──
+      // ── Step 4: Delete old purchase details ──
       await tx.purchaseDetail.deleteMany({ where: { pur_id: id } });
 
-      // ── Step 6: Update the purchase record ──
+      // ── Step 5: Update the purchase record ──
       const updatedPurchase = await tx.purchase.update({
         where: { pur_id: id },
         data: {
@@ -1249,7 +1293,10 @@ export async function PUT(request) {
       const ledgerEntries = [];
       // Use the balance captured BEFORE the original purchase so the regenerated
       // ledger chain starts from the correct pre-purchase position.
-      let runningSupplierBalance = balanceBeforePurchase;
+      let runningSupplierBalance = 0;
+      if (cus_id) {
+        runningSupplierBalance = await resolveOpeningBalance(tx, cus_id, existingPurchase.created_at);
+      }
 
       // Calculate supplier amount — EXCLUDE OUT charges (Out labour/Out delivery are not billed to supplier)
       const supplierAmount = safeParseFloat(total_amount) - safeParseFloat(discount) + safeParseFloat(labour_amount) + safeParseFloat(transport_amount);
@@ -1307,14 +1354,14 @@ export async function PUT(request) {
       if (cashPaymentAmt > 0 && credit_account_id) {
         const cashAccountData = await tx.customer.findUnique({
           where: { cus_id: credit_account_id },
-          select: { cus_balance: true, cus_name: true }
+          select: { cus_name: true }
         });
-        const cashCurrentBalance = parseFloat(cashAccountData?.cus_balance || 0);
+        const cashOpeningBalance = await resolveOpeningBalance(tx, credit_account_id, existingPurchase.created_at);
         const supplierName = (await tx.customer.findUnique({ where: { cus_id }, select: { cus_name: true } }))?.cus_name || 'Supplier';
 
         const cashEntry = createLedgerEntry({
           cus_id: credit_account_id,
-          opening_balance: cashCurrentBalance,
+          opening_balance: cashOpeningBalance,
           debit_amount: 0,
           credit_amount: cashPaymentAmt,
           bill_no: id.toString(),
@@ -1334,14 +1381,14 @@ export async function PUT(request) {
       if (bankPaymentAmt > 0 && bankAccIdForEntry) {
         const bankAccountData = await tx.customer.findUnique({
           where: { cus_id: bankAccIdForEntry },
-          select: { cus_balance: true, cus_name: true }
+          select: { cus_name: true }
         });
-        const bankCurrentBalance = parseFloat(bankAccountData?.cus_balance || 0);
+        const bankOpeningBalance = await resolveOpeningBalance(tx, bankAccIdForEntry, existingPurchase.created_at);
         const supplierName = (await tx.customer.findUnique({ where: { cus_id }, select: { cus_name: true } }))?.cus_name || 'Supplier';
 
         const bankEntry = createLedgerEntry({
           cus_id: bankAccIdForEntry,
-          opening_balance: bankCurrentBalance,
+          opening_balance: bankOpeningBalance,
           debit_amount: 0,
           credit_amount: bankPaymentAmt,
           bill_no: id.toString(),
@@ -1404,15 +1451,16 @@ export async function PUT(request) {
 
           for (let i = 0; i < cargoIdsPUT.length; i++) {
             const aid = parseInt(cargoIdsPUT[i]);
-            const cargoAcc = await tx.customer.findUnique({ where: { cus_id: aid }, select: { cus_id: true, cus_balance: true, cus_name: true } });
-            if (!cargoAcc) { console.log(`⚠️ Cargo account ID ${aid} not found — skipping (PUT)`); continue; }
+            const cargoAcc = await tx.customer.findUnique({ where: { cus_id: aid }, select: { cus_id: true, cus_name: true } });
+            if (!cargoAcc) { continue; }
 
             let allocatePUT = perAccountPUT;
             if (i === 0) allocatePUT = parseFloat((perAccountPUT + remainderPUT).toFixed(2));
 
+            const cargoOpeningBalance = await resolveOpeningBalance(tx, cargoAcc.cus_id, existingPurchase.created_at);
             const cargoEntry = createLedgerEntry({
               cus_id: cargoAcc.cus_id,
-              opening_balance: parseFloat(cargoAcc.cus_balance || 0),
+              opening_balance: cargoOpeningBalance,
               debit_amount: 0,
               credit_amount: allocatePUT,
               bill_no: id.toString(),
@@ -1422,10 +1470,7 @@ export async function PUT(request) {
               updated_by: updated_by ? parseInt(updated_by) : null
             });
             ledgerEntries.push(cargoEntry);
-            console.log(`📦 Cargo account ${cargoAcc.cus_name} credited ${allocatePUT} (PUT)`);
           }
-        } else {
-          console.log('⚠️ Out delivery present but no cargo account selected — supplier already credited, cargo credit skipped (PUT)');
         }
       }
 
@@ -1440,14 +1485,14 @@ export async function PUT(request) {
               { customer_type: { cus_type_title: { contains: 'Labour' } } }
             ]
           },
-          select: { cus_id: true, cus_balance: true, cus_name: true }
+          select: { cus_id: true, cus_name: true }
         });
 
         if (labourAccountPUT) {
           const priorLabourEntriesPUT = ledgerEntries.filter(e => e.cus_id === labourAccountPUT.cus_id);
           const labourOpeningBalancePUT = priorLabourEntriesPUT.length > 0
             ? priorLabourEntriesPUT[priorLabourEntriesPUT.length - 1].closing_balance
-            : parseFloat(labourAccountPUT.cus_balance || 0);
+            : await resolveOpeningBalance(tx, labourAccountPUT.cus_id, existingPurchase.created_at);
 
           const labourEntryPUT = createLedgerEntry({
             cus_id: labourAccountPUT.cus_id,
@@ -1461,24 +1506,15 @@ export async function PUT(request) {
             updated_by: updated_by ? parseInt(updated_by) : null
           });
           ledgerEntries.push(labourEntryPUT);
-          console.log(`🔧 Labour account ${labourAccountPUT.cus_name} debited ${outLabourAmtPUT} (PUT)`);
-        } else {
-          console.log('⚠️ Out labour present but Labour account not found — supplier already credited, labour debit skipped (PUT)');
         }
       }
 
       // --- Incity (OWN) Ledger Postings (PUT) ---
-      // Create separate ledger entries for Incity fields when provided:
-      // - incity_own_labour: CREDIT to Labour account
-      // - incity_own_delivery: DEBIT to Delivery account
       const incityLabourAmt = safeParseFloat(incity_own_labour || 0);
       const incityDeliveryAmt = safeParseFloat(incity_own_delivery || 0);
 
-      let incityLabourAccount = null;
-      let incityDeliveryAccount = null;
-
       if (incityLabourAmt > 0) {
-        incityLabourAccount = await tx.customer.findFirst({
+        const incityLabourAccount = await tx.customer.findFirst({
           where: {
             OR: [
               { cus_name: { contains: 'labour' } },
@@ -1486,14 +1522,18 @@ export async function PUT(request) {
               { customer_type: { cus_type_title: { contains: 'labour' } } }
             ]
           },
-          select: { cus_id: true, cus_balance: true, cus_name: true }
+          select: { cus_id: true, cus_name: true }
         });
 
         if (incityLabourAccount) {
-          // 1) Expense recognition: DEBIT Labour account (existing behaviour)
+          const priorLabourEntriesPUT = ledgerEntries.filter(e => e.cus_id === incityLabourAccount.cus_id);
+          const incityLabourOpeningBalance = priorLabourEntriesPUT.length > 0
+            ? priorLabourEntriesPUT[priorLabourEntriesPUT.length - 1].closing_balance
+            : await resolveOpeningBalance(tx, incityLabourAccount.cus_id, existingPurchase.created_at);
+
           const labourEntry = createLedgerEntry({
             cus_id: incityLabourAccount.cus_id,
-            opening_balance: parseFloat(incityLabourAccount.cus_balance || 0),
+            opening_balance: incityLabourOpeningBalance,
             debit_amount: incityLabourAmt,
             credit_amount: 0,
             bill_no: id.toString(),
@@ -1506,14 +1546,10 @@ export async function PUT(request) {
           });
 
           ledgerEntries.push(labourEntry);
-          console.log(`🔧 Incity labour ledger entry queued for account ${incityLabourAccount.cus_name} (ID: ${incityLabourAccount.cus_id}) amount=${incityLabourAmt}`);
 
-          // 2) Record payment to Labour account: CREDIT the labour account and mark cash/bank so it shows in Cash/Bank columns
           const incityLabourPaidViaPUT = payment_type === 'BANK_TRANSFER' ? 'BANK_TRANSFER' : 'CASH';
           const incityLabourCashPUT = incityLabourPaidViaPUT === 'CASH' ? incityLabourAmt : 0;
           const incityLabourBankPUT = incityLabourPaidViaPUT === 'BANK_TRANSFER' ? incityLabourAmt : 0;
-
-          // include supplier name in the payment and cash/bank details (PUT)
           const supplierForIncityPUT = cus_id ? await tx.customer.findUnique({ where: { cus_id }, select: { cus_name: true } }) : null;
 
           const labourPaymentEntryPUT = createLedgerEntry({
@@ -1532,13 +1568,17 @@ export async function PUT(request) {
 
           ledgerEntries.push(labourPaymentEntryPUT);
 
-          // 3) Create corresponding Cash/Bank account entry (credit the cash/bank account to show outflow)
           if (incityLabourCashPUT > 0 && credit_account_id) {
-            const cashAccountDataPUT = await tx.customer.findUnique({ where: { cus_id: credit_account_id }, select: { cus_balance: true, cus_name: true } });
+            const cashAccountDataPUT = await tx.customer.findUnique({ where: { cus_id: credit_account_id }, select: { cus_name: true } });
             if (cashAccountDataPUT) {
+              const priorCashEntries = ledgerEntries.filter(e => e.cus_id === credit_account_id);
+              const cashLabourOpeningBalance = priorCashEntries.length > 0
+                ? priorCashEntries[priorCashEntries.length - 1].closing_balance
+                : await resolveOpeningBalance(tx, credit_account_id, existingPurchase.created_at);
+
               const cashLabourEntryPUT = createLedgerEntry({
                 cus_id: credit_account_id,
-                opening_balance: parseFloat(cashAccountDataPUT?.cus_balance || 0),
+                opening_balance: cashLabourOpeningBalance,
                 debit_amount: 0,
                 credit_amount: incityLabourCashPUT,
                 bill_no: id.toString(),
@@ -1549,17 +1589,19 @@ export async function PUT(request) {
                 bank_payment: 0,
                 updated_by: updated_by ? parseInt(updated_by) : null
               });
-
               ledgerEntries.push(cashLabourEntryPUT);
-            } else {
-              console.log('⚠️ Incity labour cash payment requested but cash account not found (PUT)');
             }
           } else if (incityLabourBankPUT > 0 && bankAccountIdInt) {
-            const bankAccPUT = await tx.customer.findUnique({ where: { cus_id: bankAccountIdInt }, select: { cus_balance: true, cus_name: true } });
+            const bankAccPUT = await tx.customer.findUnique({ where: { cus_id: bankAccountIdInt }, select: { cus_name: true } });
             if (bankAccPUT) {
+              const priorBankEntries = ledgerEntries.filter(e => e.cus_id === bankAccountIdInt);
+              const bankLabourOpeningBalance = priorBankEntries.length > 0
+                ? priorBankEntries[priorBankEntries.length - 1].closing_balance
+                : await resolveOpeningBalance(tx, bankAccountIdInt, existingPurchase.created_at);
+
               const bankLabourEntryPUT = createLedgerEntry({
                 cus_id: bankAccountIdInt,
-                opening_balance: parseFloat(bankAccPUT?.cus_balance || 0),
+                opening_balance: bankLabourOpeningBalance,
                 debit_amount: 0,
                 credit_amount: incityLabourBankPUT,
                 bill_no: id.toString(),
@@ -1570,19 +1612,14 @@ export async function PUT(request) {
                 bank_payment: incityLabourBankPUT,
                 updated_by: updated_by ? parseInt(updated_by) : null
               });
-
               ledgerEntries.push(bankLabourEntryPUT);
-            } else {
-              console.log('⚠️ Incity labour bank payment requested but bank account not found (PUT)');
             }
           }
-        } else {
-          console.log('⚠️ Incity labour amount present but Labour account not found — skipping Incity labour ledger posting');
         }
       }
 
       if (incityDeliveryAmt > 0) {
-        incityDeliveryAccount = await tx.customer.findFirst({
+        const incityDeliveryAccount = await tx.customer.findFirst({
           where: {
             OR: [
               { cus_name: { contains: 'delivery' } },
@@ -1591,14 +1628,18 @@ export async function PUT(request) {
               { customer_type: { cus_type_title: { contains: 'delivery' } } }
             ]
           },
-          select: { cus_id: true, cus_balance: true, cus_name: true }
+          select: { cus_id: true, cus_name: true }
         });
 
         if (incityDeliveryAccount) {
-          // 1) Expense recognition: DEBIT Delivery/Transport account (existing behaviour)
+          const priorDeliveryEntries = ledgerEntries.filter(e => e.cus_id === incityDeliveryAccount.cus_id);
+          const incityDeliveryOpeningBalance = priorDeliveryEntries.length > 0
+            ? priorDeliveryEntries[priorDeliveryEntries.length - 1].closing_balance
+            : await resolveOpeningBalance(tx, incityDeliveryAccount.cus_id, existingPurchase.created_at);
+
           const deliveryEntry = createLedgerEntry({
             cus_id: incityDeliveryAccount.cus_id,
-            opening_balance: parseFloat(incityDeliveryAccount.cus_balance || 0),
+            opening_balance: incityDeliveryOpeningBalance,
             debit_amount: incityDeliveryAmt,
             credit_amount: 0,
             bill_no: id.toString(),
@@ -1611,9 +1652,7 @@ export async function PUT(request) {
           });
 
           ledgerEntries.push(deliveryEntry);
-          console.log(`🔧 Incity delivery ledger entry queued for account ${incityDeliveryAccount.cus_name} (ID: ${incityDeliveryAccount.cus_id}) amount=${incityDeliveryAmt}`);
 
-          // 2) Record payment to Delivery account: CREDIT the delivery account and include cash/bank breakdown
           const incityDeliveryPaidViaPUT = payment_type === 'BANK_TRANSFER' ? 'BANK_TRANSFER' : 'CASH';
           const incityDeliveryCashPUT = incityDeliveryPaidViaPUT === 'CASH' ? incityDeliveryAmt : 0;
           const incityDeliveryBankPUT = incityDeliveryPaidViaPUT === 'BANK_TRANSFER' ? incityDeliveryAmt : 0;
@@ -1634,13 +1673,17 @@ export async function PUT(request) {
 
           ledgerEntries.push(deliveryPaymentEntryPUT);
 
-          // 3) Create corresponding Cash/Bank account entry (credit the cash/bank account to show outflow)
           if (incityDeliveryCashPUT > 0 && credit_account_id) {
-            const cashAccountDataPUT = await tx.customer.findUnique({ where: { cus_id: credit_account_id }, select: { cus_balance: true, cus_name: true } });
+            const cashAccountDataPUT = await tx.customer.findUnique({ where: { cus_id: credit_account_id }, select: { cus_name: true } });
             if (cashAccountDataPUT) {
+              const priorCashEntries = ledgerEntries.filter(e => e.cus_id === credit_account_id);
+              const cashDeliveryOpeningBalance = priorCashEntries.length > 0
+                ? priorCashEntries[priorCashEntries.length - 1].closing_balance
+                : await resolveOpeningBalance(tx, credit_account_id, existingPurchase.created_at);
+
               const cashDeliveryEntryPUT = createLedgerEntry({
                 cus_id: credit_account_id,
-                opening_balance: parseFloat(cashAccountDataPUT?.cus_balance || 0),
+                opening_balance: cashDeliveryOpeningBalance,
                 debit_amount: 0,
                 credit_amount: incityDeliveryCashPUT,
                 bill_no: id.toString(),
@@ -1651,17 +1694,19 @@ export async function PUT(request) {
                 bank_payment: 0,
                 updated_by: updated_by ? parseInt(updated_by) : null
               });
-
               ledgerEntries.push(cashDeliveryEntryPUT);
-            } else {
-              console.log('⚠️ Incity delivery cash payment requested but cash account not found (PUT)');
             }
           } else if (incityDeliveryBankPUT > 0 && bankAccountIdInt) {
-            const bankAccPUT = await tx.customer.findUnique({ where: { cus_id: bankAccountIdInt }, select: { cus_balance: true, cus_name: true } });
+            const bankAccPUT = await tx.customer.findUnique({ where: { cus_id: bankAccountIdInt }, select: { cus_name: true } });
             if (bankAccPUT) {
+              const priorBankEntries = ledgerEntries.filter(e => e.cus_id === bankAccountIdInt);
+              const bankDeliveryOpeningBalance = priorBankEntries.length > 0
+                ? priorBankEntries[priorBankEntries.length - 1].closing_balance
+                : await resolveOpeningBalance(tx, bankAccountIdInt, existingPurchase.created_at);
+
               const bankDeliveryEntryPUT = createLedgerEntry({
                 cus_id: bankAccountIdInt,
-                opening_balance: parseFloat(bankAccPUT?.cus_balance || 0),
+                opening_balance: bankDeliveryOpeningBalance,
                 debit_amount: 0,
                 credit_amount: incityDeliveryBankPUT,
                 bill_no: id.toString(),
@@ -1672,14 +1717,9 @@ export async function PUT(request) {
                 bank_payment: incityDeliveryBankPUT,
                 updated_by: updated_by ? parseInt(updated_by) : null
               });
-
               ledgerEntries.push(bankDeliveryEntryPUT);
-            } else {
-              console.log('⚠️ Incity delivery bank payment requested but bank account not found (PUT)');
             }
           }
-        } else {
-          console.log('⚠️ Incity delivery amount present but Delivery/Transport account not found — skipping Incity delivery ledger posting (PUT)');
         }
       }
 
@@ -1791,6 +1831,9 @@ export async function DELETE(request) {
         where: { bill_no: String(id) }
       });
       oldLedgerEntries.forEach(entry => affectedCusIds.add(entry.cus_id));
+
+      // Call prepareLedgerDeletion to re-link subsequent entries
+      await prepareLedgerDeletion(tx, id);
 
       // 3. Delete ledger entries for this bill
       await tx.ledger.deleteMany({

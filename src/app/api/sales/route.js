@@ -120,7 +120,99 @@ async function getSpecialAccountsForSale() {
   if (accounts.cash) return accounts;
   const cash = await findOrCreateCashAccount();
   return cash ? { ...accounts, cash } : accounts;
-}/** Chronologically recalculates all ledger entry opening/closing balances for a customer and updates their customer table balance. */
+}
+
+/** Resolves the correct opening balance for any customer/account at a target created_at timestamp. */
+async function resolveOpeningBalance(tx, cus_id, target_created_at) {
+  const priorEntry = await tx.ledger.findFirst({
+    where: { cus_id, created_at: { lt: target_created_at } },
+    orderBy: [
+      { created_at: 'desc' },
+      { l_id: 'desc' }
+    ],
+    select: { closing_balance: true }
+  });
+
+  if (priorEntry) {
+    return parseFloat(priorEntry.closing_balance || 0);
+  }
+
+  const nextEntry = await tx.ledger.findFirst({
+    where: { cus_id, created_at: { gte: target_created_at } },
+    orderBy: [
+      { created_at: 'asc' },
+      { l_id: 'asc' }
+    ],
+    select: { opening_balance: true }
+  });
+
+  if (nextEntry) {
+    return parseFloat(nextEntry.opening_balance || 0);
+  }
+
+  const customer = await tx.customer.findUnique({
+    where: { cus_id },
+    select: { cus_balance: true }
+  });
+  return parseFloat(customer?.cus_balance || 0);
+}
+
+/** Prepares a list of ledger entries about to be deleted by re-linking any subsequent entries to preserve the starting opening balance. */
+async function prepareLedgerDeletion(tx, bill_no) {
+  const entriesToDelete = await tx.ledger.findMany({
+    where: { bill_no: String(bill_no) },
+    orderBy: { l_id: 'asc' }
+  });
+
+  const accountEntries = {};
+  for (const entry of entriesToDelete) {
+    if (!accountEntries[entry.cus_id]) {
+      accountEntries[entry.cus_id] = [];
+    }
+    accountEntries[entry.cus_id].push(entry);
+  }
+
+  for (const cusIdStr in accountEntries) {
+    const cus_id = parseInt(cusIdStr);
+    const deletedForAccount = accountEntries[cus_id];
+    
+    deletedForAccount.sort((a, b) => {
+      const timeDiff = a.created_at.getTime() - b.created_at.getTime();
+      return timeDiff !== 0 ? timeDiff : a.l_id - b.l_id;
+    });
+
+    const earliestDeleted = deletedForAccount[0];
+    const latestDeleted = deletedForAccount[deletedForAccount.length - 1];
+
+    const nextEntry = await tx.ledger.findFirst({
+      where: {
+        cus_id,
+        bill_no: { not: String(bill_no) },
+        OR: [
+          { created_at: { gt: latestDeleted.created_at } },
+          {
+            created_at: latestDeleted.created_at,
+            l_id: { gt: latestDeleted.l_id }
+          }
+        ]
+      },
+      orderBy: [
+        { created_at: 'asc' },
+        { l_id: 'asc' }
+      ]
+    });
+
+    if (nextEntry) {
+      await tx.ledger.update({
+        where: { l_id: nextEntry.l_id },
+        data: { opening_balance: earliestDeleted.opening_balance }
+      });
+      console.log(`🔗 Re-linked next ledger entry for customer ${cus_id}: updated entry ${nextEntry.l_id} opening balance to ${earliestDeleted.opening_balance}`);
+    }
+  }
+}
+
+/** Chronologically recalculates all ledger entry opening/closing balances for a customer and updates their customer table balance. */
 async function recalculateLedgerBalances(tx, cus_id) {
   const customer = await tx.customer.findUnique({
     where: { cus_id },
@@ -1097,7 +1189,8 @@ export async function POST(request) {
       // Special accounts already fetched before transaction
       // Create comprehensive ledger entries (only for non-quotations)
       const ledgerEntries = [];
-      let runningBalance = customer.cus_balance;
+      const saleCreatedAt = sale.created_at || new Date();
+      let runningBalance = isQuotation ? customer.cus_balance : await resolveOpeningBalance(tx, cus_id, saleCreatedAt);
 
       if (!isQuotation) {
         // Create bill/order entry for both BILL and ORDER types
@@ -1297,7 +1390,7 @@ export async function POST(request) {
 
             const bankEntry = createLedgerEntry({
               cus_id: bankAccountToUse.cus_id,
-              opening_balance: bankAccountToUse.cus_balance,
+              opening_balance: await resolveOpeningBalance(tx, bankAccountToUse.cus_id, saleCreatedAt),
               debit_amount: Number(eff_bank.toFixed(2)),
               credit_amount: 0,
               bill_no: sale.sale_id.toString(),
@@ -1322,7 +1415,7 @@ export async function POST(request) {
 
           const cashEntry = createLedgerEntry({
             cus_id: specialAccounts.cash.cus_id,
-            opening_balance: specialAccounts.cash.cus_balance,
+            opening_balance: await resolveOpeningBalance(tx, specialAccounts.cash.cus_id, saleCreatedAt),
             debit_amount: Number(eff_cash.toFixed(2)),
             credit_amount: 0,
             bill_no: sale.sale_id.toString(),
@@ -1355,7 +1448,7 @@ export async function POST(request) {
 
             const transportEntry = createLedgerEntry({
               cus_id: transportAccount.cus_id,
-              opening_balance: transportAccount.cus_balance,
+              opening_balance: await resolveOpeningBalance(tx, transportAccount.cus_id, saleCreatedAt),
               debit_amount: 0,
               credit_amount: Number(transportAmount.toFixed(2)),
               bill_no: sale.sale_id.toString(),
@@ -1366,11 +1459,6 @@ export async function POST(request) {
             });
 
             ledgerEntries.push(transportEntry);
-
-            await tx.customer.update({
-              where: { cus_id: transportAccount.cus_id },
-              data: { cus_balance: transportEntry.closing_balance }
-            });
 
             console.log(`🚚 Transport Entry: Account=${transportAccount.cus_name}, Credit=${transportAmount}, Closing=${transportEntry.closing_balance}`);
           }
@@ -1412,7 +1500,7 @@ export async function POST(request) {
               if (debitAccount) {
                 const splitDebitEntry = createLedgerEntry({
                   cus_id: splitPayment.debit_account_id,
-                  opening_balance: debitAccount.cus_balance,
+                  opening_balance: await resolveOpeningBalance(tx, splitPayment.debit_account_id, saleCreatedAt),
                   debit_amount: splitAmount,
                   credit_amount: 0,
                   bill_no: sale.sale_id.toString(),
@@ -1434,7 +1522,7 @@ export async function POST(request) {
               if (creditAccount) {
                 const splitCreditEntry = createLedgerEntry({
                   cus_id: splitPayment.credit_account_id,
-                  opening_balance: creditAccount.cus_balance,
+                  opening_balance: await resolveOpeningBalance(tx, splitPayment.credit_account_id, saleCreatedAt),
                   debit_amount: 0,
                   credit_amount: splitAmount,
                   bill_no: sale.sale_id.toString(),
@@ -1501,15 +1589,7 @@ export async function POST(request) {
               console.log(`    Details: ${entry.details.substring(0, 60)}`);
             });
 
-            console.log(`\nSetting balance to match last customer ledger closing: ${ledgerClosingBalance}`);
-
-            await tx.customer.update({
-              where: { cus_id },
-              data: {
-                cus_balance: ledgerClosingBalance
-              }
-            });
-            console.log(`✅ CUSTOMER BALANCE UPDATED: ${customer.cus_name} balance changed from ${customer.cus_balance} to ${ledgerClosingBalance}`);
+            console.log(`\nCustomer ledger closing balance: ${ledgerClosingBalance}`);
             console.log(`========== CUSTOMER BALANCE UPDATE END ==========\n`);
           }
         }
@@ -1525,15 +1605,7 @@ export async function POST(request) {
           // Find the cash account ledger entry to get its closing balance
           const cashLedgerEntry = ledgerEntries.find(e => e.cus_id === specialAccounts.cash.cus_id);
           if (cashLedgerEntry) {
-            console.log(`💵 UPDATING CASH ACCOUNT: Setting balance from ledger closing balance ${cashLedgerEntry.closing_balance}`);
-
-            await tx.customer.update({
-              where: { cus_id: specialAccounts.cash.cus_id },
-              data: {
-                cus_balance: cashLedgerEntry.closing_balance
-              }
-            });
-            console.log(`💵 CASH ACCOUNT UPDATED: Balance now = ${cashLedgerEntry.closing_balance}`);
+            console.log(`💵 CASH ACCOUNT: Ledger closing balance = ${cashLedgerEntry.closing_balance}`);
           }
         } else if (eff_cash > 0 && cashHandledBysSplitPayment) {
           console.log(`💵 SKIPPING CASH BALANCE UPDATE: Split payments will handle it`);
@@ -1551,15 +1623,7 @@ export async function POST(request) {
           );
 
           if (bankLedgerEntry) {
-            console.log(`🏦 UPDATING BANK ACCOUNT (ID: ${bankLedgerEntry.cus_id}): Setting balance from ledger closing balance ${bankLedgerEntry.closing_balance}`);
-
-            await tx.customer.update({
-              where: { cus_id: bankLedgerEntry.cus_id },
-              data: {
-                cus_balance: bankLedgerEntry.closing_balance
-              }
-            });
-            console.log(`🏦 BANK ACCOUNT UPDATED: Balance now = ${bankLedgerEntry.closing_balance}`);
+            console.log(`🏦 BANK ACCOUNT: Ledger closing balance = ${bankLedgerEntry.closing_balance}`);
           }
         } else if (eff_bank > 0 && bankHandledBySplitPayment) {
           console.log(`🏦 SKIPPING BANK BALANCE UPDATE: Split payments will handle it`);
@@ -1600,13 +1664,7 @@ export async function POST(request) {
               // Find the ledger entry for this account to get closing balance
               const splitLedgerEntry = ledgerEntries.find(e => e.cus_id === splitPayment.debit_account_id);
               if (splitLedgerEntry) {
-                console.log(`💳 Updating debit account ${splitPayment.debit_account_id} balance to ledger closing: ${splitLedgerEntry.closing_balance}`);
-                await tx.customer.update({
-                  where: { cus_id: splitPayment.debit_account_id },
-                  data: {
-                    cus_balance: splitLedgerEntry.closing_balance
-                  }
-                });
+                console.log(`💳 Debit account ${splitPayment.debit_account_id} balance to ledger closing: ${splitLedgerEntry.closing_balance}`);
               }
             }
 
@@ -1614,13 +1672,7 @@ export async function POST(request) {
               // Find the ledger entry for this account to get closing balance
               const splitLedgerEntry = ledgerEntries.find(e => e.cus_id === splitPayment.credit_account_id);
               if (splitLedgerEntry) {
-                console.log(`💳 Updating credit account ${splitPayment.credit_account_id} balance to ledger closing: ${splitLedgerEntry.closing_balance}`);
-                await tx.customer.update({
-                  where: { cus_id: splitPayment.credit_account_id },
-                  data: {
-                    cus_balance: splitLedgerEntry.closing_balance
-                  }
-                });
+                console.log(`💳 Credit account ${splitPayment.credit_account_id} balance to ledger closing: ${splitLedgerEntry.closing_balance}`);
               }
             }
           }
@@ -1628,8 +1680,11 @@ export async function POST(request) {
 
       } // End of if (!isQuotation) for all financial transactions
 
+      const affectedCusIds = [...new Set(ledgerEntries.map(e => e.cus_id))];
+
       return {
         ...sale,
+        affectedCusIds,
         _debug: {
           isQuotation,
           ledgerEntriesCreated: ledgerEntries ? ledgerEntries.length : 0,
@@ -1644,6 +1699,13 @@ export async function POST(request) {
     }, {
       timeout: 120000 // 120 seconds (2 minutes) timeout for complex transactions with ledger entries
     });
+
+    // Recalculate balances chronologically for all affected accounts (outside transaction)
+    if (result.affectedCusIds) {
+      for (const cid of result.affectedCusIds) {
+        await recalculateLedgerBalances(prisma, cid);
+      }
+    }
 
     // Generate comprehensive ledger report for this sale
     const updatedCustomer = await prisma.customer.findUnique({
@@ -1865,17 +1927,8 @@ export async function PUT(request) {
         }
 
         // Reverse each account's balance: undo (debit - credit) = subtract debit, add credit
-        for (const [accountIdStr, effect] of Object.entries(accountEffects)) {
-          const accountId = parseInt(accountIdStr);
-          const reversal = Number((effect.totalCredit - effect.totalDebit).toFixed(2));
-          if (reversal !== 0) {
-            await tx.customer.update({
-              where: { cus_id: accountId },
-              data: { cus_balance: { increment: reversal } }
-            });
-            console.log(`   🔄 Reversed account ${accountId}: ${reversal > 0 ? '+' : ''}${reversal}`);
-          }
-        }
+        // Call prepareLedgerDeletion to re-link subsequent entries
+        await prepareLedgerDeletion(tx, id);
 
         // 2c. Reverse old sundry debtors balance if existed
         if (existingSale.loader_id && parseFloat(existingSale.shipping_amount || 0) > 0) {
@@ -2002,7 +2055,7 @@ export async function PUT(request) {
           where: { cus_id },
           select: { cus_balance: true, cus_name: true }
         });
-        let runningBalance = parseFloat(freshCustomer.cus_balance || 0);
+        let runningBalance = await resolveOpeningBalance(tx, cus_id, existingSale.created_at);
         const ledgerEntries = [];
 
         console.log(`\n${'='.repeat(60)}`);
@@ -2020,11 +2073,7 @@ export async function PUT(request) {
           if (priorEntries.length > 0) {
             return priorEntries[priorEntries.length - 1].closing_balance;
           }
-          const account = await tx.customer.findUnique({
-            where: { cus_id: accountId },
-            select: { cus_balance: true }
-          });
-          return parseFloat(account?.cus_balance || 0);
+          return await resolveOpeningBalance(tx, accountId, existingSale.created_at);
         };
 
         // ── 4a. ORDER Stage Advance Payment entries ──
@@ -2268,10 +2317,6 @@ export async function PUT(request) {
             });
             ledgerEntries.push(transportEntry);
 
-            await tx.customer.update({
-              where: { cus_id: transportAccount.cus_id },
-              data: { cus_balance: transportEntry.closing_balance }
-            });
             console.log(`   🚚 Transport Credit: Account=${transportAccount.cus_name}, Amount=${transportAmount}`);
           }
         }
@@ -2511,6 +2556,9 @@ export async function DELETE(request) {
       oldLedgerEntries.forEach(entry => affectedCusIds.add(entry.cus_id));
 
       console.log(`🗑️ DELETING SALE/ORDER: Reversing balances for ${oldLedgerEntries.length} ledger entries`);
+
+      // Call prepareLedgerDeletion to re-link subsequent entries
+      await prepareLedgerDeletion(tx, id);
 
       // Delete ledger entries for this sale
       await tx.ledger.deleteMany({
