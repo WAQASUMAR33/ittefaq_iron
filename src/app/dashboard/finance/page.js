@@ -76,11 +76,26 @@ const fmtAmt = (val) => {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
+const getLedgerEntryDisplayAmounts = (entry) => {
+  const debitAmt = parseFloat(entry.debit_amount || 0);
+  const creditAmt = parseFloat(entry.credit_amount || 0);
+  const entryAmount = debitAmt > 0 ? debitAmt : creditAmt;
+
+  if (entry.trnx_type === 'DEBIT') {
+    return { debit: entryAmount, credit: 0 };
+  } else if (entry.trnx_type === 'CREDIT') {
+    return { debit: 0, credit: entryAmount };
+  } else {
+    return { debit: debitAmt, credit: creditAmt };
+  }
+};
+
 /** Bank / Cash display amounts for a ledger row — must match the table body logic (finance ledger columns). */
 function getLedgerEntryBankCashForSummary(entry) {
-  const isDebit = parseFloat(entry.debit_amount) > 0;
-  const isCredit = parseFloat(entry.credit_amount) > 0;
-  const entryAmount = isDebit ? entry.debit_amount : entry.credit_amount;
+  const displayAmts = getLedgerEntryDisplayAmounts(entry);
+  const isDebit = displayAmts.debit > 0;
+  const isCredit = displayAmts.credit > 0;
+  const entryAmount = isDebit ? displayAmts.debit : displayAmts.credit;
 
   let splitCashAmount = 0;
   let splitBankAmount = 0;
@@ -392,7 +407,13 @@ export default function FinancePage() {
       handleViewPaymentVoucher(parseInt(payMatch[1], 10));
       return;
     }
-    if (entry.trnx_type === 'PURCHASE' && /^\d+$/.test(ref)) {
+    const isSupplier = (() => {
+      const categoryId = entry.customer?.cus_category;
+      const category = customerCategories.find(c => String(c.cus_cat_id) === String(categoryId));
+      const title = (category?.cus_cat_title || '').toLowerCase();
+      return title.includes('supplier') || title.includes('creditor');
+    })();
+    if ((entry.trnx_type === 'PURCHASE' || isSupplier) && /^\d+$/.test(ref)) {
       handleViewPurchase(ref);
       return;
     }
@@ -590,8 +611,9 @@ export default function FinancePage() {
     let totalCredit = 0;
     for (const entry of finalLedgerEntries) {
       if (isOrderCustomerMemoLedgerEntry(entry)) continue;
-      totalDebit += parseFloat(entry.debit_amount || 0);
-      totalCredit += parseFloat(entry.credit_amount || 0);
+      const displayAmts = getLedgerEntryDisplayAmounts(entry);
+      totalDebit += displayAmts.debit;
+      totalCredit += displayAmts.credit;
     }
     // Closing balance: use the chronologically latest row in the current view (not the bottom table row, which depends on sort)
     const byTime = [...finalLedgerEntries].sort(
@@ -610,8 +632,14 @@ export default function FinancePage() {
     : ledgerEntries;
 
   const statsEntriesForTotals = statsEntries.filter((e) => !isOrderCustomerMemoLedgerEntry(e));
-  const totalDebit = statsEntriesForTotals.reduce((sum, entry) => sum + parseFloat(entry.debit_amount || 0), 0);
-  const totalCredit = statsEntriesForTotals.reduce((sum, entry) => sum + parseFloat(entry.credit_amount || 0), 0);
+  const totalDebit = statsEntriesForTotals.reduce((sum, entry) => {
+    const displayAmts = getLedgerEntryDisplayAmounts(entry);
+    return sum + displayAmts.debit;
+  }, 0);
+  const totalCredit = statsEntriesForTotals.reduce((sum, entry) => {
+    const displayAmts = getLedgerEntryDisplayAmounts(entry);
+    return sum + displayAmts.credit;
+  }, 0);
   const totalPayments = statsEntriesForTotals.reduce((sum, entry) => sum + parseFloat(entry.payments || 0), 0);
 
   // Get the most accurate current balance: 
@@ -1169,14 +1197,21 @@ export default function FinancePage() {
           ? String(entry.details).replace(/\{.*?\}/g, '').replace(/\|/g, ' ').trim().slice(0, 60)
           : '—';
         const bill = entry.bill_no ? `B-${entry.bill_no}` : '—';
-        const debit = parseFloat(entry.debit_amount || 0) > 0 ? fmtAmt(entry.debit_amount) : '';
-        const credit = parseFloat(entry.credit_amount || 0) > 0 ? fmtAmt(entry.credit_amount) : '';
+        const displayAmts = getLedgerEntryDisplayAmounts(entry);
+        const debit = displayAmts.debit > 0 ? fmtAmt(displayAmts.debit) : '';
+        const credit = displayAmts.credit > 0 ? fmtAmt(displayAmts.credit) : '';
         const bal = fmtAmt(entry.closing_balance);
         return [i + 1, date, type, account, desc, bill, credit, debit, bal];
       });
 
-      const totalDebit = finalLedgerEntries.reduce((s, e) => s + parseFloat(e.debit_amount || 0), 0);
-      const totalCredit = finalLedgerEntries.reduce((s, e) => s + parseFloat(e.credit_amount || 0), 0);
+      const totalDebit = finalLedgerEntries.reduce((s, e) => {
+        const { debit } = getLedgerEntryDisplayAmounts(e);
+        return s + debit;
+      }, 0);
+      const totalCredit = finalLedgerEntries.reduce((s, e) => {
+        const { credit } = getLedgerEntryDisplayAmounts(e);
+        return s + credit;
+      }, 0);
 
       autoTable(doc, {
         startY: 112,
@@ -1457,8 +1492,14 @@ export default function FinancePage() {
 
     // Calculate totals for filtered entries
     const filteredNonMemo = dateFilteredEntries.filter(e => !isOrderCustomerMemoLedgerEntry(e));
-    const printTotalDebit = filteredNonMemo.reduce((s, e) => s + parseFloat(e.debit_amount || 0), 0);
-    const printTotalCredit = filteredNonMemo.reduce((s, e) => s + parseFloat(e.credit_amount || 0), 0);
+    const printTotalDebit = filteredNonMemo.reduce((s, e) => {
+      const { debit } = getLedgerEntryDisplayAmounts(e);
+      return s + debit;
+    }, 0);
+    const printTotalCredit = filteredNonMemo.reduce((s, e) => {
+      const { credit } = getLedgerEntryDisplayAmounts(e);
+      return s + credit;
+    }, 0);
 
     const fromFormatted = new Date(printFromDate).toLocaleDateString('en-GB');
     const toFormatted = new Date(printToDate).toLocaleDateString('en-GB');
@@ -1473,8 +1514,9 @@ export default function FinancePage() {
         ? String(entry.details).replace(/\{.*?\}/g, '').replace(/\|/g, ' ').trim().slice(0, 80)
         : '—';
       const bill = entry.bill_no || '—';
-      const credit = parseFloat(entry.credit_amount || 0);
-      const debit = parseFloat(entry.debit_amount || 0);
+      const displayAmts = getLedgerEntryDisplayAmounts(entry);
+      const credit = displayAmts.credit;
+      const debit = displayAmts.debit;
       const bal = parseFloat(entry.closing_balance || 0);
       const isCreditRow = credit > 0;
       const rowBg = isCreditRow ? '#f0fdf4' : '#fef2f2';
@@ -2330,10 +2372,11 @@ export default function FinancePage() {
                     </TableHead>
                     <TableBody>
                       {finalLedgerEntries.map((entry, index) => {
-                        // Determine if this is a debit (green) or credit (red) entry
-                        const isDebit = parseFloat(entry.debit_amount) > 0;
-                        const isCredit = parseFloat(entry.credit_amount) > 0;
-                        const entryAmount = isDebit ? entry.debit_amount : entry.credit_amount;
+                        // Determine if this is a debit (green) or credit (red) entry using display amounts helper
+                        const displayAmts = getLedgerEntryDisplayAmounts(entry);
+                        const isDebit = displayAmts.debit > 0;
+                        const isCredit = displayAmts.credit > 0;
+                        const entryAmount = isDebit ? displayAmts.debit : displayAmts.credit;
 
                         // Parse split payment info if present in details
                         let splitCashAmount = 0;
@@ -2507,7 +2550,7 @@ export default function FinancePage() {
                                  fontWeight: 700
                                }}
                              >
-                               {parseFloat(entry.credit_amount) > 0 ? (
+                               {displayAmts.credit > 0 ? (
                                  <Typography
                                    variant="body2"
                                    sx={{
@@ -2517,7 +2560,7 @@ export default function FinancePage() {
                                      fontSize: '0.95rem'
                                    }}
                                  >
-                                   {parseFloat(entry.credit_amount).toLocaleString('en-PK', {
+                                   {displayAmts.credit.toLocaleString('en-PK', {
                                      minimumFractionDigits: 2,
                                      maximumFractionDigits: 2
                                    })}
@@ -2539,7 +2582,7 @@ export default function FinancePage() {
                                  fontWeight: 700
                                }}
                              >
-                               {parseFloat(entry.debit_amount) > 0 ? (
+                               {displayAmts.debit > 0 ? (
                                  <Typography
                                    variant="body2"
                                    sx={{
@@ -2549,7 +2592,7 @@ export default function FinancePage() {
                                      fontSize: '0.95rem'
                                    }}
                                  >
-                                   {parseFloat(entry.debit_amount).toLocaleString('en-PK', {
+                                   {displayAmts.debit.toLocaleString('en-PK', {
                                      minimumFractionDigits: 2,
                                      maximumFractionDigits: 2
                                    })}
