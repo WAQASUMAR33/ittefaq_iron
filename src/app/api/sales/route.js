@@ -2102,7 +2102,31 @@ export async function PUT(request) {
         console.log(`   Advance Payment: ${advance_payment}`);
         console.log(`${'='.repeat(60)}`);
 
-        // ── 4a. ORDER Stage Advance Payment entries ──
+        // ── 4a. Customer SALE debit (bill amount) — FIRST: add amount to customer ledger ──
+        const debitAmount = parseFloat(total_amount);
+        if (!isOrder && debitAmount > 0) {
+          let billDetails = `Sale Bill - ${bill_type || 'BILL'} - Customer Account (Debit)`;
+          if (parseFloat(discount || 0) > 0) {
+            billDetails += ` [Discount Applied: ${parseFloat(discount || 0)}]`;
+          }
+
+          const billEntry = createLedgerEntry({
+            cus_id,
+            opening_balance: runningBalance,
+            debit_amount: debitAmount,
+            credit_amount: 0,
+            bill_no: sale.sale_id.toString(),
+            trnx_type: 'DEBIT',
+            details: billDetails,
+            payments: 0,
+            updated_by: validatedUpdatedBy
+          });
+          console.log(`   📝 Bill Debit: ${debitAmount}, Closing=${billEntry.closing_balance}`);
+          ledgerEntries.push(billEntry);
+          runningBalance = billEntry.closing_balance;
+        }
+
+        // ── 4b. ORDER Stage Advance Payment entries — SECOND: record advance payment ──
         const advPaymentAmt = parseFloat(advance_payment || 0);
         if (!isOrder && advPaymentAmt > 0) {
           let advCash = oldAdvanceCash;
@@ -2191,30 +2215,6 @@ export async function PUT(request) {
             console.log(`   💵 Advance Cash Debit: ${advCash}, Closing=${cashEntry.closing_balance}`);
             ledgerEntries.push(cashEntry);
           }
-        }
-
-        // ── 4b. Customer SALE debit (bill amount) ──
-        const debitAmount = parseFloat(total_amount);
-        if (!isOrder && debitAmount > 0) {
-          let billDetails = `Sale Bill - ${bill_type || 'BILL'} - Customer Account (Debit)`;
-          if (parseFloat(discount || 0) > 0) {
-            billDetails += ` [Discount Applied: ${parseFloat(discount || 0)}]`;
-          }
-
-          const billEntry = createLedgerEntry({
-            cus_id,
-            opening_balance: runningBalance,
-            debit_amount: debitAmount,
-            credit_amount: 0,
-            bill_no: sale.sale_id.toString(),
-            trnx_type: 'DEBIT',
-            details: billDetails,
-            payments: 0,
-            updated_by: validatedUpdatedBy
-          });
-          console.log(`   📝 Bill Debit: ${debitAmount}, Closing=${billEntry.closing_balance}`);
-          ledgerEntries.push(billEntry);
-          runningBalance = billEntry.closing_balance;
         }
 
         // ── 4c. Customer payment credit ──
