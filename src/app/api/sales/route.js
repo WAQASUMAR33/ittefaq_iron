@@ -347,10 +347,11 @@ export async function GET(request) {
         const [bnRow] = await prisma.$queryRaw`SELECT bill_number FROM sales WHERE sale_id = ${id}`;
 
         // Fetch transport details from ledger
+        // Match both legacy 'SALE' and new 'CREDIT' trnx_type for backward compatibility
         const transportLedgerEntries = await prisma.ledger.findMany({
           where: {
             bill_no: id.toString(),
-            trnx_type: 'SALE',
+            trnx_type: { in: ['SALE', 'CREDIT'] },
             credit_amount: { gt: 0 },
             cus_id: { not: sale.cus_id }
           },
@@ -462,7 +463,7 @@ export async function GET(request) {
             FROM ledger l
             LEFT JOIN customers c ON l.cus_id = c.cus_id
             WHERE l.bill_no = ${id.toString()}
-              AND l.trnx_type = 'SALE'
+              AND l.trnx_type IN ('SALE', 'CREDIT')
               AND l.credit_amount > 0
               AND l.cus_id != ${sale[0].cus_id}
           `;
@@ -1227,7 +1228,7 @@ export async function POST(request) {
               debit_amount: debitAmount,
               credit_amount: 0,
               bill_no: sale.sale_id.toString(),
-              trnx_type: 'SALE',
+              trnx_type: 'DEBIT',
               details: billDetails,
               payments: 0,
               updated_by: validatedUpdatedBy
@@ -1252,7 +1253,7 @@ export async function POST(request) {
               debit_amount: orderTotal,
               credit_amount: 0,
               bill_no: sale.sale_id.toString(),
-              trnx_type: 'SALE',
+              trnx_type: 'DEBIT',
               details: billDetails,
               payments: 0,
               updated_by: validatedUpdatedBy
@@ -1290,7 +1291,7 @@ export async function POST(request) {
               debit_amount: 0,
               credit_amount: totalNewPayment,
               bill_no: sale.sale_id.toString(),
-              trnx_type: 'SALE',
+              trnx_type: 'CREDIT',
               details: `Payment Received - ${bill_type || 'BILL'} - Customer Account (Credit) [${paymentParts.join(', ')}]`,
               payments: totalNewPayment,
               cash_payment: cashAmount,
@@ -1317,7 +1318,7 @@ export async function POST(request) {
             debit_amount: 0,
             credit_amount: totalPaymentForCustomer,
             bill_no: sale.sale_id.toString(),
-            trnx_type: 'SALE',
+            trnx_type: 'CREDIT',
             details: `Payment Received - ${billLabel} - Customer Account (Credit)${salePaymentDesc}`,
             payments: totalPaymentForCustomer,
             cash_payment: cashAmount,
@@ -1340,7 +1341,7 @@ export async function POST(request) {
             debit_amount: 0,
             credit_amount: totalAdvance,
             bill_no: sale.sale_id.toString(),
-            trnx_type: 'SALE',
+            trnx_type: 'CREDIT',
             details: `Advance Payment — ${advanceParts.join(' + ')}`,
             payments: totalAdvance,
             cash_payment: cashAmount,
@@ -1394,7 +1395,7 @@ export async function POST(request) {
               debit_amount: Number(eff_bank.toFixed(2)),
               credit_amount: 0,
               bill_no: sale.sale_id.toString(),
-              trnx_type: 'BANK_TRANSFER',
+              trnx_type: 'DEBIT',
               details: `Payment Received - ${isOrder ? 'ORDER' : (bill_type || 'BILL')} - ${customer?.cus_name || 'Customer'} - BANK Account: ${bankAccountToUse.cus_name} (Debit)`,
               payments: Number(eff_bank.toFixed(2)),
               cash_payment: 0,
@@ -1419,7 +1420,7 @@ export async function POST(request) {
             debit_amount: Number(eff_cash.toFixed(2)),
             credit_amount: 0,
             bill_no: sale.sale_id.toString(),
-            trnx_type: 'CASH',
+            trnx_type: 'DEBIT',
             details: `Payment Received - ${isOrder ? 'ORDER' : (bill_type || 'BILL')} - ${customer?.cus_name || 'Customer'} - CASH Account (Debit)`,
             payments: Number(eff_cash.toFixed(2)),
             cash_payment: Number(eff_cash.toFixed(2)),  // Mark as cash payment
@@ -1452,7 +1453,7 @@ export async function POST(request) {
               debit_amount: 0,
               credit_amount: Number(transportAmount.toFixed(2)),
               bill_no: sale.sale_id.toString(),
-              trnx_type: 'SALE',
+              trnx_type: 'CREDIT',
               details: `Transport Charges - ${bill_type || 'BILL'} - ${customer?.cus_name || 'Customer'} (Credit)`,
               payments: 0,
               updated_by: validatedUpdatedBy
@@ -1504,7 +1505,7 @@ export async function POST(request) {
                   debit_amount: splitAmount,
                   credit_amount: 0,
                   bill_no: sale.sale_id.toString(),
-                  trnx_type: splitPayment.payment_type,
+                  trnx_type: 'DEBIT',
                   details: `Split Payment - ${bill_type || 'BILL'} - Debit Account`,
                   payments: splitAmount,
                   updated_by: validatedUpdatedBy
@@ -1526,7 +1527,7 @@ export async function POST(request) {
                   debit_amount: 0,
                   credit_amount: splitAmount,
                   bill_no: sale.sale_id.toString(),
-                  trnx_type: splitPayment.payment_type,
+                  trnx_type: 'CREDIT',
                   details: `Split Payment - ${bill_type || 'BILL'} - Credit Account`,
                   payments: splitAmount,
                   updated_by: validatedUpdatedBy
@@ -1617,9 +1618,9 @@ export async function POST(request) {
         const bankHandledBySplitPayment = split_payments && split_payments.some(sp => sp.debit_account_id === usedBankAccountId);
 
         if (eff_bank > 0 && usedBankAccountId && !bankHandledBySplitPayment) {
-          // Find the bank account ledger entry - it will be the BANK_TRANSFER entry with bank_payment
+          // Find the bank account ledger entry - it will be the DEBIT entry with bank_payment
           const bankLedgerEntry = ledgerEntries.find(e =>
-            e.cus_id === usedBankAccountId && e.trnx_type === 'BANK_TRANSFER' && e.bank_payment > 0
+            e.cus_id === usedBankAccountId && e.trnx_type === 'DEBIT' && e.bank_payment > 0
           );
 
           if (bankLedgerEntry) {
@@ -1916,12 +1917,19 @@ export async function PUT(request) {
         console.log(`${'='.repeat(60)}`);
 
         // Extract old advance payment breakdown if any
+        // Handle both legacy types (CASH, BANK_TRANSFER) and new types (DEBIT, CREDIT)
         for (const entry of oldLedgerEntries) {
           const detailsLower = (entry.details || '').toLowerCase();
           if (detailsLower.includes('advance payment') || detailsLower.includes('payment received - order')) {
-            if (entry.trnx_type === 'CASH') {
+            // For legacy entries: CASH / BANK_TRANSFER; for new entries: DEBIT with cash_payment or bank_payment
+            const isCashEntry = entry.trnx_type === 'CASH' || 
+              (entry.trnx_type === 'DEBIT' && parseFloat(entry.cash_payment || 0) > 0 && parseFloat(entry.bank_payment || 0) === 0);
+            const isBankEntry = entry.trnx_type === 'BANK_TRANSFER' ||
+              (entry.trnx_type === 'DEBIT' && parseFloat(entry.bank_payment || 0) > 0);
+            
+            if (isCashEntry) {
               oldAdvanceCash = parseFloat(entry.debit_amount || entry.credit_amount || 0);
-            } else if (entry.trnx_type === 'BANK_TRANSFER') {
+            } else if (isBankEntry) {
               oldAdvanceBank = parseFloat(entry.debit_amount || entry.credit_amount || 0);
               oldAdvanceBankAccountId = entry.cus_id;
             }
@@ -2118,7 +2126,7 @@ export async function PUT(request) {
             debit_amount: 0,
             credit_amount: advPaymentAmt,
             bill_no: sale.sale_id.toString(),
-            trnx_type: 'SALE',
+            trnx_type: 'CREDIT',
             details: `Advance Payment — ${advanceParts.join(' + ')}`,
             payments: advPaymentAmt,
             cash_payment: advCash,
@@ -2152,7 +2160,7 @@ export async function PUT(request) {
                 debit_amount: Number(advBank.toFixed(2)),
                 credit_amount: 0,
                 bill_no: sale.sale_id.toString(),
-                trnx_type: 'BANK_TRANSFER',
+                trnx_type: 'DEBIT',
                 details: `Payment Received - ORDER - ${freshCustomer.cus_name} - BANK Account: ${bankAccountToUse.cus_name} (Debit)`,
                 payments: Number(advBank.toFixed(2)),
                 cash_payment: 0,
@@ -2173,7 +2181,7 @@ export async function PUT(request) {
               debit_amount: Number(advCash.toFixed(2)),
               credit_amount: 0,
               bill_no: sale.sale_id.toString(),
-              trnx_type: 'CASH',
+              trnx_type: 'DEBIT',
               details: `Payment Received - ORDER - ${freshCustomer.cus_name} - CASH Account (Debit)`,
               payments: Number(advCash.toFixed(2)),
               cash_payment: Number(advCash.toFixed(2)),
@@ -2199,7 +2207,7 @@ export async function PUT(request) {
             debit_amount: debitAmount,
             credit_amount: 0,
             bill_no: sale.sale_id.toString(),
-            trnx_type: 'SALE',
+            trnx_type: 'DEBIT',
             details: billDetails,
             payments: 0,
             updated_by: validatedUpdatedBy
@@ -2236,7 +2244,7 @@ export async function PUT(request) {
             debit_amount: 0,
             credit_amount: totalPaymentForCustomer,
             bill_no: sale.sale_id.toString(),
-            trnx_type: 'SALE',
+            trnx_type: 'CREDIT',
             details: paymentDetails,
             payments: totalPaymentForCustomer,
             cash_payment: cashAmount,
@@ -2278,7 +2286,7 @@ export async function PUT(request) {
               debit_amount: Number(eff_bank.toFixed(2)),
               credit_amount: 0,
               bill_no: sale.sale_id.toString(),
-              trnx_type: 'BANK_TRANSFER',
+              trnx_type: 'DEBIT',
               details: `Payment Received - ${bill_type || 'BILL'} - ${freshCustomer.cus_name} - BANK Account: ${bankAccountToUse.cus_name} (Debit)`,
               payments: Number(eff_bank.toFixed(2)),
               cash_payment: 0,
@@ -2300,7 +2308,7 @@ export async function PUT(request) {
             debit_amount: Number(eff_cash.toFixed(2)),
             credit_amount: 0,
             bill_no: sale.sale_id.toString(),
-            trnx_type: 'CASH',
+            trnx_type: 'DEBIT',
             details: `Payment Received - ${isOrder ? 'ORDER' : (bill_type || 'BILL')} - ${freshCustomer.cus_name} - CASH Account (Debit)`,
             payments: Number(eff_cash.toFixed(2)),
             cash_payment: Number(eff_cash.toFixed(2)),
@@ -2328,7 +2336,7 @@ export async function PUT(request) {
               debit_amount: 0,
               credit_amount: Number(transportAmount.toFixed(2)),
               bill_no: sale.sale_id.toString(),
-              trnx_type: 'SALE',
+              trnx_type: 'CREDIT',
               details: `Transport Charges - ${bill_type || 'BILL'} - ${freshCustomer.cus_name} (Credit)`,
               payments: 0,
               updated_by: validatedUpdatedBy
@@ -2357,7 +2365,7 @@ export async function PUT(request) {
                 debit_amount: splitAmount,
                 credit_amount: 0,
                 bill_no: sale.sale_id.toString(),
-                trnx_type: splitPayment.payment_type,
+                trnx_type: 'DEBIT',
                 details: `Split Payment - ${bill_type || 'BILL'} - Debit Account`,
                 payments: splitAmount,
                 updated_by: validatedUpdatedBy
@@ -2374,7 +2382,7 @@ export async function PUT(request) {
                 debit_amount: 0,
                 credit_amount: splitAmount,
                 bill_no: sale.sale_id.toString(),
-                trnx_type: splitPayment.payment_type,
+                trnx_type: 'CREDIT',
                 details: `Split Payment - ${bill_type || 'BILL'} - Credit Account`,
                 payments: splitAmount,
                 updated_by: validatedUpdatedBy
