@@ -370,9 +370,42 @@ export default function FinancePage() {
       const totalAmt = parseFloat(p.total_amount || 0);
       const cashA = parseFloat(p.cash_amount || 0);
       const bankA = parseFloat(p.bank_amount || 0);
-      const type = p.payment_type === 'PAY' ? 'PAY' : 'RECEIVE';
+      
+      // In the database: 
+      // 'PAY' payment_type is used when we receive a payment (RECEIVE)
+      // 'RECEIVE' payment_type is used when we pay a payment (PAY)
+      // So we invert it to get the correct visual type.
+      const type = p.payment_type === 'RECEIVE' ? 'PAY' : 'RECEIVE';
       const acc = p.account;
-      // Approximate: prior balance and remaining at posting time are not stored
+
+      // Populate previousBalance and remainingBalance from the ledger entry
+      let prevBal = null;
+      let remBal = null;
+      
+      const paymentRef = `PAY-${paymentId}`;
+      let matchingEntry = ledgerEntries.find(
+        (e) => String(e.bill_no || '') === paymentRef && Number(e.cus_id) === Number(p.account_id)
+      );
+      
+      if (!matchingEntry) {
+        try {
+          const ledgerRes = await fetch(`/api/ledger?customerId=${p.account_id}`);
+          if (ledgerRes.ok) {
+            const customerLedger = await ledgerRes.json();
+            matchingEntry = customerLedger.find(
+              (e) => String(e.bill_no || '') === paymentRef
+            );
+          }
+        } catch (err) {
+          console.warn('Error fetching customer ledger entries as fallback:', err);
+        }
+      }
+      
+      if (matchingEntry) {
+        prevBal = parseFloat(matchingEntry.opening_balance);
+        remBal = parseFloat(matchingEntry.closing_balance);
+      }
+
       setPaymentReceiptData({
         type,
         viewOnly: true,
@@ -380,8 +413,8 @@ export default function FinancePage() {
         date: p.payment_date ? new Date(p.payment_date).toLocaleDateString('en-GB') : '—',
         time: p.created_at ? new Date(p.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : '—',
         customer: acc,
-        previousBalance: null,
-        remainingBalance: null,
+        previousBalance: prevBal,
+        remainingBalance: remBal,
         cashAmount: cashA,
         bankAmount: bankA,
         discountAmount: disc,
