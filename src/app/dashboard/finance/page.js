@@ -618,8 +618,27 @@ export default function FinancePage() {
   // 1. For a selected customer, use their direct balance from the customer record
   // 2. Otherwise, use the closing balance from the most recent ledger entry (index 0 as it's sorted DESC from API)
   const currentBalance = selectedCustomer
-    ? parseFloat(customers.find(c => c.cus_id === selectedCustomer)?.cus_balance || 0)
+    ? parseFloat(customers.find(c => Number(c.cus_id) === Number(selectedCustomer))?.cus_balance || 0)
     : (ledgerEntries.length > 0 ? parseFloat(ledgerEntries[0].closing_balance || 0) : 0);
+
+  // Opening balance calculation for a selected account (first ledger transaction or current balance fallback)
+  const accountOpeningBalance = useMemo(() => {
+    if (!selectedCustomer) return 0;
+    const customerEntries = ledgerEntries.filter(e => Number(e.cus_id) === Number(selectedCustomer));
+    if (customerEntries.length === 0) {
+      const cust = customers.find(c => Number(c.cus_id) === Number(selectedCustomer));
+      return cust ? parseFloat(cust.cus_balance || 0) : 0;
+    }
+    const sorted = [...customerEntries].sort((a, b) => {
+      const dateA = new Date(a.created_at);
+      const dateB = new Date(b.created_at);
+      if (dateA.getTime() !== dateB.getTime()) {
+        return dateA - dateB;
+      }
+      return a.l_id - b.l_id;
+    });
+    return parseFloat(sorted[0].opening_balance || 0);
+  }, [selectedCustomer, ledgerEntries, customers]);
 
   const receiveTotalPreview =
     parseFloat(receivePaymentData.cash_amount || 0) +
@@ -1120,6 +1139,9 @@ export default function FinancePage() {
       const custName = customer?.cus_name || 'All Accounts';
       const balance = parseFloat(customer?.cus_balance ?? ledgerViewSummary.lastClosing ?? 0);
 
+      const chronologicalEntries = [...finalLedgerEntries].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      const pdfOpeningBalance = chronologicalEntries.length > 0 ? parseFloat(chronologicalEntries[0].opening_balance || 0) : 0;
+
       // Header
       doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
@@ -1134,7 +1156,7 @@ export default function FinancePage() {
       doc.text(`Account: ${custName}`, 40, 84);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
-      doc.text(`Date: ${today}   |   Entries: ${finalLedgerEntries.length}   |   Balance: PKR ${fmtAmt(balance)}`, 40, 98);
+      doc.text(`Date: ${today}   |   Entries: ${finalLedgerEntries.length}   |   Opening Balance: PKR ${fmtAmt(pdfOpeningBalance)}   |   Balance: PKR ${fmtAmt(balance)}`, 40, 98);
       doc.line(40, 104, 800, 104);
 
       const rows = finalLedgerEntries.map((entry, i) => {
@@ -1430,6 +1452,9 @@ export default function FinancePage() {
     const custName = customer?.cus_name || 'All Accounts';
     const balance = dateFilteredEntries.length > 0 ? parseFloat(dateFilteredEntries[dateFilteredEntries.length - 1].closing_balance || 0) : 0;
 
+    const chronologicalPrintEntries = [...dateFilteredEntries].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    const printOpeningBalance = chronologicalPrintEntries.length > 0 ? parseFloat(chronologicalPrintEntries[0].opening_balance || 0) : 0;
+
     // Calculate totals for filtered entries
     const filteredNonMemo = dateFilteredEntries.filter(e => !isOrderCustomerMemoLedgerEntry(e));
     const printTotalDebit = filteredNonMemo.reduce((s, e) => s + parseFloat(e.debit_amount || 0), 0);
@@ -1504,6 +1529,7 @@ export default function FinancePage() {
   <div class="right">
     <p><strong>From:</strong> ${fromFormatted}</p>
     <p><strong>To:</strong> ${toFormatted}</p>
+    <p><strong>Opening Balance:</strong> PKR ${fmtAmt(printOpeningBalance)}</p>
     <p><strong>Closing Balance:</strong> PKR ${fmtAmt(balance)}</p>
   </div>
 </div>
@@ -1949,69 +1975,82 @@ export default function FinancePage() {
               justifyContent: 'space-between',
               p: 0
             }}>
-              {[
-                { title: 'Total Debit', val: totalDebit, color: '#dc2626', bg: '#fef2f2', icon: <TrendingUp size={24} /> },
-                { title: 'Total Credit', val: totalCredit, color: '#16a34a', bg: '#f0fdf4', icon: <TrendingDown size={24} /> },
-                { title: 'Total Payments', val: totalPayments, color: '#2563eb', bg: '#eff6ff', icon: <DollarSign size={24} /> },
-                { title: 'Current Balance', val: currentBalance, color: '#d97706', bg: '#fffbeb', icon: <Receipt size={24} /> }
-              ].map((stat, i) => (
-                <Fragment key={i}>
-                  <Box sx={{
-                    flex: 1,
-                    p: 3,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 2.5,
-                    width: '100%',
-                    bgcolor: stat.bg,
-                    position: 'relative',
-                    borderBottom: i < 3 && { xs: '1px solid #e5e7eb', md: 'none' },
-                    '&:hover': {
-                      bgcolor: 'white',
-                      transition: 'background-color 0.3s'
-                    }
-                  }}>
-                    <Avatar sx={{
-                      bgcolor: 'white',
-                      color: stat.color,
-                      width: 52,
-                      height: 52,
-                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                      border: `1.5px solid ${stat.color}20`
+              {(() => {
+                const stats = [];
+                if (selectedCustomer) {
+                  stats.push({
+                    title: 'Opening Balance',
+                    val: accountOpeningBalance,
+                    color: '#6366f1',
+                    bg: '#eef2ff',
+                    icon: <DollarSign size={24} />
+                  });
+                }
+                stats.push(
+                  { title: 'Total Debit', val: totalDebit, color: '#dc2626', bg: '#fef2f2', icon: <TrendingUp size={24} /> },
+                  { title: 'Total Credit', val: totalCredit, color: '#16a34a', bg: '#f0fdf4', icon: <TrendingDown size={24} /> },
+                  { title: 'Total Payments', val: totalPayments, color: '#2563eb', bg: '#eff6ff', icon: <DollarSign size={24} /> },
+                  { title: 'Current Balance', val: currentBalance, color: '#d97706', bg: '#fffbeb', icon: <Receipt size={24} /> }
+                );
+                return stats.map((stat, i) => (
+                  <Fragment key={i}>
+                    <Box sx={{
+                      flex: 1,
+                      p: 3,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 2.5,
+                      width: '100%',
+                      bgcolor: stat.bg,
+                      position: 'relative',
+                      borderBottom: i < stats.length - 1 ? { xs: '1px solid #e5e7eb', md: 'none' } : 'none',
+                      '&:hover': {
+                        bgcolor: 'white',
+                        transition: 'background-color 0.3s'
+                      }
                     }}>
-                      {stat.icon}
-                    </Avatar>
-                    <Box>
-                      <Typography variant="overline" sx={{
-                        display: 'block',
-                        lineHeight: 1,
-                        mb: 0.5,
-                        color: '#6b7280',
-                        fontWeight: 700,
-                        letterSpacing: 1.2
+                      <Avatar sx={{
+                        bgcolor: 'white',
+                        color: stat.color,
+                        width: 52,
+                        height: 52,
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                        border: `1.5px solid ${stat.color}20`
                       }}>
-                        {stat.title}
-                      </Typography>
-                      <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: 0.5, color: stat.color }}>
-                        <span style={{ fontSize: '0.8rem', marginRight: 4, opacity: 0.6 }}>PKR</span>
-                        {stat.val.toLocaleString()}
-                      </Typography>
+                        {stat.icon}
+                      </Avatar>
+                      <Box>
+                        <Typography variant="overline" sx={{
+                          display: 'block',
+                          lineHeight: 1,
+                          mb: 0.5,
+                          color: '#6b7280',
+                          fontWeight: 700,
+                          letterSpacing: 1.2
+                        }}>
+                          {stat.title}
+                        </Typography>
+                        <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: 0.5, color: stat.color }}>
+                          <span style={{ fontSize: '0.8rem', marginRight: 4, opacity: 0.6 }}>PKR</span>
+                          {fmtAmt(stat.val)}
+                        </Typography>
+                      </Box>
                     </Box>
-                  </Box>
-                  {i < 3 && (
-                    <Divider
-                      orientation="vertical"
-                      flexItem
-                      sx={{
-                        display: { xs: 'none', md: 'block' },
-                        bgcolor: '#e5e7eb',
-                        height: 60,
-                        my: 'auto'
-                      }}
-                    />
-                  )}
-                </Fragment>
-              ))}
+                    {i < stats.length - 1 && (
+                      <Divider
+                        orientation="vertical"
+                        flexItem
+                        sx={{
+                          display: { xs: 'none', md: 'block' },
+                          bgcolor: '#e5e7eb',
+                          height: 60,
+                          my: 'auto'
+                        }}
+                      />
+                    )}
+                  </Fragment>
+                ));
+              })()}
             </Box>
           </Card>
         </Box>
@@ -2028,13 +2067,18 @@ export default function FinancePage() {
                   </Typography>
                   <Typography variant="h4" sx={{ fontWeight: 700, mb: 1, color: '#4b5563' }}>
                     {selectedCustomer
-                      ? customers.find(c => c.cus_id === selectedCustomer)?.cus_name || 'ITEFAQ BUILDERS'
+                      ? customers.find(c => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || 'ITEFAQ BUILDERS'
                       : 'ITEFAQ BUILDERS'
                     }
                   </Typography>
                   <Typography variant="body2" sx={{ opacity: 0.8, color: '#6b7280' }}>
                     Accounting Period: {new Date().getFullYear()}
                   </Typography>
+                  {selectedCustomer && (
+                    <Typography variant="subtitle1" sx={{ mt: 1, fontWeight: 700, color: '#6366f1' }}>
+                      Opening Balance: PKR {fmtAmt(accountOpeningBalance)}
+                    </Typography>
+                  )}
 
                   {/* Payment Action Buttons */}
                   {selectedCustomer && (
