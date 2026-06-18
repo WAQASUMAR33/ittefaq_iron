@@ -1211,6 +1211,30 @@ export async function PUT(request) {
       });
       oldLedgerEntries.forEach(entry => affectedCusIds.add(entry.cus_id));
 
+      // Map to store pre-calculated opening balances from old ledger entries
+      const oldOpeningBalances = {};
+      for (const entry of oldLedgerEntries) {
+        const cid = entry.cus_id;
+        if (!oldOpeningBalances[cid]) {
+          oldOpeningBalances[cid] = entry;
+        } else {
+          // Keep the earliest one
+          const currentEarliest = oldOpeningBalances[cid];
+          const timeDiff = entry.created_at.getTime() - currentEarliest.created_at.getTime();
+          if (timeDiff < 0 || (timeDiff === 0 && entry.l_id < currentEarliest.l_id)) {
+            oldOpeningBalances[cid] = entry;
+          }
+        }
+      }
+
+      // Helper function to resolve opening balance using pre-calculated values
+      const getOpeningBalanceForAccount = async (accountId) => {
+        if (oldOpeningBalances[accountId]) {
+          return parseFloat(oldOpeningBalances[accountId].opening_balance || 0);
+        }
+        return await resolveOpeningBalance(tx, accountId, existingPurchase.created_at);
+      };
+
       // ── Call prepareLedgerDeletion to re-link subsequent entries of deleted items ──
       await prepareLedgerDeletion(tx, id);
 
@@ -1295,7 +1319,7 @@ export async function PUT(request) {
       // ledger chain starts from the correct pre-purchase position.
       let runningSupplierBalance = 0;
       if (cus_id) {
-        runningSupplierBalance = await resolveOpeningBalance(tx, cus_id, existingPurchase.created_at);
+        runningSupplierBalance = await getOpeningBalanceForAccount(cus_id);
       }
 
       // Calculate supplier amount — EXCLUDE OUT charges (Out labour/Out delivery are not billed to supplier)
@@ -1356,7 +1380,7 @@ export async function PUT(request) {
           where: { cus_id: credit_account_id },
           select: { cus_name: true }
         });
-        const cashOpeningBalance = await resolveOpeningBalance(tx, credit_account_id, existingPurchase.created_at);
+        const cashOpeningBalance = await getOpeningBalanceForAccount(credit_account_id);
         const supplierName = (await tx.customer.findUnique({ where: { cus_id }, select: { cus_name: true } }))?.cus_name || 'Supplier';
 
         const cashEntry = createLedgerEntry({
@@ -1383,7 +1407,7 @@ export async function PUT(request) {
           where: { cus_id: bankAccIdForEntry },
           select: { cus_name: true }
         });
-        const bankOpeningBalance = await resolveOpeningBalance(tx, bankAccIdForEntry, existingPurchase.created_at);
+        const bankOpeningBalance = await getOpeningBalanceForAccount(bankAccIdForEntry);
         const supplierName = (await tx.customer.findUnique({ where: { cus_id }, select: { cus_name: true } }))?.cus_name || 'Supplier';
 
         const bankEntry = createLedgerEntry({
@@ -1457,7 +1481,7 @@ export async function PUT(request) {
             let allocatePUT = perAccountPUT;
             if (i === 0) allocatePUT = parseFloat((perAccountPUT + remainderPUT).toFixed(2));
 
-            const cargoOpeningBalance = await resolveOpeningBalance(tx, cargoAcc.cus_id, existingPurchase.created_at);
+            const cargoOpeningBalance = await getOpeningBalanceForAccount(cargoAcc.cus_id);
             const cargoEntry = createLedgerEntry({
               cus_id: cargoAcc.cus_id,
               opening_balance: cargoOpeningBalance,
@@ -1492,7 +1516,7 @@ export async function PUT(request) {
           const priorLabourEntriesPUT = ledgerEntries.filter(e => e.cus_id === labourAccountPUT.cus_id);
           const labourOpeningBalancePUT = priorLabourEntriesPUT.length > 0
             ? priorLabourEntriesPUT[priorLabourEntriesPUT.length - 1].closing_balance
-            : await resolveOpeningBalance(tx, labourAccountPUT.cus_id, existingPurchase.created_at);
+            : await getOpeningBalanceForAccount(labourAccountPUT.cus_id);
 
           const labourEntryPUT = createLedgerEntry({
             cus_id: labourAccountPUT.cus_id,
@@ -1529,7 +1553,7 @@ export async function PUT(request) {
           const priorLabourEntriesPUT = ledgerEntries.filter(e => e.cus_id === incityLabourAccount.cus_id);
           const incityLabourOpeningBalance = priorLabourEntriesPUT.length > 0
             ? priorLabourEntriesPUT[priorLabourEntriesPUT.length - 1].closing_balance
-            : await resolveOpeningBalance(tx, incityLabourAccount.cus_id, existingPurchase.created_at);
+            : await getOpeningBalanceForAccount(incityLabourAccount.cus_id);
 
           const labourEntry = createLedgerEntry({
             cus_id: incityLabourAccount.cus_id,
@@ -1574,7 +1598,7 @@ export async function PUT(request) {
               const priorCashEntries = ledgerEntries.filter(e => e.cus_id === credit_account_id);
               const cashLabourOpeningBalance = priorCashEntries.length > 0
                 ? priorCashEntries[priorCashEntries.length - 1].closing_balance
-                : await resolveOpeningBalance(tx, credit_account_id, existingPurchase.created_at);
+                : await getOpeningBalanceForAccount(credit_account_id);
 
               const cashLabourEntryPUT = createLedgerEntry({
                 cus_id: credit_account_id,
@@ -1597,7 +1621,7 @@ export async function PUT(request) {
               const priorBankEntries = ledgerEntries.filter(e => e.cus_id === bankAccountIdInt);
               const bankLabourOpeningBalance = priorBankEntries.length > 0
                 ? priorBankEntries[priorBankEntries.length - 1].closing_balance
-                : await resolveOpeningBalance(tx, bankAccountIdInt, existingPurchase.created_at);
+                : await getOpeningBalanceForAccount(bankAccountIdInt);
 
               const bankLabourEntryPUT = createLedgerEntry({
                 cus_id: bankAccountIdInt,
@@ -1635,7 +1659,7 @@ export async function PUT(request) {
           const priorDeliveryEntries = ledgerEntries.filter(e => e.cus_id === incityDeliveryAccount.cus_id);
           const incityDeliveryOpeningBalance = priorDeliveryEntries.length > 0
             ? priorDeliveryEntries[priorDeliveryEntries.length - 1].closing_balance
-            : await resolveOpeningBalance(tx, incityDeliveryAccount.cus_id, existingPurchase.created_at);
+            : await getOpeningBalanceForAccount(incityDeliveryAccount.cus_id);
 
           const deliveryEntry = createLedgerEntry({
             cus_id: incityDeliveryAccount.cus_id,
@@ -1679,7 +1703,7 @@ export async function PUT(request) {
               const priorCashEntries = ledgerEntries.filter(e => e.cus_id === credit_account_id);
               const cashDeliveryOpeningBalance = priorCashEntries.length > 0
                 ? priorCashEntries[priorCashEntries.length - 1].closing_balance
-                : await resolveOpeningBalance(tx, credit_account_id, existingPurchase.created_at);
+                : await getOpeningBalanceForAccount(credit_account_id);
 
               const cashDeliveryEntryPUT = createLedgerEntry({
                 cus_id: credit_account_id,
@@ -1702,7 +1726,7 @@ export async function PUT(request) {
               const priorBankEntries = ledgerEntries.filter(e => e.cus_id === bankAccountIdInt);
               const bankDeliveryOpeningBalance = priorBankEntries.length > 0
                 ? priorBankEntries[priorBankEntries.length - 1].closing_balance
-                : await resolveOpeningBalance(tx, bankAccountIdInt, existingPurchase.created_at);
+                : await getOpeningBalanceForAccount(bankAccountIdInt);
 
               const bankDeliveryEntryPUT = createLedgerEntry({
                 cus_id: bankAccountIdInt,

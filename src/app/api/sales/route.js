@@ -1843,6 +1843,7 @@ export async function PUT(request) {
     const specialAccounts = isSkipLedger ? null : await getSpecialAccountsForSale();
 
     const affectedCusIds = new Set();
+    const oldOpeningBalances = {};
 
     const result = await prisma.$transaction(async (tx) => {
       // ═══════════════════════════════════════════
@@ -1894,6 +1895,19 @@ export async function PUT(request) {
           where: { bill_no: String(id) }
         });
         oldLedgerEntries.forEach(entry => affectedCusIds.add(entry.cus_id));
+
+        for (const entry of oldLedgerEntries) {
+          const cid = entry.cus_id;
+          if (!oldOpeningBalances[cid]) {
+            oldOpeningBalances[cid] = entry;
+          } else {
+            const currentEarliest = oldOpeningBalances[cid];
+            const timeDiff = entry.created_at.getTime() - currentEarliest.created_at.getTime();
+            if (timeDiff < 0 || (timeDiff === 0 && entry.l_id < currentEarliest.l_id)) {
+              oldOpeningBalances[cid] = entry;
+            }
+          }
+        }
 
         console.log(`\n${'='.repeat(60)}`);
         console.log(`🔄 BILL EDIT: REVERSING OLD LEDGER ENTRIES`);
@@ -2050,13 +2064,26 @@ export async function PUT(request) {
       // 4. RECREATE ALL LEDGER ENTRIES (same as POST)
       // ═══════════════════════════════════════════
       if (!isSkipLedger) {
+        const ledgerEntries = [];
+
+        // Helper to query running balance from database or ledgerEntries array to chain them
+        const getRunningBalanceForAccount = async (accountId) => {
+          const priorEntries = ledgerEntries.filter(e => e.cus_id === accountId);
+          if (priorEntries.length > 0) {
+            return priorEntries[priorEntries.length - 1].closing_balance;
+          }
+          if (oldOpeningBalances[accountId]) {
+            return parseFloat(oldOpeningBalances[accountId].opening_balance || 0);
+          }
+          return await resolveOpeningBalance(tx, accountId, existingSale.created_at);
+        };
+
         // Re-fetch customer balance AFTER reversals to get the clean pre-sale state
         const freshCustomer = await tx.customer.findUnique({
           where: { cus_id },
           select: { cus_balance: true, cus_name: true }
         });
-        let runningBalance = await resolveOpeningBalance(tx, cus_id, existingSale.created_at);
-        const ledgerEntries = [];
+        let runningBalance = await getRunningBalanceForAccount(cus_id);
 
         console.log(`\n${'='.repeat(60)}`);
         console.log(`📝 BILL EDIT: RECREATING LEDGER ENTRIES`);
@@ -2066,15 +2093,6 @@ export async function PUT(request) {
         console.log(`   New Payment: Cash=${eff_cash}, Bank=${eff_bank}`);
         console.log(`   Advance Payment: ${advance_payment}`);
         console.log(`${'='.repeat(60)}`);
-
-        // Helper to query running balance from database or ledgerEntries array to chain them
-        const getRunningBalanceForAccount = async (accountId) => {
-          const priorEntries = ledgerEntries.filter(e => e.cus_id === accountId);
-          if (priorEntries.length > 0) {
-            return priorEntries[priorEntries.length - 1].closing_balance;
-          }
-          return await resolveOpeningBalance(tx, accountId, existingSale.created_at);
-        };
 
         // ── 4a. ORDER Stage Advance Payment entries ──
         const advPaymentAmt = parseFloat(advance_payment || 0);
