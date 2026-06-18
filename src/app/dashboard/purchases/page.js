@@ -1613,34 +1613,38 @@ function PurchasesPageContent() {
       if (response.ok) {
         const result = await response.json();
 
+        // Fetch fresh purchase data to ensure accurate balance info
+        const freshResponse = await fetch(`/api/purchases?id=${result.pur_id}`);
+        const freshData = freshResponse.ok ? await freshResponse.json() : result;
+
         // Store bill data for printing receipt
+        const freshProductTotal = (freshData.purchase_details || []).reduce((s, d) => s + parseFloat(d.total_amount || 0), 0)
+          || parseFloat(freshData.total_amount || 0);
+        const freshNetTotal = freshProductTotal
+          + parseFloat(freshData.unloading_amount || 0)
+          + parseFloat(freshData.transport_amount || 0)
+          + parseFloat(freshData.labour_amount || 0)
+          + parseFloat(freshData.fare_amount || 0)
+          - parseFloat(freshData.discount || 0);
+
+        // Calculate payment breakdown
+        let freshCashPayment = parseFloat(freshData.cash_payment || 0);
+        let freshBankPayment = parseFloat(freshData.bank_payment || 0);
+        if (freshCashPayment === 0 && freshBankPayment === 0 && parseFloat(freshData.payment || 0) > 0) {
+          const totalPay = parseFloat(freshData.payment || 0);
+          if (freshData.payment_type === 'BANK_TRANSFER') freshBankPayment = totalPay;
+          else freshCashPayment = totalPay;
+        }
+
         const billDataForPrint = {
-          pur_id: result.pur_id,
-          cus_id: result.cus_id,
-          total_amount: result.total_amount,
-          discount: parseFloat(result.discount) || 0,
-          payment: result.payment,
-          payment_type: result.payment_type || 'CASH',
-          cash_payment: parseFloat(result.cash_payment) || 0,
-          bank_payment: parseFloat(result.bank_payment) || 0,
+          ...freshData,
+          display_net_total: freshNetTotal,
+          cash_payment: freshCashPayment,
+          bank_payment: freshBankPayment,
           bank_title: selectedBankAccount?.cus_name || null,
-          invoice_number: result.invoice_number || '',
-          created_at: result.created_at || new Date().toISOString(),
-          customer: customers.find(c => c.cus_id === result.cus_id),
-          purchase_details: result.purchase_details || formData.purchase_details,
-          // Add missing amount fields from formData
-          labour_amount: parseFloat(result.labour_amount || formData.labour_amount || 0),
-          out_labour_amount: parseFloat(result.out_labour_amount || formData.out_labour_amount || 0),
-          out_delivery_amount: parseFloat(result.out_delivery_amount || formData.out_delivery_amount || 0),
-          // Incity fields
-          incity_own_labour: parseFloat(result.incity_own_labour || formData.incity_own_labour || 0),
-          incity_own_delivery: parseFloat(result.incity_own_delivery || formData.incity_own_delivery || 0),
-          incity_charges_total: parseFloat(result.incity_charges_total || formData.incity_charges_total || 0),
-          fare_amount: parseFloat(result.fare_amount || formData.fare_amount || 0),
-          transport_amount: parseFloat(result.transport_amount || formData.transport_amount || 0),
-          unloading_amount: parseFloat(result.unloading_amount || formData.unloading_amount || 0),
-          include_cargo_in_costprice: result.include_cargo_in_costprice || formData.include_cargo_in_costprice || false,
-          vehicle_no: result.vehicle_no || formData.vehicle_no,
+          customer: freshData.customer || customers.find(c => c.cus_id === freshData.cus_id),
+          purchase_details: freshData.purchase_details || formData.purchase_details,
+          previous_customer_balance: parseFloat(freshData.previous_customer_balance ?? 0),
           bill_type: purchaseType === 'return' ? 'PURCHASE_RETURN' : 'PURCHASE'
         };
         setCurrentBillData(billDataForPrint);
@@ -6104,7 +6108,7 @@ function PurchasesPageContent() {
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>Previous Balance</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                              {fmtAmt(currentBillData.customer?.cus_balance || 0)}
+                              {fmtAmt(currentBillData.previous_customer_balance ?? currentBillData.customer?.cus_balance ?? 0)}
                             </TableCell>
                           </TableRow>
                           <TableRow>
