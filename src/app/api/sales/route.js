@@ -232,6 +232,20 @@ async function recalculateLedgerBalances(tx, cus_id) {
     ]
   });
 
+  // Re-sort in JS: created_at ASC → bill_no (numeric) ASC → l_id ASC
+  // This is critical for PUT (edit) operations: when entries are deleted and
+  // re-created, the new auto-increment l_id values are higher than subsequent
+  // bills' entries, which would put the edited bill at the END of the chain.
+  // Sorting by bill_no (numeric) as secondary key preserves original position.
+  entries.sort((a, b) => {
+    const timeDiff = a.created_at.getTime() - b.created_at.getTime();
+    if (timeDiff !== 0) return timeDiff;
+    const billA = parseInt(a.bill_no) || 0;
+    const billB = parseInt(b.bill_no) || 0;
+    if (billA !== billB) return billA - billB;
+    return a.l_id - b.l_id;
+  });
+
   let runningBalance = 0;
   const updates = [];
   if (entries.length > 0) {

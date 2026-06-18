@@ -90,6 +90,18 @@ const getLedgerEntryDisplayAmounts = (entry) => {
   }
 };
 
+const compareChronologically = (a, b) => {
+  const timeA = new Date(a.created_at).getTime();
+  const timeB = new Date(b.created_at).getTime();
+  if (timeA !== timeB) return timeA - timeB;
+
+  const billA = parseInt(a.bill_no) || 0;
+  const billB = parseInt(b.bill_no) || 0;
+  if (billA !== billB) return billA - billB;
+
+  return a.l_id - b.l_id;
+};
+
 /** Bank / Cash display amounts for a ledger row — must match the table body logic (finance ledger columns). */
 function getLedgerEntryBankCashForSummary(entry) {
   const displayAmts = getLedgerEntryDisplayAmounts(entry);
@@ -560,12 +572,12 @@ export default function FinancePage() {
   });
 
   const sortedLedgerEntries = filteredLedgerEntries.sort((a, b) => {
-    let aValue, bValue;
-
     if (sortBy === 'created_at') {
-      aValue = new Date(a.created_at);
-      bValue = new Date(b.created_at);
-    } else if (sortBy === 'debit_amount') {
+      return sortOrder === 'asc' ? compareChronologically(a, b) : compareChronologically(b, a);
+    }
+
+    let aValue, bValue;
+    if (sortBy === 'debit_amount') {
       aValue = parseFloat(a.debit_amount);
       bValue = parseFloat(b.debit_amount);
     } else if (sortBy === 'credit_amount') {
@@ -580,6 +592,10 @@ export default function FinancePage() {
     } else {
       aValue = a[sortBy];
       bValue = b[sortBy];
+    }
+
+    if (aValue === bValue) {
+      return compareChronologically(a, b);
     }
 
     if (sortOrder === 'asc') {
@@ -616,9 +632,7 @@ export default function FinancePage() {
       totalCredit += displayAmts.credit;
     }
     // Closing balance: use the chronologically latest row in the current view (not the bottom table row, which depends on sort)
-    const byTime = [...finalLedgerEntries].sort(
-      (a, b) => new Date(a.created_at) - new Date(b.created_at)
-    );
+    const byTime = [...finalLedgerEntries].sort(compareChronologically);
     const nonMemo = byTime.filter((e) => !isOrderCustomerMemoLedgerEntry(e));
     const lastForBalance = nonMemo.length > 0 ? nonMemo[nonMemo.length - 1] : byTime[byTime.length - 1];
     const lastClosing =
@@ -657,14 +671,7 @@ export default function FinancePage() {
       const cust = customers.find(c => Number(c.cus_id) === Number(selectedCustomer));
       return cust ? parseFloat(cust.cus_balance || 0) : 0;
     }
-    const sorted = [...customerEntries].sort((a, b) => {
-      const dateA = new Date(a.created_at);
-      const dateB = new Date(b.created_at);
-      if (dateA.getTime() !== dateB.getTime()) {
-        return dateA - dateB;
-      }
-      return a.l_id - b.l_id;
-    });
+    const sorted = [...customerEntries].sort(compareChronologically);
     return parseFloat(sorted[0].opening_balance || 0);
   }, [selectedCustomer, ledgerEntries, customers]);
 
@@ -1167,7 +1174,7 @@ export default function FinancePage() {
       const custName = customer?.cus_name || 'All Accounts';
       const balance = parseFloat(customer?.cus_balance ?? ledgerViewSummary.lastClosing ?? 0);
 
-      const chronologicalEntries = [...finalLedgerEntries].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      const chronologicalEntries = [...finalLedgerEntries].sort(compareChronologically);
       const pdfOpeningBalance = chronologicalEntries.length > 0 ? parseFloat(chronologicalEntries[0].opening_balance || 0) : 0;
 
       // Header
@@ -1487,7 +1494,7 @@ export default function FinancePage() {
     const custName = customer?.cus_name || 'All Accounts';
     const balance = dateFilteredEntries.length > 0 ? parseFloat(dateFilteredEntries[dateFilteredEntries.length - 1].closing_balance || 0) : 0;
 
-    const chronologicalPrintEntries = [...dateFilteredEntries].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    const chronologicalPrintEntries = [...dateFilteredEntries].sort(compareChronologically);
     const printOpeningBalance = chronologicalPrintEntries.length > 0 ? parseFloat(chronologicalPrintEntries[0].opening_balance || 0) : 0;
 
     // Calculate totals for filtered entries
