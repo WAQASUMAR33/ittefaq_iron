@@ -275,9 +275,9 @@ export async function POST(request) {
       } else if (mainAccountIsSupplier) {
         // Supplier (payable): bill/purchase = debit, payment = credit
         if (payment_type === 'RECEIVE') {
-          mainDebitAmount = parseFloat(total_amount); // Refund from supplier is debit
-        } else {
           mainCreditAmount = parseFloat(total_amount); // Payment to supplier is credit
+        } else {
+          mainDebitAmount = parseFloat(total_amount); // Refund from supplier is debit
         }
       } else {
         // Customer (receivable): RECEIVE = DEBIT, PAY = CREDIT

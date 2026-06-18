@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { calculateClosingBalance, ACCOUNT_NATURE } from '@/lib/ledger-helper';
 
 // Helper for JSON errors
 function errorResponse(message, status = 400) {
@@ -114,7 +115,8 @@ export async function POST(request) {
 
     // Check if customer exists
     const customer = await prisma.customer.findUnique({
-      where: { cus_id: parseInt(cus_id) }
+      where: { cus_id: parseInt(cus_id) },
+      include: { customer_category: true }
     });
 
     if (!customer) {
@@ -147,7 +149,10 @@ export async function POST(request) {
     const openingBalance = parseFloat(customerData.cus_balance || 0);
     const debitNum = parseFloat(debit_amount || 0);
     const creditNum = parseFloat(credit_amount || 0);
-    const closingBalance = openingBalance + debitNum - creditNum;
+    const catTitle = (customer?.customer_category?.cus_cat_title || '').toLowerCase();
+    const isSupplier = catTitle.includes('supplier') || catTitle.includes('creditor');
+    const accountNature = isSupplier ? ACCOUNT_NATURE.PAYABLE : ACCOUNT_NATURE.RECEIVABLE;
+    const closingBalance = calculateClosingBalance(openingBalance, debitNum, creditNum, accountNature);
 
     // Create the ledger entry
     const result = await prisma.ledger.create({
@@ -243,7 +248,10 @@ export async function PUT(request) {
     }
 
     // Fetch customer
-    const customer = await prisma.customer.findUnique({ where: { cus_id } });
+    const customer = await prisma.customer.findUnique({
+      where: { cus_id },
+      include: { customer_category: true }
+    });
     if (!customer) return errorResponse('Customer not found', 404);
 
     const result = await prisma.$transaction(async (tx) => {
@@ -255,7 +263,16 @@ export async function PUT(request) {
       const oldCredit = Number(parseFloat(existingLedger.credit_amount || 0).toFixed(2));
       const newDebit  = Number(parseFloat(debit_amount  || 0).toFixed(2));
       const newCredit = Number(parseFloat(credit_amount || 0).toFixed(2));
-      const netChange = Number(((newDebit - newCredit) - (oldDebit - oldCredit)).toFixed(2));
+      
+      const catTitle = (customer?.customer_category?.cus_cat_title || '').toLowerCase();
+      const isSupplier = catTitle.includes('supplier') || catTitle.includes('creditor');
+      
+      let netChange;
+      if (isSupplier) {
+        netChange = Number(((newCredit - newDebit) - (oldCredit - oldDebit)).toFixed(2));
+      } else {
+        netChange = Number(((newDebit - newCredit) - (oldDebit - oldCredit)).toFixed(2));
+      }
 
       // ── Update only the metadata on the original entry (amounts unchanged) ──
       const updatedLedger = await tx.ledger.update({
@@ -276,14 +293,27 @@ export async function PUT(request) {
         const newBalance     = Number((currentBalance + netChange).toFixed(2));
         const entryBillNo    = bill_no ? String(bill_no) : existingLedger.bill_no;
         const entryDesc      = details || existingLedger.details || '';
-        const typeLabel      = isIncrease ? 'Debit' : 'Credit';
+        
+        let debitAmt = 0;
+        let creditAmt = 0;
+        let typeLabel = '';
+        
+        if (isSupplier) {
+          debitAmt = isIncrease ? 0 : adjustmentAmt;
+          creditAmt = isIncrease ? adjustmentAmt : 0;
+          typeLabel = isIncrease ? 'Credit' : 'Debit';
+        } else {
+          debitAmt = isIncrease ? adjustmentAmt : 0;
+          creditAmt = isIncrease ? 0 : adjustmentAmt;
+          typeLabel = isIncrease ? 'Debit' : 'Credit';
+        }
 
         await tx.ledger.create({
           data: {
             cus_id,
             opening_balance: currentBalance,
-            debit_amount:    isIncrease ? adjustmentAmt : 0,
-            credit_amount:   isIncrease ? 0 : adjustmentAmt,
+            debit_amount:    debitAmt,
+            credit_amount:   creditAmt,
             closing_balance: newBalance,
             bill_no:         entryBillNo,
             trnx_type:       'ADJUSTMENT',
