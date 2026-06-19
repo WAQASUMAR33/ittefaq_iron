@@ -170,6 +170,9 @@ export default function CashReport() {
     (parseFloat(reportData?.summary?.totalLedgerDebit || 0) -
       parseFloat(reportData?.summary?.totalLedgerCredit || 0));
 
+  const openingBalance = reportData?.ledgerEntries[0] ? parseFloat(reportData.ledgerEntries[0].opening_balance || 0) : 0;
+  const closingBalance = openingBalance + netCashFlow;
+
   return (
     <DashboardLayout>
       <div className="h-full flex flex-col bg-white print:bg-white overflow-hidden">
@@ -312,7 +315,6 @@ export default function CashReport() {
               {(() => {
                 const totalDebit = parseFloat(reportData.summary.totalLedgerDebit || 0);
                 const totalCredit = parseFloat(reportData.summary.totalLedgerCredit || 0);
-                const netBalance = totalDebit - totalCredit;
                 return (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4 print:hidden">
                     <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-xl p-4">
@@ -329,10 +331,10 @@ export default function CashReport() {
                       </div>
                       <p className="text-2xl font-bold text-red-800 mt-1">Rs. {formatCurrency(totalCredit)}</p>
                     </div>
-                    <div className={`bg-gradient-to-br ${netBalance >= 0 ? 'from-emerald-50 to-emerald-100 border-emerald-200' : 'from-orange-50 to-orange-100 border-orange-200'} border rounded-xl p-4`}>
-                      <p className={`text-xs font-semibold ${netBalance >= 0 ? 'text-emerald-600' : 'text-orange-600'} uppercase tracking-wide`}>Net Balance</p>
-                      <p className={`text-2xl font-bold ${netBalance >= 0 ? 'text-emerald-800' : 'text-orange-800'} mt-1`}>Rs. {formatCurrency(netBalance)}</p>
-                      <p className="text-xs text-slate-400 mt-0.5">Debit − Credit</p>
+                    <div className={`bg-gradient-to-br ${closingBalance >= 0 ? 'from-emerald-50 to-emerald-100 border-emerald-200' : 'from-orange-50 to-orange-100 border-orange-200'} border rounded-xl p-4`}>
+                      <p className={`text-xs font-semibold ${closingBalance >= 0 ? 'text-emerald-600' : 'text-orange-600'} uppercase tracking-wide`}>Closing Balance</p>
+                      <p className={`text-2xl font-bold ${closingBalance >= 0 ? 'text-emerald-800' : 'text-orange-800'} mt-1`}>Rs. {formatCurrency(closingBalance)}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">Opening + Debit − Credit</p>
                     </div>
                   </div>
                 );
@@ -346,8 +348,8 @@ export default function CashReport() {
                       <td className="p-2 font-semibold border-r border-black w-1/3">Total Debit (Cash In):</td>
                       <td className="p-2 text-right border-r border-black w-1/3 font-bold">{formatCurrency(reportData.summary.totalLedgerDebit)}</td>
                       <td rowSpan="2" className="p-2 text-center w-1/3">
-                        <div className="font-semibold text-xs uppercase">Net Balance</div>
-                        <div className="text-lg font-bold mt-1">{formatCurrency(netCashFlow)}</div>
+                        <div className="font-semibold text-xs uppercase">Closing Balance</div>
+                        <div className="text-lg font-bold mt-1">{formatCurrency(closingBalance)}</div>
                       </td>
                     </tr>
                     <tr>
@@ -444,7 +446,7 @@ export default function CashReport() {
                       <td colSpan="5" className="px-3 py-3 text-right uppercase text-xs tracking-wider border-r border-slate-600 print:border-black">Grand Total</td>
                       <td className="px-3 py-3 text-right border-r border-slate-600 print:border-black tabular-nums">{formatCurrency(reportData.summary.totalLedgerDebit)}</td>
                       <td className="px-3 py-3 text-right border-r border-slate-600 print:border-black tabular-nums">{formatCurrency(reportData.summary.totalLedgerCredit)}</td>
-                      <td className="px-3 py-3 text-right tabular-nums print:text-black">{formatCurrency(netCashFlow)}</td>
+                      <td className="px-3 py-3 text-right tabular-nums print:text-black">{formatCurrency(closingBalance)}</td>
                     </tr>
                   </tfoot>
                 </table>

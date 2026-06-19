@@ -152,6 +152,9 @@ export default function BankReport() {
         parseFloat(reportData.summary.totalLedgerCredit || 0))
     : 0;
 
+  const openingBalance = reportData?.ledgerEntries[0] ? parseFloat(reportData.ledgerEntries[0].opening_balance || 0) : 0;
+  const closingBalance = openingBalance + netFlow;
+
   return (
     <DashboardLayout>
       <div className="h-full flex flex-col bg-white print:bg-white overflow-hidden">
@@ -288,13 +291,13 @@ export default function BankReport() {
                   </div>
                   <p className="text-2xl font-bold text-red-800 mt-1">Rs. {formatCurrency(reportData.summary.totalLedgerCredit)}</p>
                 </div>
-                <div className={`bg-gradient-to-br ${netFlow >= 0 ? 'from-cyan-50 to-cyan-100 border-cyan-200' : 'from-orange-50 to-orange-100 border-orange-200'} border rounded-xl p-4`}>
+                <div className={`bg-gradient-to-br ${closingBalance >= 0 ? 'from-cyan-50 to-cyan-100 border-cyan-200' : 'from-orange-50 to-orange-100 border-orange-200'} border rounded-xl p-4`}>
                   <div className="flex items-center justify-between">
-                    <p className={`text-xs font-semibold ${netFlow >= 0 ? 'text-cyan-600' : 'text-orange-600'} uppercase tracking-wide`}>Net Balance</p>
-                    <Building2 className={`w-4 h-4 ${netFlow >= 0 ? 'text-cyan-500' : 'text-orange-500'}`} />
+                    <p className={`text-xs font-semibold ${closingBalance >= 0 ? 'text-cyan-600' : 'text-orange-600'} uppercase tracking-wide`}>Closing Balance</p>
+                    <Building2 className={`w-4 h-4 ${closingBalance >= 0 ? 'text-cyan-500' : 'text-orange-500'}`} />
                   </div>
-                  <p className={`text-2xl font-bold ${netFlow >= 0 ? 'text-cyan-800' : 'text-orange-800'} mt-1`}>Rs. {formatCurrency(netFlow)}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">Debit − Credit</p>
+                  <p className={`text-2xl font-bold ${closingBalance >= 0 ? 'text-cyan-800' : 'text-orange-800'} mt-1`}>Rs. {formatCurrency(closingBalance)}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Opening + Debit − Credit</p>
                 </div>
               </div>
 
@@ -306,8 +309,8 @@ export default function BankReport() {
                       <td className="px-4 py-2 font-medium border-r border-gray-400 w-1/3">Total Debit (Deposits):</td>
                       <td className="px-4 py-2 text-right font-bold border-r border-gray-400 w-1/3">{formatCurrency(reportData.summary.totalLedgerDebit)}</td>
                       <td rowSpan="2" className="px-4 py-2 text-center w-1/3">
-                        <div className="font-semibold text-xs uppercase">Net Balance</div>
-                        <div className="text-lg font-bold mt-1">{formatCurrency(netFlow)}</div>
+                        <div className="font-semibold text-xs uppercase">Closing Balance</div>
+                        <div className="text-lg font-bold mt-1">{formatCurrency(closingBalance)}</div>
                       </td>
                     </tr>
                     <tr>
@@ -405,7 +408,7 @@ export default function BankReport() {
                       <td className="px-3 py-3 border-r border-slate-600 print:border-black" />
                       <td className="px-3 py-3 text-right border-r border-slate-600 print:border-black tabular-nums text-red-200 print:text-black">{formatCurrency(reportData.summary.totalLedgerCredit)}</td>
                       <td className="px-3 py-3 text-right border-r border-slate-600 print:border-black tabular-nums text-emerald-200 print:text-black">{formatCurrency(reportData.summary.totalLedgerDebit)}</td>
-                      <td className="px-3 py-3 text-right tabular-nums print:text-black">{formatCurrency(netFlow)}</td>
+                      <td className="px-3 py-3 text-right tabular-nums print:text-black">{formatCurrency(closingBalance)}</td>
                     </tr>
                   </tfoot>
                 </table>
