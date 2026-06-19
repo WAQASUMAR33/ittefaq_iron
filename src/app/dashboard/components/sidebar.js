@@ -61,27 +61,25 @@ const EXPANDED_WIDTH = 280;
 const SIDEBAR_BG = '#ffffff';
 
 const SECTION_COLORS = [
-  '#cce840',
-  '#36c46c',
-  '#e07240',
-  '#7858d4',
-  '#e04858',
-  '#22c4d4',
-  '#e8d440',
-  '#3a9ef5',
+  '#d4ff00', // Lime
+  '#00e676', // Green
+  '#1de9b6', // Teal
+  '#00e5ff', // Cyan
+  '#2979ff', // Blue
+  '#8c52ff', // Indigo
+  '#d500f9', // Violet
+  '#ffd600', // Yellow
 ];
 
 const PILL_COLORS = [
-  '#cce840',
-  '#36c46c',
-  '#e07240',
-  '#7858d4',
-  '#e04858',
-  '#22c4d4',
-  '#e8d440',
-  '#3a9ef5',
-  '#f5a623',
-  '#50e3c2',
+  '#d4ff00', // Lime
+  '#00e676', // Green
+  '#1de9b6', // Teal
+  '#00e5ff', // Cyan
+  '#2979ff', // Blue
+  '#8c52ff', // Indigo
+  '#d500f9', // Violet
+  '#ffd600', // Yellow
 ];
 
 const PILL_WIDTHS = [
@@ -569,7 +567,10 @@ export default function Sidebar({
           onClick={() => handleNavigation(item.id)}
           sx={{
             width,
-            bgcolor: isActive ? color : `${color}88`,
+            background: isActive
+              ? `linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.1) 40%, rgba(0, 0, 0, 0.15) 100%)`
+              : `linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0) 50%, rgba(0, 0, 0, 0.08) 100%)`,
+            backgroundColor: isActive ? color : `${color}99`,
             borderRadius: '28px',
             display: 'flex',
             alignItems: 'center',
@@ -579,17 +580,17 @@ export default function Sidebar({
             outline: isActive ? '2.5px solid rgba(0,0,0,0.35)' : 'none',
             outlineOffset: '1px',
             boxShadow: isActive
-              ? `0 4px 20px ${color}90`
-              : `0 1px 4px ${color}30`,
-            opacity: isActive ? 1 : 0.75,
+              ? `0 6px 20px ${color}b0, inset 0 2px 3px rgba(255,255,255,0.7), inset 0 -2px 3px rgba(0,0,0,0.15)`
+              : `0 2px 8px ${color}40, inset 0 1px 2px rgba(255,255,255,0.4)`,
+            opacity: isActive ? 1 : 0.88,
             transform: isActive ? 'scale(1.02)' : 'scale(1)',
             transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
             '&:hover': {
               opacity: 1,
-              boxShadow: `0 4px 16px ${color}80`,
-              filter: 'brightness(1.06)',
-              transform: 'translateX(3px) scale(1.02)',
-              bgcolor: color,
+              boxShadow: `0 8px 24px ${color}cc, inset 0 2px 3px rgba(255,255,255,0.8), inset 0 -2px 3px rgba(0,0,0,0.2)`,
+              filter: 'brightness(1.12) contrast(1.05)',
+              transform: 'translateX(5px) scale(1.04)',
+              backgroundColor: color,
             },
           }}
         >
@@ -616,6 +617,66 @@ export default function Sidebar({
             {item.name}
           </Typography>
           {showCoin && <GoldCoin />}
+        </Box>
+      </Box>
+    );
+  };
+
+  // Simple child item with sharp corners (no border radius) and indented alignment
+  const renderChildItem = (item, colorIdx, sectionColor) => {
+    const isActive = activeTab === item.id;
+
+    return (
+      <Box key={`${item.id}-${item.category}`} sx={{ mb: 0.2 }}>
+        <Box
+          onClick={() => handleNavigation(item.id)}
+          sx={{
+            width: '100%',
+            background: isActive
+              ? `linear-gradient(135deg, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.1) 40%, rgba(0, 0, 0, 0.1) 100%)`
+              : 'transparent',
+            backgroundColor: isActive ? sectionColor : 'transparent',
+            borderRadius: '0px', // REMOVE CORNERS
+            display: 'flex',
+            alignItems: 'center',
+            pl: 4.5, // Indent child items
+            pr: 2,
+            py: 1,
+            cursor: 'pointer',
+            borderLeft: isActive ? `4px solid #111` : `4px solid transparent`,
+            opacity: isActive ? 1 : 0.75,
+            transition: 'all 0.2s ease-in-out',
+            '&:hover': {
+              opacity: 1,
+              backgroundColor: isActive ? sectionColor : `${sectionColor}22`,
+              borderLeft: isActive ? `4px solid #111` : `4px solid ${sectionColor}`,
+              transform: 'translateX(4px)',
+              filter: 'brightness(1.05)',
+            },
+          }}
+        >
+          <Box sx={{
+            color: isActive ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            mr: 1.5,
+            flexShrink: 0,
+            transition: 'color 0.2s ease',
+          }}>
+            <item.icon sx={{ fontSize: 19 }} />
+          </Box>
+          <Typography sx={{
+            fontWeight: isActive ? 700 : 500,
+            color: isActive ? '#000' : '#444',
+            flex: 1,
+            fontSize: '0.82rem',
+            letterSpacing: 0.2,
+            lineHeight: 1.3,
+            userSelect: 'none',
+            transition: 'all 0.2s ease',
+          }}>
+            {item.name}
+          </Typography>
         </Box>
       </Box>
     );
@@ -667,7 +728,10 @@ export default function Sidebar({
             onClick={() => toggleDropdown(category)}
             sx={{
               width: '100%',
-              bgcolor: hasActiveChild ? sectionColor : `${sectionColor}99`,
+              background: hasActiveChild
+                ? `linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.1) 40%, rgba(0, 0, 0, 0.15) 100%)`
+                : `linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0) 50%, rgba(0, 0, 0, 0.08) 100%)`,
+              backgroundColor: hasActiveChild ? sectionColor : `${sectionColor}cc`,
               borderRadius: '22px',
               display: 'flex',
               alignItems: 'center',
@@ -675,15 +739,16 @@ export default function Sidebar({
               py: 0.9,
               cursor: 'pointer',
               boxShadow: hasActiveChild
-                ? `0 3px 12px ${sectionColor}70`
-                : `0 2px 8px ${sectionColor}30`,
+                ? `0 4px 14px ${sectionColor}90, inset 0 2px 3px rgba(255,255,255,0.7), inset 0 -2px 3px rgba(0,0,0,0.15)`
+                : `0 2px 8px ${sectionColor}40, inset 0 1px 2px rgba(255,255,255,0.4)`,
               outline: hasActiveChild ? `2px solid ${sectionColor}` : 'none',
               outlineOffset: '1px',
               transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
               '&:hover': {
-                filter: 'brightness(1.06)',
-                boxShadow: `0 4px 14px ${sectionColor}70`,
-                bgcolor: sectionColor,
+                filter: 'brightness(1.12) contrast(1.05)',
+                boxShadow: `0 6px 18px ${sectionColor}cc, inset 0 2px 3px rgba(255,255,255,0.8), inset 0 -2px 3px rgba(0,0,0,0.2)`,
+                backgroundColor: sectionColor,
+                transform: 'scale(1.02)',
               },
             }}
           >
@@ -709,7 +774,7 @@ export default function Sidebar({
           <Box sx={{ pt: 0.25, pb: 0.5 }}>
             {items.map((item) => {
               const globalIdx = visibleMenuItems.findIndex(i => i === item);
-              return renderPillItem(item, globalIdx);
+              return renderChildItem(item, globalIdx, sectionColor);
             })}
           </Box>
         </Collapse>
@@ -837,13 +902,14 @@ export default function Sidebar({
                 <Box sx={{ px: 1.5, mb: 0.3, mt: 0.5 }}>
                   <Box sx={{
                     width: '100%',
-                    bgcolor: '#111',
+                    background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0.05) 50%, rgba(0, 0, 0, 0.15) 100%)',
+                    backgroundColor: '#111',
                     borderRadius: '22px',
                     display: 'flex',
                     alignItems: 'center',
                     px: 2,
                     py: 0.9,
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.25), inset 0 1px 2px rgba(255,255,255,0.3)',
                   }}>
                     <Typography sx={{
                       color: '#cce840',
@@ -883,13 +949,14 @@ export default function Sidebar({
                 <Box sx={{ px: 1.5, mb: 0.3, mt: 1 }}>
                   <Box sx={{
                     width: '100%',
-                    bgcolor: '#555',
+                    background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.08) 50%, rgba(0, 0, 0, 0.15) 100%)',
+                    backgroundColor: '#555',
                     borderRadius: '22px',
                     display: 'flex',
                     alignItems: 'center',
                     px: 2,
                     py: 0.9,
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.2), inset 0 1px 2px rgba(255,255,255,0.4)',
                   }}>
                     <Typography sx={{
                       color: '#fff',
