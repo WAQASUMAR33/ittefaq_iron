@@ -1191,7 +1191,8 @@ function SalesPageContent() {
   };
 
   // Save bill to database
-  const handleSaveBill = async (bypassLossCheck = false) => {
+  const handleSaveBill = async (bypass = false) => {
+    const bypassLossCheck = (bypass === true);
     // Pre-auth validation — check these before triggering biometric/PIN
     if ((parseFloat(paymentData.bank || 0)) > 0 && !paymentData.bankAccountId) {
       showSnackbar('Please select a bank account for the bank payment', 'error');
@@ -4176,7 +4177,7 @@ function SalesPageContent() {
                     </Typography>
                   </Box>
                 </Grid>
-                <Grid item xs={12} md={2}>
+                <Grid item xs={12} md={1.5}>
                   <Box>
                     <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
                       SELECT STORE
@@ -4218,7 +4219,7 @@ function SalesPageContent() {
                     />
                   </Box>
                 </Grid>
-                <Grid item xs={12} md={3}>
+                <Grid item xs={12} md={1.2}>
                   <Box>
                     <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
                       QTY
@@ -4285,6 +4286,21 @@ function SalesPageContent() {
                     />
                   </Box>
                 </Grid>
+                <Grid item xs={12} md={1.5}>
+                  <Box>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
+                      COST RATE:
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      type="number"
+                      value={formSelectedProduct ? getProductCostPrice(formSelectedProduct) : ''}
+                      sx={{ bgcolor: '#f8f9fa', width: 150, minWidth: 150 }}
+                      disabled
+                    />
+                  </Box>
+                </Grid>
 
                 <Grid item xs={12} md={1.5}>
                   <Box>
@@ -4315,12 +4331,13 @@ function SalesPageContent() {
                     />
                   </Box>
                 </Grid>
-                <Grid item xs={12} md={1}>
+                <Grid item xs={12} md={0.3}>
                   <Box sx={{ mt: 2 }}>
                     <Button
                       variant="contained"
                       id="add-product-btn"
                       onClick={handleAddProductToTable}
+                      fullWidth
                       sx={{
                         bgcolor: '#6f42c1',
                         color: 'white',
@@ -5239,7 +5256,7 @@ function SalesPageContent() {
                     transition: 'transform 120ms ease, box-shadow 120ms ease',
                     '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 10px 24px rgba(40,167,69,0.22)' }
                   }}
-                  onClick={handleSaveBill}
+                  onClick={() => handleSaveBill(false)}
                   disabled={loading}
                 >
                   {loading ? (
