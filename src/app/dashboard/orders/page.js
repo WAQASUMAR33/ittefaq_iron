@@ -2677,6 +2677,7 @@ function OrdersPageContent() {
                       size="small"
                       options={products || []}
                       getOptionLabel={(option) => option.pro_title || ''}
+                      ListboxProps={{ sx: { maxHeight: 130 } }}
                       renderOption={(props, option) => (
                         <li {...props} key={option.pro_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

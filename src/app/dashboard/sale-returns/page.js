@@ -1437,6 +1437,7 @@ export default function SaleReturnsPage() {
                             autoHighlight={true}
                             openOnFocus={true}
                             selectOnFocus={true}
+                            ListboxProps={{ sx: { maxHeight: 130 } }}
                             renderInput={(params) => <TextField {...params} label="Select Product" onFocus={(e) => e.target.select()} sx={STYLES.input} />}
                           />
                         </Grid>

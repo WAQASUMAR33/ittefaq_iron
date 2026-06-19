@@ -3505,6 +3505,7 @@ function PurchasesPageContent() {
                         selectOnFocus={true}
                         options={products}
                         getOptionLabel={(option) => option.pro_title}
+                        ListboxProps={{ sx: { maxHeight: 130 } }}
                         value={selectedProduct}
                         onChange={(event, newValue) => {
                           if (newValue) {
