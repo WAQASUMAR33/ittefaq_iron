@@ -920,7 +920,7 @@ export async function POST(request) {
           debit_amount: totalOutCharges,
           credit_amount: 0,
           bill_no: newPurchase.pur_id.toString(),
-          trnx_type: 'DEBIT',
+          trnx_type: 'CREDIT',
           details: `Cargo/Out Charges added to ${supplierForOut?.cus_name || 'Supplier'} — ${outParts.join(' + ')} - Purchase #${newPurchase.pur_id}${invoice_number ? ` (Inv: ${invoice_number})` : ''}`,
           payments: 0,
           updated_by: updated_by ? parseInt(updated_by) : null
@@ -1458,7 +1458,7 @@ export async function PUT(request) {
           debit_amount: totalOutChargesPUT,
           credit_amount: 0,
           bill_no: id.toString(),
-          trnx_type: 'DEBIT',
+          trnx_type: 'CREDIT',
           details: `Cargo/Out Charges added to ${supplierForOutPUT?.cus_name || 'Supplier'} — ${outPartsPUT.join(' + ')} - Purchase #${id}${invoice_number ? ` (Inv: ${invoice_number})` : ''}`,
           payments: 0,
           updated_by: updated_by ? parseInt(updated_by) : null
