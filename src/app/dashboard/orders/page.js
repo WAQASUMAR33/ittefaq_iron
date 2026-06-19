@@ -4221,7 +4221,7 @@ function OrdersPageContent() {
                 { title: "Order's Amount", val: statsTotalAmount, color: '#16a34a', bg: '#f0fdf4', icon: <AttachMoneyIcon /> },
                 { title: 'Total Discount', val: statsTotalDiscount, color: '#dc2626', bg: '#fef2f2', icon: <TrendingDownIcon /> },
                 { title: 'Total Shipping', val: statsTotalShipping, color: '#06b6d4', bg: '#ecfeff', icon: <ShippingIcon /> },
-                { title: 'Received Amount', val: statsTotalPayment, color: '#d97706', bg: '#fffbeb', icon: <CreditCardIcon /> },
+                { title: 'Received Amount', val: statsTotalPayment, color: '#16a34a', bg: '#f0fdf4', icon: <CreditCardIcon /> },
                 { title: 'Total Remaining', val: statsTotalBalance, color: '#7c3aed', bg: '#f5f3ff', icon: <WalletIcon /> }
               ].map((stat, i) => (
                 <Grid item xs={12} sm={6} md={4} lg={2} key={i}>
