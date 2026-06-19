@@ -165,20 +165,20 @@ export default function Sidebar({
   const scrollContainerRef = useRef(null);
 
   const getItemColor = (item, colorIdx) => {
-    if (item.id === 'orders') return '#083d21'; // Very Dark Green
-    if (item.id === 'new-sale' || item.id === 'sales') return '#007a33'; // Medium Green
-    if (item.category === 'purchase-operations' || item.id === 'purchases') return '#00b84c'; // Lighter Green
+    if (item.id === 'orders') return '#006D31'; // Orders
+    if (item.id === 'new-sale' || item.id === 'sales') return '#04371A'; // Sales
+    if (item.category === 'purchase-operations' || item.id === 'purchases') return '#00AC41'; // Purchases
     return PILL_COLORS[colorIdx % PILL_COLORS.length];
   };
 
   const getSectionColor = (category, sectionIdx) => {
-    if (category === 'sales-operations') return '#007a33'; // Medium Green
-    if (category === 'purchase-operations') return '#00b84c'; // Lighter Green
+    if (category === 'sales-operations') return '#04371A'; // Sales
+    if (category === 'purchase-operations') return '#00AC41'; // Purchases
     return SECTION_COLORS[sectionIdx % SECTION_COLORS.length];
   };
 
   const isDarkColor = (color) => {
-    const darkColors = ['#083d21', '#007a33', '#00b84c', '#8c52ff', '#2979ff', '#d500f9'];
+    const darkColors = ['#006D31', '#04371A', '#00AC41', '#8c52ff', '#2979ff', '#d500f9'];
     return darkColors.includes(color);
   };
 
