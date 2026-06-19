@@ -917,17 +917,17 @@ export async function POST(request) {
         const supplierOutDebit = createPayableLedgerEntry({
           cus_id: cus_id,
           opening_balance: runningSupplierBalance,
-          debit_amount: totalOutCharges,
-          credit_amount: 0,
+          debit_amount: 0,
+          credit_amount: totalOutCharges,
           bill_no: newPurchase.pur_id.toString(),
-          trnx_type: 'CREDIT',
+          trnx_type: 'DEBIT',
           details: `Cargo/Out Charges added to ${supplierForOut?.cus_name || 'Supplier'} — ${outParts.join(' + ')} - Purchase #${newPurchase.pur_id}${invoice_number ? ` (Inv: ${invoice_number})` : ''}`,
           payments: 0,
           updated_by: updated_by ? parseInt(updated_by) : null
         });
         ledgerEntries.push(supplierOutDebit);
         runningSupplierBalance = supplierOutDebit.closing_balance;
-        console.log(`📦 Supplier cargo debit: ${supplierForOut?.cus_name} debited ${totalOutCharges} (added to supplier payable)`);
+        console.log(`📦 Supplier cargo debit: ${supplierForOut?.cus_name} credited ${totalOutCharges} (added to supplier balance)`);
       }
 
       // Debit cargo accounts for out_delivery
@@ -1455,17 +1455,17 @@ export async function PUT(request) {
         const supplierOutDebitPUT = createPayableLedgerEntry({
           cus_id: cus_id,
           opening_balance: runningSupplierBalance,
-          debit_amount: totalOutChargesPUT,
-          credit_amount: 0,
+          debit_amount: 0,
+          credit_amount: totalOutChargesPUT,
           bill_no: id.toString(),
-          trnx_type: 'CREDIT',
+          trnx_type: 'DEBIT',
           details: `Cargo/Out Charges added to ${supplierForOutPUT?.cus_name || 'Supplier'} — ${outPartsPUT.join(' + ')} - Purchase #${id}${invoice_number ? ` (Inv: ${invoice_number})` : ''}`,
           payments: 0,
           updated_by: updated_by ? parseInt(updated_by) : null
         });
         ledgerEntries.push(supplierOutDebitPUT);
         runningSupplierBalance = supplierOutDebitPUT.closing_balance;
-        console.log(`📦 Supplier cargo addition (PUT): ${supplierForOutPUT?.cus_name} debited ${totalOutChargesPUT}`);
+        console.log(`📦 Supplier cargo addition (PUT): ${supplierForOutPUT?.cus_name} credited ${totalOutChargesPUT}`);
       }
 
       // Debit cargo accounts for out_delivery

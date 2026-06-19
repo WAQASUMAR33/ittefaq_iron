@@ -19,6 +19,7 @@ model Users {
   pin_code             String?
   fingerprint_template String?            @db.LongText
   fingerprint_enrolled Boolean            @default(false)
+  allowed_modules      String?            @db.Text
   fingerprints        Fingerprint[]
   created_at           DateTime           @default(now())
   updated_at           DateTime           @updatedAt

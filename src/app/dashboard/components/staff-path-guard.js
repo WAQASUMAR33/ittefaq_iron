@@ -14,8 +14,7 @@ export default function StaffPathGuard({ user, isClient }) {
 
   useEffect(() => {
     if (!isClient || !user || pathname == null) return;
-    const role = getStaffRoleName(user);
-    if (canStaffAccessPath(role, pathname)) return;
+    if (canStaffAccessPath(user, pathname)) return;
     router.replace('/dashboard?access=denied');
   }, [isClient, user, pathname, router]);
 

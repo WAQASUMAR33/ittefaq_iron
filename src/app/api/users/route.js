@@ -67,7 +67,7 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { full_name, email, password, role, status, is_verified } = body;
+    const { full_name, email, password, role, status, is_verified, allowed_modules } = body;
 
     // Validation for required fields
     if (!full_name || full_name.trim() === '') {
@@ -112,6 +112,7 @@ export async function POST(request) {
         role: role,
         status: status || 'ACTIVE',
         is_verified: is_verified || false,
+        allowed_modules: allowed_modules ? (typeof allowed_modules === 'string' ? allowed_modules : JSON.stringify(allowed_modules)) : null,
       },
       include: {
         _count: {
@@ -141,7 +142,7 @@ export async function POST(request) {
 export async function PUT(request) {
   try {
     const body = await request.json();
-    const { id, full_name, email, password, role, status, is_verified } = body;
+    const { id, full_name, email, password, role, status, is_verified, allowed_modules } = body;
 
     if (!id) {
       return errorResponse('User ID is required');
@@ -197,6 +198,7 @@ export async function PUT(request) {
       role: role,
       status: status || 'ACTIVE',
       is_verified: is_verified || false,
+      allowed_modules: allowed_modules ? (typeof allowed_modules === 'string' ? allowed_modules : JSON.stringify(allowed_modules)) : null,
     };
 
     // Only update password if provided

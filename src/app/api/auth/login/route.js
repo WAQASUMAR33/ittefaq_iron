@@ -35,6 +35,7 @@ export async function POST(request) {
         status: true,
         is_verified: true,
         fingerprint_enrolled: true,
+        allowed_modules: true,
         last_logged_in: true,
         created_at: true,
         updated_at: true,

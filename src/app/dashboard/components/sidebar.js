@@ -232,13 +232,89 @@ export default function Sidebar({
     { id: 'settings', name: 'Biometric Settings', icon: PersonIcon, category: 'system', parent: 'System', adminOnly: true },
   ];
 
+  const getRequiredModule = (item) => {
+    if (item.id === 'dashboard') return 'dashboard';
+    if (item.category === 'reports' || item.parent === 'Reports') return 'reports';
+
+    const categoryToModuleMap = {
+      'customercategory': 'accounts',
+      'customers': 'accounts',
+      'categories': 'products',
+      'sub-categories': 'products',
+      'products': 'products',
+      'expense-titles': 'finance',
+      'expenses': 'finance',
+      'journal': 'finance',
+      'day-end': 'finance',
+      'ledger': 'finance',
+      'cash-report': 'finance',
+      'bank-report': 'finance',
+      'orders': 'sales',
+      'sales': 'sales',
+      'hold-bills': 'sales',
+      'sale-returns': 'sales',
+      'loaders': 'sales',
+      'quotations': 'sales',
+      'sales-analytics': 'sales',
+      'new-sale': 'sales',
+      'new-purchase': 'purchases',
+      'purchases': 'purchases',
+      'purchase-list': 'purchases',
+      'purchase-returns': 'purchases',
+      'vehicles': 'purchases',
+      'purchase-details': 'purchases',
+      'cargo': 'cargo',
+      'employees': 'hr',
+      'attendance': 'hr',
+      'payroll': 'hr',
+      'usermanagement': 'system',
+      'stores': 'system',
+      'store-stock': 'system',
+      'stock-transfer': 'system',
+      'settings': 'system',
+    };
+
+    if (categoryToModuleMap[item.id]) return categoryToModuleMap[item.id];
+
+    const categoryMapping = {
+      'customer-management': 'accounts',
+      'product-management': 'products',
+      'financial': 'finance',
+      'sales-operations': 'sales',
+      'purchase-operations': 'purchases',
+      'cargo-operations': 'cargo',
+      'hr-management': 'hr',
+      'system': 'system',
+    };
+    return categoryMapping[item.category];
+  };
+
+  let allowed = [];
+  try {
+    if (user?.allowed_modules) {
+      allowed = typeof user.allowed_modules === 'string'
+        ? JSON.parse(user.allowed_modules)
+        : user.allowed_modules;
+    }
+  } catch (e) {
+    console.error('Failed to parse allowed_modules:', e);
+  }
+
   const roleName = getStaffRoleName(user);
   const isAdmin = isAdminRoleName(roleName);
 
   const visibleMenuItems = menuItems.filter((item) => {
     if (item.adminOnly && !isAdmin) return false;
+    if (roleName === 'SUPER_ADMIN') return true;
+
+    if (Array.isArray(allowed) && allowed.length > 0) {
+      const requiredModule = getRequiredModule(item);
+      if (requiredModule) {
+        return allowed.includes(requiredModule);
+      }
+    }
+
     if (isAdmin) return true;
-    if (roleName === 'SALESMAN') return SALESMAN_ALLOWED_MENU_IDS.has(item.id);
     return SALESMAN_ALLOWED_MENU_IDS.has(item.id);
   });
 

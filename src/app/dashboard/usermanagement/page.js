@@ -12,6 +12,19 @@ export default function UserManagementPage() {
   const [loading, setLoading] = useState(true);
   const [allowed, setAllowed] = useState(false);
 
+  const ALL_MODULES = [
+    { id: 'dashboard', name: 'Dashboard' },
+    { id: 'accounts', name: 'Accounts / Customers' },
+    { id: 'products', name: 'Products & Categories' },
+    { id: 'sales', name: 'Sales & Orders' },
+    { id: 'purchases', name: 'Purchases & Vehicles' },
+    { id: 'cargo', name: 'Cargo Management' },
+    { id: 'hr', name: 'HR / Payroll' },
+    { id: 'finance', name: 'Finance (Ledger/Expenses)' },
+    { id: 'reports', name: 'Reports' },
+    { id: 'system', name: 'System Settings' }
+  ];
+
   const [showUserForm, setShowUserForm] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [formData, setFormData] = useState({
@@ -20,8 +33,19 @@ export default function UserManagementPage() {
     password: '',
     role: 'SALESMAN',
     status: 'ACTIVE',
-    is_verified: false
+    is_verified: false,
+    allowed_modules: []
   });
+
+  const handleModuleToggle = (moduleId) => {
+    setFormData(prev => {
+      const current = prev.allowed_modules || [];
+      const updated = current.includes(moduleId)
+        ? current.filter(id => id !== moduleId)
+        : [...current, moduleId];
+      return { ...prev, allowed_modules: updated };
+    });
+  };
 
   // Filter states
   const [searchTerm, setSearchTerm] = useState('');
@@ -94,7 +118,8 @@ export default function UserManagementPage() {
           password: '',
           role: 'SALESMAN',
           status: 'ACTIVE',
-          is_verified: false
+          is_verified: false,
+          allowed_modules: []
         });
         alert('User created successfully!');
       } else {
@@ -109,13 +134,24 @@ export default function UserManagementPage() {
 
   const handleEditUser = (user) => {
     setEditingUser(user);
+    let modulesList = [];
+    try {
+      if (user.allowed_modules) {
+        modulesList = typeof user.allowed_modules === 'string'
+          ? JSON.parse(user.allowed_modules)
+          : user.allowed_modules;
+      }
+    } catch (e) {
+      console.error('Failed to parse allowed_modules:', e);
+    }
     setFormData({
       full_name: user.full_name || '',
       email: user.email || '',
-      password: user.password || '',
+      password: '',
       role: user.role || 'SALESMAN',
       status: user.status || 'ACTIVE',
-      is_verified: user.is_verified || false
+      is_verified: user.is_verified || false,
+      allowed_modules: Array.isArray(modulesList) ? modulesList : []
     });
     setShowUserForm(true);
   };
@@ -148,7 +184,8 @@ export default function UserManagementPage() {
           password: '',
           role: 'SALESMAN',
           status: 'ACTIVE',
-          is_verified: false
+          is_verified: false,
+          allowed_modules: []
         });
         alert('User updated successfully!');
       } else {
@@ -701,6 +738,30 @@ export default function UserManagementPage() {
                           <span className="ml-2 text-sm text-gray-700">Email Verified</span>
                         </label>
                       </div>
+                    </div>
+                  </div>
+ 
+                  {/* Module Permissions (Checkboxes) */}
+                  <div className="bg-gray-50 p-6 rounded-2xl border border-gray-200">
+                    <h4 className="text-sm font-semibold text-gray-900 mb-4 flex items-center">
+                      <Shield className="w-4 h-4 mr-2 text-blue-500" />
+                      Module Permissions
+                    </h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      {ALL_MODULES.map(module => {
+                        const isChecked = (formData.allowed_modules || []).includes(module.id);
+                        return (
+                          <label key={module.id} className="flex items-center space-x-3 cursor-pointer p-2 rounded-lg hover:bg-gray-100 transition-colors duration-150">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => handleModuleToggle(module.id)}
+                              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                            <span className="text-sm font-medium text-gray-700">{module.name}</span>
+                          </label>
+                        );
+                      })}
                     </div>
                   </div>
 

@@ -25,6 +25,7 @@ export async function POST(request) {
         role: true,
         status: true,
         fingerprint_enrolled: true,
+        allowed_modules: true,
         pin_code: true,
       },
     });
