@@ -70,7 +70,9 @@ import {
   Business as BusinessIcon,
   ArrowBack as ArrowBackIcon,
   ArrowForward as ArrowForwardIcon,
-  Cancel as CancelIcon
+  Cancel as CancelIcon,
+  LocalShipping as ShippingIcon,
+  AccountBalanceWallet as WalletIcon
 } from '@mui/icons-material';
 
 const fmtAmt = (val) => {
@@ -2169,10 +2171,17 @@ function OrdersPageContent() {
   // Calculate stats for current mode (active orders or trashed orders)
   const modeBillType = showTrashOrders ? 'ORDER_TRASH' : 'ORDER';
   const modeSales = sales.filter((sale) => sale.bill_type === modeBillType);
-  const totalSales = modeSales.length;
-  const totalSalesValue = modeSales.reduce((sum, sale) => sum + parseFloat(sale.total_amount || 0), 0);
-  const totalDiscount = modeSales.reduce((sum, sale) => sum + parseFloat(sale.discount || 0), 0);
-  const totalPayment = modeSales.reduce((sum, sale) => sum + parseFloat(sale.payment || 0), 0);
+
+  // Stats calculated dynamically based on currently filtered sales
+  const statsTotalOrders = filteredSales.length;
+  const statsTotalAmount = filteredSales.reduce((sum, sale) => sum + parseFloat(sale.total_amount || 0), 0);
+  const statsTotalDiscount = filteredSales.reduce((sum, sale) => sum + parseFloat(sale.discount || 0), 0);
+  const statsTotalShipping = filteredSales.reduce((sum, sale) => sum + parseFloat(sale.shipping_amount || 0), 0);
+  const statsTotalPayment = filteredSales.reduce((sum, sale) => sum + parseFloat(sale.payment || 0), 0);
+  const statsTotalBalance = filteredSales.reduce((sum, sale) => {
+    const balance = parseFloat(sale.total_amount) - parseFloat(sale.discount || 0) + parseFloat(sale.shipping_amount || 0) - parseFloat(sale.payment || 0);
+    return sum + balance;
+  }, 0);
 
   // Filter and sort sales
   const filteredAndSortedSales = sales
@@ -4218,89 +4227,65 @@ function OrdersPageContent() {
             </Button>
           </Box>
 
-          {/* Stats Cards */}
+          {/* Stats Cards Grid */}
           <Box sx={{ flexShrink: 0, mb: 3, width: '100%' }}>
-            <Card sx={{
-              borderRadius: 2,
-              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-              overflow: 'hidden',
-              bgcolor: 'white',
-              border: '1px solid #e5e7eb'
-            }}>
-              <Box sx={{
-                display: 'flex',
-                flexDirection: { xs: 'column', md: 'row' },
-                alignItems: 'stretch',
-                justifyContent: 'space-between',
-                p: 0
-              }}>
-                {[
-                  { title: 'Total Orders', val: totalSales, color: '#2563eb', bg: '#eff6ff', icon: <ShoppingCartIcon /> },
-                  { title: 'Total Revenue', val: totalSalesValue, color: '#16a34a', bg: '#f0fdf4', icon: <AttachMoneyIcon /> },
-                  { title: 'Total Discount', val: totalDiscount, color: '#dc2626', bg: '#fef2f2', icon: <TrendingDownIcon /> },
-                  { title: 'Total Payment', val: totalPayment, color: '#d97706', bg: '#fffbeb', icon: <CreditCardIcon /> }
-                ].map((stat, i) => (
-                  <Box key={i} sx={{
-                    flex: 1,
-                    p: 3,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 2.5,
-                    width: '100%',
+            <Grid container spacing={2}>
+              {[
+                { title: 'Total Orders', val: statsTotalOrders, color: '#2563eb', bg: '#eff6ff', icon: <ShoppingCartIcon />, isCount: true },
+                { title: 'Total Amount', val: statsTotalAmount, color: '#16a34a', bg: '#f0fdf4', icon: <AttachMoneyIcon /> },
+                { title: 'Total Discount', val: statsTotalDiscount, color: '#dc2626', bg: '#fef2f2', icon: <TrendingDownIcon /> },
+                { title: 'Total Shipping', val: statsTotalShipping, color: '#06b6d4', bg: '#ecfeff', icon: <ShippingIcon /> },
+                { title: 'Total Payment', val: statsTotalPayment, color: '#d97706', bg: '#fffbeb', icon: <CreditCardIcon /> },
+                { title: 'Total Balance', val: statsTotalBalance, color: '#7c3aed', bg: '#f5f3ff', icon: <WalletIcon /> }
+              ].map((stat, i) => (
+                <Grid item xs={12} sm={6} md={4} lg={2} key={i}>
+                  <Card sx={{
+                    borderRadius: 2.5,
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
+                    border: '1px solid #e5e7eb',
                     bgcolor: stat.bg,
-                    position: 'relative',
-                    borderBottom: i < 3 && { xs: '1px solid #e5e7eb', md: 'none' },
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     '&:hover': {
-                      bgcolor: 'white',
-                      transition: 'background-color 0.3s'
+                      transform: 'translateY(-3px)',
+                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                      bgcolor: 'white'
                     }
                   }}>
-                    <Avatar sx={{
-                      bgcolor: 'white',
-                      color: stat.color,
-                      width: 52,
-                      height: 52,
-                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                      border: `1.5px solid ${stat.color}20`
-                    }}>
-                      {stat.icon}
-                    </Avatar>
-                    <Box>
-                      <Typography variant="overline" sx={{
-                        display: 'block',
-                        lineHeight: 1,
-                        mb: 0.5,
-                        color: '#6b7280',
-                        fontWeight: 700,
-                        letterSpacing: 1.2
+                    <CardContent sx={{ p: 2, '&:last-child': { pb: 2 }, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                      <Avatar sx={{
+                        bgcolor: 'white',
+                        color: stat.color,
+                        width: 42,
+                        height: 42,
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                        border: `1px solid ${stat.color}15`
                       }}>
-                        {stat.title}
-                      </Typography>
-                      <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: 0.5, color: stat.color }}>
-                        {i > 0 && <span style={{ fontSize: '0.8rem', marginRight: 4, opacity: 0.6 }}>PKR</span>}
-                        {fmtAmt(stat.val)}
-                      </Typography>
-                    </Box>
-                    {i < 3 && (
-                      <Divider
-                        orientation="vertical"
-                        flexItem
-                        sx={{
-                          display: { xs: 'none', md: 'block' },
-                          bgcolor: '#e5e7eb',
-                          height: 60,
-                          position: 'absolute',
-                          right: 0,
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          zIndex: 1
-                        }}
-                      />
-                    )}
-                  </Box>
-                ))}
-              </Box>
-            </Card>
+                        {stat.icon}
+                      </Avatar>
+                      <Box sx={{ minWidth: 0, flex: 1 }}>
+                        <Typography variant="caption" sx={{
+                          display: 'block',
+                          color: '#6b7280',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          letterSpacing: 0.5,
+                          fontSize: '0.65rem',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}>
+                          {stat.title}
+                        </Typography>
+                        <Typography variant="h6" sx={{ fontWeight: 800, color: stat.color, fontSize: '1.1rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {!stat.isCount && <span style={{ fontSize: '0.7rem', marginRight: 2, opacity: 0.6 }}>PKR</span>}
+                          {stat.isCount ? stat.val : fmtAmt(stat.val)}
+                        </Typography>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
           </Box>
 
           {/* Sales Filter */}
