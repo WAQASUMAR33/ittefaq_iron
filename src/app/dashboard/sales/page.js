@@ -257,6 +257,8 @@ function SalesPageContent() {
 
   // Product table state
   const [productTableData, setProductTableData] = useState([]);
+  const [lossConfirmOpen, setLossConfirmOpen] = useState(false);
+  const [lossItems, setLossItems] = useState([]);
 
   // Transport state
   const [transportOptions, setTransportOptions] = useState([]);
@@ -1177,7 +1179,7 @@ function SalesPageContent() {
   };
 
   // Save bill to database
-  const handleSaveBill = async () => {
+  const handleSaveBill = async (bypassLossCheck = false) => {
     // Pre-auth validation — check these before triggering biometric/PIN
     if ((parseFloat(paymentData.bank || 0)) > 0 && !paymentData.bankAccountId) {
       showSnackbar('Please select a bank account for the bank payment', 'error');
@@ -1186,6 +1188,29 @@ function SalesPageContent() {
     if ((parseFloat(paymentData.deliveryCharges) || 0) > 0 && transportOptions.length === 0) {
       showSnackbar('Please select a transport account for the delivery charges', 'error');
       return;
+    }
+
+    // Check for profit/loss on every product in the bill (skip on returns)
+    if (billType !== 'SALE_RETURN' && !bypassLossCheck) {
+      const itemsSellingAtLoss = [];
+      productTableData.forEach(item => {
+        const matchingProduct = products.find(p => p.pro_id === item.pro_id);
+        const costPrice = matchingProduct ? parseFloat(matchingProduct.pro_cost_price || 0) : 0;
+        const salePrice = parseFloat(item.rate || 0);
+        if (salePrice < costPrice) {
+          itemsSellingAtLoss.push({
+            pro_title: item.pro_title || `Product #${item.pro_id}`,
+            costPrice,
+            salePrice
+          });
+        }
+      });
+
+      if (itemsSellingAtLoss.length > 0) {
+        setLossItems(itemsSellingAtLoss);
+        setLossConfirmOpen(true);
+        return; // Stop execution to prompt user
+      }
     }
 
     const hasCash = parseFloat(paymentData.cash || 0) > 0;
@@ -9312,6 +9337,99 @@ function SalesPageContent() {
         onSuccess={handleAuthSuccess}
         onClose={handleAuthCancel}
       />
+
+      {/* Loss Warning Confirmation Dialog */}
+      <Dialog
+        open={lossConfirmOpen}
+        onClose={() => setLossConfirmOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{
+          background: 'linear-gradient(45deg, #d32f2f 30%, #f44336 90%)',
+          color: 'white',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          p: 2.5
+        }}>
+          <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
+            ⚠️ Warning: Selling Below Cost Price
+          </Typography>
+          <IconButton
+            onClick={() => setLossConfirmOpen(false)}
+            sx={{ color: 'white' }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ p: 3, bgcolor: '#fafafa' }}>
+          <Typography variant="body1" color="text.primary" sx={{ mb: 2, fontWeight: 'medium' }}>
+            The following product(s) in this bill are being sold at a rate less than their cost price (selling at a loss):
+          </Typography>
+          <Box sx={{
+            bgcolor: 'white',
+            border: '1px solid #e0e0e0',
+            borderRadius: 2,
+            overflow: 'hidden',
+            mb: 2
+          }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ bgcolor: '#ffebee' }}>
+                  <TableCell sx={{ fontWeight: 'bold', color: '#c62828' }}>Product</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 'bold', color: '#c62828' }}>Cost Rate</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 'bold', color: '#c62828' }}>Sale Rate</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 'bold', color: '#c62828' }}>Loss/Unit</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {lossItems.map((item, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell>{item.pro_title}</TableCell>
+                    <TableCell align="right" sx={{ color: 'text.secondary' }}>Rs. {item.costPrice.toLocaleString()}</TableCell>
+                    <TableCell align="right" sx={{ color: 'error.main', fontWeight: 'bold' }}>Rs. {item.salePrice.toLocaleString()}</TableCell>
+                    <TableCell align="right" sx={{ color: 'error.dark', fontWeight: 'bold' }}>
+                      Rs. {(item.costPrice - item.salePrice).toLocaleString()}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Box>
+          <Typography variant="body2" color="text.secondary">
+            Are you sure you want to proceed and save this record anyway?
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2.5, bgcolor: '#f5f5f5', borderTop: '1px solid #e0e0e0' }}>
+          <Button
+            onClick={() => setLossConfirmOpen(false)}
+            variant="outlined"
+            color="inherit"
+            sx={{ textTransform: 'none', borderRadius: 2 }}
+          >
+            No, Cancel
+          </Button>
+          <Button
+            onClick={async () => {
+              setLossConfirmOpen(false);
+              await handleSaveBill(true);
+            }}
+            variant="contained"
+            color="error"
+            sx={{
+              background: 'linear-gradient(45deg, #d32f2f 30%, #f44336 90%)',
+              textTransform: 'none',
+              borderRadius: 2,
+              '&:hover': {
+                background: 'linear-gradient(45deg, #b71c1c 30%, #d32f2f 90%)',
+              }
+            }}
+          >
+            Yes, Save Anyway
+          </Button>
+        </DialogActions>
+      </Dialog>
 
     </>
   );
