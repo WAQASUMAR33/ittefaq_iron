@@ -590,22 +590,20 @@ export default function Sidebar({
           onClick={() => handleNavigation(item.id)}
           sx={{
             width,
-            background: isActive
-              ? `linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.1) 40%, rgba(0, 0, 0, 0.15) 100%)`
-              : `linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0) 50%, rgba(0, 0, 0, 0.08) 100%)`,
-            backgroundColor: isActive ? color : `${color}99`,
+            background: `linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.1) 40%, rgba(0, 0, 0, 0.15) 100%)`,
+            backgroundColor: color,
             borderRadius: '28px',
             display: 'flex',
             alignItems: 'center',
             px: 1.5,
             py: 0.9,
             cursor: 'pointer',
-            outline: isActive ? (isDark ? '2.5px solid rgba(255,255,255,0.5)' : '2.5px solid rgba(0,0,0,0.35)') : 'none',
+            outline: isActive ? (isDark ? '2.5px solid rgba(255,255,255,0.6)' : '2.5px solid rgba(0,0,0,0.35)') : 'none',
             outlineOffset: '1px',
             boxShadow: isActive
               ? `0 6px 20px ${color}b0, inset 0 2px 3px rgba(255,255,255,0.7), inset 0 -2px 3px rgba(0,0,0,0.15)`
-              : `0 2px 8px ${color}40, inset 0 1px 2px rgba(255,255,255,0.4)`,
-            opacity: isActive ? 1 : 0.88,
+              : `0 3px 10px ${color}70, inset 0 2px 3px rgba(255,255,255,0.5), inset 0 -1.5px 2px rgba(0,0,0,0.1)`,
+            opacity: 1,
             transform: isActive ? 'scale(1.02)' : 'scale(1)',
             transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
             '&:hover': {
@@ -765,10 +763,8 @@ export default function Sidebar({
             onClick={() => toggleDropdown(category)}
             sx={{
               width: '100%',
-              background: hasActiveChild
-                ? `linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.1) 40%, rgba(0, 0, 0, 0.15) 100%)`
-                : `linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0) 50%, rgba(0, 0, 0, 0.08) 100%)`,
-              backgroundColor: hasActiveChild ? sectionColor : `${sectionColor}cc`,
+              background: `linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.1) 40%, rgba(0, 0, 0, 0.15) 100%)`,
+              backgroundColor: sectionColor,
               borderRadius: '22px',
               display: 'flex',
               alignItems: 'center',
@@ -776,8 +772,8 @@ export default function Sidebar({
               py: 0.9,
               cursor: 'pointer',
               boxShadow: hasActiveChild
-                ? `0 4px 14px ${sectionColor}90, inset 0 2px 3px rgba(255,255,255,0.7), inset 0 -2px 3px rgba(0,0,0,0.15)`
-                : `0 2px 8px ${sectionColor}40, inset 0 1px 2px rgba(255,255,255,0.4)`,
+                ? `0 5px 15px ${sectionColor}b0, inset 0 2px 3px rgba(255,255,255,0.7), inset 0 -2px 3px rgba(0,0,0,0.15)`
+                : `0 3px 10px ${sectionColor}60, inset 0 2px 3px rgba(255,255,255,0.5), inset 0 -1.5px 2px rgba(0,0,0,0.1)`,
               outline: hasActiveChild ? `2px solid ${sectionColor}` : 'none',
               outlineOffset: '1px',
               transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
