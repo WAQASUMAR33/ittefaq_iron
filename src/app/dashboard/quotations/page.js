@@ -38,7 +38,8 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  Divider
 } from '@mui/material';
 
 import {
