@@ -2379,6 +2379,68 @@ function SalesPageContent() {
     }
   };
 
+  const latestStateRef = useRef();
+  useEffect(() => {
+    latestStateRef.current = {
+      productTableData,
+      formSelectedCustomer,
+      formSelectedStore,
+      paymentData,
+      billType,
+      transportOptions,
+      currentDraftId
+    };
+  });
+
+  useEffect(() => {
+    return () => {
+      const state = latestStateRef.current;
+      if (state && state.productTableData && state.productTableData.length > 0 && state.formSelectedStore) {
+        const formState = {
+          customer: state.formSelectedCustomer,
+          store: state.formSelectedStore,
+          products: state.productTableData,
+          paymentData: state.paymentData,
+          billType: state.billType,
+          transportOptions: state.transportOptions
+        };
+
+        const method = state.currentDraftId ? 'PUT' : 'POST';
+        const endpoint = state.currentDraftId
+          ? `/api/draft-sales?id=${state.currentDraftId}`
+          : '/api/draft-sales';
+
+        const payload = state.currentDraftId
+          ? {
+              id: state.currentDraftId,
+              store_id: state.formSelectedStore.storeid,
+              cus_id: state.formSelectedCustomer?.cus_id || null,
+              form_state: formState,
+              updated_by: 6
+            }
+          : {
+              store_id: state.formSelectedStore.storeid,
+              cus_id: state.formSelectedCustomer?.cus_id || null,
+              form_state: formState,
+              updated_by: 6
+            };
+
+        fetch(endpoint, {
+          method: method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          keepalive: true
+        }).catch(err => console.error('Error auto-saving draft on unmount:', err));
+      }
+    };
+  }, []);
+
+  const autoHoldIfActive = async () => {
+    if (productTableData && productTableData.length > 0 && formSelectedStore) {
+      await handleSaveDraft();
+    }
+  };
+
   const handleSaveDraft = async () => {
     try {
       if (!formSelectedStore) {
@@ -2459,6 +2521,7 @@ function SalesPageContent() {
   const handleLoadDraft = async (draft) => {
     try {
       setLoading(true);
+      await autoHoldIfActive();
 
       // Get full draft details
       const response = await fetch(`/api/draft-sales?id=${draft.draft_id}`);
@@ -5094,7 +5157,10 @@ function SalesPageContent() {
                       borderColor: '#f57c00'
                     }
                   }}
-                  onClick={clearFormState}
+                  onClick={async () => {
+                    await autoHoldIfActive();
+                    clearFormState();
+                  }}
                   disabled={loading}
                   title="Clear current form only (screen stays in stack)"
                 >
@@ -5111,7 +5177,8 @@ function SalesPageContent() {
                       color: '#5a6268'
                     }
                   }}
-                  onClick={() => {
+                  onClick={async () => {
+                    await autoHoldIfActive();
                     setCurrentBillData(null);
                     setFormSelectedCustomer(null);
                     setFormSelectedProduct(null);
@@ -5131,6 +5198,7 @@ function SalesPageContent() {
                     });
                     setTransportOptions([]);
                     setLoadedOrderId(null);
+                    setCurrentDraftId(null);
                   }}
                 >
                   New
