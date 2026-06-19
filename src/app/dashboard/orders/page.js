@@ -97,6 +97,9 @@ function OrdersPageContent() {
   const searchParams = useSearchParams();
   const { requireAuth, authDialogOpen, handleAuthSuccess, handleAuthCancel } = usePinAuth();
 
+  const initialType = searchParams ? (searchParams.get('type') || 'ORDER') : 'ORDER';
+  const initialView = searchParams ? (searchParams.get('view') || 'list') : 'list';
+
   // ========== SCREEN MANAGEMENT STATE ==========
   const [screenStack, setScreenStack] = useState([]);
   const [currentScreenIndex, setCurrentScreenIndex] = useState(-1);
@@ -111,13 +114,13 @@ function OrdersPageContent() {
   const [customerTypes, setCustomerTypes] = useState([]);
   const [products, setProducts] = useState([]);
   const [stores, setStores] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   // Filter state
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCustomer, setFilterCustomer] = useState('');
-  const [filterBillType, setFilterBillType] = useState('ORDER');
-  const [showTrashOrders, setShowTrashOrders] = useState(false);
+  const [filterBillType, setFilterBillType] = useState(initialType);
+  const [showTrashOrders, setShowTrashOrders] = useState(initialType === 'ORDER_TRASH');
   const [filterStore, setFilterStore] = useState('');
   const [filterPaymentType, setFilterPaymentType] = useState('');
   const [filterMinAmount, setFilterMinAmount] = useState('');
@@ -129,7 +132,7 @@ function OrdersPageContent() {
   // Bill view state
   const [viewBillDialog, setViewBillDialog] = useState(false);
   const [selectedBill, setSelectedBill] = useState(null);
-  const [currentView, setCurrentView] = useState('list');
+  const [currentView, setCurrentView] = useState(initialView);
 
   // WhatsApp state
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
@@ -232,7 +235,7 @@ function OrdersPageContent() {
   });
 
   // Bill type state
-  const [billType, setBillType] = useState('ORDER');
+  const [billType, setBillType] = useState(initialType);
 
   // Customer creation popup state
   const [customerPopupOpen, setCustomerPopupOpen] = useState(false);
