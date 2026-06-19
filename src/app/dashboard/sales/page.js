@@ -2666,17 +2666,29 @@ function SalesPageContent() {
 
   // Handle searching for an order to load
   const handleSearchOrder = async () => {
-    if (!orderSearchTerm.trim()) {
-      showSnackbar('Please enter an Order Number', 'warning');
+    const cleanedSearchTerm = orderSearchTerm.replace(/\D/g, ''); // Extract only digits
+    if (!cleanedSearchTerm) {
+      showSnackbar('Please enter a valid numeric Order Number or code (e.g. O-12 or 12)', 'warning');
       return;
     }
 
     try {
       setIsSearchingOrder(true);
-      const response = await fetch(`/api/sales?id=${orderSearchTerm}`);
+      const response = await fetch(`/api/sales?id=${cleanedSearchTerm}`);
 
       if (!response.ok) {
-        throw new Error('Order not found');
+        let errMsg = 'Failed to load order. Please check the Order Number.';
+        try {
+          const errData = await response.json();
+          if (errData && errData.error) {
+            errMsg = errData.error;
+          }
+        } catch (_) {}
+        if (errMsg === 'Sale not found') {
+          errMsg = 'Order does not exist. Please check the Order Number.';
+        }
+        showSnackbar(errMsg, 'error');
+        return;
       }
 
       const orderData = await response.json();

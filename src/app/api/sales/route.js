@@ -2524,7 +2524,7 @@ export async function PATCH(request) {
     // Use raw SQL to bypass Prisma client-side enum validation.
     // The DB enum column already supports ORDER_TRASH via `prisma db push`,
     // but the cached client may be older and reject newly-added enum values.
-    const allowed = new Set(['QUOTATION', 'ORDER', 'ORDER_TRASH', 'BILL']);
+    const allowed = new Set(['QUOTATION', 'ORDER', 'ORDER_TRASH', 'BILL', 'DISPATCHED']);
     const nextType = String(bill_type).toUpperCase();
     if (!allowed.has(nextType)) {
       return NextResponse.json({ error: `Invalid bill_type: ${bill_type}` }, { status: 400 });

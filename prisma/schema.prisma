@@ -1020,6 +1020,7 @@ enum BillType {
   ORDER
   ORDER_TRASH
   BILL
+  DISPATCHED
 }
 
 enum HoldBillStatus {
