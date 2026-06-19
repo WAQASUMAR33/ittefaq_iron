@@ -168,17 +168,21 @@ export default function Sidebar({
     if (item.id === 'orders') return '#006D31'; // Orders
     if (item.id === 'new-sale' || item.id === 'sales') return '#04371A'; // Sales
     if (item.category === 'purchase-operations' || item.id === 'purchases') return '#00AC41'; // Purchases
+    if (item.category === 'customer-management' || item.id === 'customers' || item.id === 'customercategory') return '#A434FF'; // Accounts
+    if (item.category === 'reports' || item.id === 'reports-dashboard') return '#0E0061'; // Reports
     return PILL_COLORS[colorIdx % PILL_COLORS.length];
   };
 
   const getSectionColor = (category, sectionIdx) => {
     if (category === 'sales-operations') return '#04371A'; // Sales
     if (category === 'purchase-operations') return '#00AC41'; // Purchases
+    if (category === 'customer-management') return '#A434FF'; // Accounts
+    if (category === 'reports') return '#0E0061'; // Reports
     return SECTION_COLORS[sectionIdx % SECTION_COLORS.length];
   };
 
   const isDarkColor = (color) => {
-    const darkColors = ['#006D31', '#04371A', '#00AC41', '#8c52ff', '#2979ff', '#d500f9'];
+    const darkColors = ['#006D31', '#04371A', '#00AC41', '#A434FF', '#0E0061', '#8c52ff', '#2979ff', '#d500f9'];
     return darkColors.includes(color);
   };
 
