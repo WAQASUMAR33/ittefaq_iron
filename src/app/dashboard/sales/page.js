@@ -5411,12 +5411,6 @@ function SalesPageContent() {
                               </TableRow>
                             )}
 
-                            <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم وصول</TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {fmtAmt(currentBillData.payment)}
-                              </TableCell>
-                            </TableRow>
                             <TableRow sx={{ bgcolor: '#d0d0d0' }}>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>بقايا رقم</TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
@@ -5494,10 +5488,6 @@ function SalesPageContent() {
                       <Typography sx={{ fontSize: '10px' }}>{fmtAmt(currentBillData.bank_payment)}</Typography>
                     </Box>
                   )}
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
-                    <Typography sx={{ fontSize: '10px' }}>Total Paid</Typography>
-                    <Typography sx={{ fontSize: '10px' }}>{fmtAmt(currentBillData.payment)}</Typography>
-                  </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Typography sx={{ fontSize: '10px' }}>Balance</Typography>
                     <Typography sx={{ fontSize: '10px' }}>
@@ -5657,10 +5647,6 @@ function SalesPageContent() {
                         <Typography sx={{ fontSize: '10px' }}>{fmtAmt(currentBillData.previous_balance)}</Typography>
                       </Box>
                     )}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
-                      <Typography sx={{ fontSize: '10px' }}>Total Paid</Typography>
-                      <Typography sx={{ fontSize: '10px' }}>{fmtAmt(currentBillData.payment)}</Typography>
-                    </Box>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                       <Typography sx={{ fontSize: '10px' }}>Balance</Typography>
                       <Typography sx={{ fontSize: '10px' }}>
@@ -5879,9 +5865,8 @@ function SalesPageContent() {
                                 const billAmt = parseFloat(currentBillData.total_amount || 0) - labour - delivery - discount;
                                 const cash = parseFloat(currentBillData.cash_refund || currentBillData.cash_payment || 0);
                                 const bank = parseFloat(currentBillData.bank_refund || currentBillData.bank_payment || 0);
-                                const totalReceived = parseFloat(currentBillData.payment || 0);
                                 // remaining = net return not yet refunded
-                                const remaining = billAmt - totalReceived;
+                                const remaining = billAmt - (cash + bank);
                                 return (
                                   <>
                                     <TableRow>
@@ -5920,10 +5905,6 @@ function SalesPageContent() {
                                         <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(bank)}</TableCell>
                                       </TableRow>
                                     )}
-                                    <TableRow sx={{ bgcolor: '#e8f5e9' }}>
-                                      <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>کل وصول شدہ</TableCell>
-                                      <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem', color: '#2e7d32' }}>{fmtAmt(totalReceived)}</TableCell>
-                                    </TableRow>
                                     <TableRow sx={{ bgcolor: remaining > 0 ? '#ffe0b2' : '#e8f5e9' }}>
                                       <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>باقی واجب الادا</TableCell>
                                       <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem', color: remaining > 0 ? '#e65100' : '#2e7d32' }}>{fmtAmt(remaining)}</TableCell>

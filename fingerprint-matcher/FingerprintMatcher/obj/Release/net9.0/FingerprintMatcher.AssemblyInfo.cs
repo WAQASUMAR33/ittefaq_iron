@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("FingerprintMatcher")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8ac8fb049b75784de79f77936a648b332405b8f1")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+82496ec008f0c7c93aa0f233db8d56175d7d659a")]
 [assembly: System.Reflection.AssemblyProductAttribute("FingerprintMatcher")]
 [assembly: System.Reflection.AssemblyTitleAttribute("FingerprintMatcher")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

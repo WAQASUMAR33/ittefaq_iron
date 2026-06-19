@@ -3318,7 +3318,7 @@ function OrdersPageContent() {
 
                   {/* REMAINING AMOUNT = ORDER TOTAL - TOTAL CASH RECEIVED */}
                   <Box sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#dc2626', minWidth: '140px' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#16a34a', minWidth: '140px' }}>
                       REMAINING
                     </Typography>
                     <TextField
@@ -3327,12 +3327,12 @@ function OrdersPageContent() {
                       value={toReadOnlyNumberInput(Math.max(0, calculateGrandTotal() - parseFloat(paymentData.totalCashReceived || 0)))}
                       placeholder="0"
                       sx={{
-                        bgcolor: '#fef2f2',
+                        bgcolor: '#f0fdf4',
                         flex: 1,
-                        '& .MuiInputBase-input': { padding: '8px', color: '#dc2626', fontWeight: 700 },
+                        '& .MuiInputBase-input': { padding: '8px', color: '#16a34a', fontWeight: 700 },
                         '& .MuiInputBase-input.Mui-disabled': {
-                          color: '#dc2626',
-                          WebkitTextFillColor: '#dc2626',
+                          color: '#16a34a',
+                          WebkitTextFillColor: '#16a34a',
                         },
                       }}
                       disabled
@@ -3672,12 +3672,6 @@ function OrdersPageContent() {
                               </TableCell>
                             </TableRow>
                           )}
-                          <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم وصول</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {fmtAmt(currentBillData.payment)}
-                            </TableCell>
-                          </TableRow>
                           <TableRow sx={{ bgcolor: '#d0d0d0' }}>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>بقايا رقم</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
@@ -3755,10 +3749,6 @@ function OrdersPageContent() {
                     <Typography sx={{ fontSize: '10px' }}>{fmtAmt(currentBillData.bank_payment)}</Typography>
                   </Box>
                 )}
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
-                  <Typography sx={{ fontSize: '10px' }}>Total Paid</Typography>
-                  <Typography sx={{ fontSize: '10px' }}>{fmtAmt(currentBillData.payment)}</Typography>
-                </Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                   <Typography sx={{ fontSize: '10px' }}>Balance</Typography>
                   <Typography sx={{ fontSize: '10px' }}>
@@ -3999,12 +3989,6 @@ function OrdersPageContent() {
                                 </TableCell>
                               </TableRow>
                             )}
-                            <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم وصول</TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {fmtAmt(currentBillData.payment)}
-                              </TableCell>
-                            </TableRow>
                             <TableRow sx={{ bgcolor: '#d0d0d0' }}>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>بقايا رقم</TableCell>
                               <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
@@ -5535,7 +5519,7 @@ function OrdersPageContent() {
 
                                 {/* Show bank payment row if bank payment exists */}
                                 {bankAmount > 0 && (
-                                  <TableRow>
+                                  <TableRow sx={{ bgcolor: '#d0d0d0' }}>
                                     <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
                                       {bankName}
                                     </TableCell>
