@@ -2266,40 +2266,16 @@ export default function FinancePage() {
                     </Typography>
                   )}
 
-                  {/* Payment Action Buttons */}
+                  {/* Left Payment Action Buttons */}
                   {selectedCustomer && (
                     <Box sx={{
                       position: 'absolute',
-                      right: 24,
+                      left: 24,
                       top: '50%',
                       transform: 'translateY(-50%)',
                       display: 'flex',
                       gap: 1
                     }}>
-                      <Button
-                        variant="contained"
-                        size="small"
-                        startIcon={<ArrowDown size={16} />}
-                        onClick={handleReceivePayment}
-                        sx={{
-                          background: 'linear-gradient(135deg, #10b981, #059669)',
-                          color: 'white',
-                          fontWeight: 600,
-                          textTransform: 'none',
-                          px: 2,
-                          py: 1,
-                          borderRadius: 1.5,
-                          boxShadow: '0 4px 6px -1px rgba(16, 185, 129, 0.2)',
-                          '&:hover': {
-                            background: 'linear-gradient(135deg, #059669, #047857)',
-                            boxShadow: '0 10px 15px -3px rgba(16, 185, 129, 0.3)',
-                            transform: 'translateY(-1px)',
-                          },
-                          transition: 'all 0.2s'
-                        }}
-                      >
-                        Receive Amount
-                      </Button>
                       <Button
                         variant="contained"
                         size="small"
@@ -2346,6 +2322,43 @@ export default function FinancePage() {
                         }}
                       >
                         {isSendingLedgerWhatsApp ? 'Sending…' : 'Send Ledger'}
+                      </Button>
+                    </Box>
+                  )}
+
+                  {/* Right Payment Action Buttons */}
+                  {selectedCustomer && (
+                    <Box sx={{
+                      position: 'absolute',
+                      right: 24,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      display: 'flex',
+                      gap: 1
+                    }}>
+                      <Button
+                        variant="contained"
+                        size="small"
+                        startIcon={<ArrowDown size={16} />}
+                        onClick={handleReceivePayment}
+                        sx={{
+                          background: 'linear-gradient(135deg, #10b981, #059669)',
+                          color: 'white',
+                          fontWeight: 600,
+                          textTransform: 'none',
+                          px: 2,
+                          py: 1,
+                          borderRadius: 1.5,
+                          boxShadow: '0 4px 6px -1px rgba(16, 185, 129, 0.2)',
+                          '&:hover': {
+                            background: 'linear-gradient(135deg, #059669, #047857)',
+                            boxShadow: '0 10px 15px -3px rgba(16, 185, 129, 0.3)',
+                            transform: 'translateY(-1px)',
+                          },
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        Receive Amount
                       </Button>
                       <Button
                         variant="contained"
