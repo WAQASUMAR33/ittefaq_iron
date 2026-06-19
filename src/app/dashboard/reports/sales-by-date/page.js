@@ -371,11 +371,11 @@ export default function SalesByDateReport() {
     const details = sale.sale_details || [];
     const itemsHtml = details.map((d, i) => `
       <tr>
-        <td style="padding:6px;border:1px solid #ddd">${i + 1}</td>
-        <td style="padding:6px;border:1px solid #ddd">${d.product?.pro_title || d.product_name || 'Item'}</td>
-        <td style="padding:6px;border:1px solid #ddd;text-align:right">${d.qnty || 0}</td>
-        <td style="padding:6px;border:1px solid #ddd;text-align:right">${fmtAmt(parseFloat(d.unit_rate) || 0)}</td>
-        <td style="padding:6px;border:1px solid #ddd;text-align:right">${fmtAmt(parseFloat(d.total_amount) || 0)}</td>
+        <td style="padding:6px;border:1px solid #ddd;font-size:14px;font-weight:600">${i + 1}</td>
+        <td style="padding:6px;border:1px solid #ddd;font-size:14px;font-weight:600">${d.product?.pro_title || d.product_name || 'Item'}</td>
+        <td style="padding:6px;border:1px solid #ddd;text-align:right;font-size:14px;font-weight:600">${d.qnty || 0}</td>
+        <td style="padding:6px;border:1px solid #ddd;text-align:right;font-size:14px;font-weight:600">${fmtAmt(parseFloat(d.unit_rate) || 0)}</td>
+        <td style="padding:6px;border:1px solid #ddd;text-align:right;font-size:14px;font-weight:600">${fmtAmt(parseFloat(d.total_amount) || 0)}</td>
       </tr>`).join('');
 
     const subtotal = parseFloat(sale.total_amount || 0) || 0;
@@ -414,15 +414,36 @@ export default function SalesByDateReport() {
             <div style="margin-top:6px;font-weight:bold;font-size:18px">SALE INVOICE</div>
           </div>
 
-          <div class="meta">
-            <div>
-              <div><strong>Invoice:</strong> ${sale.sale_id}</div>
-              <div><strong>Date:</strong> ${new Date(sale.created_at).toLocaleString()}</div>
+          <div class="meta" style="display:flex;justify-content:space-between">
+            <div style="width:50%;display:flex;flex-direction:column">
+              <div style="display:flex;margin-bottom:4px">
+                <span style="width:130px;display:inline-block">Customer Name:</span>
+                <strong style="font-size:16px">${sale.customer?.cus_name || 'N/A'}${sale.customer?.name_urdu ? ' ' + sale.customer.name_urdu : ''}</strong>
+              </div>
+              <div style="display:flex;margin-bottom:4px">
+                <span style="width:130px;display:inline-block">Phone No:</span>
+                <strong>${sale.customer?.cus_phone_no || 'N/A'}</strong>
+              </div>
+              ${sale.customer?.cus_address ? `
+              <div style="display:flex;margin-bottom:4px">
+                <span style="width:130px;display:inline-block">Address:</span>
+                <strong>${sale.customer.cus_address}</strong>
+              </div>
+              ` : ''}
             </div>
-            <div style="text-align:right">
-              <div><strong>Customer:</strong> ${sale.customer?.cus_name || 'N/A'}</div>
-              <div><strong>Phone:</strong> ${sale.customer?.cus_phone_no || ''}</div>
-              <div><strong>Type:</strong> ${sale.bill_type || ''}</div>
+            <div style="width:50%;display:flex;flex-direction:column;padding-left:20px">
+              <div style="display:flex;margin-bottom:4px">
+                <span style="width:100px;display:inline-block">Invoice No:</span>
+                <strong>#${sale.sale_id}</strong>
+              </div>
+              <div style="display:flex;margin-bottom:4px">
+                <span style="width:100px;display:inline-block">Date:</span>
+                <strong>${new Date(sale.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
+              </div>
+              <div style="display:flex;margin-bottom:4px">
+                <span style="width:100px;display:inline-block">Time:</span>
+                <strong>${new Date(sale.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
+              </div>
             </div>
           </div>
 
@@ -601,18 +622,47 @@ export default function SalesByDateReport() {
                     </Box>
 
                     <Box sx={{ px: 3, py: 2, borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between' }}>
-                      <Box>
-                        <Typography variant="body2" sx={{ mb: 0.5 }}>Customer Name: <strong>{selectedSale.customer?.cus_name || 'N/A'}</strong></Typography>
-                        <Typography variant="body2" sx={{ mb: 0.5 }}>Phone No: <strong>{selectedSale.customer?.cus_phone_no || 'N/A'}</strong></Typography>
+                      <Box sx={{ flex: '0 0 50%', display: 'flex', flexDirection: 'column' }}>
+                        <Box sx={{ display: 'flex', mb: 0.5 }}>
+                          <Typography variant="body2" sx={{ width: '130px', flexShrink: 0 }}>Customer Name:</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '1.05rem' }}>
+                            {selectedSale.customer ? `${selectedSale.customer.cus_name}${selectedSale.customer.name_urdu ? ' ' + selectedSale.customer.name_urdu : ''}` : 'N/A'}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', mb: 0.5 }}>
+                          <Typography variant="body2" sx={{ width: '130px', flexShrink: 0 }}>Phone No:</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                            {selectedSale.customer?.cus_phone_no || 'N/A'}
+                          </Typography>
+                        </Box>
                         {selectedSale.customer?.cus_address && (
-                          <Typography variant="body2">Address: <strong>{selectedSale.customer.cus_address}</strong></Typography>
+                          <Box sx={{ display: 'flex' }}>
+                            <Typography variant="body2" sx={{ width: '130px', flexShrink: 0 }}>Address:</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                              {selectedSale.customer.cus_address}
+                            </Typography>
+                          </Box>
                         )}
                       </Box>
-                      <Box sx={{ textAlign: 'right' }}>
-                        <Typography variant="body2">Invoice No: <strong>#{selectedSale.sale_id}</strong></Typography>
-                        <Typography variant="body2">Time: <strong>{new Date(selectedSale.created_at).toLocaleTimeString()}</strong></Typography>
-                        <Typography variant="body2">Date: <strong>{new Date(selectedSale.created_at).toLocaleDateString()}</strong></Typography>
-                        <Typography variant="body2">Bill Type: <strong>{selectedSale.bill_type || 'BILL'}</strong></Typography>
+                      <Box sx={{ flex: '0 0 50%', display: 'flex', flexDirection: 'column', pl: 4 }}>
+                        <Box sx={{ display: 'flex', mb: 0.5 }}>
+                          <Typography variant="body2" sx={{ width: '100px', flexShrink: 0 }}>Invoice No:</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                            #{selectedSale.sale_id}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', mb: 0.5 }}>
+                          <Typography variant="body2" sx={{ width: '100px', flexShrink: 0 }}>Date:</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                            {new Date(selectedSale.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', mb: 0.5 }}>
+                          <Typography variant="body2" sx={{ width: '100px', flexShrink: 0 }}>Time:</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                            {new Date(selectedSale.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                          </Typography>
+                        </Box>
                       </Box>
                     </Box>
 
@@ -632,11 +682,11 @@ export default function SalesByDateReport() {
                             <>
                               {(selectedSale.sale_details || []).map((d, i) => (
                                 <MuiTableRow key={d.sale_detail_id || i}>
-                                  <MuiTableCell>{i + 1}</MuiTableCell>
-                                  <MuiTableCell>{d.product?.pro_title || d.product_name || 'N/A'}</MuiTableCell>
-                                  <MuiTableCell align="right" sx={{ fontWeight: 'bold' }}>{d.qnty || 0}</MuiTableCell>
-                                  <MuiTableCell align="right">{fmtAmt(d.unit_rate)}</MuiTableCell>
-                                  <MuiTableCell align="right">{fmtAmt(d.total_amount)}</MuiTableCell>
+                                  <MuiTableCell sx={{ fontSize: '0.95rem', fontWeight: 600 }}>{i + 1}</MuiTableCell>
+                                  <MuiTableCell sx={{ fontSize: '0.95rem', fontWeight: 600 }}>{d.product?.pro_title || d.product_name || 'N/A'}</MuiTableCell>
+                                  <MuiTableCell align="right" sx={{ fontSize: '0.95rem', fontWeight: 600 }}>{d.qnty || 0}</MuiTableCell>
+                                  <MuiTableCell align="right" sx={{ fontSize: '0.95rem', fontWeight: 600 }}>{fmtAmt(d.unit_rate)}</MuiTableCell>
+                                  <MuiTableCell align="right" sx={{ fontSize: '0.95rem', fontWeight: 600 }}>{fmtAmt(d.total_amount)}</MuiTableCell>
                                 </MuiTableRow>
                               ))}
                               <MuiTableRow sx={{ bgcolor: '#fafafa' }}>

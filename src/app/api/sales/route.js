@@ -416,7 +416,8 @@ export async function GET(request) {
           const sale = await prisma.$queryRaw`
             SELECT s.*, 
               c.cus_id as customer_cus_id, c.cus_name as customer_cus_name, c.cus_phone_no as customer_cus_phone_no,
-              c.cus_category as customer_cus_category, c.cus_type as customer_cus_type
+              c.cus_category as customer_cus_category, c.cus_type as customer_cus_type, c.cus_address as customer_cus_address,
+              c.name_urdu as customer_name_urdu
             FROM sales s
             LEFT JOIN customers c ON s.cus_id = c.cus_id
             WHERE s.sale_id = ${id}
@@ -499,6 +500,15 @@ export async function GET(request) {
 
           const result = {
             ...sale[0],
+            customer: sale[0].customer_cus_name ? {
+              cus_id: Number(sale[0].customer_cus_id),
+              cus_name: sale[0].customer_cus_name,
+              cus_phone_no: sale[0].customer_cus_phone_no,
+              cus_category: sale[0].customer_cus_category ? Number(sale[0].customer_cus_category) : null,
+              cus_type: sale[0].customer_cus_type ? Number(sale[0].customer_cus_type) : null,
+              cus_address: sale[0].customer_cus_address || null,
+              name_urdu: sale[0].customer_name_urdu || null
+            } : null,
             sale_details: saleDetails || [],
             split_payments: transformedSplitPayments || [],
             transport_details: transportDetailsFallback
@@ -599,7 +609,8 @@ export async function GET(request) {
                 c.cus_id as customer_cus_id, c.cus_name as customer_cus_name, 
                 c.cus_phone_no as customer_cus_phone_no, c.cus_category as customer_cus_category,
                 c.cus_type as customer_cus_type, c.cus_balance as customer_cus_balance,
-                c.cus_address as customer_cus_address, c.cus_reference as customer_cus_reference
+                c.cus_address as customer_cus_address, c.cus_reference as customer_cus_reference,
+                c.name_urdu as customer_name_urdu
               FROM sales s
               LEFT JOIN customers c ON s.cus_id = c.cus_id
               WHERE s.created_at IS NOT NULL 
@@ -808,6 +819,7 @@ export async function GET(request) {
                   cus_balance: Number(sale.customer_cus_balance) || 0,
                   cus_address: sale.customer_cus_address,
                   cus_reference: sale.customer_cus_reference,
+                  name_urdu: sale.customer_name_urdu || null,
                   customer_category: sale.customer_cus_category && categoriesMap[sale.customer_cus_category] ? {
                     cus_cat_id: categoriesMap[sale.customer_cus_category].cus_cat_id || categoriesMap[sale.customer_cus_category].cus_category_id,
                     cus_cat_title: categoriesMap[sale.customer_cus_category].cus_cat_title || categoriesMap[sale.customer_cus_category].title

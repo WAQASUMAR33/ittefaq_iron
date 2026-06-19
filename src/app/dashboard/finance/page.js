@@ -4493,32 +4493,47 @@ export default function FinancePage() {
 
               {/* Customer and Invoice Details */}
               <Box sx={{ px: 3, py: 2, borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between' }}>
-                <Box sx={{ flex: '0 0 50%' }}>
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    <strong>Customer Name:</strong> {viewingSale.customer?.cus_name || 'N/A'}
-                  </Typography>
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    <strong>Phone No:</strong> {viewingSale.customer?.cus_phone_no || 'N/A'}
-                  </Typography>
-                  {viewingSale.customer?.cus_address && (
-                    <Typography variant="body2">
-                      <strong>Address:</strong> {viewingSale.customer.cus_address}
+                <Box sx={{ flex: '0 0 50%', display: 'flex', flexDirection: 'column' }}>
+                  <Box sx={{ display: 'flex', mb: 0.5 }}>
+                    <Typography variant="body2" sx={{ width: '130px', flexShrink: 0 }}>Customer Name:</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '1.05rem' }}>
+                      {viewingSale.customer ? `${viewingSale.customer.cus_name}${viewingSale.customer.name_urdu ? ' ' + viewingSale.customer.name_urdu : ''}` : 'N/A'}
                     </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', mb: 0.5 }}>
+                    <Typography variant="body2" sx={{ width: '130px', flexShrink: 0 }}>Phone No:</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                      {viewingSale.customer?.cus_phone_no || 'N/A'}
+                    </Typography>
+                  </Box>
+                  {viewingSale.customer?.cus_address && (
+                    <Box sx={{ display: 'flex' }}>
+                      <Typography variant="body2" sx={{ width: '130px', flexShrink: 0 }}>Address:</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        {viewingSale.customer.cus_address}
+                      </Typography>
+                    </Box>
                   )}
                 </Box>
-                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right', flex: '0 0 50%' }}>
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    <strong>Invoice No:</strong> <strong>{getBillDisplayNo(viewingSale)}</strong>
-                  </Typography>
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    <strong>Time:</strong> <strong>{viewingSale.created_at ? new Date(viewingSale.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : '—'}</strong>
-                  </Typography>
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    <strong>Date:</strong> <strong>{viewingSale.created_at ? new Date(viewingSale.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}</strong>
-                  </Typography>
-                  <Typography variant="body2">
-                    <strong>Bill Type:</strong> <strong>{viewingSale.bill_type || 'BILL'}</strong>
-                  </Typography>
+                <Box sx={{ flex: '0 0 50%', display: 'flex', flexDirection: 'column', pl: 4 }}>
+                  <Box sx={{ display: 'flex', mb: 0.5 }}>
+                    <Typography variant="body2" sx={{ width: '100px', flexShrink: 0 }}>Invoice No:</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                      {getBillDisplayNo(viewingSale)}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', mb: 0.5 }}>
+                    <Typography variant="body2" sx={{ width: '100px', flexShrink: 0 }}>Date:</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                      {viewingSale.created_at ? new Date(viewingSale.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', mb: 0.5 }}>
+                    <Typography variant="body2" sx={{ width: '100px', flexShrink: 0 }}>Time:</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                      {viewingSale.created_at ? new Date(viewingSale.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : '—'}
+                    </Typography>
+                  </Box>
                 </Box>
               </Box>
 
@@ -4540,11 +4555,11 @@ export default function FinancePage() {
                       {viewingSale.sale_details && viewingSale.sale_details.length > 0 ? (
                         viewingSale.sale_details.map((detail, index) => (
                           <TableRow key={detail.sale_detail_id || index}>
-                            <TableCell sx={{ px: 1, border: '1px solid #ddd' }}>{index + 1}</TableCell>
-                            <TableCell sx={{ px: 1, border: '1px solid #ddd' }}>{detail.product?.pro_title || detail.product?.pro_name || detail.product?.prod_name || 'N/A'}</TableCell>
-                            <TableCell sx={{ px: 1, border: '1px solid #ddd' }} align="right">{fmtAmt(detail.qnty || 0)}</TableCell>
-                            <TableCell sx={{ px: 1, border: '1px solid #ddd' }} align="right">{fmtAmt(detail.unit_rate)}</TableCell>
-                            <TableCell sx={{ px: 1, border: '1px solid #ddd' }} align="right">{fmtAmt(detail.total_amount)}</TableCell>
+                            <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }}>{index + 1}</TableCell>
+                            <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }}>{detail.product?.pro_title || detail.product?.pro_name || detail.product?.prod_name || 'N/A'}</TableCell>
+                            <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }} align="right">{fmtAmt(detail.qnty || 0)}</TableCell>
+                            <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }} align="right">{fmtAmt(detail.unit_rate)}</TableCell>
+                            <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }} align="right">{fmtAmt(detail.total_amount)}</TableCell>
                           </TableRow>
                         ))
                       ) : (
