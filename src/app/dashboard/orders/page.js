@@ -2646,6 +2646,9 @@ function OrdersPageContent() {
                       fullWidth
                       size="small"
                       sx={{ bgcolor: 'white' }}
+                      value={paymentData.notes || ''}
+                      onChange={(e) => handlePaymentDataChange('notes', e.target.value)}
+                      onFocus={(e) => e.target.select()}
                     />
                   </Box>
                 </Grid>
@@ -4365,7 +4368,7 @@ function OrdersPageContent() {
                     <TextField
                       fullWidth
                       label="Search Orders"
-                      placeholder="ID, Customer, Phone, Address, City, Reference..."
+                      placeholder="ID, Customer, Phone, Address, City, Order Name..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       onFocus={(e) => e.target.select()}
@@ -4593,6 +4596,8 @@ function OrdersPageContent() {
                 <TableHead>
                   <TableRow>
                     <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Order ID</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Order No</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Order Name</TableCell>
                     <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Customer</TableCell>
                     <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Total Amount</TableCell>
                     <TableCell sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }}>Discount</TableCell>
@@ -4607,7 +4612,7 @@ function OrdersPageContent() {
                 <TableBody>
                   {filteredSales.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} align="center">
+                      <TableCell colSpan={12} align="center">
                         <Box sx={{ py: 8, textAlign: 'center' }}>
                           <ShoppingCartIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
                           <Typography variant="h6" color="text.secondary" gutterBottom>
@@ -4628,7 +4633,9 @@ function OrdersPageContent() {
                       const balance = parseFloat(sale.total_amount) - parseFloat(sale.discount || 0) + parseFloat(sale.shipping_amount || 0) - parseFloat(sale.payment || 0);
                       return (
                         <TableRow key={sale.sale_id} sx={{ '&:hover': { bgcolor: '#f8f9fa' } }}>
+                          <TableCell sx={{ fontWeight: 'medium' }}>#{sale.sale_id}</TableCell>
                           <TableCell sx={{ fontWeight: 'medium' }}>{getBillDisplayNo(sale)}</TableCell>
+                          <TableCell>{sale.reference || '—'}</TableCell>
                           <TableCell>{sale.customer?.cus_name || 'N/A'}</TableCell>
                           <TableCell sx={{ fontWeight: 'bold' }}>{fmtAmt(sale.total_amount)}</TableCell>
                           <TableCell>{fmtAmt(sale.discount)}</TableCell>
