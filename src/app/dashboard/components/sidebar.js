@@ -165,14 +165,21 @@ export default function Sidebar({
   const scrollContainerRef = useRef(null);
 
   const getItemColor = (item, colorIdx) => {
-    if (item.id === 'orders') return '#ffd600'; // Yellow
-    if (item.id === 'new-sale' || item.id === 'sales') return '#126b38'; // Dark Green
+    if (item.id === 'orders') return '#083d21'; // Very Dark Green
+    if (item.id === 'new-sale' || item.id === 'sales') return '#007a33'; // Medium Green
+    if (item.category === 'purchase-operations' || item.id === 'purchases') return '#00b84c'; // Lighter Green
     return PILL_COLORS[colorIdx % PILL_COLORS.length];
   };
 
   const getSectionColor = (category, sectionIdx) => {
-    if (category === 'sales-operations') return '#126b38'; // Dark Green
+    if (category === 'sales-operations') return '#007a33'; // Medium Green
+    if (category === 'purchase-operations') return '#00b84c'; // Lighter Green
     return SECTION_COLORS[sectionIdx % SECTION_COLORS.length];
+  };
+
+  const isDarkColor = (color) => {
+    const darkColors = ['#083d21', '#007a33', '#00b84c', '#8c52ff', '#2979ff', '#d500f9'];
+    return darkColors.includes(color);
   };
 
   const menuItems = [
@@ -571,7 +578,7 @@ export default function Sidebar({
     const color = getItemColor(item, colorIdx);
     const width = PILL_WIDTHS[colorIdx % PILL_WIDTHS.length];
     const isActive = activeTab === item.id;
-    const isDark = color === '#126b38';
+    const isDark = isDarkColor(color);
 
     return (
       <Box key={`${item.id}-${item.category}`} sx={{ mb: 0.9, px: 1.5 }}>
@@ -641,7 +648,7 @@ export default function Sidebar({
   // Simple child item with sharp corners (no border radius) and indented alignment
   const renderChildItem = (item, colorIdx, sectionColor) => {
     const isActive = activeTab === item.id;
-    const isDark = sectionColor === '#126b38';
+    const isDark = isDarkColor(sectionColor);
 
     return (
       <Box key={`${item.id}-${item.category}`} sx={{ mb: 0.2 }}>
@@ -735,7 +742,7 @@ export default function Sidebar({
     const isExpanded = isCollapsed ? false : (isSearching ? true : expandedDropdowns[category]);
     const sectionColor = getSectionColor(category, sectionIdx);
     const hasActiveChild = items.some(item => activeTab === item.id);
-    const isDark = sectionColor === '#126b38';
+    const isDark = isDarkColor(sectionColor);
 
     if (isCollapsed) {
       return (
