@@ -922,8 +922,11 @@ function SalesPageContent() {
 
   // Smart amount formatter: hide .00 for whole numbers
   const fmtAmt = (val) => {
-    const n = Math.round(parseFloat(val || 0));
-    return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    if (val === undefined || val === null || val === '') return '';
+    const n = parseFloat(val);
+    if (isNaN(n)) return '';
+    if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
   /** Same display name can exist for different accounts (e.g. cus_name "1781"); show id + category/type in the transport picker. */
@@ -4068,7 +4071,7 @@ function SalesPageContent() {
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             {visibleCrates.includes(option.pro_id) && (
                               <Typography variant="body2" sx={{ color: 'text.secondary', mr: 1 }}>
-                                {option.pro_crate ? 'PKR ' + parseFloat(option.pro_crate).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'N/A'}
+                                {option.pro_crate ? 'PKR ' + fmtAmt(option.pro_crate) : 'N/A'}
                               </Typography>
                             )}
 
@@ -6646,7 +6649,7 @@ function SalesPageContent() {
                       </Typography>
                       <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: 0.5, color: stat.color }}>
                         {i > 0 && <span style={{ fontSize: '0.8rem', marginRight: 4, opacity: 0.6 }}>PKR</span>}
-                        {stat.val.toLocaleString()}
+                        {fmtAmt(stat.val)}
                       </Typography>
                     </Box>
                     {i < 3 && (

@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect } from 'react';
 import DashboardLayout from '../components/dashboard-layout';
@@ -326,7 +326,10 @@ export default function PurchaseReturnsPage() {
   // Format currency
   const formatCurrency = (amount) => {
     const num = typeof amount === 'number' ? amount : parseFloat(amount) || 0;
-    return `Rs. ${num.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const formatted = num % 1 === 0
+      ? num.toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+      : num.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return `Rs. ${formatted}`;
   };
 
   // Reset form
@@ -438,7 +441,7 @@ export default function PurchaseReturnsPage() {
         <p><strong>Supplier:</strong> ${customer?.cus_name || 'N/A'}</p>
         <p><strong>Date:</strong> ${new Date(returnItem.return_date).toLocaleDateString('en-PK')}</p>
         <p><strong>Reason:</strong> ${returnItem.return_reason || 'N/A'}</p>
-        <p><strong>Total Return:</strong> Rs. ${parseFloat(returnItem.total_return_amount || 0).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+        <p><strong>Total Return:</strong> ${formatCurrency(returnItem.total_return_amount)}</p>
       `;
       document.body.appendChild(tempEl);
 

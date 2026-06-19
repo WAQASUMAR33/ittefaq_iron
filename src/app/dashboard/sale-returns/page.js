@@ -678,10 +678,7 @@ export default function SaleReturnsPage() {
       return;
     }
 
-    const fmtN = (v) => {
-      const n = parseFloat(v || 0);
-      return n % 1 === 0 ? n.toLocaleString() : n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    };
+    const fmtN = (v) => fmtAmt(v);
 
     const details = returnItem.return_details || [];
     const totalAmount = parseFloat(returnItem.total_amount || 0);
@@ -1079,7 +1076,7 @@ export default function SaleReturnsPage() {
                               </TableCell>
                               <TableCell align="right">
                                 <Typography variant="body2" sx={{ fontWeight: '800', color: 'error.main' }}>
-                                  PKR {parseFloat(returnItem.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                  PKR {fmtAmt(returnItem.total_amount)}
                                 </Typography>
                               </TableCell>
                               <TableCell align="center">
@@ -1405,7 +1402,7 @@ export default function SaleReturnsPage() {
                                   <Box>
                                     <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>Loader Balance Adjustment</Typography>
                                     <Typography variant="body2">
-                                      Processing this return will <strong>deduct PKR {fmtAmt(formData.shipping_amount)}</strong> from <strong>{affectedLoader.loader_name}</strong>'s current balance (PKR {parseFloat(affectedLoader.loader_balance).toLocaleString()}).
+                                      Processing this return will <strong>deduct PKR {fmtAmt(formData.shipping_amount)}</strong> from <strong>{affectedLoader.loader_name}</strong>'s current balance (PKR {fmtAmt(affectedLoader.loader_balance)}).
                                     </Typography>
                                   </Box>
                                   <Chip label="Automatic Deduction" size="small" color="warning" sx={{ fontWeight: 'bold' }} />

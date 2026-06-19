@@ -2674,7 +2674,7 @@ function OrdersPageContent() {
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             {visibleCrates.includes(option.pro_id) && (
                               <Typography variant="body2" sx={{ color: 'text.secondary', mr: 1 }}>
-                                {option.pro_crate ? 'PKR ' + parseFloat(option.pro_crate).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'N/A'}
+                                {option.pro_crate ? 'PKR ' + fmtAmt(option.pro_crate) : 'N/A'}
                               </Typography>
                             )}
 
@@ -3610,7 +3610,7 @@ function OrdersPageContent() {
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رقم بل</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {(currentBillData.sale_details || []).reduce((sum, d) => sum + parseFloat(d.total_amount || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {fmtAmt((currentBillData.sale_details || []).reduce((sum, d) => sum + parseFloat(d.total_amount || 0), 0))}
                             </TableCell>
                           </TableRow>
                           <TableRow>
@@ -3937,7 +3937,7 @@ function OrdersPageContent() {
                             <TableRow>
                               <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رقم بل</TableCell>
                               <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {(currentBillData.sale_details || []).reduce((sum, d) => sum + parseFloat(d.total_amount || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {fmtAmt((currentBillData.sale_details || []).reduce((sum, d) => sum + parseFloat(d.total_amount || 0), 0))}
                               </TableCell>
                             </TableRow>
                             <TableRow>
@@ -4272,7 +4272,7 @@ function OrdersPageContent() {
                       </Typography>
                       <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: 0.5, color: stat.color }}>
                         {i > 0 && <span style={{ fontSize: '0.8rem', marginRight: 4, opacity: 0.6 }}>PKR</span>}
-                        {stat.val.toLocaleString()}
+                        {fmtAmt(stat.val)}
                       </Typography>
                     </Box>
                     {i < 3 && (
@@ -5463,7 +5463,7 @@ function OrdersPageContent() {
                           <TableRow>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رقم بل</TableCell>
                             <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {(selectedBill.sale_details || []).reduce((sum, d) => sum + parseFloat(d.total_amount || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {fmtAmt((selectedBill.sale_details || []).reduce((sum, d) => sum + parseFloat(d.total_amount || 0), 0))}
                             </TableCell>
                           </TableRow>
                           <TableRow>

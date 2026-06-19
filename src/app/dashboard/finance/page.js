@@ -872,7 +872,7 @@ export default function FinancePage() {
     const totalCredits = validLines.reduce((sum, l) => sum + parseFloat(l.credit_amount || 0), 0);
 
     if (Math.abs(totalDebits - totalCredits) > 0.01) {
-      alert(`Totals are not balanced! Debit: ${totalDebits.toLocaleString()} | Credit: ${totalCredits.toLocaleString()}`);
+      alert(`Totals are not balanced! Debit: ${fmtAmt(totalDebits)} | Credit: ${fmtAmt(totalCredits)}`);
       return;
     }
 
@@ -1193,7 +1193,7 @@ export default function FinancePage() {
       alert('No phone number on file for this account. Add a phone on the customer record to send WhatsApp.');
       return;
     }
-    const fmt = (v) => (v == null || v === '' ? '—' : parseFloat(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+    const fmt = (v) => (v == null || v === '' ? '—' : fmtAmt(v));
     const isPay = d.type === 'PAY';
     const accentColor = isPay ? '#ef4444' : '#16a34a';
     const rows = [];
@@ -1272,7 +1272,7 @@ export default function FinancePage() {
           templateKey: 'finance_receipt',
           templateVariables: {
             1: d.customer?.cus_name || 'Customer',
-            2: `${isPay ? 'Payment voucher (Pay Amount)' : 'Receipt voucher (Receive Amount)'} – ref PAY-${d.paymentId} | PKR ${totalAmount.toLocaleString()} · ${d.date || new Date().toISOString().slice(0, 10)}`,
+            2: `${isPay ? 'Payment voucher (Pay Amount)' : 'Receipt voucher (Receive Amount)'} – ref PAY-${d.paymentId} | PKR ${fmtAmt(totalAmount)} · ${d.date || new Date().toISOString().slice(0, 10)}`,
           },
         }),
       });
@@ -2704,10 +2704,7 @@ export default function FinancePage() {
                                      fontSize: '0.95rem'
                                    }}
                                  >
-                                   {displayAmts.credit.toLocaleString('en-PK', {
-                                     minimumFractionDigits: 2,
-                                     maximumFractionDigits: 2
-                                   })}
+                                   {fmtAmt(displayAmts.credit)}
                                  </Typography>
                                ) : (
                                  <Typography variant="body2" sx={{ color: '#d1d5db', fontWeight: 500 }}>
@@ -2736,10 +2733,7 @@ export default function FinancePage() {
                                      fontSize: '0.95rem'
                                    }}
                                  >
-                                   {displayAmts.debit.toLocaleString('en-PK', {
-                                     minimumFractionDigits: 2,
-                                     maximumFractionDigits: 2
-                                   })}
+                                   {fmtAmt(displayAmts.debit)}
                                  </Typography>
                                ) : (
                                  <Typography variant="body2" sx={{ color: '#d1d5db', fontWeight: 500 }}>
@@ -2763,10 +2757,7 @@ export default function FinancePage() {
                                    fontSize: '0.95rem'
                                  }}
                                >
-                                 {parseFloat(entry.closing_balance).toLocaleString('en-PK', {
-                                   minimumFractionDigits: 2,
-                                   maximumFractionDigits: 2
-                                 })}
+                                 {fmtAmt(entry.closing_balance)}
                                </Typography>
                              </TableCell>
                           </TableRow>
@@ -2781,20 +2772,14 @@ export default function FinancePage() {
                          <TableCell sx={{ borderRight: 1, borderColor: '#e5e7eb', textAlign: 'right', bgcolor: '#f0fdf4' }}>
                            <Typography variant="body2" sx={{ fontWeight: 800, color: '#16a34a', fontFamily: 'monospace', fontSize: '1rem' }}>
                              {finalLedgerEntries.length > 0
-                               ? ledgerViewSummary.totalCredit.toLocaleString('en-PK', {
-                                 minimumFractionDigits: 2,
-                                 maximumFractionDigits: 2
-                               })
+                               ? fmtAmt(ledgerViewSummary.totalCredit)
                                : '—'}
                            </Typography>
                          </TableCell>
                          <TableCell sx={{ borderRight: 1, borderColor: '#e5e7eb', textAlign: 'right', bgcolor: '#fef2f2' }}>
                            <Typography variant="body2" sx={{ fontWeight: 800, color: '#dc2626', fontFamily: 'monospace', fontSize: '1rem' }}>
                              {finalLedgerEntries.length > 0
-                               ? ledgerViewSummary.totalDebit.toLocaleString('en-PK', {
-                                 minimumFractionDigits: 2,
-                                 maximumFractionDigits: 2
-                               })
+                               ? fmtAmt(ledgerViewSummary.totalDebit)
                                : '—'}
                            </Typography>
                          </TableCell>
@@ -2813,10 +2798,7 @@ export default function FinancePage() {
                              }}
                            >
                              {finalLedgerEntries.length > 0
-                               ? ledgerViewSummary.lastClosing.toLocaleString('en-PK', {
-                                 minimumFractionDigits: 2,
-                                 maximumFractionDigits: 2
-                               })
+                               ? fmtAmt(ledgerViewSummary.lastClosing)
                                : '—'}
                            </Typography>
                          </TableCell>
@@ -2996,7 +2978,7 @@ export default function FinancePage() {
                       border: `1px solid ${isPositive ? '#bbf7d0' : '#fecaca'}`,
                     }}>
                       <Typography variant="caption" sx={{ fontWeight: 800, color: isPositive ? '#16a34a' : '#dc2626' }}>
-                        PKR {Math.abs(bal).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        PKR {fmtAmt(Math.abs(bal))}
                       </Typography>
                       <Typography variant="caption" sx={{ color: isPositive ? '#16a34a' : '#dc2626', fontWeight: 600 }}>
                         {isPositive ? 'DR' : 'CR'}
@@ -3210,26 +3192,26 @@ export default function FinancePage() {
                       {parseFloat(formData.cash_amount || 0) > 0 && (
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                           <Typography variant="caption" sx={{ color: '#15803d', fontWeight: 600 }}>Cash:</Typography>
-                          <Typography variant="caption" sx={{ fontWeight: 700, color: '#15803d' }}>PKR {parseFloat(formData.cash_amount || 0).toLocaleString('en-PK', { minimumFractionDigits: 2 })}</Typography>
+                          <Typography variant="caption" sx={{ fontWeight: 700, color: '#15803d' }}>PKR {fmtAmt(formData.cash_amount)}</Typography>
                         </Box>
                       )}
                       {parseFloat(formData.bank_amount || 0) > 0 && (
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                           <Typography variant="caption" sx={{ color: '#1d4ed8', fontWeight: 600 }}>Bank:</Typography>
-                          <Typography variant="caption" sx={{ fontWeight: 700, color: '#1d4ed8' }}>PKR {parseFloat(formData.bank_amount || 0).toLocaleString('en-PK', { minimumFractionDigits: 2 })}</Typography>
+                          <Typography variant="caption" sx={{ fontWeight: 700, color: '#1d4ed8' }}>PKR {fmtAmt(formData.bank_amount)}</Typography>
                         </Box>
                       )}
                       {parseFloat(formData.discount_amount || 0) > 0 && (
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                           <Typography variant="caption" sx={{ color: '#b45309', fontWeight: 600 }}>Discount:</Typography>
-                          <Typography variant="caption" sx={{ fontWeight: 700, color: '#b45309' }}>PKR {parseFloat(formData.discount_amount || 0).toLocaleString('en-PK', { minimumFractionDigits: 2 })}</Typography>
+                          <Typography variant="caption" sx={{ fontWeight: 700, color: '#b45309' }}>PKR {fmtAmt(formData.discount_amount)}</Typography>
                         </Box>
                       )}
                     </Box>
                     <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 1 }}>
                       <Typography variant="body2" sx={{ color: '#64748b', fontWeight: 600 }}>Total:</Typography>
                       <Typography variant="body1" sx={{ fontWeight: 800, color: '#1e40af' }}>
-                        PKR {(parseFloat(formData.cash_amount || 0) + parseFloat(formData.bank_amount || 0) + parseFloat(formData.discount_amount || 0)).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        PKR {fmtAmt(parseFloat(formData.cash_amount || 0) + parseFloat(formData.bank_amount || 0) + parseFloat(formData.discount_amount || 0))}
                       </Typography>
                     </Box>
                   </Box>
@@ -3508,13 +3490,13 @@ export default function FinancePage() {
                 <Box sx={{ textAlign: 'right' }}>
                   <Typography variant="caption" color="#64748b" display="block">Total Debit</Typography>
                   <Typography variant="subtitle1" fontWeight={800} color="#dc2626">
-                    {journalLines.reduce((sum, l) => sum + parseFloat(l.debit_amount || 0), 0).toLocaleString()}
+                    {fmtAmt(journalLines.reduce((sum, l) => sum + parseFloat(l.debit_amount || 0), 0))}
                   </Typography>
                 </Box>
                 <Box sx={{ textAlign: 'right' }}>
                   <Typography variant="caption" color="#64748b" display="block">Total Credit</Typography>
                   <Typography variant="subtitle1" fontWeight={800} color="#16a34a">
-                    {journalLines.reduce((sum, l) => sum + parseFloat(l.credit_amount || 0), 0).toLocaleString()}
+                    {fmtAmt(journalLines.reduce((sum, l) => sum + parseFloat(l.credit_amount || 0), 0))}
                   </Typography>
                 </Box>
                 <Divider orientation="vertical" flexItem />
@@ -3525,7 +3507,7 @@ export default function FinancePage() {
                     fontWeight={800}
                     color={Math.abs(journalLines.reduce((sum, l) => sum + parseFloat(l.debit_amount || 0), 0) - journalLines.reduce((sum, l) => sum + parseFloat(l.credit_amount || 0), 0)) < 0.01 ? '#16a34a' : '#dc2626'}
                   >
-                    {(journalLines.reduce((sum, l) => sum + parseFloat(l.debit_amount || 0), 0) - journalLines.reduce((sum, l) => sum + parseFloat(l.credit_amount || 0), 0)).toLocaleString()}
+                    {fmtAmt(journalLines.reduce((sum, l) => sum + parseFloat(l.debit_amount || 0), 0) - journalLines.reduce((sum, l) => sum + parseFloat(l.credit_amount || 0), 0))}
                   </Typography>
                 </Box>
               </Box>
@@ -3597,15 +3579,15 @@ export default function FinancePage() {
                     Current Balance
                   </Typography>
                   <Typography variant="h5" sx={{ fontWeight: 800, color: '#16a34a' }}>
-                    PKR {currentBalance.toLocaleString()}
+                    PKR {fmtAmt(currentBalance)}
                   </Typography>
                 </Grid>
               </Grid>
             </Box>
-            {receiveTotalPreview > 0 && (
-              <Alert severity="info" sx={{ py: 0.5 }}>
-                <strong>After Receive Amount:</strong> account balance → PKR{' '}
-                {receiveBalanceAfter.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+          {receiveTotalPreview > 0 && (
+            <Alert severity="info" sx={{ py: 0.5 }}>
+              <strong>After Receive Amount:</strong> account balance → PKR{' '}
+              {fmtAmt(receiveBalanceAfter)}{' '}
                 <Typography component="span" variant="caption" display="block" color="text.secondary">
                   Receive Amount credits the selected account (balance increases by the entered amount).
                 </Typography>
@@ -3819,7 +3801,7 @@ export default function FinancePage() {
                     Current Balance
                   </Typography>
                   <Typography variant="h5" sx={{ fontWeight: 800, color: '#dc2626' }}>
-                    PKR {currentBalance.toLocaleString()}
+                    PKR {fmtAmt(currentBalance)}
                   </Typography>
                 </Grid>
               </Grid>
@@ -3827,7 +3809,7 @@ export default function FinancePage() {
             {payTotalPreview > 0 && (
               <Alert severity="info" sx={{ py: 0.5 }}>
                 <strong>After Pay Amount:</strong> account balance → PKR{' '}
-                {payBalanceAfter.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+                {fmtAmt(payBalanceAfter)}{' '}
                 <Typography component="span" variant="caption" display="block" color="text.secondary">
                   Pay Amount debits the selected account (balance decreases by the entered amount).
                 </Typography>
@@ -4055,37 +4037,37 @@ export default function FinancePage() {
                 {/* Previous Balance */}
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1, borderBottom: '1px solid #eee', bgcolor: '#fafafa' }}>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>Previous Balance (سابقہ بقایا)</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{paymentReceiptData.previousBalance == null ? '—' : parseFloat(paymentReceiptData.previousBalance).toLocaleString('en-US', { minimumFractionDigits: 2 })}</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{paymentReceiptData.previousBalance == null ? '—' : fmtAmt(paymentReceiptData.previousBalance)}</Typography>
                 </Box>
                 {paymentReceiptData.cashAmount > 0 && (
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1, borderBottom: '1px solid #eee' }}>
                     <Typography variant="body2">Cash {paymentReceiptData.cashAcc ? `(${paymentReceiptData.cashAcc.cus_name})` : ''}</Typography>
-                    <Typography variant="body2">{parseFloat(paymentReceiptData.cashAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</Typography>
+                    <Typography variant="body2">{fmtAmt(paymentReceiptData.cashAmount)}</Typography>
                   </Box>
                 )}
                 {paymentReceiptData.bankAmount > 0 && (
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1, borderBottom: '1px solid #eee' }}>
                     <Typography variant="body2">Bank {paymentReceiptData.bankAcc ? `(${paymentReceiptData.bankAcc.cus_name})` : ''}</Typography>
-                    <Typography variant="body2">{parseFloat(paymentReceiptData.bankAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</Typography>
+                    <Typography variant="body2">{fmtAmt(paymentReceiptData.bankAmount)}</Typography>
                   </Box>
                 )}
                 {paymentReceiptData.discountAmount > 0 && (
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1, borderBottom: '1px solid #eee' }}>
                     <Typography variant="body2">Discount</Typography>
-                    <Typography variant="body2">{parseFloat(paymentReceiptData.discountAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</Typography>
+                    <Typography variant="body2">{fmtAmt(paymentReceiptData.discountAmount)}</Typography>
                   </Box>
                 )}
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1, borderBottom: '1px solid #ddd', bgcolor: '#f1f5f9' }}>
                   <Typography variant="body2" sx={{ fontWeight: 700 }}>Total Paid</Typography>
                   <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                    {parseFloat(paymentReceiptData.totalAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    {fmtAmt(paymentReceiptData.totalAmount)}
                   </Typography>
                 </Box>
                 {/* Remaining Balance */}
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1.5, bgcolor: '#1e293b' }}>
                   <Typography variant="body2" sx={{ fontWeight: 700, color: 'white' }}>Remaining Balance (کل بقایا)</Typography>
                   <Typography variant="body2" sx={{ fontWeight: 700, color: paymentReceiptData.remainingBalance == null ? '#e2e8f0' : (paymentReceiptData.remainingBalance > 0 ? '#fbbf24' : '#4ade80') }}>
-                    {paymentReceiptData.remainingBalance == null ? '—' : `PKR ${parseFloat(paymentReceiptData.remainingBalance).toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+                    {paymentReceiptData.remainingBalance == null ? '—' : `PKR ${fmtAmt(paymentReceiptData.remainingBalance)}`}
                   </Typography>
                 </Box>
               </Box>
@@ -4123,7 +4105,7 @@ export default function FinancePage() {
             onClick={() => {
               if (!paymentReceiptData) return;
               const d = paymentReceiptData;
-              const fmt = (v) => (v == null || v === '' ? '—' : parseFloat(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+              const fmt = (v) => (v == null || v === '' ? '—' : fmtAmt(v));
               const isRed = d.type === 'PAY';
               const accentColor = isRed ? '#ef4444' : '#16a34a';
 

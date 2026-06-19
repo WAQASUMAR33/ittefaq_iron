@@ -2525,7 +2525,7 @@ function PurchasesPageContent() {
                       </Typography>
                       <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: 0.5, color: stat.color }}>
                         {i > 0 && <span style={{ fontSize: '0.8rem', marginRight: 4, opacity: 0.6 }}>PKR</span>}
-                        {stat.val.toLocaleString()}
+                        {fmtAmt(stat.val)}
                       </Typography>
                     </Box>
                     {i < 3 && (
@@ -3569,7 +3569,7 @@ function PurchasesPageContent() {
                                     />
                                   )}
                                   <Chip
-                                    label={`PKR ${parseFloat(option.pro_cost_price || 0).toLocaleString('en-PK', { minimumFractionDigits: 2 })}`}
+                                    label={`PKR ${fmtAmt(option.pro_cost_price)}`}
                                     size="small"
                                     color="primary"
                                     variant="outlined"

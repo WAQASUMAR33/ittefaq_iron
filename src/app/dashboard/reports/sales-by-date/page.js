@@ -676,14 +676,14 @@ export default function SalesByDateReport() {
                                   <MuiTableRow>
                                     <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</MuiTableCell>
                                     <MuiTableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                      {((parseFloat(selectedSale.total_amount || 0) || 0) - (parseFloat(selectedSale.payment || 0) || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      {fmtAmt((parseFloat(selectedSale.total_amount || 0) || 0) - (parseFloat(selectedSale.payment || 0) || 0))}
                                     </MuiTableCell>
                                   </MuiTableRow>
 
                                   <MuiTableRow sx={{ bgcolor: '#f5f5f5' }}>
                                     <MuiTableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</MuiTableCell>
                                     <MuiTableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                      {((selectedTotals?.prevBalance || 0) + (parseFloat(selectedSale.total_amount || 0) || 0) - (parseFloat(selectedSale.payment || 0) || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      {fmtAmt((selectedTotals?.prevBalance || 0) + (parseFloat(selectedSale.total_amount || 0) || 0) - (parseFloat(selectedSale.payment || 0) || 0))}
                                     </MuiTableCell>
                                   </MuiTableRow>
 

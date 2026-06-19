@@ -174,7 +174,7 @@ export default function SplitPaymentModal({
               <div>
                 <p className="text-sm text-gray-600">Split Total</p>
                 <p className={`text-2xl font-bold ${Math.abs(calculateTotal() - netTotal) < 0.01 ? 'text-green-600' : 'text-red-600'}`}>
-                  {calculateTotal().toFixed(2)}
+                  {fmtAmt(calculateTotal())}
                 </p>
               </div>
               <div>
