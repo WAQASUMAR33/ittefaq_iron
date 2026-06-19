@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect, useMemo, Suspense, useRef, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -5961,12 +5961,6 @@ function SalesPageContent() {
                                     </TableCell>
                                   </TableRow>
                                 )}
-                                <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم وصول</TableCell>
-                                  <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                    {fmtAmt(currentBillData.payment)}
-                                  </TableCell>
-                                </TableRow>
                                 <TableRow sx={{ bgcolor: '#d0d0d0' }}>
                                   <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>بقايا رقم</TableCell>
                                   <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
@@ -8242,12 +8236,6 @@ function SalesPageContent() {
                               </>
                             );
                           })()}
-                          <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم وصول</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {fmtAmt(selectedBill.payment)}
-                            </TableCell>
-                          </TableRow>
                           <TableRow sx={{ bgcolor: '#d0d0d0' }}>
                             <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>بقايا رقم</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
