@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect, useMemo, useCallback, Suspense, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -4218,11 +4218,11 @@ function OrdersPageContent() {
             <Grid container spacing={2}>
               {[
                 { title: 'Total Orders', val: statsTotalOrders, color: '#2563eb', bg: '#eff6ff', icon: <ShoppingCartIcon />, isCount: true },
-                { title: 'Total Amount', val: statsTotalAmount, color: '#16a34a', bg: '#f0fdf4', icon: <AttachMoneyIcon /> },
+                { title: "Order's Amount", val: statsTotalAmount, color: '#16a34a', bg: '#f0fdf4', icon: <AttachMoneyIcon /> },
                 { title: 'Total Discount', val: statsTotalDiscount, color: '#dc2626', bg: '#fef2f2', icon: <TrendingDownIcon /> },
                 { title: 'Total Shipping', val: statsTotalShipping, color: '#06b6d4', bg: '#ecfeff', icon: <ShippingIcon /> },
-                { title: 'Total Payment', val: statsTotalPayment, color: '#d97706', bg: '#fffbeb', icon: <CreditCardIcon /> },
-                { title: 'Total Balance', val: statsTotalBalance, color: '#7c3aed', bg: '#f5f3ff', icon: <WalletIcon /> }
+                { title: 'Received Amount', val: statsTotalPayment, color: '#d97706', bg: '#fffbeb', icon: <CreditCardIcon /> },
+                { title: 'Total Remaining', val: statsTotalBalance, color: '#7c3aed', bg: '#f5f3ff', icon: <WalletIcon /> }
               ].map((stat, i) => (
                 <Grid item xs={12} sm={6} md={4} lg={2} key={i}>
                   <Card sx={{
