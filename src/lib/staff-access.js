@@ -102,13 +102,15 @@ export function canStaffAccessPath(userOrRole, pathname) {
       '/dashboard/loaders': 'sales',
       '/dashboard/sales': 'sales',
       '/dashboard/hold-bills': 'sales',
+      '/dashboard/reports/profit-report': 'profit_report',
       '/dashboard/reports': 'reports',
       '/dashboard/employees': 'hr',
       '/dashboard/attendance': 'hr',
       '/dashboard/payroll': 'hr',
     };
 
-    for (const prefix in modulePrefixMap) {
+    const sortedPrefixes = Object.keys(modulePrefixMap).sort((a, b) => b.length - a.length);
+    for (const prefix of sortedPrefixes) {
       if (p === prefix || p.startsWith(`${prefix}/`)) {
         const requiredModule = modulePrefixMap[prefix];
         return allowed.includes(requiredModule);

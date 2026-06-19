@@ -22,6 +22,7 @@ export default function UserManagementPage() {
     { id: 'hr', name: 'HR / Payroll' },
     { id: 'finance', name: 'Finance (Ledger/Expenses)' },
     { id: 'reports', name: 'Reports' },
+    { id: 'profit_report', name: 'Profit Report' },
     { id: 'system', name: 'System Settings' }
   ];
 

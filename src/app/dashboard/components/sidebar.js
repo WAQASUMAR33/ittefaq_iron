@@ -234,6 +234,7 @@ export default function Sidebar({
 
   const getRequiredModule = (item) => {
     if (item.id === 'dashboard') return 'dashboard';
+    if (item.id === 'profit-report') return 'profit_report';
     if (item.category === 'reports' || item.parent === 'Reports') return 'reports';
 
     const categoryToModuleMap = {
