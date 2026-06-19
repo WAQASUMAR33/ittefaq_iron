@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect, useMemo, Suspense, useRef, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -736,7 +736,8 @@ function SalesPageContent() {
         rate: defaultRate,
         stock: 0, // always derive from store-wise stock when available
         amount: defaultRate, // rate * 1
-        crate: selectedProduct.pro_crate || ''
+        crate: selectedProduct.pro_crate || '',
+        cost_price: parseFloat(selectedProduct.pro_cost_price || selectedProduct.pro_crate || 0) // Store cost price hidden
       }));
 
       // If a store is selected, fetch store-wise stock
@@ -750,7 +751,8 @@ function SalesPageContent() {
         rate: 0,
         amount: 0,
         stock: 0,
-        crate: ''
+        crate: '',
+        cost_price: 0
       });
     }
   };
@@ -857,7 +859,8 @@ function SalesPageContent() {
       quantity: productFormData.quantity,
       rate: productFormData.rate,
       amount: productFormData.amount,
-      stock: productFormData.stock
+      stock: productFormData.stock,
+      cost_price: parseFloat(productFormData.cost_price || formSelectedProduct.pro_cost_price || formSelectedProduct.pro_crate || 0) // hidden cost price for loss check
     };
 
     setProductTableData(prev => [...prev, newProduct]);
@@ -1194,10 +1197,14 @@ function SalesPageContent() {
     if (billType !== 'SALE_RETURN' && !bypassLossCheck) {
       const itemsSellingAtLoss = [];
       productTableData.forEach(item => {
-        const matchingProduct = products.find(p => p.pro_id === item.pro_id);
-        const costPrice = matchingProduct ? parseFloat(matchingProduct.pro_cost_price || 0) : 0;
+        // Use cost_price stored at add-time first; fallback to products list lookup
+        let costPrice = parseFloat(item.cost_price || 0);
+        if (!costPrice) {
+          const matchingProduct = products.find(p => p.pro_id === item.pro_id);
+          costPrice = matchingProduct ? parseFloat(matchingProduct.pro_cost_price || matchingProduct.pro_crate || 0) : 0;
+        }
         const salePrice = parseFloat(item.rate || 0);
-        if (salePrice < costPrice) {
+        if (costPrice > 0 && salePrice < costPrice) {
           itemsSellingAtLoss.push({
             pro_title: item.pro_title || `Product #${item.pro_id}`,
             costPrice,
