@@ -3203,6 +3203,7 @@ function PurchasesPageContent() {
                         onClose={() => setCustomerDropdownOpen(false)}
                         options={suppliers}
                         getOptionLabel={(option) => option.cus_name || ''}
+                        ListboxProps={{ sx: { maxHeight: 180 } }}
                         filterOptions={(options, { inputValue }) => {
                           const q = inputValue.toLowerCase().trim();
                           if (!q) return options;

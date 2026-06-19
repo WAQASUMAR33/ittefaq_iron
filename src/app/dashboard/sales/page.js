@@ -3904,6 +3904,7 @@ function SalesPageContent() {
                         return category && category.cus_cat_title.toLowerCase().includes('customer');
                       })}
                       getOptionLabel={(option) => option.cus_name || ''}
+                      ListboxProps={{ sx: { maxHeight: 180 } }}
                       filterOptions={(options, { inputValue }) => {
                         const q = inputValue.toLowerCase().trim();
                         if (!q) return options;

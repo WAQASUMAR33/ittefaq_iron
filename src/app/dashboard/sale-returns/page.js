@@ -1325,6 +1325,7 @@ export default function SaleReturnsPage() {
                               autoHighlight={true}
                               openOnFocus={true}
                               selectOnFocus={true}
+                              ListboxProps={{ sx: { maxHeight: 180 } }}
                               renderInput={(params) => <TextField {...params} label="Select Customer" onFocus={(e) => e.target.select()} sx={STYLES.input} />}
                             />
                           )}
