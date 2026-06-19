@@ -164,6 +164,17 @@ export default function Sidebar({
   const [searchQuery, setSearchQuery] = useState('');
   const scrollContainerRef = useRef(null);
 
+  const getItemColor = (item, colorIdx) => {
+    if (item.id === 'orders') return '#ffd600'; // Yellow
+    if (item.id === 'new-sale' || item.id === 'sales') return '#126b38'; // Dark Green
+    return PILL_COLORS[colorIdx % PILL_COLORS.length];
+  };
+
+  const getSectionColor = (category, sectionIdx) => {
+    if (category === 'sales-operations') return '#126b38'; // Dark Green
+    return SECTION_COLORS[sectionIdx % SECTION_COLORS.length];
+  };
+
   const menuItems = [
     { id: 'dashboard', name: 'Dashboard', icon: DashboardIcon, category: 'main' },
     { id: 'orders', name: 'Order List', icon: ListAltIcon, category: 'main' },
@@ -557,9 +568,10 @@ export default function Sidebar({
   // Colorful pill item with icon + text + optional gold coin
   // Active items are bold + outlined; inactive items are slightly faded
   const renderPillItem = (item, colorIdx, showCoin = false) => {
-    const color = PILL_COLORS[colorIdx % PILL_COLORS.length];
+    const color = getItemColor(item, colorIdx);
     const width = PILL_WIDTHS[colorIdx % PILL_WIDTHS.length];
     const isActive = activeTab === item.id;
+    const isDark = color === '#126b38';
 
     return (
       <Box key={`${item.id}-${item.category}`} sx={{ mb: 0.9, px: 1.5 }}>
@@ -577,7 +589,7 @@ export default function Sidebar({
             px: 1.5,
             py: 0.9,
             cursor: 'pointer',
-            outline: isActive ? '2.5px solid rgba(0,0,0,0.35)' : 'none',
+            outline: isActive ? (isDark ? '2.5px solid rgba(255,255,255,0.5)' : '2.5px solid rgba(0,0,0,0.35)') : 'none',
             outlineOffset: '1px',
             boxShadow: isActive
               ? `0 6px 20px ${color}b0, inset 0 2px 3px rgba(255,255,255,0.7), inset 0 -2px 3px rgba(0,0,0,0.15)`
@@ -595,7 +607,9 @@ export default function Sidebar({
           }}
         >
           <Box sx={{
-            color: isActive ? 'rgba(0,0,0,0.8)' : 'rgba(0,0,0,0.5)',
+            color: isActive 
+              ? (isDark ? 'rgba(255,255,255,0.95)' : 'rgba(0,0,0,0.8)') 
+              : (isDark ? 'rgba(255,255,255,0.75)' : 'rgba(0,0,0,0.5)'),
             display: 'flex',
             alignItems: 'center',
             mr: 1.5,
@@ -606,7 +620,9 @@ export default function Sidebar({
           </Box>
           <Typography sx={{
             fontWeight: isActive ? 800 : 600,
-            color: isActive ? '#000' : '#333',
+            color: isActive 
+              ? (isDark ? '#fff' : '#000') 
+              : (isDark ? 'rgba(255,255,255,0.85)' : '#333'),
             flex: 1,
             fontSize: '0.84rem',
             letterSpacing: 0.3,
@@ -625,6 +641,7 @@ export default function Sidebar({
   // Simple child item with sharp corners (no border radius) and indented alignment
   const renderChildItem = (item, colorIdx, sectionColor) => {
     const isActive = activeTab === item.id;
+    const isDark = sectionColor === '#126b38';
 
     return (
       <Box key={`${item.id}-${item.category}`} sx={{ mb: 0.2 }}>
@@ -643,20 +660,26 @@ export default function Sidebar({
             pr: 2,
             py: 1,
             cursor: 'pointer',
-            borderLeft: isActive ? `4px solid #111` : `4px solid transparent`,
+            borderLeft: isActive 
+              ? (isDark ? `4px solid #fff` : `4px solid #111`) 
+              : `4px solid transparent`,
             opacity: isActive ? 1 : 0.75,
             transition: 'all 0.2s ease-in-out',
             '&:hover': {
               opacity: 1,
               backgroundColor: isActive ? sectionColor : `${sectionColor}22`,
-              borderLeft: isActive ? `4px solid #111` : `4px solid ${sectionColor}`,
+              borderLeft: isActive 
+                ? (isDark ? `4px solid #fff` : `4px solid #111`) 
+                : `4px solid ${sectionColor}`,
               transform: 'translateX(4px)',
               filter: 'brightness(1.05)',
             },
           }}
         >
           <Box sx={{
-            color: isActive ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.5)',
+            color: isActive 
+              ? (isDark ? 'rgba(255,255,255,0.95)' : 'rgba(0,0,0,0.85)') 
+              : 'rgba(0,0,0,0.5)',
             display: 'flex',
             alignItems: 'center',
             mr: 1.5,
@@ -667,7 +690,9 @@ export default function Sidebar({
           </Box>
           <Typography sx={{
             fontWeight: isActive ? 700 : 500,
-            color: isActive ? '#000' : '#444',
+            color: isActive 
+              ? (isDark ? '#fff' : '#000') 
+              : '#444',
             flex: 1,
             fontSize: '0.82rem',
             letterSpacing: 0.2,
@@ -708,8 +733,9 @@ export default function Sidebar({
     const items = filteredItems.filter(item => item.category === category);
     if (items.length === 0) return null;
     const isExpanded = isCollapsed ? false : (isSearching ? true : expandedDropdowns[category]);
-    const sectionColor = SECTION_COLORS[sectionIdx % SECTION_COLORS.length];
+    const sectionColor = getSectionColor(category, sectionIdx);
     const hasActiveChild = items.some(item => activeTab === item.id);
+    const isDark = sectionColor === '#126b38';
 
     if (isCollapsed) {
       return (
@@ -753,7 +779,7 @@ export default function Sidebar({
             }}
           >
             <Typography sx={{
-              color: '#111',
+              color: isDark ? '#fff' : '#111',
               fontWeight: 800,
               letterSpacing: 0.6,
               textTransform: 'uppercase',
@@ -764,8 +790,8 @@ export default function Sidebar({
               {title}
             </Typography>
             {isExpanded
-              ? <ExpandLess sx={{ fontSize: 18, color: 'rgba(0,0,0,0.5)', transition: 'transform 0.3s ease' }} />
-              : <ExpandMore sx={{ fontSize: 18, color: 'rgba(0,0,0,0.5)', transition: 'transform 0.3s ease' }} />}
+              ? <ExpandLess sx={{ fontSize: 18, color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.5)', transition: 'transform 0.3s ease' }} />
+              : <ExpandMore sx={{ fontSize: 18, color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.5)', transition: 'transform 0.3s ease' }} />}
             <GoldCoin />
           </Box>
         </Box>
