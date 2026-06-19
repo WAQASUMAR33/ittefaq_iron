@@ -76,6 +76,15 @@ import {
   ArrowDownward as ArrowDownIcon
 } from '@mui/icons-material';
 
+// Helper to get product cost price safely, handling decimal-as-string from API and avoiding JS truthy string bugs
+const getProductCostPrice = (product) => {
+  if (!product) return 0;
+  const crateVal = parseFloat(product.pro_crate || 0);
+  const costPriceVal = parseFloat(product.pro_cost_price || 0);
+  if (crateVal > 0) return crateVal;
+  return costPriceVal;
+};
+
 function SalesPageContent() {
   const searchParams = useSearchParams();
   const { requireAuth, authDialogOpen, handleAuthSuccess, handleAuthCancel } = usePinAuth();
@@ -737,7 +746,7 @@ function SalesPageContent() {
         stock: 0, // always derive from store-wise stock when available
         amount: defaultRate, // rate * 1
         crate: selectedProduct.pro_crate || '',
-        cost_price: parseFloat(selectedProduct.pro_cost_price || selectedProduct.pro_crate || 0) // Store cost price hidden
+        cost_price: getProductCostPrice(selectedProduct) // Store cost price hidden
       }));
 
       // If a store is selected, fetch store-wise stock
@@ -860,7 +869,7 @@ function SalesPageContent() {
       rate: productFormData.rate,
       amount: productFormData.amount,
       stock: productFormData.stock,
-      cost_price: parseFloat(productFormData.cost_price || formSelectedProduct.pro_cost_price || formSelectedProduct.pro_crate || 0) // hidden cost price for loss check
+      cost_price: getProductCostPrice(formSelectedProduct) // hidden cost price for loss check
     };
 
     setProductTableData(prev => [...prev, newProduct]);
@@ -1197,13 +1206,13 @@ function SalesPageContent() {
     if (billType !== 'SALE_RETURN' && !bypassLossCheck) {
       const itemsSellingAtLoss = [];
       productTableData.forEach(item => {
-        // Use cost_price stored at add-time first; fallback to products list lookup
-        let costPrice = parseFloat(item.cost_price || 0);
-        if (!costPrice) {
-          const matchingProduct = products.find(p => p.pro_id === item.pro_id);
-          costPrice = matchingProduct ? parseFloat(matchingProduct.pro_cost_price || matchingProduct.pro_crate || 0) : 0;
-        }
+        // Always look up from products list first (freshest data), then fall back to stored cost_price
+        const matchingProduct = products.find(p => p.pro_id === item.pro_id);
+        const costPrice = matchingProduct
+          ? getProductCostPrice(matchingProduct)
+          : parseFloat(item.cost_price || 0);
         const salePrice = parseFloat(item.rate || 0);
+        console.log(`💰 Loss check: ${item.pro_title} — costPrice=${costPrice}, salePrice=${salePrice}`);
         if (costPrice > 0 && salePrice < costPrice) {
           itemsSellingAtLoss.push({
             pro_title: item.pro_title || `Product #${item.pro_id}`,
@@ -4447,11 +4456,39 @@ function SalesPageContent() {
                                 '& .MuiInputBase-input': {
                                   padding: '4px 8px',
                                   textAlign: 'center',
-                                  fontWeight: 'bold'
+                                  fontWeight: 'bold',
+                                  color: (() => {
+                                    const mp = products.find(p => p.pro_id === product.pro_id);
+                                    const cp = getProductCostPrice(mp);
+                                    return (cp > 0 && parseFloat(product.rate) < cp) ? '#dc2626' : 'inherit';
+                                  })()
+                                },
+                                '& .MuiOutlinedInput-root': {
+                                  '& fieldset': {
+                                    borderColor: (() => {
+                                      const mp = products.find(p => p.pro_id === product.pro_id);
+                                      const cp = getProductCostPrice(mp);
+                                      return (cp > 0 && parseFloat(product.rate) < cp) ? '#dc2626' : undefined;
+                                    })(),
+                                    borderWidth: (() => {
+                                      const mp = products.find(p => p.pro_id === product.pro_id);
+                                      const cp = getProductCostPrice(mp);
+                                      return (cp > 0 && parseFloat(product.rate) < cp) ? 2 : undefined;
+                                    })()
+                                  }
                                 }
                               }}
                               inputProps={{ min: 0, step: 'any' }}
                             />
+                            {(() => {
+                              const mp = products.find(p => p.pro_id === product.pro_id);
+                              const cp = getProductCostPrice(mp);
+                              return (cp > 0 && parseFloat(product.rate) < cp) ? (
+                                <Typography variant="caption" sx={{ color: '#dc2626', display: 'block', mt: 0.25, fontWeight: 600 }}>
+                                  ⚠️ Below cost ({cp})
+                                </Typography>
+                              ) : null;
+                            })()}
                           </TableCell>
                           <TableCell sx={{ py: 1, fontWeight: 'bold' }}>{parseFloat(product.amount || 0).toFixed(2)}</TableCell>
                           <TableCell sx={{ py: 1 }}>
