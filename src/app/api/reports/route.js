@@ -3,6 +3,17 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+// Helper to parse dates in Pakistan Standard Time (UTC+5)
+function parseLocalDateRange(startDateStr, endDateStr) {
+  if (!startDateStr || !endDateStr) return null;
+  const tzOffset = '+05:00';
+  return {
+    gte: new Date(`${startDateStr}T00:00:00.000${tzOffset}`),
+    lte: new Date(`${endDateStr}T23:59:59.999${tzOffset}`)
+  };
+}
+
+
 // GET - Fetch different types of reports
 export async function GET(request) {
   try {
@@ -60,7 +71,7 @@ export async function GET(request) {
 
       case 'supplier-ledger':
         const supplierId = searchParams.get('supplierId') ? parseInt(searchParams.get('supplierId')) : null;
-        return await getSupplierLedgerReport(supplierId, startDate, endDate);
+        return await getCustomerLedgerReport(supplierId, startDate, endDate, true);
 
       case 'rebate-report':
         const rebateSupplierId = searchParams.get('supplierId') ? parseInt(searchParams.get('supplierId')) : null;
@@ -126,10 +137,7 @@ async function getSalesByDateReport(startDate, endDate) {
   const whereClause = {};
 
   if (startDate && endDate) {
-    whereClause.created_at = {
-      gte: new Date(startDate),
-      lte: new Date(endDate + 'T23:59:59.999Z')
-    };
+    whereClause.created_at = parseLocalDateRange(startDate, endDate);
   }
 
   const sales = await prisma.sale.findMany({
@@ -183,10 +191,7 @@ async function getSalesByCustomerReport(startDate, endDate) {
   const whereClause = {};
 
   if (startDate && endDate) {
-    whereClause.created_at = {
-      gte: new Date(startDate),
-      lte: new Date(endDate + 'T23:59:59.999Z')
-    };
+    whereClause.created_at = parseLocalDateRange(startDate, endDate);
   }
 
   const sales = await prisma.sale.findMany({
@@ -272,7 +277,7 @@ async function getCustomersBalanceReport() {
 }
 
 // Customer Ledger Report
-async function getCustomerLedgerReport(customerId, startDate, endDate) {
+async function getCustomerLedgerReport(customerId, startDate, endDate, isSupplier = false) {
   if (!customerId) {
     return NextResponse.json({ error: 'Customer ID is required' }, { status: 400 });
   }
@@ -280,10 +285,7 @@ async function getCustomerLedgerReport(customerId, startDate, endDate) {
   const whereClause = { cus_id: customerId };
 
   if (startDate && endDate) {
-    whereClause.created_at = {
-      gte: new Date(startDate),
-      lte: new Date(endDate + 'T23:59:59.999Z')
-    };
+    whereClause.created_at = parseLocalDateRange(startDate, endDate);
   }
 
   const [customer, ledgerEntries] = await Promise.all([
@@ -305,9 +307,10 @@ async function getCustomerLedgerReport(customerId, startDate, endDate) {
           }
         }
       },
-      orderBy: {
-        created_at: 'asc'
-      }
+      orderBy: [
+        { created_at: 'asc' },
+        { l_id: 'asc' }
+      ]
     })
   ]);
 
@@ -325,7 +328,13 @@ async function getCustomerLedgerReport(customerId, startDate, endDate) {
     closingBalance: ledgerEntries.length > 0 ? parseFloat(ledgerEntries[ledgerEntries.length - 1].closing_balance) : parseFloat(customer.cus_balance)
   };
 
-  return NextResponse.json({ customer, ledgerEntries, summary });
+  const responseData = { ledgerEntries, summary };
+  if (isSupplier) {
+    responseData.supplier = customer;
+  } else {
+    responseData.customer = customer;
+  }
+  return NextResponse.json(responseData);
 }
 
 // Purchase Report by Date Range
@@ -333,10 +342,7 @@ async function getPurchasesByDateReport(startDate, endDate) {
   const whereClause = {};
 
   if (startDate && endDate) {
-    whereClause.created_at = {
-      gte: new Date(startDate),
-      lte: new Date(endDate + 'T23:59:59.999Z')
-    };
+    whereClause.created_at = parseLocalDateRange(startDate, endDate);
   }
 
   const purchases = await prisma.purchase.findMany({
@@ -388,10 +394,7 @@ async function getPurchasesBySupplierReport(startDate, endDate) {
   const whereClause = {};
 
   if (startDate && endDate) {
-    whereClause.created_at = {
-      gte: new Date(startDate),
-      lte: new Date(endDate + 'T23:59:59.999Z')
-    };
+    whereClause.created_at = parseLocalDateRange(startDate, endDate);
   }
 
   const purchases = await prisma.purchase.findMany({
@@ -460,10 +463,7 @@ async function getExpensesByDateReport(startDate, endDate) {
   const whereClause = {};
 
   if (startDate && endDate) {
-    whereClause.created_at = {
-      gte: new Date(startDate),
-      lte: new Date(endDate + 'T23:59:59.999Z')
-    };
+    whereClause.created_at = parseLocalDateRange(startDate, endDate);
   }
 
   const expenses = await prisma.expense.findMany({
@@ -532,10 +532,7 @@ async function getCashReport(startDate, endDate) {
   };
 
   if (startDate && endDate) {
-    whereClause.created_at = {
-      gte: new Date(startDate),
-      lte: new Date(endDate + 'T23:59:59.999Z')
-    };
+    whereClause.created_at = parseLocalDateRange(startDate, endDate);
   }
 
   const ledgerEntries = await prisma.ledger.findMany({
@@ -550,9 +547,10 @@ async function getCashReport(startDate, endDate) {
         }
       }
     },
-    orderBy: {
-      created_at: 'asc'
-    }
+    orderBy: [
+      { created_at: 'asc' },
+      { l_id: 'asc' }
+    ]
   });
 
   // Also get cash sales (exclude ORDER type)
@@ -562,10 +560,7 @@ async function getCashReport(startDate, endDate) {
   };
 
   if (startDate && endDate) {
-    salesWhere.created_at = {
-      gte: new Date(startDate),
-      lte: new Date(endDate + 'T23:59:59.999Z')
-    };
+    salesWhere.created_at = parseLocalDateRange(startDate, endDate);
   }
 
   const cashSales = await prisma.sale.findMany({
@@ -590,10 +585,7 @@ async function getCashReport(startDate, endDate) {
   };
 
   if (startDate && endDate) {
-    purchasesWhere.created_at = {
-      gte: new Date(startDate),
-      lte: new Date(endDate + 'T23:59:59.999Z')
-    };
+    purchasesWhere.created_at = parseLocalDateRange(startDate, endDate);
   }
 
   const cashPurchases = await prisma.purchase.findMany({
@@ -615,10 +607,7 @@ async function getCashReport(startDate, endDate) {
   // Get cash expenses (all expenses are considered cash)
   const expensesWhere = {};
   if (startDate && endDate) {
-    expensesWhere.created_at = {
-      gte: new Date(startDate),
-      lte: new Date(endDate + 'T23:59:59.999Z')
-    };
+    expensesWhere.created_at = parseLocalDateRange(startDate, endDate);
   }
 
   const expenses = await prisma.expense.findMany({
@@ -679,10 +668,7 @@ async function getBankReport(startDate, endDate) {
   };
 
   if (startDate && endDate) {
-    whereClause.created_at = {
-      gte: new Date(startDate),
-      lte: new Date(endDate + 'T23:59:59.999Z')
-    };
+    whereClause.created_at = parseLocalDateRange(startDate, endDate);
   }
 
   const ledgerEntries = await prisma.ledger.findMany({
@@ -697,9 +683,10 @@ async function getBankReport(startDate, endDate) {
         }
       }
     },
-    orderBy: {
-      created_at: 'asc'
-    }
+    orderBy: [
+      { created_at: 'asc' },
+      { l_id: 'asc' }
+    ]
   });
 
   // Get bank sales
@@ -708,10 +695,7 @@ async function getBankReport(startDate, endDate) {
   };
 
   if (startDate && endDate) {
-    salesWhere.created_at = {
-      gte: new Date(startDate),
-      lte: new Date(endDate + 'T23:59:59.999Z')
-    };
+    salesWhere.created_at = parseLocalDateRange(startDate, endDate);
   }
 
   const bankSales = await prisma.sale.findMany({
@@ -736,10 +720,7 @@ async function getBankReport(startDate, endDate) {
   };
 
   if (startDate && endDate) {
-    purchasesWhere.created_at = {
-      gte: new Date(startDate),
-      lte: new Date(endDate + 'T23:59:59.999Z')
-    };
+    purchasesWhere.created_at = parseLocalDateRange(startDate, endDate);
   }
 
   const bankPurchases = await prisma.purchase.findMany({
@@ -793,10 +774,7 @@ async function getOrderReport(startDate, endDate) {
   };
 
   if (startDate && endDate) {
-    whereClause.created_at = {
-      gte: new Date(startDate),
-      lte: new Date(endDate + 'T23:59:59.999Z')
-    };
+    whereClause.created_at = parseLocalDateRange(startDate, endDate);
   }
 
   const orders = await prisma.sale.findMany({
@@ -927,10 +905,7 @@ async function getSaleReport(startDate, endDate) {
   const whereClause = {};
 
   if (startDate && endDate) {
-    whereClause.created_at = {
-      gte: new Date(startDate),
-      lte: new Date(endDate + 'T23:59:59.999Z')
-    };
+    whereClause.created_at = parseLocalDateRange(startDate, endDate);
   }
 
   const sales = await prisma.sale.findMany({
@@ -1004,10 +979,7 @@ async function getProfitReport(startDate, endDate) {
   const whereClause = {};
 
   if (startDate && endDate) {
-    whereClause.created_at = {
-      gte: new Date(startDate),
-      lte: new Date(endDate + 'T23:59:59.999Z')
-    };
+    whereClause.created_at = parseLocalDateRange(startDate, endDate);
   }
 
   const sales = await prisma.sale.findMany({
@@ -1060,10 +1032,7 @@ async function getProfitReport(startDate, endDate) {
   // Get expenses for the period
   const expensesWhere = {};
   if (startDate && endDate) {
-    expensesWhere.created_at = {
-      gte: new Date(startDate),
-      lte: new Date(endDate + 'T23:59:59.999Z')
-    };
+    expensesWhere.created_at = parseLocalDateRange(startDate, endDate);
   }
 
   const expenses = await prisma.expense.findMany({
@@ -1098,10 +1067,7 @@ async function getPurchaseReport(startDate, endDate) {
   const whereClause = {};
 
   if (startDate && endDate) {
-    whereClause.created_at = {
-      gte: new Date(startDate),
-      lte: new Date(endDate + 'T23:59:59.999Z')
-    };
+    whereClause.created_at = parseLocalDateRange(startDate, endDate);
   }
 
   const purchases = await prisma.purchase.findMany({
@@ -1243,10 +1209,7 @@ async function getRebateReport(supplierId, startDate, endDate) {
   };
 
   if (startDate && endDate) {
-    whereClause.created_at = {
-      gte: new Date(startDate),
-      lte: new Date(endDate + 'T23:59:59.999Z')
-    };
+    whereClause.created_at = parseLocalDateRange(startDate, endDate);
   }
 
   const [supplier, purchases] = await Promise.all([
@@ -1328,10 +1291,7 @@ async function getItemSaleReport(startDate, endDate, proId) {
     select: { pro_id: true, pro_title: true, pro_stock_qnty: true }
   });
 
-  const dateFilter = startDate && endDate ? {
-    gte: new Date(startDate),
-    lte: new Date(endDate + 'T23:59:59.999Z')
-  } : undefined;
+  const dateFilter = startDate && endDate ? parseLocalDateRange(startDate, endDate) : undefined;
 
   // Identify purchase IDs that are actually "purchase returns stored in purchases table"
   // (no schema flag — identified via ledger entry details containing 'Purchase Return to')
@@ -1489,7 +1449,7 @@ async function getItemSaleReport(startDate, endDate, proId) {
   let openingStock = 0;
 
   if (startDate) {
-    const beforeStart = new Date(startDate);
+    const beforeStart = new Date(`${startDate}T00:00:00.000+05:00`);
     const [aggAllPur, aggPurRet, aggSale, aggSaleRet, returnLedgerBefore] = await Promise.all([
       prisma.purchaseDetail.aggregate({
         where: { pro_id: proId, purchase: { created_at: { lt: beforeStart } } },

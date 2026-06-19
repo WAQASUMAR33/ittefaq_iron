@@ -81,6 +81,15 @@ export default function BankReport() {
       const data = await response.json();
       if (response.ok) {
         let filteredData = { ...data };
+        // Sort ledger entries chronologically (by created_at and l_id) to ensure correct opening balance b/f and running balance
+        if (filteredData.ledgerEntries && Array.isArray(filteredData.ledgerEntries)) {
+          filteredData.ledgerEntries = [...filteredData.ledgerEntries].sort((a, b) => {
+            const timeA = new Date(a.created_at).getTime();
+            const timeB = new Date(b.created_at).getTime();
+            if (timeA !== timeB) return timeA - timeB;
+            return a.l_id - b.l_id;
+          });
+        }
         if (selectedCategory) {
           filteredData.ledgerEntries = data.ledgerEntries.filter(e => e.customer?.customer_category?.cus_cat_id === parseInt(selectedCategory));
           filteredData.bankSales = data.bankSales.filter(s => s.customer?.customer_category?.cus_cat_id === parseInt(selectedCategory));
