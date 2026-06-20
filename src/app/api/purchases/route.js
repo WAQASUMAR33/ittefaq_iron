@@ -960,16 +960,16 @@ export async function POST(request) {
             const cargoEntry = createLedgerEntry({
               cus_id: cargoAcc.cus_id,
               opening_balance: cargoOpeningBalance,
-              debit_amount: allocate,
-              credit_amount: 0,
+              debit_amount: 0,
+              credit_amount: allocate,
               bill_no: newPurchase.pur_id.toString(),
-              trnx_type: 'DEBIT',
+              trnx_type: 'CREDIT',
               details: `Out Delivery - Purchase #${newPurchase.pur_id}${invoice_number ? ` (Inv: ${invoice_number})` : ''}`,
               payments: 0,
               updated_by: updated_by ? parseInt(updated_by) : null
             });
             ledgerEntries.push(cargoEntry);
-            console.log(`📦 Cargo account ${cargoAcc.cus_name} debited ${allocate}`);
+            console.log(`📦 Cargo account ${cargoAcc.cus_name} credited ${allocate}`);
           }
         } else {
           console.log('⚠️ Out delivery present but no cargo account selected — supplier already credited, cargo credit skipped');
@@ -1498,10 +1498,10 @@ export async function PUT(request) {
             const cargoEntry = createLedgerEntry({
               cus_id: cargoAcc.cus_id,
               opening_balance: cargoOpeningBalance,
-              debit_amount: allocatePUT,
-              credit_amount: 0,
+              debit_amount: 0,
+              credit_amount: allocatePUT,
               bill_no: id.toString(),
-              trnx_type: 'DEBIT',
+              trnx_type: 'CREDIT',
               details: `Out Delivery - Purchase #${id}${invoice_number ? ` (Inv: ${invoice_number})` : ''}`,
               payments: 0,
               updated_by: updated_by ? parseInt(updated_by) : null
