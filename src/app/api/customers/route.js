@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getNextId } from '@/lib/id-helper';
 
 // Helper for JSON errors
 function errorResponse(message, status = 400) {
@@ -157,9 +158,12 @@ export async function POST(request) {
 
     // Allow duplicate phone numbers — no uniqueness check on phone here (handled by business rules elsewhere if needed).
 
+    const cus_id = body.cus_id || await getNextId('customer', 'cus_id');
+
     // Create new customer
     const newCustomer = await prisma.customer.create({
       data: {
+        cus_id,
         cus_category: parseInt(cus_category) || null,
         cus_type: parseInt(cus_type) || null,
         cus_name: cus_name.trim(),

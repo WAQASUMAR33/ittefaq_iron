@@ -73,7 +73,7 @@ model Fingerprint {
 }
 
 model CustomerCategory {
-  cus_cat_id      Int        @id @default(autoincrement())
+  cus_cat_id      Int        @id
   cus_cat_title   String
   created_at      DateTime   @default(now())
   updated_at      DateTime   @updatedAt
@@ -86,7 +86,7 @@ model CustomerCategory {
 }
 
 model CustomerType {
-  cus_type_id     Int        @id @default(autoincrement())
+  cus_type_id     Int        @id
   cus_type_title  String
   created_at      DateTime   @default(now())
   updated_at      DateTime   @updatedAt
@@ -99,7 +99,7 @@ model CustomerType {
 }
 
 model City {
-  city_id         Int        @id @default(autoincrement())
+  city_id         Int        @id
   city_name       String
   created_at      DateTime   @default(now())
   updated_at      DateTime   @updatedAt
@@ -112,7 +112,7 @@ model City {
 }
 
 model Customer {
-  cus_id                Int                @id @default(autoincrement())
+  cus_id                Int                @id
   cus_category          Int
   cus_type              Int
   cus_name              String
@@ -172,7 +172,7 @@ model Customer {
 }
 
 model Categories {
-  cat_id          Int           @id @default(autoincrement())
+  cat_id          Int           @id
   cat_name        String
   cat_code        String        @unique
   created_at      DateTime      @default(now())
@@ -187,7 +187,7 @@ model Categories {
 }
 
 model SubCategory {
-  sub_cat_id      Int        @id @default(autoincrement())
+  sub_cat_id      Int        @id
   cat_id          Int
   sub_cat_name    String
   sub_cat_code    String     @unique
@@ -204,7 +204,7 @@ model SubCategory {
 }
 
 model Product {
-  pro_id                  Int                    @id @default(autoincrement())
+  pro_id                  Int                    @id
   cat_id                  Int
   sub_cat_id              Int
   pro_title               String
@@ -238,7 +238,7 @@ model Product {
 }
 
 model Ledger {
-  l_id            Int             @id @default(autoincrement())
+  l_id            Int             @id
   cus_id          Int
   opening_balance Float           @default(0)
   debit_amount    Float           @default(0)
@@ -262,7 +262,7 @@ model Ledger {
 }
 
 model ExpenseTitle {
-  id         Int       @id @default(autoincrement())
+  id         Int       @id
   title      String    @unique
   created_at DateTime  @default(now())
   updated_at DateTime  @updatedAt
@@ -272,7 +272,7 @@ model ExpenseTitle {
 }
 
 model Expense {
-  exp_id                Int          @id @default(autoincrement())
+  exp_id                Int          @id
   exp_title             String
   exp_type              Int
   exp_detail            String?

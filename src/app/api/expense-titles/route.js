@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
+import { getNextId } from '@/lib/id-helper';
 
 // GET - Fetch all expense titles
 export async function GET(request) {
@@ -86,9 +85,12 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Expense title already exists' }, { status: 400 });
     }
 
+    const idVal = body.id || await getNextId('expenseTitle', 'id');
+
     // Create expense title
     const expenseTitle = await prisma.expenseTitle.create({
       data: {
+        id: idVal,
         title: title.trim()
       }
     });

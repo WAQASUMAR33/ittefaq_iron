@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getNextId } from '@/lib/id-helper';
 
 // Helper for JSON errors
 function errorResponse(message, status = 400) {
@@ -157,9 +158,12 @@ export async function POST(request) {
       return errorResponse('Selected subcategory does not belong to the selected category');
     }
 
+    const pro_id = body.pro_id || await getNextId('product', 'pro_id');
+
     // Create new product with provided data
     const newProduct = await prisma.product.create({
       data: {
+        pro_id,
         cat_id: parseInt(body.cat_id),
         sub_cat_id: parseInt(body.sub_cat_id),
         pro_title: body.pro_title.trim(),

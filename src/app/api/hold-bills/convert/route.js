@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { updateStoreStock } from '@/lib/storeStock';
-
-const prisma = new PrismaClient();
+import { getNextId } from '@/lib/id-helper';
 
 // POST - Convert hold bill to actual sale
 export async function POST(request) {
@@ -92,8 +91,10 @@ export async function POST(request) {
 
       // Create ledger entries
       // Debit entry for sale
+      const l_id_hb = await getNextId('ledger', 'l_id', tx);
       await tx.ledger.create({
         data: {
+          l_id: l_id_hb,
           cus_id: holdBill.cus_id,
           opening_balance: holdBill.customer.cus_balance,
           debit_amount: netTotal,
@@ -109,8 +110,10 @@ export async function POST(request) {
 
       // Credit entry for payment (if payment > 0)
       if (parseFloat(holdBill.payment) > 0) {
+        const l_id_hb_pay = await getNextId('ledger', 'l_id', tx);
         await tx.ledger.create({
           data: {
+            l_id: l_id_hb_pay,
             cus_id: holdBill.cus_id,
             opening_balance: holdBill.customer.cus_balance + netTotal,
             debit_amount: 0,

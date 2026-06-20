@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getNextId } from '@/lib/id-helper';
 
 // GET - Fetch all customer types
 export async function GET() {
@@ -33,8 +34,11 @@ export async function POST(request) {
       );
     }
 
+    const cus_type_id = body.cus_type_id || await getNextId('customerType', 'cus_type_id');
+
     const customerType = await prisma.customerType.create({
       data: {
+        cus_type_id,
         cus_type_title,
         updated_by
       }

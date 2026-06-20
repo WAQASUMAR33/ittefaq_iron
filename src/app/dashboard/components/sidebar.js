@@ -142,6 +142,7 @@ const ROUTE_MAP = {
   'attendance': '/dashboard/attendance',
   'payroll': '/dashboard/payroll',
   'settings': '/dashboard/settings',
+  'import': '/dashboard/import',
 };
 
 // Reverse lookup: path → { itemId, category }
@@ -250,6 +251,7 @@ export default function Sidebar({
     { id: 'store-stock', name: 'Store Stock', icon: InventoryIcon, category: 'system', parent: 'System' },
     { id: 'stock-transfer', name: 'Stock Transfer', icon: SwapHorizIcon, category: 'system', parent: 'System' },
     { id: 'settings', name: 'Biometric Settings', icon: PersonIcon, category: 'system', parent: 'System', adminOnly: true },
+    { id: 'import', name: 'Excel Data Import', icon: TableChartIcon, category: 'system', parent: 'System', adminOnly: true },
   ];
 
   const getRequiredModule = (item) => {

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { updateStoreStock } from '@/lib/storeStock';
 import { createLedgerEntry } from '@/lib/ledger-helper';
+import { getNextId } from '@/lib/id-helper';
 
 const prisma = new PrismaClient();
 
@@ -353,8 +354,10 @@ export async function POST(request) {
 
         // Create ledger entries for Sale Return
         // Entry 1: Main return entry - Customer side (credit because return reduces debt)
+        const l_id_sr = await getNextId('ledger', 'l_id', tx);
         await tx.ledger.create({
           data: {
+            l_id: l_id_sr,
             cus_id,
             opening_balance: customer.cus_balance,
             debit_amount: 0,
@@ -389,8 +392,10 @@ export async function POST(request) {
           const cashAccount = specialAccounts.cash;
           if (cashAccount) {
             // Ledger entry: Cash account credits (money going out)
+            const l_id_cash_out = await getNextId('ledger', 'l_id', tx);
             await tx.ledger.create({
               data: {
+                l_id: l_id_cash_out,
                 cus_id: cashAccount.cus_id,
                 opening_balance: cashAccount.cus_balance,
                 debit_amount: 0,
@@ -416,8 +421,10 @@ export async function POST(request) {
 
             // Entry 2b: CUSTOMER Balance Update after CASH Refund (immediately after cash account)
             const customerAfterCash = customer.cus_balance - grandTotal + cashRefund;
+            const l_id_cus_cash = await getNextId('ledger', 'l_id', tx);
             await tx.ledger.create({
               data: {
+                l_id: l_id_cus_cash,
                 cus_id,
                 opening_balance: customer.cus_balance - grandTotal, // Balance after main return
                 debit_amount: cashRefund, // Cash payment received/credited to customer
@@ -458,8 +465,10 @@ export async function POST(request) {
 
           if (bankAccount) {
             // Ledger entry: Bank account credits (money going out)
+            const l_id_bank_out = await getNextId('ledger', 'l_id', tx);
             await tx.ledger.create({
               data: {
+                l_id: l_id_bank_out,
                 cus_id: bankAccount.cus_id,
                 opening_balance: bankAccount.cus_balance,
                 debit_amount: 0,
@@ -485,8 +494,10 @@ export async function POST(request) {
 
             // Entry 3b: CUSTOMER Balance Update after BANK Refund (immediately after bank account)
             const customerAfterBank = customer.cus_balance - grandTotal + cashRefund + bankRefund;
+            const l_id_cus_bank = await getNextId('ledger', 'l_id', tx);
             await tx.ledger.create({
               data: {
+                l_id: l_id_cus_bank,
                 cus_id,
                 opening_balance: customer.cus_balance - grandTotal + cashRefund, // Balance after cash refund
                 debit_amount: bankRefund, // Bank payment received/credited to customer

@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
+import { getNextId } from '@/lib/id-helper';
 
 // POST - Post journal entry (change status from DRAFT to POSTED)
 export async function POST(request) {
@@ -70,8 +69,10 @@ export async function POST(request) {
 
         // Create ledger entry for debit
         if (detail.debit_amount > 0) {
+          const l_id_j_dr = await getNextId('ledger', 'l_id', tx);
           await tx.ledger.create({
             data: {
+              l_id: l_id_j_dr,
               cus_id: detail.account_id,
               opening_balance: customer.cus_balance,
               debit_amount: parseFloat(detail.debit_amount),
@@ -96,8 +97,10 @@ export async function POST(request) {
 
         // Create ledger entry for credit
         if (detail.credit_amount > 0) {
+          const l_id_j_cr = await getNextId('ledger', 'l_id', tx);
           await tx.ledger.create({
             data: {
+              l_id: l_id_j_cr,
               cus_id: detail.account_id,
               opening_balance: customer.cus_balance,
               debit_amount: 0,

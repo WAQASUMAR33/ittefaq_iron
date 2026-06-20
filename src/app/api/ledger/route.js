@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { calculateClosingBalance, ACCOUNT_NATURE } from '@/lib/ledger-helper';
+import { getNextId } from '@/lib/id-helper';
 
 // Helper for JSON errors
 function errorResponse(message, status = 400) {
@@ -154,9 +155,12 @@ export async function POST(request) {
     const accountNature = isSupplier ? ACCOUNT_NATURE.PAYABLE : ACCOUNT_NATURE.RECEIVABLE;
     const closingBalance = calculateClosingBalance(openingBalance, debitNum, creditNum, accountNature);
 
+    const l_id = body.l_id || await getNextId('ledger', 'l_id');
+
     // Create the ledger entry
     const result = await prisma.ledger.create({
       data: {
+        l_id,
         cus_id: parseInt(cus_id),
         opening_balance: openingBalance,
         debit_amount: debitNum,
@@ -308,8 +312,11 @@ export async function PUT(request) {
           typeLabel = isIncrease ? 'Debit' : 'Credit';
         }
 
+        const l_id_adj = await getNextId('ledger', 'l_id', tx);
+
         await tx.ledger.create({
           data: {
+            l_id: l_id_adj,
             cus_id,
             opening_balance: currentBalance,
             debit_amount:    debitAmt,

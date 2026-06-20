@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getNextId } from '@/lib/id-helper';
 
 // GET - Fetch all cities
 export async function GET() {
@@ -39,8 +40,11 @@ export async function POST(request) {
       return NextResponse.json({ error: 'City with this name already exists' }, { status: 409 });
     }
 
+    const city_id = body.city_id || await getNextId('city', 'city_id');
+
     const city = await prisma.city.create({
       data: {
+        city_id,
         city_name: city_name.trim(),
         updated_by
       }

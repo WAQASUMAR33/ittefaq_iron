@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { getNextId } from '@/lib/id-helper';
 import { Prisma } from '@prisma/client';
 import { updateStoreStock, getStoreStock, checkStockAvailability } from '@/lib/storeStock';
 import { calculateClosingBalance, createLedgerEntry } from '@/lib/ledger-helper';
@@ -81,8 +82,9 @@ async function findOrCreateCashAccount() {
     }
   }
   if (!cashCatId) {
+    const nextCatId = await getNextId('customerCategory', 'cus_cat_id');
     const createdCat = await prisma.customerCategory.create({
-      data: { cus_cat_title: 'Cash Account' }
+      data: { cus_cat_id: nextCatId, cus_cat_title: 'Cash Account' }
     });
     cashCatId = createdCat.cus_cat_id;
   }
@@ -93,11 +95,14 @@ async function findOrCreateCashAccount() {
   const allTypes = await prisma.customerType.findMany();
   let cashType = allTypes.find(t => (t.cus_type_title || '').toLowerCase().includes('cash'));
   if (!cashType) {
-    cashType = await prisma.customerType.create({ data: { cus_type_title: 'Cash' } });
+    const nextTypeId = await getNextId('customerType', 'cus_type_id');
+    cashType = await prisma.customerType.create({ data: { cus_type_id: nextTypeId, cus_type_title: 'Cash' } });
   }
   const aCity = await prisma.city.findFirst();
+  const nextCusId = await getNextId('customer', 'cus_id');
   const created = await prisma.customer.create({
     data: {
+      cus_id: nextCusId,
       cus_name: 'Cash Account',
       cus_phone_no: '0000000000',
       cus_address: 'Main Office',
@@ -1573,8 +1578,10 @@ export async function POST(request) {
             const entry = ledgerEntries[i];
             console.log(`   Entry ${i + 1}: Customer=${entry.cus_id}, Debit=${entry.debit_amount}, Credit=${entry.credit_amount}, Details=${entry.details.substring(0, 50)}...`);
 
+            const nextLId = await getNextId('ledger', 'l_id', tx);
             await tx.ledger.create({
               data: {
+                l_id: nextLId,
                 cus_id: entry.cus_id,
                 opening_balance: entry.opening_balance,
                 debit_amount: entry.debit_amount,
@@ -2425,8 +2432,10 @@ export async function PUT(request) {
 
         for (let i = 0; i < ledgerEntries.length; i++) {
           const entry = ledgerEntries[i];
+          const nextLId = await getNextId('ledger', 'l_id', tx);
           await tx.ledger.create({
             data: {
+              l_id: nextLId,
               cus_id: entry.cus_id,
               opening_balance: entry.opening_balance,
               debit_amount: entry.debit_amount,

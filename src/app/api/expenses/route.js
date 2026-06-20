@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { createLedgerEntry } from '@/lib/ledger-helper';
+import { getNextId } from '@/lib/id-helper';
 
 // GET - Fetch all expenses with related data
 export async function GET(request) {
@@ -164,9 +165,12 @@ export async function POST(request) {
         if (!bankAccount) throw new Error('Bank account not found');
       }
 
+      const exp_id = body.exp_id || await getNextId('expense', 'exp_id', tx);
+
       // Create expense
       const expense = await tx.expense.create({
         data: {
+          exp_id,
           exp_title: exp_title.trim(),
           exp_type: parseInt(exp_type),
           exp_detail: exp_detail?.trim() || null,
@@ -206,8 +210,12 @@ export async function POST(request) {
           updated_by: updated_by ? parseInt(updated_by) : null
         });
 
+        const l_id = await getNextId('ledger', 'l_id', tx);
         await tx.ledger.create({
-          data: ledgerEntryData
+          data: {
+            l_id,
+            ...ledgerEntryData
+          }
         });
 
         await tx.customer.update({
@@ -236,8 +244,12 @@ export async function POST(request) {
           updated_by: updated_by ? parseInt(updated_by) : null
         });
 
+        const bank_l_id = await getNextId('ledger', 'l_id', tx);
         await tx.ledger.create({
-          data: ledgerEntryData
+          data: {
+            l_id: bank_l_id,
+            ...ledgerEntryData
+          }
         });
 
         await tx.customer.update({
@@ -430,8 +442,12 @@ export async function PUT(request) {
           updated_by: updated_by ? parseInt(updated_by) : null
         });
 
+        const l_id = await getNextId('ledger', 'l_id', tx);
         await tx.ledger.create({
-          data: ledgerEntryData
+          data: {
+            l_id,
+            ...ledgerEntryData
+          }
         });
 
         await tx.customer.update({
@@ -459,8 +475,12 @@ export async function PUT(request) {
           updated_by: updated_by ? parseInt(updated_by) : null
         });
 
+        const bank_l_id = await getNextId('ledger', 'l_id', tx);
         await tx.ledger.create({
-          data: ledgerEntryData
+          data: {
+            l_id: bank_l_id,
+            ...ledgerEntryData
+          }
         });
 
         await tx.customer.update({

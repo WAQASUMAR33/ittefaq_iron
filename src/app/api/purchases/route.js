@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { getNextId } from '@/lib/id-helper';
 import { updateStoreStock } from '@/lib/storeStock';
 import { createLedgerEntry, createPayableLedgerEntry } from '@/lib/ledger-helper';
 
@@ -585,8 +586,10 @@ export async function POST(request) {
         });
 
         if (cashType) {
+          const nextCusId = await getNextId('customer', 'cus_id');
           cashAccount = await prisma.customer.create({
             data: {
+              cus_id: nextCusId,
               cus_name: 'Cash Account',
               cus_phone_no: '0000000000',
               cus_address: 'Main Office',
@@ -1057,8 +1060,10 @@ export async function POST(request) {
 
         console.log(`   Entry ${i + 1}: Customer=${entry.cus_id}, Debit=${entry.debit_amount}, Credit=${entry.credit_amount}`);
 
+        const nextLId = await getNextId('ledger', 'l_id', tx);
         await tx.ledger.create({
           data: {
+            l_id: nextLId,
             cus_id: entry.cus_id,
             opening_balance: entry.opening_balance,
             debit_amount: entry.debit_amount,
@@ -1767,8 +1772,10 @@ export async function PUT(request) {
         const entry = ledgerEntries[i];
         console.log(`   Entry ${i + 1}: Customer=${entry.cus_id}, Debit=${entry.debit_amount}, Credit=${entry.credit_amount}`);
 
+        const nextLId = await getNextId('ledger', 'l_id', tx);
         await tx.ledger.create({
           data: {
+            l_id: nextLId,
             cus_id: entry.cus_id,
             opening_balance: entry.opening_balance,
             debit_amount: entry.debit_amount,

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getNextId } from '@/lib/id-helper';
 
 // Helper for JSON errors
 function errorResponse(message, status = 400) {
@@ -139,9 +140,12 @@ export async function POST(request) {
     if (existingName)
       return errorResponse('Category with this name already exists', 409);
 
+    const cat_id = body.cat_id || await getNextId('categories', 'cat_id');
+
     // Create new category
     const newCategory = await prisma.categories.create({
       data: {
+        cat_id,
         cat_name: cat_name.trim(),
         cat_code: finalCatCode.trim().toUpperCase(),
       },

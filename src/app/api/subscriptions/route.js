@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { createLedgerEntry } from '@/lib/ledger-helper';
+import { getNextId } from '@/lib/id-helper';
 
 // GET - Fetch all subscriptions
 export async function GET(request) {
@@ -154,7 +155,13 @@ export async function POST(request) {
           updated_by: updated_by || null
         });
         
-        await tx.ledger.create({ data: ledgerData });
+        const l_id = await getNextId('ledger', 'l_id', tx);
+        await tx.ledger.create({
+          data: {
+            l_id,
+            ...ledgerData
+          }
+        });
       }
 
       // Return subscription with related data

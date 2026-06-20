@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { createPayableLedgerEntry } from '@/lib/ledger-helper';
+import { getNextId } from '@/lib/id-helper';
 
 // GET - Fetch all purchase returns
 export async function GET(request) {
@@ -191,7 +192,13 @@ export async function POST(request) {
         data: { cus_balance: returnLedgerEntry.closing_balance }
       });
 
-      await tx.ledger.create({ data: returnLedgerEntry });
+      const l_id_pr = await getNextId('ledger', 'l_id', tx);
+      await tx.ledger.create({
+        data: {
+          l_id: l_id_pr,
+          ...returnLedgerEntry
+        }
+      });
 
       return newPurchaseReturn;
       },
@@ -360,7 +367,13 @@ export async function PUT(request) {
         data: { cus_balance: updatedReturnLedger.closing_balance }
       });
 
-      await tx.ledger.create({ data: updatedReturnLedger });
+      const l_id_pr_put = await getNextId('ledger', 'l_id', tx);
+      await tx.ledger.create({
+        data: {
+          l_id: l_id_pr_put,
+          ...updatedReturnLedger
+        }
+      });
 
       return updatedReturn;
       },
@@ -454,7 +467,13 @@ export async function DELETE(request) {
         data: { cus_balance: reversalEntry.closing_balance }
       });
 
-      await tx.ledger.create({ data: reversalEntry });
+      const l_id_pr_rev = await getNextId('ledger', 'l_id', tx);
+      await tx.ledger.create({
+        data: {
+          l_id: l_id_pr_rev,
+          ...reversalEntry
+        }
+      });
 
       // Delete return details
       await tx.purchaseReturnDetail.deleteMany({

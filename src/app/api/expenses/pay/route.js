@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { createLedgerEntry } from '@/lib/ledger-helper';
+import { getNextId } from '@/lib/id-helper';
 
 // POST - Mark expense as paid
 export async function POST(request) {
@@ -72,8 +73,12 @@ export async function POST(request) {
                 updated_by: updated_by ? parseInt(updated_by) : null
             });
 
+            const l_id = await getNextId('ledger', 'l_id', tx);
             await tx.ledger.create({
-                data: ledgerEntryData
+                data: {
+                    l_id,
+                    ...ledgerEntryData
+                }
             });
 
             const newBalance = ledgerEntryData.closing_balance;

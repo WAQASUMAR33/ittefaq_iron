@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { calculateClosingBalance, createLedgerEntry, createPayableLedgerEntry } from '@/lib/ledger-helper';
-
-const prisma = new PrismaClient();
+import { getNextId } from '@/lib/id-helper';
 
 // GET - Fetch all payments with related data
 export async function GET(request) {
@@ -399,8 +398,14 @@ export async function POST(request) {
       }
 
       // Create ledger entries
+      const startLId = await getNextId('ledger', 'l_id', tx);
+      const ledgerEntriesWithIds = ledgerEntries.map((entry, index) => ({
+        l_id: startLId + index,
+        ...entry
+      }));
+
       await tx.ledger.createMany({
-        data: ledgerEntries
+        data: ledgerEntriesWithIds
       });
 
       // Update cus_balance for all affected accounts using ledger closing balances
