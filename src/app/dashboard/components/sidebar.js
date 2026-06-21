@@ -393,6 +393,7 @@ export default function Sidebar({
       { path: '/dashboard/attendance', id: 'attendance', category: 'hr-management' },
       { path: '/dashboard/payroll', id: 'payroll', category: 'hr-management' },
       { path: '/dashboard/settings', id: 'settings', category: 'system' },
+      { path: '/dashboard/import', id: 'import', category: 'system' },
       { path: '/dashboard', id: 'dashboard', category: 'main' },
     ];
 
@@ -541,6 +542,8 @@ export default function Sidebar({
       router.push('/dashboard/payroll');
     } else if (itemId === 'settings') {
       router.push('/dashboard/settings');
+    } else if (itemId === 'import') {
+      router.push('/dashboard/import');
     } else if (itemId === 'dashboard') {
       router.push('/dashboard');
     }
