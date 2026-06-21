@@ -1454,7 +1454,7 @@ function SalesPageContent() {
         cus_id: formSelectedCustomer.cus_id,
         store_id: formSelectedStore.storeid, // Added store_id for multi-store functionality
         total_amount: grandTotal, // Use grand total (already includes discount subtraction)
-        discount: 0, // Discount is already applied in grandTotal, don't apply it again in API
+        discount: parseFloat(paymentData.discount) || 0, // Send actual discount for recording in db and ledger details
         payment: finalPaymentTotal, // Include both cash received and advance payment
         payment_type: splitPayments.length > 0 ? splitPayments[0].payment_type : 'CASH', // Use first payment type or default to CASH
         cash_payment: cashAmount, // Store cash payment in sale record

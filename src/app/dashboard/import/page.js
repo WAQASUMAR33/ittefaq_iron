@@ -111,6 +111,7 @@ const FIELDS_SCHEMA = {
   ],
   product: [
     { key: 'pro_id', label: 'Product ID', required: false, type: 'number', matches: ['id', 'productid', 'pro_id'] },
+    { key: 'store_id', label: 'Store (ID or Name)', required: false, type: 'any', matches: ['store', 'storeid', 'store name', 'store_id'] },
     { key: 'cat_id', label: 'Category (ID/Name)', required: true, type: 'any', matches: ['category', 'cat_id', 'category id'] },
     { key: 'sub_cat_id', label: 'Subcategory (ID/Name)', required: true, type: 'any', matches: ['subcategory', 'sub_cat_id', 'subcategory id'] },
     { key: 'pro_title', label: 'Product Name/Title', required: true, type: 'string', matches: ['title', 'name', 'product', 'pro_title', 'product name'] },
@@ -163,6 +164,7 @@ export default function ExcelImportPage() {
   const [isImporting, setIsImporting] = useState(false);
   const [importResults, setImportResults] = useState(null);
   const [statusMessage, setStatusMessage] = useState(null);
+  const [progress, setProgress] = useState({ processed: 0, total: 0 });
 
   const fileInputRef = useRef(null);
 
@@ -315,37 +317,75 @@ export default function ExcelImportPage() {
     setIsImporting(true);
     setCurrentStep(2);
     setStatusMessage(null);
+    setProgress({ processed: 0, total: mappedPayload.length });
+
+    const totalRecords = mappedPayload.length;
+    const chunkSize = options.rollbackOnError ? totalRecords : 100;
+    
+    // Cumulative stats
+    const aggregatedStats = {
+      success: 0,
+      failed: 0,
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      errors: []
+    };
 
     try {
-      const response = await fetch('/api/import', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          type: importType,
-          data: mappedPayload,
-          conflictResolution: options.conflictResolution,
-          autoCreateDependencies: options.autoCreateDependencies,
-          rollbackOnError: options.rollbackOnError
-        }),
-      });
-
-      const result = await response.json();
-      
-      if (response.ok && result.success) {
-        setImportResults(result.stats);
-        setCurrentStep(3);
-      } else {
-        setStatusMessage({
-          severity: 'error',
-          message: result.error || 'Bulk import failed. Please check your data formatting.'
+      for (let i = 0; i < totalRecords; i += chunkSize) {
+        const chunk = mappedPayload.slice(i, i + chunkSize);
+        
+        const response = await fetch('/api/import', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            type: importType,
+            data: chunk,
+            conflictResolution: options.conflictResolution,
+            autoCreateDependencies: options.autoCreateDependencies,
+            rollbackOnError: options.rollbackOnError
+          }),
         });
-        setCurrentStep(1);
+
+        const result = await response.json();
+        
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || 'Bulk import failed on a batch.');
+        }
+
+        // Aggregate stats
+        const chunkStats = result.stats;
+        aggregatedStats.success += chunkStats.success;
+        aggregatedStats.failed += chunkStats.failed;
+        aggregatedStats.created += chunkStats.created;
+        aggregatedStats.updated += chunkStats.updated;
+        aggregatedStats.skipped += chunkStats.skipped;
+        
+        // Adjust error row indices to match the original Excel sheet
+        if (chunkStats.errors && Array.isArray(chunkStats.errors)) {
+          chunkStats.errors.forEach(err => {
+            aggregatedStats.errors.push({
+              ...err,
+              row: err.row + i
+            });
+          });
+        }
+
+        const nextProcessed = Math.min(i + chunkSize, totalRecords);
+        setProgress({ processed: nextProcessed, total: totalRecords });
       }
+
+      setImportResults(aggregatedStats);
+      setCurrentStep(3);
     } catch (err) {
       console.error(err);
-      setStatusMessage({ severity: 'error', message: 'Network error occurred while calling the bulk import API.' });
+      setStatusMessage({ 
+        severity: 'error', 
+        message: err.message || 'Network error occurred while calling the bulk import API.' 
+      });
       setCurrentStep(1);
     } finally {
       setIsImporting(false);
@@ -362,6 +402,7 @@ export default function ExcelImportPage() {
     setCurrentStep(0);
     setImportResults(null);
     setStatusMessage(null);
+    setProgress({ processed: 0, total: 0 });
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -681,12 +722,24 @@ export default function ExcelImportPage() {
                 <Typography variant="h5" sx={{ fontWeight: 700, mb: 1, color: '#334155' }}>
                   Processing Import...
                 </Typography>
-                <Typography variant="body1" sx={{ color: '#64748b', mb: 4 }}>
+                <Typography variant="body1" sx={{ color: '#64748b', mb: 3 }}>
                   Inserting records into database tables. Please do not close or reload this page.
                 </Typography>
-                <Box sx={{ width: '50%', mx: 'auto' }}>
-                  <LinearProgress />
+                
+                <Box sx={{ width: '50%', mx: 'auto', mb: 2 }}>
+                  <LinearProgress 
+                    variant="determinate" 
+                    value={progress.total > 0 ? (progress.processed / progress.total) * 100 : 0} 
+                    sx={{ height: 8, borderRadius: 4 }}
+                  />
                 </Box>
+                
+                <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569' }}>
+                  {progress.processed} of {progress.total} records imported
+                </Typography>
+                <Typography variant="caption" sx={{ color: '#94a3b8', display: 'block', mt: 0.5 }}>
+                  {progress.total - progress.processed} records remaining
+                </Typography>
               </Card>
             </Grid>
           )}

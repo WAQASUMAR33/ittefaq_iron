@@ -918,13 +918,13 @@ export async function POST(request) {
     console.log('💰💰💰 SPLIT PAYMENTS IS ARRAY:', Array.isArray(split_payments));
     console.log('💰💰💰 SPLIT PAYMENTS LENGTH:', split_payments?.length);
 
-    if (!cus_id || !store_id || !total_amount || payment === undefined || payment === null || !sale_details || sale_details.length === 0) {
+    if (!cus_id || !store_id || total_amount === undefined || total_amount === null || payment === undefined || payment === null || !sale_details || sale_details.length === 0) {
       console.log('❌ Sales API - Missing required fields:', { cus_id, store_id, total_amount, payment, sale_details });
       return NextResponse.json({ error: 'Missing required fields including store_id' }, { status: 400 });
     }
 
-    // Additional validation for numeric values
-    if (isNaN(parseFloat(total_amount)) || parseFloat(total_amount) <= 0) {
+    // Additional validation for numeric values (allow zero-total sales if discount matches subtotal)
+    if (isNaN(parseFloat(total_amount)) || parseFloat(total_amount) < 0) {
       console.log('❌ Sales API - Invalid total_amount:', total_amount);
       return NextResponse.json({ error: 'Invalid total amount' }, { status: 400 });
     }

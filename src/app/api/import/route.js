@@ -44,7 +44,9 @@ export async function POST(request) {
     const prodSubCategoryCache = new Map();
     const expenseTitleCache = new Map();
     const customerCache = new Map();
+    const customerIds = new Set();
     const productCache = new Map();
+    const storeCache = new Map();
 
     // Helper functions for dependency resolution
     async function resolveCustomerCategory(val, tx) {
@@ -232,6 +234,33 @@ export async function POST(request) {
       return null;
     }
 
+    async function resolveStore(val, tx) {
+      if (!val) return null;
+      if (Number.isInteger(Number(val)) && !isNaN(parseInt(val))) {
+        return parseInt(val);
+      }
+      const name = String(val).trim();
+      const cacheKey = name.toLowerCase();
+      if (storeCache.has(cacheKey)) return storeCache.get(cacheKey);
+
+      let record = await tx.store.findFirst({
+        where: { store_name: { equals: name } }
+      });
+
+      if (!record && autoCreateDependencies) {
+        const nextId = await getNextId('store', 'storeid', tx);
+        record = await tx.store.create({
+          data: { storeid: nextId, store_name: name, store_address: 'Created on import' }
+        });
+      }
+
+      if (record) {
+        storeCache.set(cacheKey, record.storeid);
+        return record.storeid;
+      }
+      return null;
+    }
+
     const processImport = async (tx) => {
       // Pre-populate cache maps to speed up validation checks
       console.log('⚡ Pre-populating cache maps...');
@@ -255,12 +284,18 @@ export async function POST(request) {
         expTitles.forEach(e => expenseTitleCache.set(e.title.trim().toLowerCase(), e.id));
         
         const customers = await tx.customer.findMany({ select: { cus_id: true, cus_name: true } });
-        customers.forEach(c => customerCache.set(c.cus_name.trim().toLowerCase(), c.cus_id));
+        customers.forEach(c => {
+          customerCache.set(c.cus_name.trim().toLowerCase(), c.cus_id);
+          customerIds.add(c.cus_id);
+        });
 
         const products = await tx.product.findMany({ select: { pro_id: true, pro_title: true, cat_id: true, sub_cat_id: true } });
         products.forEach(p => productCache.set(`${p.cat_id}_${p.sub_cat_id}_${p.pro_title.trim().toLowerCase()}`, p.pro_id));
+
+        const stores = await tx.store.findMany({ select: { storeid: true, store_name: true } });
+        stores.forEach(s => storeCache.set(s.store_name.trim().toLowerCase(), s.storeid));
         
-        console.log(`⚡ Pre-populated caches: ${customerCache.size} customers, ${cityCache.size} cities, ${categoryCache.size} categories, ${productCache.size} products.`);
+        console.log(`⚡ Pre-populated caches: ${customerCache.size} customers, ${cityCache.size} cities, ${categoryCache.size} categories, ${productCache.size} products, ${storeCache.size} stores.`);
       } catch (err) {
         console.warn('⚠️ Cache pre-population failed, falling back to lazy loading:', err.message);
       }
@@ -393,18 +428,46 @@ export async function POST(request) {
 
             let id = row.cus_id ? parseInt(row.cus_id) : null;
             let existing = null;
+            let exists = false;
 
-            // Resolve from cache first to avoid slow DB queries for existing records
-            const cachedId = id || customerCache.get(name.toLowerCase());
-            if (cachedId) {
+            if (id) {
+              if (customerIds.has(id)) {
+                exists = true;
+              } else {
+                existing = await tx.customer.findUnique({ where: { cus_id: id } });
+                if (existing) {
+                  exists = true;
+                  customerIds.add(id);
+                  customerCache.set(name.toLowerCase(), id);
+                }
+              }
+            } else {
+              const cachedId = customerCache.get(name.toLowerCase());
+              if (cachedId) {
+                exists = true;
+                id = cachedId;
+              } else {
+                existing = await tx.customer.findFirst({ where: { cus_name: name } });
+                if (existing) {
+                  exists = true;
+                  id = existing.cus_id;
+                  customerIds.add(id);
+                  customerCache.set(name.toLowerCase(), id);
+                }
+              }
+            }
+
+            if (exists) {
               if (conflictResolution === 'skip') {
                 stats.skipped++;
                 stats.success++;
                 continue;
               } else if (conflictResolution === 'error') {
-                throw new Error(`Customer already exists (ID: ${cachedId}, Name: ${name})`);
-              } else {
-                existing = await tx.customer.findUnique({ where: { cus_id: cachedId } });
+                throw new Error(`Customer already exists (ID: ${id}, Name: ${name})`);
+              } else { // overwrite
+                if (!existing) {
+                  existing = await tx.customer.findUnique({ where: { cus_id: id } });
+                }
               }
             }
 
@@ -451,6 +514,7 @@ export async function POST(request) {
                 }
               });
               customerCache.set(name.toLowerCase(), id); // Cache the newly created record
+              customerIds.add(id); // Keep the IDs cache updated as well
               stats.created++;
             }
           }
@@ -468,8 +532,22 @@ export async function POST(request) {
               existing = await tx.ledger.findUnique({ where: { l_id: id } });
             }
 
-            const trnx = String(row.trnx_type || 'CASH').toUpperCase();
+            let trnxVal = row.trnx_type;
             const allowedTrnxs = ['CASH', 'CHEQUE', 'BANK_TRANSFER', 'PURCHASE', 'CASH_PAYMENT', 'BANK_PAYMENT', 'SALE', 'SALE_RETURN', 'PURCHASE_RETURN', 'REBATE', 'CREDIT', 'DEBIT'];
+            
+            // Auto-convert numeric/integer transaction types (e.g. 7) to corresponding enum strings
+            if (trnxVal !== undefined && trnxVal !== null && !isNaN(parseInt(trnxVal)) && String(trnxVal).trim() !== '') {
+              const numericVal = parseInt(trnxVal);
+              if (numericVal >= 1 && numericVal <= allowedTrnxs.length) {
+                // 1-based index mapping (e.g. 1 -> CASH, 7 -> SALE)
+                trnxVal = allowedTrnxs[numericVal - 1];
+              } else if (numericVal >= 0 && numericVal < allowedTrnxs.length) {
+                // 0-based index fallback
+                trnxVal = allowedTrnxs[numericVal];
+              }
+            }
+
+            const trnx = String(trnxVal || 'CASH').toUpperCase();
             if (!allowedTrnxs.includes(trnx)) {
               throw new Error(`Invalid transaction type: ${trnx}. Must be one of: ${allowedTrnxs.join(', ')}`);
             }
@@ -622,6 +700,8 @@ export async function POST(request) {
             const subCatId = await resolveProductSubCategory(row.sub_cat_id, catId, tx);
             if (!subCatId) throw new Error(`Could not resolve subcategory: ${row.sub_cat_id}`);
 
+            const storeId = await resolveStore(row.store_id, tx);
+
             let id = row.pro_id ? parseInt(row.pro_id) : null;
             let existing = null;
             if (id) {
@@ -645,8 +725,54 @@ export async function POST(request) {
               pro_packing: row.pro_packing ? String(row.pro_packing).trim() : null
             };
 
+            // Local helper to ensure store stocks exist for the product
+            const ensureStoreStocks = async (productId, stockQuantity) => {
+              let primaryStore = null;
+              if (storeId) {
+                primaryStore = await tx.store.findUnique({ where: { storeid: storeId } });
+              }
+              if (!primaryStore) {
+                primaryStore = await tx.store.findFirst({ orderBy: { storeid: 'asc' } });
+              }
+              if (!primaryStore) {
+                const nextStoreId = await getNextId('store', 'storeid', tx);
+                primaryStore = await tx.store.create({
+                  data: {
+                    storeid: nextStoreId,
+                    store_name: 'Main Store',
+                    store_address: 'Default Location'
+                  }
+                });
+              }
+
+              const allStores = await tx.store.findMany();
+              for (const s of allStores) {
+                const qty = s.storeid === primaryStore.storeid ? stockQuantity : 0;
+                await tx.storeStock.upsert({
+                  where: {
+                    store_id_pro_id: {
+                      store_id: s.storeid,
+                      pro_id: productId
+                    }
+                  },
+                  create: {
+                    store_id: s.storeid,
+                    pro_id: productId,
+                    stock_quantity: qty,
+                    min_stock: 0,
+                    max_stock: 1000
+                  },
+                  update: {
+                    ...(conflictResolution === 'overwrite' && s.storeid === primaryStore.storeid ? { stock_quantity: qty } : {})
+                  }
+                });
+              }
+            };
+
             if (existing) {
               if (conflictResolution === 'skip') {
+                // Ensure StoreStock entries are still created/verified if they are missing
+                await ensureStoreStocks(existing.pro_id, dataObj.pro_stock_qnty);
                 stats.skipped++;
                 stats.success++;
                 continue;
@@ -657,6 +783,7 @@ export async function POST(request) {
                   where: { pro_id: existing.pro_id },
                   data: dataObj
                 });
+                await ensureStoreStocks(existing.pro_id, dataObj.pro_stock_qnty);
                 stats.updated++;
               }
             } else {
@@ -667,6 +794,7 @@ export async function POST(request) {
                   ...dataObj
                 }
               });
+              await ensureStoreStocks(id, dataObj.pro_stock_qnty);
               stats.created++;
             }
           }
