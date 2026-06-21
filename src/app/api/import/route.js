@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getNextId } from '@/lib/id-helper';
 
+export const maxDuration = 900; // Allow execution for up to 15 minutes
+
 // Conflict resolution strategies:
 // 'skip': Ignore rows that have existing primary key IDs in database
 // 'overwrite': Update existing records with the new values
@@ -42,6 +44,7 @@ export async function POST(request) {
     const prodSubCategoryCache = new Map();
     const expenseTitleCache = new Map();
     const customerCache = new Map();
+    const productCache = new Map();
 
     // Helper functions for dependency resolution
     async function resolveCustomerCategory(val, tx) {
@@ -230,6 +233,38 @@ export async function POST(request) {
     }
 
     const processImport = async (tx) => {
+      // Pre-populate cache maps to speed up validation checks
+      console.log('⚡ Pre-populating cache maps...');
+      try {
+        const cats = await tx.customerCategory.findMany({ select: { cus_cat_id: true, cus_cat_title: true } });
+        cats.forEach(c => categoryCache.set(c.cus_cat_title.trim().toLowerCase(), c.cus_cat_id));
+        
+        const types = await tx.customerType.findMany({ select: { cus_type_id: true, cus_type_title: true } });
+        types.forEach(t => typeCache.set(t.cus_type_title.trim().toLowerCase(), t.cus_type_id));
+        
+        const cities = await tx.city.findMany({ select: { city_id: true, city_name: true } });
+        cities.forEach(c => cityCache.set(c.city_name.trim().toLowerCase(), c.city_id));
+        
+        const prodCats = await tx.categories.findMany({ select: { cat_id: true, cat_name: true } });
+        prodCats.forEach(c => prodCategoryCache.set(c.cat_name.trim().toLowerCase(), c.cat_id));
+        
+        const prodSubCats = await tx.subCategory.findMany({ select: { sub_cat_id: true, cat_id: true, sub_cat_name: true } });
+        prodSubCats.forEach(s => prodSubCategoryCache.set(`${s.cat_id}_${s.sub_cat_name.trim().toLowerCase()}`, s.sub_cat_id));
+        
+        const expTitles = await tx.expenseTitle.findMany({ select: { id: true, title: true } });
+        expTitles.forEach(e => expenseTitleCache.set(e.title.trim().toLowerCase(), e.id));
+        
+        const customers = await tx.customer.findMany({ select: { cus_id: true, cus_name: true } });
+        customers.forEach(c => customerCache.set(c.cus_name.trim().toLowerCase(), c.cus_id));
+
+        const products = await tx.product.findMany({ select: { pro_id: true, pro_title: true, cat_id: true, sub_cat_id: true } });
+        products.forEach(p => productCache.set(`${p.cat_id}_${p.sub_cat_id}_${p.pro_title.trim().toLowerCase()}`, p.pro_id));
+        
+        console.log(`⚡ Pre-populated caches: ${customerCache.size} customers, ${cityCache.size} cities, ${categoryCache.size} categories, ${productCache.size} products.`);
+      } catch (err) {
+        console.warn('⚠️ Cache pre-population failed, falling back to lazy loading:', err.message);
+      }
+
       for (let idx = 0; idx < data.length; idx++) {
         const row = data[idx];
         const rowNum = idx + 1;
@@ -356,6 +391,23 @@ export async function POST(request) {
             const name = String(row.cus_name || '').trim();
             if (!name) throw new Error('Customer name is required');
 
+            let id = row.cus_id ? parseInt(row.cus_id) : null;
+            let existing = null;
+
+            // Resolve from cache first to avoid slow DB queries for existing records
+            const cachedId = id || customerCache.get(name.toLowerCase());
+            if (cachedId) {
+              if (conflictResolution === 'skip') {
+                stats.skipped++;
+                stats.success++;
+                continue;
+              } else if (conflictResolution === 'error') {
+                throw new Error(`Customer already exists (ID: ${cachedId}, Name: ${name})`);
+              } else {
+                existing = await tx.customer.findUnique({ where: { cus_id: cachedId } });
+              }
+            }
+
             const catId = await resolveCustomerCategory(row.cus_category, tx);
             if (!catId) throw new Error(`Could not resolve customer category: ${row.cus_category}`);
 
@@ -363,14 +415,6 @@ export async function POST(request) {
             if (!typeId) throw new Error(`Could not resolve customer type: ${row.cus_type}`);
 
             const cityId = await resolveCity(row.city_id, tx);
-
-            let id = row.cus_id ? parseInt(row.cus_id) : null;
-            let existing = null;
-            if (id) {
-              existing = await tx.customer.findUnique({ where: { cus_id: id } });
-            } else {
-              existing = await tx.customer.findFirst({ where: { cus_name: name, cus_category: catId } });
-            }
 
             const dataObj = {
               cus_name: name,
@@ -390,22 +434,14 @@ export async function POST(request) {
             };
 
             if (existing) {
-              if (conflictResolution === 'skip') {
-                stats.skipped++;
-                stats.success++;
-                continue;
-              } else if (conflictResolution === 'error') {
-                throw new Error(`Customer already exists (ID: ${existing.cus_id}, Name: ${existing.cus_name})`);
-              } else { // overwrite
-                await tx.customer.update({
-                  where: { cus_id: existing.cus_id },
-                  data: {
-                    ...dataObj,
-                    cus_balance: existing.cus_balance // Keep existing balance
-                  }
-                });
-                stats.updated++;
-              }
+              await tx.customer.update({
+                where: { cus_id: existing.cus_id },
+                data: {
+                  ...dataObj,
+                  cus_balance: existing.cus_balance // Keep existing balance
+                }
+              });
+              stats.updated++;
             } else {
               if (!id) id = await getNextId('customer', 'cus_id', tx);
               await tx.customer.create({
@@ -414,6 +450,7 @@ export async function POST(request) {
                   ...dataObj
                 }
               });
+              customerCache.set(name.toLowerCase(), id); // Cache the newly created record
               stats.created++;
             }
           }
@@ -748,7 +785,7 @@ export async function POST(request) {
     };
 
     if (rollbackOnError) {
-      await prisma.$transaction(processImport, { timeout: 60000 });
+      await prisma.$transaction(processImport, { timeout: 300000 }); // Increase transaction timeout to 5 minutes (300,000 ms)
     } else {
       // Execute in non-rollback context
       await processImport(prisma);
