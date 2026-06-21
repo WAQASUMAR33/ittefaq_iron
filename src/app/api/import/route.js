@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getNextId } from '@/lib/id-helper';
 
-export const maxDuration = 900; // Allow execution for up to 15 minutes
+export const maxDuration = 300; // Vercel Hobby plan max (300s). Frontend batches requests in chunks of 100.
 
 // Conflict resolution strategies:
 // 'skip': Ignore rows that have existing primary key IDs in database
