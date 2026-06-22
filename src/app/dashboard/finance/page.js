@@ -2027,7 +2027,7 @@ export default function FinancePage() {
 
                 {/* Customer Type Filter - SECOND */}
                 <Box>
-                  <FormControl fullWidth disabled={!selectedCategory}>
+                  <FormControl fullWidth>
                     <InputLabel>Customer Type</InputLabel>
                     <Select
                       fullWidth
@@ -2039,7 +2039,7 @@ export default function FinancePage() {
                       label="Customer Type"
                       sx={{
                         borderRadius: 1.5,
-                        bgcolor: selectedCategory ? 'white' : '#f9fafb',
+                        bgcolor: 'white',
                       }}
                     >
                       <MenuItem value="">All Customer Types</MenuItem>
