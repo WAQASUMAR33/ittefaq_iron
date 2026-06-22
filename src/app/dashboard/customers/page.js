@@ -527,23 +527,25 @@ export default function CustomersPage() {
     .reduce((sum, c) => sum + parseFloat(c.cus_balance), 0));
   const netBalance = filteredCustomers.reduce((sum, c) => sum + parseFloat(c.cus_balance), 0);
 
-  const getTypeColor = (type) => {
-    switch (type) {
-      case 'CASH_ACCOUNT':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'ACCOUNT_PAYABLE':
-        return 'bg-red-100 text-red-800';
-      case 'ACCOUNT_RECEIVABLE':
-        return 'bg-emerald-100 text-emerald-800';
-      case 'EXPENSE_ACCOUNT':
-        return 'bg-orange-100 text-orange-800';
-      case 'ASSET_ACCOUNT':
-        return 'bg-indigo-100 text-indigo-800';
-      case 'LIABILITY_ACCOUNT':
-        return 'bg-pink-100 text-pink-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+  const getTypeColor = (typeId) => {
+    const customerType = customerTypes.find(type => type.cus_type_id === typeId);
+    const title = (customerType?.cus_type_title || '').toLowerCase();
+    if (title.includes('cash')) {
+      return 'bg-yellow-100 text-yellow-800';
     }
+    if (title.includes('supplier')) {
+      return 'bg-red-100 text-red-800';
+    }
+    if (title.includes('bank')) {
+      return 'bg-indigo-100 text-indigo-800';
+    }
+    if (title.includes('builders') || title.includes('iron')) {
+      return 'bg-orange-100 text-orange-800';
+    }
+    if (title) {
+      return 'bg-emerald-100 text-emerald-800';
+    }
+    return 'bg-gray-100 text-gray-800';
   };
 
   const getBalanceColor = (balance) => {
@@ -928,23 +930,17 @@ export default function CustomersPage() {
                     selectOnFocus={true}
                     options={[
                       { value: 'all', label: 'All Types' },
-                      { value: 'CASH_ACCOUNT', label: 'Cash Account' },
-                      { value: 'ACCOUNT_PAYABLE', label: 'Account Payable' },
-                      { value: 'ACCOUNT_RECEIVABLE', label: 'Account Receivable' },
-                      { value: 'EXPENSE_ACCOUNT', label: 'Expense Account' },
-                      { value: 'ASSET_ACCOUNT', label: 'Asset Account' },
-                      { value: 'LIABILITY_ACCOUNT', label: 'Liability Account' }
+                      ...customerTypes.map(type => ({
+                        value: type.cus_type_id,
+                        label: type.cus_type_title
+                      }))
                     ]}
                     getOptionLabel={(option) => option.label}
-                    value={{
-                      value: typeFilter, label: typeFilter === 'all' ? 'All Types' :
-                        typeFilter === 'CASH_ACCOUNT' ? 'Cash Account' :
-                          typeFilter === 'ACCOUNT_PAYABLE' ? 'Account Payable' :
-                            typeFilter === 'ACCOUNT_RECEIVABLE' ? 'Account Receivable' :
-                              typeFilter === 'EXPENSE_ACCOUNT' ? 'Expense Account' :
-                                typeFilter === 'ASSET_ACCOUNT' ? 'Asset Account' :
-                                  typeFilter === 'LIABILITY_ACCOUNT' ? 'Liability Account' : 'All Types'
-                    }}
+                    value={(() => {
+                      if (typeFilter === 'all') return { value: 'all', label: 'All Types' };
+                      const selected = customerTypes.find(type => type.cus_type_id === typeFilter);
+                      return selected ? { value: selected.cus_type_id, label: selected.cus_type_title } : { value: 'all', label: 'All Types' };
+                    })()}
                     onChange={(event, newValue) => {
                       setTypeFilter(newValue ? newValue.value : 'all');
                     }}
