@@ -1325,7 +1325,10 @@ export default function FinancePage() {
       doc.setFont('helvetica', 'bold');
       doc.text('GENERAL LEDGER', 40, 68);
       doc.setFontSize(11);
-      doc.text(`Account: ${custName}`, 40, 84);
+      const custType = customer?.customer_type?.cus_type_title || '';
+      const custCat = customer?.customer_category?.cus_cat_title || '';
+      const typeLabel = [custType, custCat].filter(Boolean).join(' - ');
+      doc.text(`Account: ${custName}${typeLabel ? ` (${typeLabel})` : ''}`, 40, 84);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
       doc.text(`Date: ${today}   |   Entries: ${finalLedgerEntries.length}   |   Opening Balance: PKR ${fmtAmt(pdfOpeningBalance)}   |   Balance: PKR ${fmtAmt(balance)}`, 40, 98);
@@ -1709,7 +1712,7 @@ export default function FinancePage() {
 </div>
 <div class="meta">
   <div class="left">
-    <h3>${custName}</h3>
+    <h3>${custName}${customer?.customer_type?.cus_type_title ? ` (${customer.customer_type.cus_type_title}${customer.customer_category?.cus_cat_title ? ` - ${customer.customer_category.cus_cat_title}` : ''})` : ''}</h3>
     <p>${dateFilteredEntries.length} entries</p>
   </div>
   <div class="right">
@@ -2022,10 +2025,10 @@ export default function FinancePage() {
                   </FormControl>
                 </Box>
 
-                {/* Sub-Category Placeholder - SECOND */}
+                {/* Customer Type Filter - SECOND */}
                 <Box>
                   <FormControl fullWidth disabled={!selectedCategory}>
-                    <InputLabel>Sub-Category</InputLabel>
+                    <InputLabel>Customer Type</InputLabel>
                     <Select
                       fullWidth
                       value={selectedSubCategory}
@@ -2033,13 +2036,13 @@ export default function FinancePage() {
                         setSelectedSubCategory(e.target.value);
                         setSelectedCustomer(''); // Reset account when sub-category changes
                       }}
-                      label="Sub-Category"
+                      label="Customer Type"
                       sx={{
                         borderRadius: 1.5,
                         bgcolor: selectedCategory ? 'white' : '#f9fafb',
                       }}
                     >
-                      <MenuItem value="">All Sub-Categories</MenuItem>
+                      <MenuItem value="">All Customer Types</MenuItem>
                       {availableSubCategories.map((type) => (
                         <MenuItem key={type.cus_type_id} value={type.cus_type_id.toString()}>
                           {type.cus_type_title}
@@ -2107,7 +2110,10 @@ export default function FinancePage() {
                               {option.cus_name}
                             </Typography>
                             <Typography variant="caption" sx={{ color: '#64748b' }}>
-                              {option.cus_phone_no} {option.cus_email && `• ${option.cus_email}`}
+                              {option.cus_phone_no}
+                              {option.cus_email && ` • ${option.cus_email}`}
+                              {option.customer_type?.cus_type_title && ` • ${option.customer_type.cus_type_title}`}
+                              {option.customer_category?.cus_cat_title && ` (${option.customer_category.cus_cat_title})`}
                             </Typography>
                           </Box>
                         </Box>
@@ -2658,6 +2664,12 @@ export default function FinancePage() {
                               <Typography variant="body2" sx={{ fontWeight: 700, color: '#1f2937' }}>
                                 {entry.customer?.cus_name || 'Cash Account'}
                               </Typography>
+                              {entry.customer?.customer_type?.cus_type_title && (
+                                <Typography variant="caption" sx={{ color: '#4b5563', display: 'block', mt: 0.5, fontWeight: 600 }}>
+                                  {entry.customer.customer_type.cus_type_title}
+                                  {entry.customer.customer_category?.cus_cat_title && ` (${entry.customer.customer_category.cus_cat_title})`}
+                                </Typography>
+                              )}
                             </TableCell>
 
                             {/* Description */}
@@ -2965,7 +2977,11 @@ export default function FinancePage() {
                         </Box>
                         <Box>
                           <Typography variant="body2" fontWeight={700}>{option.cus_name}</Typography>
-                          <Typography variant="caption" color="text.secondary">{option.cus_phone_no}</Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {option.cus_phone_no}
+                            {option.customer_type?.cus_type_title && ` • ${option.customer_type.cus_type_title}`}
+                            {option.customer_category?.cus_cat_title && ` (${option.customer_category.cus_cat_title})`}
+                          </Typography>
                         </Box>
                       </Box>
                     </Box>

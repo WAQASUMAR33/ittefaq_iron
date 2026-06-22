@@ -27,7 +27,17 @@ export async function GET(request) {
               cus_name: true,
               cus_phone_no: true,
               cus_category: true,
-              cus_type: true
+              cus_type: true,
+              customer_category: {
+                select: {
+                  cus_cat_title: true
+                }
+              },
+              customer_type: {
+                select: {
+                  cus_type_title: true
+                }
+              }
             }
           },
           updated_by_user: {
@@ -62,7 +72,17 @@ export async function GET(request) {
             cus_name: true,
             cus_phone_no: true,
             cus_category: true,
-            cus_type: true
+            cus_type: true,
+            customer_category: {
+              select: {
+                cus_cat_title: true
+              }
+            },
+            customer_type: {
+              select: {
+                cus_type_title: true
+              }
+            }
           }
         },
         updated_by_user: {
@@ -190,7 +210,17 @@ export async function POST(request) {
             cus_name: true,
             cus_phone_no: true,
             cus_category: true,
-            cus_type: true
+            cus_type: true,
+            customer_category: {
+              select: {
+                cus_cat_title: true
+              }
+            },
+            customer_type: {
+              select: {
+                cus_type_title: true
+              }
+            }
           }
         },
         updated_by_user: {
@@ -346,7 +376,23 @@ export async function PUT(request) {
       where: { l_id: result.l_id },
       include: {
         customer: {
-          select: { cus_id: true, cus_name: true, cus_phone_no: true, cus_category: true, cus_type: true }
+          select: {
+            cus_id: true,
+            cus_name: true,
+            cus_phone_no: true,
+            cus_category: true,
+            cus_type: true,
+            customer_category: {
+              select: {
+                cus_cat_title: true
+              }
+            },
+            customer_type: {
+              select: {
+                cus_type_title: true
+              }
+            }
+          }
         },
         updated_by_user: {
           select: { user_id: true, full_name: true, role: true }
