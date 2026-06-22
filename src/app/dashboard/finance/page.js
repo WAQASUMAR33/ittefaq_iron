@@ -1004,15 +1004,17 @@ export default function FinancePage() {
       const response = await fetch('/api/customers?include=category,type');
       const allCustomers = await response.json();
 
-      // Filter for cash accounts: category = "Cash Account" (cus_cat_id: 24)
-      const cashAccs = allCustomers.filter(c =>
-        c.customer_category?.cus_cat_title === 'Cash Account'
-      );
+      // Filter for cash accounts: category includes "cash"
+      const cashAccs = allCustomers.filter(c => {
+        const title = (c.customer_category?.cus_cat_title || '').toLowerCase();
+        return title.includes('cash');
+      });
 
-      // Filter for bank accounts: category = "Bank Account" (cus_cat_id: 23)
-      const bankAccs = allCustomers.filter(c =>
-        c.customer_category?.cus_cat_title === 'Bank Account'
-      );
+      // Filter for bank accounts: category includes "bank"
+      const bankAccs = allCustomers.filter(c => {
+        const title = (c.customer_category?.cus_cat_title || '').toLowerCase();
+        return title.includes('bank');
+      });
 
       setCashAccounts(cashAccs);
       setBankAccounts(bankAccs);
