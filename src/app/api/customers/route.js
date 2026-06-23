@@ -235,6 +235,43 @@ export async function GET(request) {
     }
 
     // Get all customers with category details
+    const isDropdown = searchParams.get('dropdown') === 'true' || searchParams.get('minimal') === 'true';
+    if (isDropdown) {
+      const customers = await prisma.customer.findMany({
+        select: {
+          cus_id: true,
+          cus_name: true,
+          cus_balance: true,
+          cus_phone_no: true,
+          cus_phone_no2: true,
+          cus_address: true,
+          cus_reference: true,
+          cus_category: true,
+          cus_type: true,
+          customer_category: {
+            select: {
+              cus_cat_id: true,
+              cus_cat_title: true
+            }
+          },
+          customer_type: {
+            select: {
+              cus_type_id: true,
+              cus_type_title: true
+            }
+          },
+          city: {
+            select: {
+              city_id: true,
+              city_name: true
+            }
+          }
+        },
+        orderBy: { created_at: 'desc' },
+      });
+      return NextResponse.json(customers);
+    }
+
     const customers = await prisma.customer.findMany({
       include: {
         customer_category: {

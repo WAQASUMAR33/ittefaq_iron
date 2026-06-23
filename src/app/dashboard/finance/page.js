@@ -194,6 +194,71 @@ const getSupplierBalanceAfterBill = (bill) => {
   return Number((prev - getInvoiceRemainingDue(bill)).toFixed(2));
 };
 
+const numberToWords = (amount) => {
+  const num = parseFloat(amount);
+  if (isNaN(num) || num <= 0) return '';
+  
+  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 
+                'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  const scales = ['', 'Thousand', 'Million', 'Billion'];
+
+  const convertChunk = (n) => {
+    let parts = [];
+    if (n >= 100) {
+      parts.push(ones[Math.floor(n / 100)] + ' Hundred');
+      n %= 100;
+    }
+    if (n >= 20) {
+      parts.push(tens[Math.floor(n / 10)]);
+      n %= 10;
+    }
+    if (n > 0) {
+      parts.push(ones[n]);
+    }
+    return parts.filter(Boolean).join(' ');
+  };
+
+  let numInt = Math.floor(num);
+  let numDec = Math.round((num - numInt) * 100);
+
+  if (numInt === 0 && numDec === 0) return 'Zero Rupees Only';
+
+  let chunks = [];
+  let scaleIndex = 0;
+
+  while (numInt > 0) {
+    let chunk = numInt % 1000;
+    if (chunk > 0) {
+      let chunkStr = convertChunk(chunk);
+      if (scales[scaleIndex]) {
+        chunkStr += ' ' + scales[scaleIndex];
+      }
+      chunks.unshift(chunkStr);
+    }
+    numInt = Math.floor(numInt / 1000);
+    scaleIndex++;
+  }
+
+  let words = chunks.filter(Boolean).join(', ');
+  if (words) {
+    words = words.trim() + ' Rupees';
+  }
+
+  if (numDec > 0) {
+    const decWords = convertChunk(numDec);
+    if (decWords) {
+      if (words) {
+        words += ' and ' + decWords + ' Paisa';
+      } else {
+        words = decWords + ' Paisa';
+      }
+    }
+  }
+
+  return words ? words + ' Only' : '';
+};
+
 export default function FinancePage() {
   // PIN auth
   const { requireAuth, authDialogOpen, handleAuthSuccess, handleAuthCancel } = usePinAuth();
@@ -3824,6 +3889,18 @@ export default function FinancePage() {
               />
             </Box>
 
+            {/* Amount in Words */}
+            {receiveTotalPreview > 0 && (
+              <Box sx={{ p: 2, bgcolor: '#f0fdf4', borderRadius: 2, border: '1px solid #bbf7d0' }}>
+                <Typography variant="caption" sx={{ color: '#166534', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Total Amount in Words
+                </Typography>
+                <Typography variant="body1" sx={{ fontWeight: 800, color: '#16a34a', mt: 0.5 }}>
+                  {numberToWords(receiveTotalPreview)}
+                </Typography>
+              </Box>
+            )}
+
             <Divider sx={{ borderStyle: 'dotted', my: 1 }} />
 
             {/* Description */}
@@ -4045,6 +4122,18 @@ export default function FinancePage() {
                 }}
               />
             </Box>
+
+            {/* Amount in Words */}
+            {payTotalPreview > 0 && (
+              <Box sx={{ p: 2, bgcolor: '#fef2f2', borderRadius: 2, border: '1px solid #fecaca' }}>
+                <Typography variant="caption" sx={{ color: '#991b1b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Total Amount in Words
+                </Typography>
+                <Typography variant="body1" sx={{ fontWeight: 800, color: '#dc2626', mt: 0.5 }}>
+                  {numberToWords(payTotalPreview)}
+                </Typography>
+              </Box>
+            )}
 
             <Divider sx={{ borderStyle: 'dotted', my: 1 }} />
 

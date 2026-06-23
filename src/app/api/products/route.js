@@ -57,6 +57,26 @@ export async function GET(request) {
     if (subCategoryId) whereClause.sub_cat_id = subCategoryId;
 
     // Get all products with relational data
+    const isDropdown = searchParams.get('dropdown') === 'true' || searchParams.get('minimal') === 'true';
+    if (isDropdown) {
+      const products = await prisma.product.findMany({
+        where: whereClause,
+        select: {
+          pro_id: true,
+          pro_title: true,
+          pro_code: true,
+          pro_cost_price: true,
+          pro_sale_price: true,
+          pro_baser_price: true,
+          pro_crate: true,
+          pro_unit: true,
+          pro_packing: true
+        },
+        orderBy: { created_at: 'desc' }
+      });
+      return NextResponse.json(products);
+    }
+
     try {
       const products = await prisma.product.findMany({
         where: whereClause,

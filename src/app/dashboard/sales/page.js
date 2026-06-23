@@ -1741,7 +1741,7 @@ function SalesPageContent() {
       let accountsData = providedCustomers;
 
       if (!accountsData) {
-        const response = await fetch('/api/customers');
+        const response = await fetch('/api/customers?dropdown=true');
         if (response.ok) {
           const customersResponse = await response.json();
           accountsData = customersResponse.value || customersResponse;
@@ -1853,7 +1853,7 @@ function SalesPageContent() {
       let accountsData = providedCustomers;
 
       if (!accountsData) {
-        const response = await fetch('/api/customers');
+        const response = await fetch('/api/customers?dropdown=true');
         if (response.ok) {
           const customersResponse = await response.json();
           accountsData = customersResponse.value || customersResponse;
@@ -2132,7 +2132,7 @@ function SalesPageContent() {
         await fetchData();
         // Update selected customer with new data if editing
         if (editingCustomer) {
-          const updatedCustomers = await fetch('/api/customers').then(r => r.json());
+          const updatedCustomers = await fetch('/api/customers?dropdown=true').then(r => r.json());
           const updated = (updatedCustomers.data || updatedCustomers).find(c => c.cus_id === formSelectedCustomer.cus_id);
           if (updated) setFormSelectedCustomer(updated);
         }
@@ -2196,8 +2196,8 @@ function SalesPageContent() {
 
       // Fetch other data in parallel
       const [customersRes, productsRes, customerTypesRes, storesRes, customerCategoriesRes, citiesRes, categoriesRes, subcategoriesRes] = await Promise.all([
-        fetch('/api/customers'),
-        fetch('/api/products'),
+        fetch('/api/customers?dropdown=true'),
+        fetch('/api/products?dropdown=true'),
         fetch('/api/customer-types'),
         fetch('/api/stores'),
         fetch('/api/customer-category'),
