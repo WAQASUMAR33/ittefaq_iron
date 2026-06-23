@@ -47,7 +47,8 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  Autocomplete
+  Autocomplete,
+  Pagination
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -83,6 +84,18 @@ export default function CustomersPage() {
   const [customerTypes, setCustomerTypes] = useState([]);
   const [cities, setCities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
+
+  // Pagination & Filtering & Sorting States
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(50);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCustomers, setTotalCustomers] = useState(0);
+  const [totalReceivables, setTotalReceivables] = useState(0);
+  const [totalPayables, setTotalPayables] = useState(0);
+  const [netBalance, setNetBalance] = useState(0);
+  const [sortBy, setSortBy] = useState('created_at');
+  const [sortOrder, setSortOrder] = useState('desc');
 
   const [showCustomerForm, setShowCustomerForm] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
@@ -119,6 +132,7 @@ export default function CustomersPage() {
 
   // Filter states
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [balanceFilter, setBalanceFilter] = useState('all');
@@ -137,60 +151,156 @@ export default function CustomersPage() {
     severity: 'success'
   });
 
-  // Filterable dropdown states
-  const [customerTypeSearch, setCustomerTypeSearch] = useState('');
-  const [categorySearch, setCategorySearch] = useState('');
-  const [citySearch, setCitySearch] = useState('');
-
-  // Load data from API
+  // Load configuration details from API on mount
   useEffect(() => {
-    fetchData();
+    fetchStaticData();
   }, []);
 
-  const fetchData = async () => {
+  // Debounce search input
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 400);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
+
+  // Fetch paginated customers when filters, page, sorting changes
+  useEffect(() => {
+    fetchCustomers(page);
+  }, [page, limit, debouncedSearch, typeFilter, categoryFilter, balanceFilter, activityFilter, sortBy, sortOrder]);
+
+  // Reset to page 1 whenever any filter condition changes
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, typeFilter, categoryFilter, balanceFilter, activityFilter]);
+
+  const fetchStaticData = async () => {
     try {
       setLoading(true);
-      const [customersRes, categoriesRes, customerTypesRes, citiesRes] = await Promise.all([
-        fetch('/api/customers'),
+      const [categoriesRes, customerTypesRes, citiesRes] = await Promise.all([
         fetch('/api/customer-category'),
         fetch('/api/customer-types'),
         fetch('/api/cities')
       ]);
 
-      if (customersRes.ok && categoriesRes.ok && customerTypesRes.ok && citiesRes.ok) {
-        const customersData = await customersRes.json();
+      if (categoriesRes.ok && customerTypesRes.ok && citiesRes.ok) {
         const categoriesData = await categoriesRes.json();
         const customerTypesData = await customerTypesRes.json();
         const citiesData = await citiesRes.json();
 
-        setCustomers(customersData);
         setCustomerCategories(categoriesData);
         setCustomerTypes(customerTypesData);
         setCities(citiesData);
       } else {
-        console.error('Failed to fetch data');
+        console.error('Failed to fetch configuration options');
         setSnackbar({
           open: true,
-          message: 'Failed to fetch data',
+          message: 'Failed to fetch settings options',
           severity: 'error'
         });
       }
     } catch (error) {
-      console.error('Error fetching data:', error);
-      setSnackbar({
-        open: true,
-        message: 'Error fetching data: ' + error.message,
-        severity: 'error'
-      });
+      console.error('Error fetching settings options:', error);
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchCustomers = async (currentPage = page) => {
+    try {
+      setIsFetching(true);
+      const queryParams = new URLSearchParams({
+        paginate: 'true',
+        page: String(currentPage),
+        limit: String(limit),
+        search: debouncedSearch,
+        typeFilter,
+        categoryFilter,
+        balanceFilter,
+        activityFilter,
+        sortBy,
+        sortOrder
+      });
+
+      const response = await fetch(`/api/customers?${queryParams.toString()}`);
+      if (response.ok) {
+        const data = await response.json();
+        const customersWithSeq = (data.customers || []).map((customer, index) => ({
+          ...customer,
+          sequentialId: (currentPage - 1) * limit + index + 1
+        }));
+        setCustomers(customersWithSeq);
+        setTotalPages(data.pagination?.pages || 1);
+        setTotalCustomers(data.stats?.totalCustomers || 0);
+        setTotalReceivables(data.stats?.totalReceivables || 0);
+        setTotalPayables(data.stats?.totalPayables || 0);
+        setNetBalance(data.stats?.netBalance || 0);
+      } else {
+        console.error('Failed to fetch customers');
+        setSnackbar({
+          open: true,
+          message: 'Failed to fetch customer list',
+          severity: 'error'
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching customers:', error);
+    } finally {
+      setIsFetching(false);
+    }
+  };
+
+  const fetchFullFilteredList = async () => {
+    try {
+      setIsSubmitting(true);
+      const queryParams = new URLSearchParams({
+        paginate: 'true',
+        all: 'true',
+        search: debouncedSearch,
+        typeFilter,
+        categoryFilter,
+        balanceFilter,
+        activityFilter,
+        sortBy,
+        sortOrder
+      });
+
+      const response = await fetch(`/api/customers?${queryParams.toString()}`);
+      if (response.ok) {
+        const data = await response.json();
+        return (data.customers || []).map((customer, index) => ({
+          ...customer,
+          sequentialId: index + 1
+        }));
+      } else {
+        console.error('Failed to fetch complete filtered list');
+        return [];
+      }
+    } catch (err) {
+      console.error('Error loading complete list:', err);
+      return [];
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSort = (field) => {
+    if (sortBy === field) {
+      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(field);
+      setSortOrder('desc');
+    }
+    setPage(1);
+  };
+
+  const renderSortIndicator = (field) => {
+    if (sortBy !== field) return null;
+    return sortOrder === 'asc' ? ' 🔼' : ' 🔽';
+  };
 
   const handleAddCustomer = async (e) => {
     e.preventDefault();
-
     setIsSubmitting(true);
 
     try {
@@ -204,7 +314,6 @@ export default function CustomersPage() {
 
       if (response.ok) {
         const newCustomer = await response.json();
-        setCustomers(prev => [...prev, newCustomer]);
         setShowCustomerForm(false);
         setFormData({
           cus_name: '',
@@ -224,6 +333,8 @@ export default function CustomersPage() {
         });
         new BroadcastChannel('customers-sync').postMessage({ type: 'customer-added', customer: newCustomer });
         alert('Account added successfully!');
+        setPage(1);
+        fetchCustomers(1);
       } else {
         const error = await response.json();
         alert(error.error || 'Failed to create Account');
@@ -259,7 +370,6 @@ export default function CustomersPage() {
 
   const handleUpdateCustomer = async (e) => {
     e.preventDefault();
-
     setIsSubmitting(true);
 
     try {
@@ -276,9 +386,6 @@ export default function CustomersPage() {
 
       if (response.ok) {
         const updatedCustomer = await response.json();
-        setCustomers(prev => prev.map(customer =>
-          customer.cus_id === editingCustomer.cus_id ? updatedCustomer : customer
-        ));
         setShowCustomerForm(false);
         setEditingCustomer(null);
         setFormData({
@@ -299,6 +406,7 @@ export default function CustomersPage() {
         });
         new BroadcastChannel('customers-sync').postMessage({ type: 'customer-updated', customer: updatedCustomer });
         alert('Account updated successfully!');
+        fetchCustomers(page);
       } else {
         const error = await response.json();
         alert(error.error || 'Failed to update Account');
@@ -319,8 +427,8 @@ export default function CustomersPage() {
         });
 
         if (response.ok) {
-          setCustomers(prev => prev.filter(customer => customer.cus_id !== customerId));
           alert('Account deleted successfully!');
+          fetchCustomers(page);
         } else {
           const error = await response.json();
           alert(error.error || 'Failed to delete Account');
@@ -460,54 +568,6 @@ export default function CustomersPage() {
     }
   };
 
-  // Filter customers based on search and filter criteria
-  const filteredCustomers = customers
-    .filter(customer => {
-      const q = searchTerm.toLowerCase();
-      const city = cities.find(c => c.city_id === customer.city_id);
-      const matchesSearch = !q ||
-        (customer.cus_name || '').toLowerCase().includes(q) ||
-        (customer.cus_phone_no || '').toLowerCase().includes(q) ||
-        (customer.cus_phone_no2 || '').toLowerCase().includes(q) ||
-        (customer.cus_address || '').toLowerCase().includes(q) ||
-        (customer.cus_reference || '').toLowerCase().includes(q) ||
-        (city?.city_name || '').toLowerCase().includes(q);
-
-      const matchesType = typeFilter === 'all' || customer.cus_type === typeFilter;
-      const matchesCategory = categoryFilter === 'all' || customer.customer_category?.cus_cat_title === categoryFilter;
-
-      let matchesBalance = true;
-      if (balanceFilter === 'positive') {
-        matchesBalance = parseFloat(customer.cus_balance) > 0;
-      } else if (balanceFilter === 'negative') {
-        matchesBalance = parseFloat(customer.cus_balance) < 0;
-      } else if (balanceFilter === 'zero') {
-        matchesBalance = parseFloat(customer.cus_balance) === 0;
-      }
-
-      let matchesActivity = true;
-      if (activityFilter !== 'all') {
-        const balance = parseFloat(customer.cus_balance);
-        if (balance <= 0) {
-          matchesActivity = false;
-        } else {
-          const now = new Date();
-          const lastActivity = customer.updated_at ? new Date(customer.updated_at) : new Date(customer.created_at);
-          const diffDays = (now - lastActivity) / (1000 * 60 * 60 * 24);
-          if (activityFilter === '1month') matchesActivity = diffDays <= 30;
-          else if (activityFilter === '1to3months') matchesActivity = diffDays > 30 && diffDays <= 90;
-          else if (activityFilter === '3to6months') matchesActivity = diffDays > 90 && diffDays <= 180;
-          else if (activityFilter === 'over6months') matchesActivity = diffDays > 180;
-        }
-      }
-
-      return matchesSearch && matchesType && matchesCategory && matchesBalance && matchesActivity;
-    })
-    .map((customer, index) => ({
-      ...customer,
-      sequentialId: index + 1
-    }));
-
   // Clear all filters
   const clearFilters = () => {
     setSearchTerm('');
@@ -515,17 +575,9 @@ export default function CustomersPage() {
     setCategoryFilter('all');
     setBalanceFilter('all');
     setActivityFilter('all');
+    setSortBy('created_at');
+    setSortOrder('desc');
   };
-
-  // Stats Calculations
-  const totalCustomers = filteredCustomers.length;
-  const totalReceivables = filteredCustomers
-    .filter(c => parseFloat(c.cus_balance) > 0)
-    .reduce((sum, c) => sum + parseFloat(c.cus_balance), 0);
-  const totalPayables = Math.abs(filteredCustomers
-    .filter(c => parseFloat(c.cus_balance) < 0)
-    .reduce((sum, c) => sum + parseFloat(c.cus_balance), 0));
-  const netBalance = filteredCustomers.reduce((sum, c) => sum + parseFloat(c.cus_balance), 0);
 
   const getTypeColor = (typeId) => {
     const customerType = customerTypes.find(type => type.cus_type_id === typeId);
@@ -567,9 +619,9 @@ export default function CustomersPage() {
     return '#fee2e2';                           // red-100
   };
 
-  const buildPrintHTML = () => {
+  const buildPrintHTML = (list) => {
     const now = new Date().toLocaleString();
-    const rows = filteredCustomers.map((c, i) => {
+    const rows = list.map((c, i) => {
       const bg = getActivityRowBg(c) || '#fff';
       const bal = parseFloat(c.cus_balance);
       const balColor = bal > 0 ? '#16a34a' : bal < 0 ? '#dc2626' : '#374151';
@@ -595,13 +647,12 @@ export default function CustomersPage() {
       th{background:#1e3a5f;color:#fff;padding:7px 8px;border:1px solid #1e3a5f;text-align:left}
       th:last-child,th:nth-child(5){text-align:right}
       th:first-child{text-align:center}
-      tr:nth-child(even):not([style*="background:#dc"]):not([style*="background:#fef"]):not([style*="background:#dbe"]):not([style*="background:#dcf"]){}
       .legend{display:flex;gap:16px;margin-top:12px;font-size:0.75rem}
       .dot{width:12px;height:12px;border-radius:50%;display:inline-block;margin-right:4px;vertical-align:middle}
       @media print{@page{size:A4 landscape;margin:12mm}}
     </style></head><body>
     <h1>Itefaq Iron &amp; Cement Store — Accounts List</h1>
-    <p class="sub">Printed: ${now} &nbsp;|&nbsp; Total: ${filteredCustomers.length} accounts</p>
+    <p class="sub">Printed: ${now} &nbsp;|&nbsp; Total: ${list.length} accounts</p>
     <table>
       <thead><tr>
         <th>#</th><th>Name</th><th>Phone</th><th>Category</th><th style="text-align:right">Balance (PKR)</th><th style="text-align:center">Last Activity</th>
@@ -618,9 +669,10 @@ export default function CustomersPage() {
     </body></html>`;
   };
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
+    const fullList = await fetchFullFilteredList();
     const w = window.open('', '_blank', 'width=1100,height=750');
-    w.document.write(buildPrintHTML());
+    w.document.write(buildPrintHTML(fullList));
     w.document.close();
   };
 
@@ -628,6 +680,7 @@ export default function CustomersPage() {
     if (!whatsappPhone.trim()) return;
     setIsSendingWhatsApp(true);
     try {
+      const fullList = await fetchFullFilteredList();
       const { jsPDF } = await import('jspdf');
 
       const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
@@ -650,7 +703,7 @@ export default function CustomersPage() {
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(100, 116, 139);
-      doc.text(`Date: ${new Date().toLocaleDateString()}   |   Total: ${filteredCustomers.length} accounts`, margin, y);
+      doc.text(`Date: ${new Date().toLocaleDateString()}   |   Total: ${fullList.length} accounts`, margin, y);
       y += 6;
 
       // Table header
@@ -673,7 +726,7 @@ export default function CustomersPage() {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
 
-      filteredCustomers.forEach((c, i) => {
+      fullList.forEach((c, i) => {
         if (y + rowH > pageH - margin) {
           doc.addPage();
           y = margin;
@@ -752,12 +805,12 @@ export default function CustomersPage() {
         body: JSON.stringify({
           imageBase64: pdfBase64,
           phone: whatsappPhone.trim(),
-          caption: `📋 Accounts List — Itefaq Iron & Cement Store\nTotal: ${filteredCustomers.length} accounts\nDate: ${new Date().toLocaleDateString()}`,
+          caption: `📋 Accounts List — Itefaq Iron & Cement Store\nTotal: ${fullList.length} accounts\nDate: ${new Date().toLocaleDateString()}`,
           bill: { sale_id: `customers-${Date.now()}` },
           templateKey: 'customer_list',
           templateVariables: {
             1: 'Manager',
-            2: `Accounts list – ref ${filteredCustomers.length} accounts | ${new Date().toISOString().slice(0, 10)}`,
+            2: `Accounts list – ref ${fullList.length} accounts | ${new Date().toISOString().slice(0, 10)}`,
           },
         })
       });
@@ -781,9 +834,6 @@ export default function CustomersPage() {
     const customerType = customerTypes.find(type => type.cus_type_id === typeId);
     return customerType ? customerType.cus_type_title : typeId || 'Unknown';
   };
-
-  // Get unique categories for filter dropdown
-  const categories = [...new Set(customers.map(c => c.customer_category?.cus_cat_title || c.cus_category))];
 
   if (loading) {
     return (
@@ -1032,7 +1082,8 @@ export default function CustomersPage() {
                       { value: 'all', label: 'All Balances' },
                       { value: 'positive', label: 'Positive Balance' },
                       { value: 'negative', label: 'Negative Balance' },
-                      { value: 'zero', label: 'Zero Balance' }
+                      { value: 'zero', label: 'Zero Balance' },
+                      { value: 'non-zero', label: 'With Balance (Non-Zero)' }
                     ]}
                     getOptionLabel={(option) => option.label}
                     value={{
@@ -1040,7 +1091,8 @@ export default function CustomersPage() {
                         balanceFilter === 'all' ? 'All Balances' :
                           balanceFilter === 'positive' ? 'Positive Balance' :
                             balanceFilter === 'negative' ? 'Negative Balance' :
-                              balanceFilter === 'zero' ? 'Zero Balance' : 'All Balances'
+                              balanceFilter === 'zero' ? 'Zero Balance' :
+                                balanceFilter === 'non-zero' ? 'With Balance (Non-Zero)' : 'All Balances'
                     }}
                     onChange={(event, newValue) => {
                       setBalanceFilter(newValue ? newValue.value : 'all');
@@ -1072,7 +1124,7 @@ export default function CustomersPage() {
                     )}
                   />
                 </Box>
-
+ 
                 {/* Activity Filter */}
                 <Box>
                   <Autocomplete
@@ -1131,7 +1183,7 @@ export default function CustomersPage() {
             </CardContent>
           </Card>
         </Box>
-
+ 
         {/* Unified Professional Stats Bar */}
         <Box sx={{ flexShrink: 0, mb: 4, width: '100%' }}>
           <Card sx={{
@@ -1214,7 +1266,7 @@ export default function CustomersPage() {
             </Box>
           </Card>
         </Box>
-
+ 
         {/* Customers Table */}
         <Card sx={{ height: 600, display: 'flex', flexDirection: 'column' }}>
           <Box sx={{ p: 3, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1222,25 +1274,36 @@ export default function CustomersPage() {
               Accounts List
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Showing {filteredCustomers.length} of {customers.length}
+              Total Accounts: {totalCustomers}
             </Typography>
           </Box>
-          <Box sx={{ flex: 1, overflow: 'auto' }}>
+          <Box sx={{ flex: 1, overflow: 'auto', position: 'relative' }}>
+            {isFetching && (
+              <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, bgcolor: 'rgba(255,255,255,0.7)', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <CircularProgress color="primary" />
+              </Box>
+            )}
             <TableContainer ref={tableRef} component={Paper} sx={{ height: '100%' }}>
               <Table stickyHeader>
                 <TableHead>
                   <TableRow>
-                    <TableCell>Account</TableCell>
+                    <TableCell onClick={() => handleSort('cus_name')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                      Account {renderSortIndicator('cus_name')}
+                    </TableCell>
                     <TableCell>Contact</TableCell>
                     <TableCell>Type</TableCell>
                     <TableCell>Category</TableCell>
-                    <TableCell>Balance</TableCell>
-                    <TableCell>Created</TableCell>
+                    <TableCell onClick={() => handleSort('cus_balance')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                      Balance {renderSortIndicator('cus_balance')}
+                    </TableCell>
+                    <TableCell onClick={() => handleSort('created_at')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                      Created {renderSortIndicator('created_at')}
+                    </TableCell>
                     <TableCell>Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {filteredCustomers.map((customer) => (
+                  {customers.map((customer) => (
                     <TableRow
                       key={customer.cus_id}
                       hover
@@ -1357,8 +1420,40 @@ export default function CustomersPage() {
               </Table>
             </TableContainer>
           </Box>
+          <Box sx={{ borderTop: 1, borderColor: 'divider', px: 3, py: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+            <FormControl variant="outlined" size="small" sx={{ minWidth: 140 }}>
+              <InputLabel id="rows-per-page-label">Rows per page</InputLabel>
+              <Select
+                labelId="rows-per-page-label"
+                id="rows-per-page"
+                value={limit}
+                onChange={(e) => {
+                  setLimit(parseInt(e.target.value));
+                  setPage(1);
+                }}
+                label="Rows per page"
+              >
+                <MenuItem value={10}>10 per page</MenuItem>
+                <MenuItem value={25}>25 per page</MenuItem>
+                <MenuItem value={50}>50 per page</MenuItem>
+                <MenuItem value={100}>100 per page</MenuItem>
+                <MenuItem value={200}>200 per page</MenuItem>
+              </Select>
+            </FormControl>
+            
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <Pagination
+                count={totalPages}
+                page={page}
+                onChange={(event, value) => setPage(value)}
+                color="primary"
+                showFirstButton
+                showLastButton
+              />
+            </Box>
+          </Box>
         </Card>
-
+ 
         {/* WhatsApp Send Dialog */}
         <Dialog open={showWhatsAppDialog} onClose={() => setShowWhatsAppDialog(false)} maxWidth="xs" fullWidth>
           <DialogTitle sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -1366,7 +1461,7 @@ export default function CustomersPage() {
           </DialogTitle>
           <DialogContent>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              This will capture the current filtered list ({filteredCustomers.length} accounts) as an image and send it via WhatsApp.
+              This will capture the current filtered list ({totalCustomers} accounts) as an image and send it via WhatsApp.
             </Typography>
             <TextField
               fullWidth

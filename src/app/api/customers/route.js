@@ -50,6 +50,190 @@ export async function GET(request) {
       return NextResponse.json(customer);
     }
 
+    const paginate = searchParams.get('paginate') === 'true';
+
+    if (paginate) {
+      const page = parseInt(searchParams.get('page')) || 1;
+      const limitVal = searchParams.get('limit');
+      const all = searchParams.get('all') === 'true';
+      const limit = all || limitVal === 'all' ? null : (parseInt(limitVal) || 50);
+      const search = searchParams.get('search') || '';
+      const typeFilter = searchParams.get('typeFilter') || 'all';
+      const categoryFilter = searchParams.get('categoryFilter') || 'all';
+      const balanceFilter = searchParams.get('balanceFilter') || 'all';
+      const activityFilter = searchParams.get('activityFilter') || 'all';
+      const sortBy = searchParams.get('sortBy') || 'created_at';
+      const sortOrder = searchParams.get('sortOrder') || 'desc';
+
+      const where = {};
+
+      // 1. Search filter
+      if (search && search.trim() !== '') {
+        const s = search.trim();
+        where.OR = [
+          { cus_name: { contains: s } },
+          { cus_phone_no: { contains: s } },
+          { cus_phone_no2: { contains: s } },
+          { cus_address: { contains: s } },
+          { cus_reference: { contains: s } },
+          { city: { city_name: { contains: s } } },
+        ];
+      }
+
+      // 2. Type filter
+      if (typeFilter && typeFilter !== 'all') {
+        where.cus_type = parseInt(typeFilter);
+      }
+
+      // 3. Category filter
+      if (categoryFilter && categoryFilter !== 'all') {
+        where.customer_category = {
+          cus_cat_title: categoryFilter
+        };
+      }
+
+      // 4. Balance filter
+      if (balanceFilter && balanceFilter !== 'all') {
+        if (balanceFilter === 'positive') {
+          where.cus_balance = { gt: 0 };
+        } else if (balanceFilter === 'negative') {
+          where.cus_balance = { lt: 0 };
+        } else if (balanceFilter === 'zero') {
+          where.cus_balance = { equals: 0 };
+        } else if (balanceFilter === 'non-zero') {
+          where.cus_balance = { not: 0 };
+        }
+      }
+
+      // 5. Activity filter
+      if (activityFilter && activityFilter !== 'all') {
+        // Activity filter requires balance > 0
+        if (!where.cus_balance) {
+          where.cus_balance = { gt: 0 };
+        } else if (where.cus_balance.gt !== undefined) {
+          // already gt 0, do nothing
+        } else {
+          where.cus_balance = { gt: 0 };
+        }
+
+        const now = new Date();
+        if (activityFilter === '1month') {
+          const date30DaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          where.updated_at = { gte: date30DaysAgo };
+        } else if (activityFilter === '1to3months') {
+          const date30DaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          const date90DaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+          where.updated_at = { gte: date90DaysAgo, lt: date30DaysAgo };
+        } else if (activityFilter === '3to6months') {
+          const date90DaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+          const date180DaysAgo = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
+          where.updated_at = { gte: date180DaysAgo, lt: date90DaysAgo };
+        } else if (activityFilter === 'over6months') {
+          const date180DaysAgo = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
+          where.updated_at = { lt: date180DaysAgo };
+        }
+      }
+
+      const skip = limit ? (page - 1) * limit : undefined;
+      const take = limit || undefined;
+
+      const orderBy = {};
+      if (sortBy === 'cus_name') {
+        orderBy.cus_name = sortOrder;
+      } else if (sortBy === 'cus_balance') {
+        orderBy.cus_balance = sortOrder;
+      } else {
+        orderBy.created_at = sortOrder;
+      }
+
+      const [customers, aggregateResult] = await Promise.all([
+        prisma.customer.findMany({
+          where,
+          include: {
+            customer_category: {
+              select: {
+                cus_cat_id: true,
+                cus_cat_title: true
+              }
+            },
+            customer_type: {
+              select: {
+                cus_type_id: true,
+                cus_type_title: true
+              }
+            },
+            city: {
+              select: {
+                city_id: true,
+                city_name: true
+              }
+            }
+          },
+          orderBy,
+          skip,
+          take,
+        }),
+        prisma.customer.aggregate({
+          where,
+          _count: { cus_id: true },
+          _sum: { cus_balance: true }
+        })
+      ]);
+
+      // Calculate stats using Prisma aggregates over the filtered set
+      const statsWhere = { ...where };
+      
+      let receivablesWhere = { ...statsWhere };
+      if (balanceFilter === 'all' || balanceFilter === 'non-zero') {
+        receivablesWhere.cus_balance = { gt: 0 };
+      } else if (balanceFilter === 'positive') {
+        receivablesWhere.cus_balance = { gt: 0 };
+      } else {
+        receivablesWhere = null;
+      }
+
+      let payablesWhere = { ...statsWhere };
+      if (balanceFilter === 'all' || balanceFilter === 'non-zero') {
+        payablesWhere.cus_balance = { lt: 0 };
+      } else if (balanceFilter === 'negative') {
+        payablesWhere.cus_balance = { lt: 0 };
+      } else {
+        payablesWhere = null;
+      }
+
+      const [receivablesResult, payablesResult] = await Promise.all([
+        receivablesWhere ? prisma.customer.aggregate({
+          where: receivablesWhere,
+          _sum: { cus_balance: true }
+        }) : Promise.resolve(null),
+        payablesWhere ? prisma.customer.aggregate({
+          where: payablesWhere,
+          _sum: { cus_balance: true }
+        }) : Promise.resolve(null),
+      ]);
+
+      const totalCustomers = aggregateResult._count.cus_id || 0;
+      const netBalance = aggregateResult._sum.cus_balance || 0;
+      const totalReceivables = receivablesResult?._sum?.cus_balance || 0;
+      const totalPayables = payablesResult?._sum?.cus_balance || 0;
+
+      return NextResponse.json({
+        customers,
+        pagination: limit ? {
+          page,
+          limit,
+          total: totalCustomers,
+          pages: Math.ceil(totalCustomers / limit)
+        } : null,
+        stats: {
+          totalCustomers,
+          totalReceivables,
+          totalPayables: Math.abs(totalPayables),
+          netBalance
+        }
+      });
+    }
+
     // Get all customers with category details
     const customers = await prisma.customer.findMany({
       include: {
