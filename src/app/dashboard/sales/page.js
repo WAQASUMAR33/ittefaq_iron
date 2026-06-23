@@ -3913,6 +3913,15 @@ function SalesPageContent() {
                           {...params}
                           placeholder="All Customer Types"
                           variant="outlined"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Tab' && !e.shiftKey) {
+                              e.preventDefault();
+                              const customerInput = document.getElementById('customer-search-dropdown-input');
+                              if (customerInput) {
+                                customerInput.focus();
+                              }
+                            }
+                          }}
                           sx={{
                             bgcolor: 'white',
                             width: 250,
@@ -4069,26 +4078,13 @@ function SalesPageContent() {
                       autoHighlight={true}
                       openOnFocus={true}
                       selectOnFocus={true}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          // Move focus to Invoice selection (if return) or Product selection
-                          if (billType === 'SALE_RETURN') {
-                            const invoiceInput = document.querySelector('input[placeholder*="Search Sale ID"]');
-                            if (invoiceInput) invoiceInput.focus();
-                          } else {
-                            const productInput = document.querySelector('input[placeholder*="Select product"]');
-                            if (productInput) productInput.focus();
-                          }
-                        }
-                      }}
                       renderOption={(props, option) => {
                         const { key, ...optionProps } = props;
                         return (
                           <Box component="li" key={option.cus_id} {...optionProps}>
                             <Box sx={{ display: 'flex', flexDirection: 'column', py: 0.5 }}>
-                              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{option.cus_name}</Typography>
-                              <Typography variant="caption" color="text.secondary">
+                              <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '1rem' }}>{option.cus_name}</Typography>
+                              <Typography variant="body2" sx={{ fontSize: '0.8rem' }} color="text.secondary">
                                 {[option.cus_phone_no, option.cus_address, option.city?.city_name, option.cus_reference].filter(Boolean).join(' • ')}
                               </Typography>
                             </Box>
@@ -4098,10 +4094,55 @@ function SalesPageContent() {
                       renderInput={(params) => (
                         <TextField
                           {...params}
+                          id="customer-search-dropdown-input"
                           fullWidth
                           placeholder="Search by name, phone, address, city, reference"
                           onFocus={(e) => e.target.select()}
-                          sx={{ bgcolor: 'white', minWidth: 450, '& .MuiInputBase-input': { fontWeight: formSelectedCustomer ? 'bold' : 'normal' } }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Tab' && !e.shiftKey) {
+                              e.preventDefault();
+                              const productInput = document.getElementById('product-select-dropdown-input');
+                              if (productInput) {
+                                productInput.focus();
+                              }
+                            }
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              if (billType === 'SALE_RETURN') {
+                                const invoiceInput = document.querySelector('input[placeholder*="Search Sale ID"]');
+                                if (invoiceInput) invoiceInput.focus();
+                              } else {
+                                const productInput = document.getElementById('product-select-dropdown-input');
+                                if (productInput) {
+                                  productInput.focus();
+                                } else {
+                                  const fallbackInput = document.querySelector('input[placeholder*="Select product"]');
+                                  if (fallbackInput) fallbackInput.focus();
+                                }
+                              }
+                            }
+                          }}
+                          sx={{
+                            bgcolor: '#e8f5e9',
+                            minWidth: 450,
+                            '& .MuiOutlinedInput-root': {
+                              fontSize: '1.1rem',
+                              '& fieldset': {
+                                borderColor: '#4caf50',
+                                borderWidth: '2px'
+                              },
+                              '&:hover fieldset': {
+                                borderColor: '#2e7d32'
+                              },
+                              '&.Mui-focused fieldset': {
+                                borderColor: '#1b5e20'
+                              }
+                            },
+                            '& .MuiInputBase-input': {
+                              fontWeight: 'bold',
+                              color: '#1b5e20'
+                            }
+                          }}
                         />
                       )}
                     />
@@ -4295,6 +4336,7 @@ function SalesPageContent() {
                       renderInput={(params) => (
                         <TextField
                           {...params}
+                          id="product-select-dropdown-input"
                           placeholder={products.length === 0 ? "No products available" : "Select product"}
                           onFocus={(e) => e.target.select()}
                           sx={{ bgcolor: 'white', width: 450, minWidth: 450, '& .MuiInputBase-input': { fontWeight: formSelectedProduct ? 'bold' : 'normal' } }}
@@ -5023,35 +5065,57 @@ function SalesPageContent() {
                   display: 'flex',
                   flexDirection: 'column'
                 }}>
-                  {/* PREVIOUS BALANCE - Show customer's balance before this sale */}
+                  {/* PREVIOUS BALANCE & BILL ADVANCE - Show customer's balance and advance side-by-side */}
                   {billType !== 'SALE_RETURN' && formSelectedCustomer && (
-                    <Box sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 'medium', color: 'warning.main', minWidth: '140px' }}>
-                        PREVIOUS BALANCE
-                      </Typography>
-                      <TextField
-                        size="small"
-                        type="number"
-                        value={parseFloat(formSelectedCustomer?.cus_balance || 0).toFixed(0)}
-                        inputProps={{ readOnly: true }}
-                        sx={{
-                          bgcolor: '#fffbeb',
-                          '& .MuiInputBase-input': {
-                            padding: '8px',
-                            fontWeight: 'bold',
-                            color: '#000000 !important',
-                            '-webkit-text-fill-color': '#000000 !important'
-                          },
-                          '& .MuiInputBase-input::placeholder': {
-                            color: '#000000',
-                            '-webkit-text-fill-color': '#000000 !important',
-                            fontWeight: 'bold',
-                            opacity: 1
-                          },
-                          flex: 1
-                        }}
-                        placeholder="0"
-                      />
+                    <Box sx={{ mb: 1.5, display: 'flex', gap: 2, width: '100%' }}>
+                      {/* PREV. BALANCE (readonly, warning orange color theme) */}
+                      <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 'medium', color: 'warning.main', minWidth: '105px' }}>
+                          PREV. BALANCE
+                        </Typography>
+                        <TextField
+                          size="small"
+                          type="number"
+                          value={parseFloat(formSelectedCustomer?.cus_balance || 0).toFixed(0)}
+                          inputProps={{ readOnly: true }}
+                          sx={{
+                            bgcolor: '#fffbeb',
+                            '& .MuiInputBase-input': {
+                              padding: '8px',
+                              fontWeight: 'bold',
+                              color: '#c2410c !important',
+                              '-webkit-text-fill-color': '#c2410c !important'
+                            },
+                            flex: 1
+                          }}
+                          placeholder="0"
+                        />
+                      </Box>
+
+                      {/* BILL ADVANCE (editable, success green color theme) */}
+                      <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 'medium', color: 'success.main', minWidth: '95px' }}>
+                          BILL ADVANCE
+                        </Typography>
+                        <TextField
+                          size="small"
+                          type="number"
+                          value={paymentData.advancePayment === 0 ? '' : paymentData.advancePayment}
+                          onChange={(e) => handlePaymentDataChange('advancePayment', e.target.value)}
+                          onFocus={(e) => e.target.select()}
+                          sx={{
+                            bgcolor: '#e8f5e9',
+                            '& .MuiInputBase-input': {
+                              padding: '8px',
+                              fontWeight: 'bold',
+                              color: '#1b5e20 !important',
+                              '-webkit-text-fill-color': '#1b5e20 !important'
+                            },
+                            flex: 1
+                          }}
+                          placeholder="0"
+                        />
+                      </Box>
                     </Box>
                   )}
 
