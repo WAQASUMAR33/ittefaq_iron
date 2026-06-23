@@ -91,7 +91,7 @@ export default function JournalPage() {
       setLoading(true);
       const [journalsRes, customersRes] = await Promise.all([
         fetch('/api/journals'),
-        fetch('/api/customers')
+        fetch('/api/customers?dropdown=true')
       ]);
 
       if (journalsRes.ok) {

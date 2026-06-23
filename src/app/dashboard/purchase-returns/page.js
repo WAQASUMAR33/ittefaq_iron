@@ -195,8 +195,8 @@ export default function PurchaseReturnsPage() {
       const responses = await Promise.all([
         fetch('/api/purchase-returns'),
         fetch('/api/purchases'),
-        fetch('/api/customers'),
-        fetch('/api/products'),
+        fetch('/api/customers?dropdown=true'),
+        fetch('/api/products?dropdown=true'),
         fetch('/api/stores')
       ]);
 

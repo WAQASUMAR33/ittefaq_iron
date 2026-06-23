@@ -265,8 +265,8 @@ function QuotationsPageContent() {
       }
 
       const [customersRes, productsRes, customerTypesRes, storesRes, customerCategoriesRes, citiesRes] = await Promise.all([
-        fetch('/api/customers'),
-        fetch('/api/products'),
+        fetch('/api/customers?dropdown=true'),
+        fetch('/api/products?dropdown=true'),
         fetch('/api/customer-types'),
         fetch('/api/stores'),
         fetch('/api/customer-category'),
@@ -325,7 +325,7 @@ function QuotationsPageContent() {
   // Transport functions
   const fetchTransportAccounts = async () => {
     try {
-      const response = await fetch('/api/customers');
+      const response = await fetch('/api/customers?dropdown=true');
       if (response.ok) {
         const accountsData = await response.json();
         const transportAccountsData = accountsData.filter(account =>
@@ -379,7 +379,7 @@ function QuotationsPageContent() {
   // Bank accounts functions
   const fetchBankAccounts = async () => {
     try {
-      const response = await fetch('/api/customers');
+      const response = await fetch('/api/customers?dropdown=true');
       if (response.ok) {
         const accountsData = await response.json();
         const bankAccountsData = accountsData.filter(account => {

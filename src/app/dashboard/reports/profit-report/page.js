@@ -49,7 +49,7 @@ export default function ProfitReport() {
 
   const fetchAllCustomers = async () => {
     try {
-      const res = await fetch('/api/customers');
+      const res = await fetch('/api/customers?dropdown=true');
       const data = await res.json();
       if (res.ok) setCustomers(Array.isArray(data) ? data : []);
     } catch {}

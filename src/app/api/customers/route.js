@@ -237,7 +237,20 @@ export async function GET(request) {
     // Get all customers with category details
     const isDropdown = searchParams.get('dropdown') === 'true' || searchParams.get('minimal') === 'true';
     if (isDropdown) {
+      const categoryParam = searchParams.get('category');
+      const where = {};
+      if (categoryParam && categoryParam !== 'all') {
+        if (!isNaN(categoryParam)) {
+          where.cus_category = parseInt(categoryParam);
+        } else {
+          where.customer_category = {
+            cus_cat_title: categoryParam
+          };
+        }
+      }
+
       const customers = await prisma.customer.findMany({
+        where,
         select: {
           cus_id: true,
           cus_name: true,

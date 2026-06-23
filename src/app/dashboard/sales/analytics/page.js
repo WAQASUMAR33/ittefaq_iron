@@ -58,7 +58,7 @@ export default function SalesAnalyticsPage() {
 
   const fetchProducts = async () => {
     try {
-      const res = await fetch('/api/products');
+      const res = await fetch('/api/products?dropdown=true');
       const data = await res.json();
       const list = Array.isArray(data) ? data : data?.products || [];
       setProducts(list);

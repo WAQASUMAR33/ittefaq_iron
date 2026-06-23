@@ -49,7 +49,7 @@ export default function SubscriptionsPage() {
       const [packagesRes, subscriptionsRes, customersRes] = await Promise.all([
         fetch('/api/packages?active=true'),
         fetch('/api/subscriptions'),
-        fetch('/api/customers')
+        fetch('/api/customers?dropdown=true')
       ]);
 
       if (packagesRes.ok) {

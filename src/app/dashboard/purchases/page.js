@@ -955,8 +955,8 @@ function PurchasesPageContent() {
       setLoading(true);
       const [purchasesRes, customersRes, productsRes, categoriesRes, subcategoriesRes, storesRes, customerCategoriesRes, customerTypesRes, citiesRes] = await Promise.all([
         fetch('/api/purchases'),
-        fetch('/api/customers'),
-        fetch('/api/products'),
+        fetch('/api/customers?dropdown=true'),
+        fetch('/api/products?dropdown=true'),
         fetch('/api/categories'),
         fetch('/api/subcategories'),
         fetch('/api/stores'),

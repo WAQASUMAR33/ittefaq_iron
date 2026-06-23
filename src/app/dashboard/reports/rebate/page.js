@@ -57,7 +57,7 @@ export default function RebateReport() {
 
     const fetchSuppliers = async () => {
         try {
-            const response = await fetch('/api/customers');
+            const response = await fetch('/api/customers?dropdown=true');
             const data = await response.json();
             if (response.ok) {
                 setSuppliers(data);

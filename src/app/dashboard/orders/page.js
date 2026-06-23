@@ -1134,7 +1134,7 @@ function OrdersPageContent() {
   // Re-fetch customers silently when another tab/page saves a customer
   const refreshCustomers = async () => {
     try {
-      const res = await fetch('/api/customers');
+      const res = await fetch('/api/customers?dropdown=true');
       if (res.ok) {
         const data = await res.json();
         const arr = Array.isArray(data) ? data : (data.value || []);
@@ -1201,7 +1201,7 @@ function OrdersPageContent() {
       let accountsData = providedCustomers;
 
       if (!accountsData) {
-        const response = await fetch('/api/customers');
+        const response = await fetch('/api/customers?dropdown=true');
         if (response.ok) {
           const customersResponse = await response.json();
           accountsData = customersResponse.value || customersResponse;
@@ -1229,7 +1229,7 @@ function OrdersPageContent() {
       let accountsData = providedCustomers;
 
       if (!accountsData) {
-        const response = await fetch('/api/customers');
+        const response = await fetch('/api/customers?dropdown=true');
         if (response.ok) {
           const customersResponse = await response.json();
           accountsData = customersResponse.value || customersResponse;
@@ -1472,8 +1472,8 @@ function OrdersPageContent() {
 
       // Fetch other data in parallel
       const [customersRes, productsRes, customerTypesRes, storesRes, customerCategoriesRes, citiesRes] = await Promise.all([
-        fetch('/api/customers'),
-        fetch('/api/products'),
+        fetch('/api/customers?dropdown=true'),
+        fetch('/api/products?dropdown=true'),
         fetch('/api/customer-types'),
         fetch('/api/stores'),
         fetch('/api/customer-category'),

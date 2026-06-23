@@ -97,7 +97,7 @@ export default function ExpensesPage() {
       const [expensesRes, expenseTitlesRes, accountsRes] = await Promise.all([
         fetch('/api/expenses'),
         fetch('/api/expense-titles'),
-        fetch('/api/customers')
+        fetch('/api/customers?dropdown=true')
       ]);
 
       if (expensesRes.ok) {

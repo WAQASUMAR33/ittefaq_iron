@@ -57,8 +57,8 @@ export default function HoldBillsPage() {
       setLoading(true);
       const [holdBillsRes, customersRes, productsRes, loadersRes] = await Promise.all([
         fetch('/api/hold-bills'),
-        fetch('/api/customers'),
-        fetch('/api/products'),
+        fetch('/api/customers?dropdown=true'),
+        fetch('/api/products?dropdown=true'),
         fetch('/api/loaders')
       ]);
 

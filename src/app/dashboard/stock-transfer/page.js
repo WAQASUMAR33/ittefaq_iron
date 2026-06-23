@@ -155,7 +155,7 @@ export default function StockTransferPage() {
 
   const fetchProducts = async () => {
     try {
-      const response = await fetch('/api/products');
+      const response = await fetch('/api/products?dropdown=true');
       if (response.ok) {
         const result = await response.json();
         // Handle both wrapped response and direct array

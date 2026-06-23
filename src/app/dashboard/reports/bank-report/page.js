@@ -67,7 +67,7 @@ export default function BankReport() {
 
   const fetchAccountsByCategory = async (categoryId) => {
     try {
-      const response = await fetch(`/api/customers?category=${categoryId}`);
+      const response = await fetch(`/api/customers?category=${categoryId}&dropdown=true`);
       const data = await response.json();
       if (response.ok) setAccounts(data);
     } catch (error) { console.error('Error:', error); }

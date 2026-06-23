@@ -228,8 +228,8 @@ export default function SaleReturnsPage() {
       const responses = await Promise.all([
         fetch('/api/sale-returns'),
         fetch('/api/sales'),
-        fetch('/api/customers'),
-        fetch('/api/products'),
+        fetch('/api/customers?dropdown=true'),
+        fetch('/api/products?dropdown=true'),
         fetch('/api/stores'),
         fetch('/api/loaders')
       ]);

@@ -365,7 +365,7 @@ export default function FinancePage() {
   const fetchStaticData = async () => {
     try {
       const [customersRes, categoriesRes, typesRes] = await Promise.all([
-        fetch('/api/customers'),
+        fetch('/api/customers?dropdown=true'),
         fetch('/api/customer-category'),
         fetch('/api/customer-types')
       ]);
@@ -1104,7 +1104,7 @@ export default function FinancePage() {
   const fetchCashBankAccounts = async () => {
     try {
       // Fetch customers with their categories and types
-      const response = await fetch('/api/customers?include=category,type');
+      const response = await fetch('/api/customers?dropdown=true');
       const allCustomers = await response.json();
 
       // Filter for cash accounts: category includes "cash"

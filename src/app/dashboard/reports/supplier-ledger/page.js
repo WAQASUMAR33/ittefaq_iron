@@ -51,7 +51,7 @@ export default function SupplierLedgerReport() {
   const fetchSuppliers = async () => {
     try {
       // Fetch all customers to get suppliers (suppliers are also stored as customers)
-      const response = await fetch('/api/customers');
+      const response = await fetch('/api/customers?dropdown=true');
       if (response.ok) {
         const data = await response.json();
         setSuppliers(data);
