@@ -209,11 +209,11 @@ model Product {
   sub_cat_id              Int
   pro_title               String
   pro_description         String
-  pro_cost_price          Decimal
-  pro_sale_price          Decimal
-  pro_baser_price         Decimal
-  pro_crate               Decimal?               @default(0.00) @db.Decimal(10, 2)
-  pro_stock_qnty          Decimal                @default(0)
+  pro_cost_price                Decimal   @db.Decimal(18, 2)
+  pro_sale_price                Decimal   @db.Decimal(18, 2)
+  pro_baser_price               Decimal   @db.Decimal(18, 2)
+  pro_crate                     Decimal?  @default(0.00) @db.Decimal(10, 2)
+  pro_stock_qnty                Decimal   @default(0.00) @db.Decimal(18, 2)
   low_stock_quantity      Int?                   @default(10) @map("pro_low_stock")
   pro_unit                String
   pro_packing             String?
@@ -276,12 +276,12 @@ model Expense {
   exp_title             String
   exp_type              Int
   exp_detail            String?
-  exp_amount            Decimal
+  exp_amount                    Decimal   @db.Decimal(18, 2)
   is_paid               Boolean      @default(false)
   paid_from_account_id  Int?
-  cash_amount           Decimal      @default(0) @db.Decimal(10, 2)
+  cash_amount                   Decimal   @default(0.00) @db.Decimal(10, 2)
   bank_account_id       Int?
-  bank_amount           Decimal      @default(0) @db.Decimal(10, 2)
+  bank_amount                   Decimal   @default(0.00) @db.Decimal(10, 2)
   payment_date          DateTime?
   payment_reference     String?
   created_at            DateTime     @default(now())
@@ -301,11 +301,11 @@ model Expense {
 
 model Sale {
   sale_id           Int            @id @default(autoincrement())
-  total_amount      Decimal
-  discount          Decimal        @default(0.000000000000000000000000000000)
+  total_amount                  Decimal   @db.Decimal(18, 2)
+  discount                      Decimal   @default(0.00) @db.Decimal(18, 2)
   cus_id            Int
   store_id          Int?
-  payment           Decimal
+  payment                       Decimal   @db.Decimal(18, 2)
   payment_type      PaymentType
   cash_payment      Float          @default(0)
   bank_payment      Float          @default(0)
@@ -348,12 +348,12 @@ model SaleDetail {
   store_id        Int?
   pro_id          Int
   vehicle_no      String?
-  qnty            Decimal
+  qnty                          Decimal   @db.Decimal(18, 2)
   unit            String
-  unit_rate       Decimal
-  total_amount    Decimal
-  discount        Decimal  @default(0.000000000000000000000000000000)
-  net_total       Decimal
+  unit_rate                     Decimal   @db.Decimal(18, 2)
+  total_amount                  Decimal   @db.Decimal(18, 2)
+  discount                      Decimal   @default(0.00) @db.Decimal(18, 2)
+  net_total                     Decimal   @db.Decimal(18, 2)
   cus_id          Int
   created_at      DateTime @default(now())
   updated_at      DateTime @updatedAt
@@ -375,7 +375,7 @@ model SaleDetail {
 model SplitPayment {
   split_payment_id  Int         @id @default(autoincrement())
   sale_id           Int
-  amount            Decimal
+  amount                        Decimal   @db.Decimal(18, 2)
   payment_type      PaymentType
   debit_account_id  Int?
   credit_account_id Int?
@@ -398,20 +398,20 @@ model Purchase {
   debit_account_id  Int?
   credit_account_id Int?
   cargo_account_id  Int?
-  total_amount      Decimal
-  unloading_amount  Decimal          @default(0.000000000000000000000000000000)
-  fare_amount       Decimal          @default(0.000000000000000000000000000000)
-  transport_amount  Decimal?         @default(0.00) @db.Decimal(10, 2)
-  labour_amount     Decimal?         @default(0.00) @db.Decimal(10, 2)
-  out_labour_amount Decimal?         @default(0.00) @db.Decimal(10, 2)
-  out_delivery_amount Decimal?       @default(0.00) @db.Decimal(10, 2)
+  total_amount                  Decimal   @db.Decimal(18, 2)
+  unloading_amount              Decimal   @default(0.00) @db.Decimal(18, 2)
+  fare_amount                   Decimal   @default(0.00) @db.Decimal(18, 2)
+  transport_amount              Decimal?  @default(0.00) @db.Decimal(10, 2)
+  labour_amount                 Decimal?  @default(0.00) @db.Decimal(10, 2)
+  out_labour_amount             Decimal?  @default(0.00) @db.Decimal(10, 2)
+  out_delivery_amount           Decimal?  @default(0.00) @db.Decimal(10, 2)
   include_cargo_in_costprice Boolean @default(false)
-  incity_own_labour Decimal?         @default(0.00) @db.Decimal(10, 2)
-  incity_own_delivery Decimal?       @default(0.00) @db.Decimal(10, 2)
-  incity_charges_total Decimal?      @default(0.00) @db.Decimal(10, 2)
-  discount          Decimal          @default(0.000000000000000000000000000000)
-  net_total         Decimal
-  payment           Decimal
+  incity_own_labour             Decimal?  @default(0.00) @db.Decimal(10, 2)
+  incity_own_delivery           Decimal?  @default(0.00) @db.Decimal(10, 2)
+  incity_charges_total          Decimal?  @default(0.00) @db.Decimal(10, 2)
+  discount                      Decimal   @default(0.00) @db.Decimal(18, 2)
+  net_total                     Decimal   @db.Decimal(18, 2)
+  payment                       Decimal   @db.Decimal(18, 2)
   payment_type      PaymentType
   vehicle_no        String?
   invoice_number    String?          @db.VarChar(255)
@@ -419,9 +419,9 @@ model Purchase {
   updated_at        DateTime         @updatedAt
   updated_by        Int?
   store_id          Int?
-  bank_payment      Decimal?         @default(0.00) @db.Decimal(10, 2)
+  bank_payment                  Decimal?  @default(0.00) @db.Decimal(10, 2)
   bank_title        String?          @db.VarChar(255)
-  cash_payment      Decimal?         @default(0.00) @db.Decimal(10, 2)
+  cash_payment                  Decimal?  @default(0.00) @db.Decimal(10, 2)
   purchase_details  PurchaseDetail[]
   purchase_returns  PurchaseReturn[]
   credit_account    Customer?        @relation("PurchaseCreditAccount", fields: [credit_account_id], references: [cus_id])
@@ -447,14 +447,14 @@ model PurchaseDetail {
   vehicle_no      String?
   cus_id          Int
   pro_id          Int
-  qnty            Decimal
+  qnty                          Decimal   @db.Decimal(18, 2)
   unit            String
-  unit_rate       Decimal
-  prate           Decimal? @default(0.00) @db.Decimal(10, 2)
-  crate           Decimal? @default(0.00) @db.Decimal(10, 2)
-  total_amount    Decimal
-  discount        Decimal  @default(0.000000000000000000000000000000)
-  net_total       Decimal
+  unit_rate                     Decimal   @db.Decimal(18, 2)
+  prate                         Decimal?  @default(0.00) @db.Decimal(10, 2)
+  crate                         Decimal?  @default(0.00) @db.Decimal(10, 2)
+  total_amount                  Decimal   @db.Decimal(18, 2)
+  discount                      Decimal   @default(0.00) @db.Decimal(18, 2)
+  net_total                     Decimal   @db.Decimal(18, 2)
   created_at      DateTime @default(now())
   updated_at      DateTime @updatedAt
   updated_by      Int?
@@ -475,7 +475,7 @@ model PurchaseReturn {
   purchase_id         Int
   return_date         DateTime
   return_reason       String
-  total_return_amount Decimal                @default(0.00) @db.Decimal(10, 2)
+  total_return_amount           Decimal   @default(0.00) @db.Decimal(10, 2)
   notes               String?
   status              String                 @default("COMPLETED")
   created_at          DateTime               @default(now())
@@ -491,9 +491,9 @@ model PurchaseReturnDetail {
   id              Int            @id @default(autoincrement())
   return_id       Int
   pro_id          Int
-  return_quantity Decimal
-  unit_rate       Decimal        @db.Decimal(10, 2)
-  return_amount   Decimal        @db.Decimal(10, 2)
+  return_quantity               Decimal   @db.Decimal(18, 2)
+  unit_rate                     Decimal   @db.Decimal(10, 2)
+  return_amount                 Decimal   @db.Decimal(10, 2)
   created_at      DateTime       @default(now())
   updated_at      DateTime       @updatedAt
   product         Product        @relation(fields: [pro_id], references: [pro_id])
@@ -523,7 +523,7 @@ model Loader {
   loader_name     String
   loader_number   String       @unique
   loader_phone    String?
-  loader_balance  Decimal      @default(0.000000000000000000000000000000)
+  loader_balance                Decimal   @default(0.00) @db.Decimal(18, 2)
   created_at      DateTime     @default(now())
   updated_at      DateTime     @updatedAt
   updated_by      Int?
@@ -539,14 +539,14 @@ model Loader {
 model Cargo {
   cargo_id         Int      @id @default(autoincrement())
   vehicle_no       String
-  total_cargo_fare Decimal  @default(0.000000000000000000000000000000)
-  exp1             Decimal? @default(0.000000000000000000000000000000)
-  exp2             Decimal? @default(0.000000000000000000000000000000)
-  exp3             Decimal? @default(0.000000000000000000000000000000)
-  exp4             Decimal? @default(0.000000000000000000000000000000)
-  exp5             Decimal? @default(0.000000000000000000000000000000)
-  exp6             Decimal? @default(0.000000000000000000000000000000)
-  others           Decimal? @default(0.000000000000000000000000000000)
+  total_cargo_fare              Decimal   @default(0.00) @db.Decimal(18, 2)
+  exp1                          Decimal?  @default(0.00) @db.Decimal(18, 2)
+  exp2                          Decimal?  @default(0.00) @db.Decimal(18, 2)
+  exp3                          Decimal?  @default(0.00) @db.Decimal(18, 2)
+  exp4                          Decimal?  @default(0.00) @db.Decimal(18, 2)
+  exp5                          Decimal?  @default(0.00) @db.Decimal(18, 2)
+  exp6                          Decimal?  @default(0.00) @db.Decimal(18, 2)
+  others                        Decimal?  @default(0.00) @db.Decimal(18, 2)
   created_at       DateTime @default(now())
   updated_at       DateTime @updatedAt
   updated_by       Int?
@@ -560,15 +560,15 @@ model SaleReturn {
   return_id         Int                @id @default(autoincrement())
   sale_id           Int?
   cus_id            Int
-  total_amount      Decimal
-  discount          Decimal            @default(0.000000000000000000000000000000)
-  payment           Decimal
+  total_amount                  Decimal   @db.Decimal(18, 2)
+  discount                      Decimal   @default(0.00) @db.Decimal(18, 2)
+  payment                       Decimal   @db.Decimal(18, 2)
   payment_type      PaymentType
   debit_account_id  Int?
   credit_account_id Int?
   loader_id         Int?
-  labour_charges    Decimal            @default(0.000000000000000000000000000000)
-  shipping_amount   Decimal            @default(0.000000000000000000000000000000)
+  labour_charges                Decimal   @default(0.00) @db.Decimal(18, 2)
+  shipping_amount               Decimal   @default(0.00) @db.Decimal(18, 2)
   reason            String?
   reference         String?
   manual_sale_inv   String?
@@ -596,12 +596,12 @@ model SaleReturnDetail {
   return_detail_id Int        @id @default(autoincrement())
   return_id        Int
   pro_id           Int
-  qnty             Decimal
+  qnty                          Decimal   @db.Decimal(18, 2)
   unit             String
-  unit_rate        Decimal
-  total_amount     Decimal
-  discount         Decimal    @default(0.000000000000000000000000000000)
-  net_total        Decimal
+  unit_rate                     Decimal   @db.Decimal(18, 2)
+  total_amount                  Decimal   @db.Decimal(18, 2)
+  discount                      Decimal   @default(0.00) @db.Decimal(18, 2)
+  net_total                     Decimal   @db.Decimal(18, 2)
   cus_id           Int
   store_id         Int?
   created_at       DateTime   @default(now())
@@ -623,14 +623,14 @@ model SaleReturnDetail {
 model HoldBill {
   hold_bill_id      Int              @id @default(autoincrement())
   cus_id            Int
-  total_amount      Decimal
-  discount          Decimal          @default(0.000000000000000000000000000000)
-  payment           Decimal          @default(0.000000000000000000000000000000)
+  total_amount                  Decimal   @db.Decimal(18, 2)
+  discount                      Decimal   @default(0.00) @db.Decimal(18, 2)
+  payment                       Decimal   @default(0.00) @db.Decimal(18, 2)
   payment_type      PaymentType
   debit_account_id  Int?
   credit_account_id Int?
   loader_id         Int?
-  shipping_amount   Decimal          @default(0.000000000000000000000000000000)
+  shipping_amount               Decimal   @default(0.00) @db.Decimal(18, 2)
   bill_type         BillType
   status            HoldBillStatus   @default(DRAFT)
   reference         String?
@@ -658,12 +658,12 @@ model HoldBillDetail {
   hold_bill_id        Int
   pro_id              Int
   vehicle_no          String?
-  qnty                Decimal
+  qnty                          Decimal   @db.Decimal(18, 2)
   unit                String
-  unit_rate           Decimal
-  total_amount        Decimal
-  discount            Decimal  @default(0.000000000000000000000000000000)
-  net_total           Decimal
+  unit_rate                     Decimal   @db.Decimal(18, 2)
+  total_amount                  Decimal   @db.Decimal(18, 2)
+  discount                      Decimal   @default(0.00) @db.Decimal(18, 2)
+  net_total                     Decimal   @db.Decimal(18, 2)
   cus_id              Int
   created_at          DateTime @default(now())
   updated_at          DateTime @updatedAt
@@ -683,15 +683,15 @@ model HoldBillDetail {
 model DayEnd {
   day_end_id      Int            @id @default(autoincrement())
   business_date   DateTime       @unique @db.Date
-  opening_cash    Decimal        @default(0.000000000000000000000000000000)
-  closing_cash    Decimal?
-  total_sales     Decimal        @default(0.000000000000000000000000000000)
-  total_purchases Decimal        @default(0.000000000000000000000000000000)
-  total_expenses  Decimal        @default(0.000000000000000000000000000000)
-  total_receipts  Decimal        @default(0.000000000000000000000000000000)
-  total_payments  Decimal        @default(0.000000000000000000000000000000)
-  cash_in_hand    Decimal?
-  bank_balance    Decimal?
+  opening_cash                  Decimal   @default(0.00) @db.Decimal(18, 2)
+  closing_cash                  Decimal?  @db.Decimal(18, 2)
+  total_sales                   Decimal   @default(0.00) @db.Decimal(18, 2)
+  total_purchases               Decimal   @default(0.00) @db.Decimal(18, 2)
+  total_expenses                Decimal   @default(0.00) @db.Decimal(18, 2)
+  total_receipts                Decimal   @default(0.00) @db.Decimal(18, 2)
+  total_payments                Decimal   @default(0.00) @db.Decimal(18, 2)
+  cash_in_hand                  Decimal?  @db.Decimal(18, 2)
+  bank_balance                  Decimal?  @db.Decimal(18, 2)
   status          DayEndStatus   @default(OPEN)
   notes           String?
   closed_by       Int?
@@ -710,7 +710,7 @@ model DayEndDetail {
   day_end_id        Int
   transaction_type  String
   transaction_id    Int
-  amount            Decimal
+  amount                        Decimal   @db.Decimal(18, 2)
   payment_type      PaymentType
   description       String?
   created_at        DateTime    @default(now())
@@ -726,7 +726,7 @@ model Journal {
   journal_type    JournalType
   reference       String?
   description     String?
-  total_amount    Decimal
+  total_amount                  Decimal   @db.Decimal(18, 2)
   status          JournalStatus   @default(DRAFT)
   posted_by       Int?
   posted_at       DateTime?
@@ -746,8 +746,8 @@ model JournalDetail {
   journal_detail_id Int      @id @default(autoincrement())
   journal_id        Int
   account_id        Int
-  debit_amount      Decimal  @default(0.000000000000000000000000000000)
-  credit_amount     Decimal  @default(0.000000000000000000000000000000)
+  debit_amount                  Decimal   @default(0.00) @db.Decimal(18, 2)
+  credit_amount                 Decimal   @default(0.00) @db.Decimal(18, 2)
   description       String?
   created_at        DateTime @default(now())
   account           Customer @relation(fields: [account_id], references: [cus_id])
@@ -779,9 +779,9 @@ model StoreStock {
   store_stock_id  Int      @id @default(autoincrement())
   store_id        Int
   pro_id          Int
-  stock_quantity  Decimal      @default(0)
-  min_stock       Decimal      @default(0)
-  max_stock       Decimal      @default(0)
+  stock_quantity                Decimal   @default(0.00) @db.Decimal(18, 2)
+  min_stock                     Decimal   @default(0.00) @db.Decimal(18, 2)
+  max_stock                     Decimal   @default(0.00) @db.Decimal(18, 2)
   created_at      DateTime @default(now())
   updated_at      DateTime @updatedAt
   updated_by      Int?
@@ -799,7 +799,7 @@ model Package {
   package_id          Int            @id @default(autoincrement())
   package_name        String
   package_description String?
-  price               Decimal
+  price                         Decimal   @db.Decimal(18, 2)
   duration_days       Int
   features            String?
   is_active           Boolean        @default(true)
@@ -817,7 +817,7 @@ model Subscription {
   subscription_id Int                       @id @default(autoincrement())
   cus_id          Int
   package_id      Int
-  amount          Decimal
+  amount                        Decimal   @db.Decimal(18, 2)
   status          SubscriptionStatus        @default(ACTIVE)
   start_date      DateTime
   end_date        DateTime
@@ -902,7 +902,7 @@ model Employee {
   designation   String?
   department    String?
   join_date     DateTime     @db.Date
-  basic_salary  Decimal      @default(0.00) @db.Decimal(10, 2)
+  basic_salary                  Decimal   @default(0.00) @db.Decimal(10, 2)
   status        EmpStatus    @default(ACTIVE)
   created_at    DateTime     @default(now())
   updated_at    DateTime     @updatedAt
@@ -935,15 +935,15 @@ model Payroll {
   emp_id            Int
   month             Int
   year              Int
-  basic_salary      Decimal       @db.Decimal(10, 2)
+  basic_salary                  Decimal   @db.Decimal(10, 2)
   total_days        Int           @default(30)
   days_present      Int           @default(0)
   leaves_taken      Int           @default(0)
   allowed_leaves    Int           @default(0)
   excess_leaves     Int           @default(0)
-  deduction_per_day Decimal       @default(0.00) @db.Decimal(10, 2)
-  total_deduction   Decimal       @default(0.00) @db.Decimal(10, 2)
-  net_salary        Decimal       @default(0.00) @db.Decimal(10, 2)
+  deduction_per_day             Decimal   @default(0.00) @db.Decimal(10, 2)
+  total_deduction               Decimal   @default(0.00) @db.Decimal(10, 2)
+  net_salary                    Decimal   @default(0.00) @db.Decimal(10, 2)
   status            PayrollStatus @default(PENDING)
   payment_date      DateTime?
   notes             String?
@@ -1077,13 +1077,13 @@ model Payment {
   payment_date        DateTime                @db.Date
   payment_type        PaymentTransactionType
   account_id          Int
-  total_amount        Decimal
-  discount_amount     Decimal         @default(0.000000000000000000000000000000)
-  net_amount          Decimal
+  total_amount                  Decimal   @db.Decimal(18, 2)
+  discount_amount               Decimal   @default(0.00) @db.Decimal(18, 2)
+  net_amount                    Decimal   @db.Decimal(18, 2)
   cash_account_id     Int?
-  cash_amount         Decimal         @default(0.000000000000000000000000000000)
+  cash_amount                   Decimal   @default(0.00) @db.Decimal(18, 2)
   bank_account_id     Int?
-  bank_amount         Decimal         @default(0.000000000000000000000000000000)
+  bank_amount                   Decimal   @default(0.00) @db.Decimal(18, 2)
   description         String?
   status              PaymentStatus   @default(COMPLETED)
   created_by          Int
@@ -1109,7 +1109,7 @@ model PaymentDetail {
   payment_detail_id   Int      @id @default(autoincrement())
   payment_id          Int
   account_id          Int
-  amount              Decimal
+  amount                        Decimal   @db.Decimal(18, 2)
   description         String?
   created_at          DateTime @default(now())
   
