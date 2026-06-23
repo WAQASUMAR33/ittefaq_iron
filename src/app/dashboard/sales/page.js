@@ -196,11 +196,11 @@ function SalesPageContent() {
             ...prev,
             advancePayment: alreadyPaid,
             discount: 0,
-            notes: `Order #${quotationId} - Advance: ${alreadyPaid.toFixed(2)}. ${fullQuotation.reference || ''}`,
+            notes: `Order #${quotationId} - Advance: ${alreadyPaid.toFixed(0)}. ${fullQuotation.reference || ''}`,
             isLoadedOrder: true
           }));
 
-          showSnackbar(`Order loaded. Advance: ${alreadyPaid.toFixed(2)}. Add items to bill.`, 'info');
+          showSnackbar(`Order loaded. Advance: ${alreadyPaid.toFixed(0)}. Add items to bill.`, 'info');
         } catch (error) {
           console.error('Error loading quotation from URL:', error);
           showSnackbar('Failed to load quotation from URL', 'error');
@@ -304,6 +304,7 @@ function SalesPageContent() {
   const [orderSearchTerm, setOrderSearchTerm] = useState('');
   const [isSearchingOrder, setIsSearchingOrder] = useState(false);
   const [loadedOrderId, setLoadedOrderId] = useState(null); // Track the order being converted to bill
+  const [selectedCustomerTypeFilter, setSelectedCustomerTypeFilter] = useState(null); // Filter customers by type
 
   // Load Quotation state
   const [loadQuotationDialogOpen, setLoadQuotationDialogOpen] = useState(false);
@@ -816,7 +817,7 @@ function SalesPageContent() {
   const handleQuantityChange = (newQuantity) => {
     const quantity = parseFloat(newQuantity) || 0;
     const rate = productFormData.rate;
-    const amount = Number((quantity * rate).toFixed(2));
+    const amount = Number((quantity * rate).toFixed(0));
 
     setProductFormData(prev => ({
       ...prev,
@@ -829,7 +830,7 @@ function SalesPageContent() {
   const handleRateChange = (newRate) => {
     const rate = parseFloat(newRate) || 0;
     const quantity = productFormData.quantity;
-    const amount = Number((quantity * rate).toFixed(2));
+    const amount = Number((quantity * rate).toFixed(0));
 
     setProductFormData(prev => ({
       ...prev,
@@ -934,13 +935,21 @@ function SalesPageContent() {
     });
   };
 
-  // Smart amount formatter: hide .00 for whole numbers
-  const fmtAmt = (val) => {
+  // Smart rate and quantity formatter: hide .00 for whole numbers, keep decimals otherwise
+  const fmtRateQty = (val) => {
     if (val === undefined || val === null || val === '') return '';
     const n = parseFloat(val);
     if (isNaN(n)) return '';
     if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
     return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  // Smart amount formatter: rounds to whole numbers (no decimal points)
+  const fmtAmt = (val) => {
+    if (val === undefined || val === null || val === '') return '';
+    const n = parseFloat(val);
+    if (isNaN(n)) return '';
+    return Math.round(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   };
 
   /** Same display name can exist for different accounts (e.g. cus_name "1781"); show id + category/type in the transport picker. */
@@ -951,7 +960,7 @@ function SalesPageContent() {
 
   const calculateTotalAmount = () => {
     const total = productTableData.reduce((total, product) => total + (parseFloat(product.amount) || 0), 0);
-    return Number(total.toFixed(2));
+    return Number(total.toFixed(0));
   };
 
   // Calculate subtotal (products + transport)
@@ -959,7 +968,7 @@ function SalesPageContent() {
     const productTotal = calculateTotalAmount();
     const transportTotal = calculateTransportTotal();
     const subtotal = productTotal + transportTotal;
-    return Number(subtotal.toFixed(2));
+    return Number(subtotal.toFixed(0));
   };
 
   // Get display bill number: B-1 for BILL, O-1 for ORDER, Q-1 for QUOTATION, fallback to sale_id
@@ -981,16 +990,16 @@ function SalesPageContent() {
     const totalDelivery = deliveryCharges + transportTotal;
     const discount = parseFloat(paymentData.discount) || 0;
     if (billType === 'SALE_RETURN') {
-      return Number((productTotal - labour - totalDelivery - discount).toFixed(2));
+      return Number((productTotal - labour - totalDelivery - discount).toFixed(0));
     }
-    return Number((productTotal + labour + totalDelivery - discount).toFixed(2));
+    return Number((productTotal + labour + totalDelivery - discount).toFixed(0));
   };
 
   // Calculate balance (grand total - total cash received only; advance is shown for info only)
   const calculateBalance = () => {
     const grandTotal = calculateGrandTotal();
     const totalCashReceived = parseFloat(paymentData.totalCashReceived) || 0;
-    return Number((grandTotal - totalCashReceived).toFixed(2));
+    return Number((grandTotal - totalCashReceived).toFixed(0));
   };
 
   // Handle payment data changes
@@ -1118,7 +1127,7 @@ function SalesPageContent() {
 
       setLoadedOrderId(fullOrder.sale_id); // Remember which order is being converted
       setLoadOrderDialogOpen(false);
-      showSnackbar(`Order loaded. Advance: ${alreadyPaid.toFixed(2)}. Add items to bill.`, 'info');
+      showSnackbar(`Order loaded. Advance: ${alreadyPaid.toFixed(0)}. Add items to bill.`, 'info');
 
     } catch (error) {
       console.error('Error loading order:', error);
@@ -1262,14 +1271,14 @@ function SalesPageContent() {
         const returnBody = {
           sale_id: selectedSaleForReturnMain ? selectedSaleForReturnMain.sale_id : null,
           cus_id: returnCustomerId,
-          total_amount: Number(totalAmount.toFixed(2)),
-          discount: Number(discount.toFixed(2)),
-          labour_charges: Number(labourCharges.toFixed(2)),
-          shipping_amount: Number(deliveryCharges.toFixed(2)),
-          payment: Number(totalReturn.toFixed(2)), // The total amount being refunded to customer
+          total_amount: Number(totalAmount.toFixed(0)),
+          discount: Number(discount.toFixed(0)),
+          labour_charges: Number(labourCharges.toFixed(0)),
+          shipping_amount: Number(deliveryCharges.toFixed(0)),
+          payment: Number(totalReturn.toFixed(0)), // The total amount being refunded to customer
           payment_type: bankReturn > 0 ? 'BANK_TRANSFER' : 'CASH', // Use BANK_TRANSFER if there's bank amount
-          cash_return: Number(cashReturn.toFixed(2)), // Additional: cash portion
-          bank_return: Number(bankReturn.toFixed(2)), // Additional: bank portion
+          cash_return: Number(cashReturn.toFixed(0)), // Additional: cash portion
+          bank_return: Number(bankReturn.toFixed(0)), // Additional: bank portion
           bank_account_id: paymentData.bankAccountId || null, // Bank account for transfer
           bill_type: 'SALE_RETURN',
           reason: paymentData.notes || 'Returned from Sale Entry',
@@ -2764,7 +2773,7 @@ function SalesPageContent() {
       updated[index] = {
         ...updated[index],
         qnty: parseInt(newQty) || 0,
-        total_amount: (parseFloat(updated[index].unit_rate || 0) * parseInt(newQty || 0)).toFixed(2)
+        total_amount: (parseFloat(updated[index].unit_rate || 0) * parseInt(newQty || 0)).toFixed(0)
       };
       return { ...prev, return_details: updated };
     });
@@ -2871,7 +2880,7 @@ function SalesPageContent() {
 
       setLoadedOrderId(orderData.sale_id);
 
-      showSnackbar(`Order loaded successfully! Advance payment: ${orderPayment.toFixed(2)}`, 'success');
+      showSnackbar(`Order loaded successfully! Advance payment: ${orderPayment.toFixed(0)}`, 'success');
       setOrderSearchTerm(''); // Clear search field
 
     } catch (error) {
@@ -3878,45 +3887,84 @@ function SalesPageContent() {
 
               </Box>
 
-              {/* Order Search Row (Only show if NOT Return, to avoid clutter) */}
+              {/* Filter and Order Search Row (Only show if NOT Return, to avoid clutter) */}
               {billType !== 'SALE_RETURN' && (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3, p: 2, bgcolor: '#f5f5f5', borderRadius: 1 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'text.primary', whiteSpace: 'nowrap' }}>
-                    Load Order:
-                  </Typography>
-                  <TextField
-                    size="small"
-                    placeholder="Enter Order Number (e.g. 123)"
-                    value={orderSearchTerm}
-                    onChange={(e) => setOrderSearchTerm(e.target.value)}
-                    onFocus={(e) => e.target.select()}
-                    sx={{ width: 250, bgcolor: 'white' }}
-                    InputProps={{
-                      endAdornment: (
-                        <SearchIcon color="action" fontSize="small" />
-                      ),
-                    }}
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') {
-                        handleSearchOrder();
-                      }
-                    }}
-                  />
-                  <Button
-                    variant="contained"
-                    size="small"
-                    onClick={handleSearchOrder}
-                    disabled={isSearchingOrder || !orderSearchTerm}
-                    sx={{ bgcolor: '#1976d2', color: 'white', '&:hover': { bgcolor: '#1565c0' } }}
-                  >
-                    {isSearchingOrder ? <CircularProgress size={20} color="inherit" /> : 'Load'}
-                  </Button>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2, mb: 3, p: 2, bgcolor: '#f5f5f5', borderRadius: 1 }}>
+                  
+                  {/* Left Side: Customer Type Dropdown Filter */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'black', whiteSpace: 'nowrap' }}>
+                      Customer Type:
+                    </Typography>
+                    <Autocomplete
+                      size="small"
+                      options={customerTypes || []}
+                      getOptionLabel={(option) => option.cus_type_title || ''}
+                      value={selectedCustomerTypeFilter}
+                      onChange={(event, newValue) => {
+                        setSelectedCustomerTypeFilter(newValue);
+                      }}
+                      isOptionEqualToValue={(option, value) => option.cus_type_id === value?.cus_type_id}
+                      autoHighlight
+                      openOnFocus
+                      selectOnFocus
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          placeholder="All Customer Types"
+                          variant="outlined"
+                          sx={{
+                            bgcolor: 'white',
+                            width: 250,
+                            '& .MuiInputBase-input': {
+                              fontWeight: 'bold',
+                              color: 'black'
+                            }
+                          }}
+                        />
+                      )}
+                    />
+                  </Box>
+
+                  {/* Right Side: Load Order Components */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'text.primary', whiteSpace: 'nowrap' }}>
+                      Load Order:
+                    </Typography>
+                    <TextField
+                      size="small"
+                      placeholder="Enter Order Number (e.g. 123)"
+                      value={orderSearchTerm}
+                      onChange={(e) => setOrderSearchTerm(e.target.value)}
+                      onFocus={(e) => e.target.select()}
+                      sx={{ width: 250, bgcolor: 'white' }}
+                      InputProps={{
+                        endAdornment: (
+                          <SearchIcon color="action" fontSize="small" />
+                        ),
+                      }}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          handleSearchOrder();
+                        }
+                      }}
+                    />
+                    <Button
+                      variant="contained"
+                      size="small"
+                      onClick={handleSearchOrder}
+                      disabled={isSearchingOrder || !orderSearchTerm}
+                      sx={{ bgcolor: '#1976d2', color: 'white', '&:hover': { bgcolor: '#1565c0' } }}
+                    >
+                      {isSearchingOrder ? <CircularProgress size={20} color="inherit" /> : 'Load'}
+                    </Button>
+                  </Box>
                 </Box>
               )}
 
               {/* First Row - Date, Customer, Reference */}
-              <Grid container spacing={2} sx={{ mb: 2 }}>
-                <Grid item xs={12} md={billType === 'SALE_RETURN' ? 3 : 4}>
+              <Grid container spacing={2} sx={{ mb: 2, alignItems: 'flex-end' }}>
+                <Grid item xs={12} md={billType === 'SALE_RETURN' ? 4 : 6}>
                   <Box sx={{ position: 'relative' }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                       <Typography variant="body2" sx={{ fontWeight: 'medium', color: 'text.secondary' }}>
@@ -3933,7 +3981,7 @@ function SalesPageContent() {
                             fontSize: '0.75rem',
                             fontWeight: 'bold'
                           }}>
-                            Balance: {parseFloat(formSelectedCustomer.cus_balance || 0).toFixed(2)}
+                            Balance: {parseFloat(formSelectedCustomer.cus_balance || 0).toFixed(0)}
                           </Box>
                           <Button
                             size="small"
@@ -3977,12 +4025,21 @@ function SalesPageContent() {
                       )}
                     </Box>
                     <Autocomplete
+                      fullWidth
                       size="small"
+                      sx={{ minWidth: 450 }}
                       options={customers.filter(customer => {
                         // Filter by Category: Customer
                         // User requested: "customer catagory customer type any"
                         const category = customerCategories.find(c => c.cus_cat_id === customer.cus_category);
-                        return category && category.cus_cat_title.toLowerCase().includes('customer');
+                        const isCustomer = category && category.cus_cat_title.toLowerCase().includes('customer');
+                        if (!isCustomer) return false;
+                        
+                        // Filter by Customer Type if selected
+                        if (selectedCustomerTypeFilter) {
+                          return customer.cus_type === selectedCustomerTypeFilter.cus_type_id;
+                        }
+                        return true;
                       })}
                       getOptionLabel={(option) => option.cus_name || ''}
                       ListboxProps={{ sx: { maxHeight: 180 } }}
@@ -4013,7 +4070,7 @@ function SalesPageContent() {
                       openOnFocus={true}
                       selectOnFocus={true}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter' && formSelectedCustomer) {
+                        if (e.key === 'Enter') {
                           e.preventDefault();
                           // Move focus to Invoice selection (if return) or Product selection
                           if (billType === 'SALE_RETURN') {
@@ -4041,9 +4098,10 @@ function SalesPageContent() {
                       renderInput={(params) => (
                         <TextField
                           {...params}
+                          fullWidth
                           placeholder="Search by name, phone, address, city, reference"
                           onFocus={(e) => e.target.select()}
-                          sx={{ bgcolor: 'white', minWidth: 250, '& .MuiInputBase-input': { fontWeight: formSelectedCustomer ? 'bold' : 'normal' } }}
+                          sx={{ bgcolor: 'white', minWidth: 450, '& .MuiInputBase-input': { fontWeight: formSelectedCustomer ? 'bold' : 'normal' } }}
                         />
                       )}
                     />
@@ -4075,7 +4133,7 @@ function SalesPageContent() {
                         getOptionLabel={(option) => {
                           // Helper to find customer name
                           const cName = option.customer?.cus_name || (customers.find(c => c.cus_id === option.cus_id)?.cus_name) || 'Unknown';
-                          return `#${option.sale_id} - ${cName} - ${option.reference || 'No Ref'} (${parseFloat(option.total_amount).toFixed(2)})`;
+                          return `#${option.sale_id} - ${cName} - ${option.reference || 'No Ref'} (${parseFloat(option.total_amount).toFixed(0)})`;
                         }}
                         value={selectedSaleForReturnMain}
                         onChange={(event, newValue) => {
@@ -4134,7 +4192,7 @@ function SalesPageContent() {
                 )}
 
 
-                <Grid item xs={12} md={billType === 'SALE_RETURN' ? 3 : 4}>
+                <Grid item xs={12} md={billType === 'SALE_RETURN' ? 2 : 3}>
                   <Box>
                     <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
                       DATE:
@@ -4149,7 +4207,7 @@ function SalesPageContent() {
                     />
                   </Box>
                 </Grid>
-                <Grid item xs={12} md={billType === 'SALE_RETURN' ? 3 : 4}>
+                <Grid item xs={12} md={billType === 'SALE_RETURN' ? 3 : 3}>
                   <Box>
                     <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
                       REFERENCE
@@ -4169,13 +4227,14 @@ function SalesPageContent() {
 
               {/* Product Selection Row */}
               <Grid container spacing={2} sx={{ mb: 2 }}>
-                <Grid item xs={12} md={3}>
+                <Grid item xs={12} md={4}>
                   <Box>
                     <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
                       SELECT PRODUCT
                     </Typography>
                     <Autocomplete
                       size="small"
+                      sx={{ minWidth: 450 }}
                       options={products || []}
                       getOptionLabel={(option) => option.pro_title || ''}
                       ListboxProps={{ sx: { maxHeight: 130 } }}
@@ -4199,7 +4258,7 @@ function SalesPageContent() {
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             {visibleCrates.includes(option.pro_id) && (
                               <Typography variant="body2" sx={{ color: 'text.secondary', mr: 1 }}>
-                                {option.pro_crate ? 'PKR ' + fmtAmt(option.pro_crate) : 'N/A'}
+                                {option.pro_crate ? 'PKR ' + fmtRateQty(option.pro_crate) : 'N/A'}
                               </Typography>
                             )}
 
@@ -4238,7 +4297,7 @@ function SalesPageContent() {
                           {...params}
                           placeholder={products.length === 0 ? "No products available" : "Select product"}
                           onFocus={(e) => e.target.select()}
-                          sx={{ bgcolor: 'white', width: 350, minWidth: 350, '& .MuiInputBase-input': { fontWeight: formSelectedProduct ? 'bold' : 'normal' } }}
+                          sx={{ bgcolor: 'white', width: 450, minWidth: 450, '& .MuiInputBase-input': { fontWeight: formSelectedProduct ? 'bold' : 'normal' } }}
                         />
                       )}
                       disabled={products.length === 0}
@@ -4322,7 +4381,22 @@ function SalesPageContent() {
                           if (rateInput) rateInput.focus();
                         }
                       }}
-                      sx={{ bgcolor: 'white', width: 130, minWidth: 130 }}
+                      sx={{
+                        bgcolor: 'white',
+                        width: 130,
+                        minWidth: 130,
+                        '& .MuiInputBase-input': {
+                          fontWeight: 'bold',
+                          color: '#000000',
+                          '-webkit-text-fill-color': '#000000 !important'
+                        },
+                        '& .MuiInputBase-input::placeholder': {
+                          color: '#000000',
+                          '-webkit-text-fill-color': '#000000 !important',
+                          fontWeight: 'bold',
+                          opacity: 1
+                        }
+                      }}
                     />
                   </Box>
                 </Grid>
@@ -4354,7 +4428,22 @@ function SalesPageContent() {
                           }
                         }
                       }}
-                      sx={{ bgcolor: 'white', width: 150, minWidth: 150 }}
+                      sx={{
+                        bgcolor: 'white',
+                        width: 150,
+                        minWidth: 150,
+                        '& .MuiInputBase-input': {
+                          fontWeight: 'bold',
+                          color: '#000000',
+                          '-webkit-text-fill-color': '#000000 !important'
+                        },
+                        '& .MuiInputBase-input::placeholder': {
+                          color: '#000000',
+                          '-webkit-text-fill-color': '#000000 !important',
+                          fontWeight: 'bold',
+                          opacity: 1
+                        }
+                      }}
                     />
                   </Box>
                 </Grid>
@@ -4500,7 +4589,7 @@ function SalesPageContent() {
                                       ? {
                                         ...p,
                                         quantity: newQuantity,
-                                        amount: Number((newQuantity * p.rate).toFixed(2))
+                                        amount: Number((newQuantity * p.rate).toFixed(0))
                                       }
                                       : p
                                   );
@@ -4532,7 +4621,7 @@ function SalesPageContent() {
                                       ? {
                                         ...p,
                                         rate: newRate,
-                                        amount: Number((p.quantity * newRate).toFixed(2))
+                                        amount: Number((p.quantity * newRate).toFixed(0))
                                       }
                                       : p
                                   );
@@ -4579,7 +4668,7 @@ function SalesPageContent() {
                               ) : null;
                             })()}
                           </TableCell>
-                          <TableCell sx={{ py: 1, fontWeight: 'bold' }}>{parseFloat(product.amount || 0).toFixed(2)}</TableCell>
+                          <TableCell sx={{ py: 1, fontWeight: 'bold' }}>{parseFloat(product.amount || 0).toFixed(0)}</TableCell>
                           <TableCell sx={{ py: 1 }}>
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
                               <Tooltip title="Move up">
@@ -4627,7 +4716,7 @@ function SalesPageContent() {
                           Total Amount:
                         </TableCell>
                         <TableCell colSpan={2} sx={{ py: 2, fontWeight: 'bold', fontSize: '1.1rem', color: 'white' }} key={`table-total-${calculateTotalAmount()}-${transportOptions.length}`}>
-                          {Number(calculateTotalAmount()).toFixed(2)}
+                          {Number(calculateTotalAmount()).toFixed(0)}
                         </TableCell>
                       </TableRow>
                     )}
@@ -4699,7 +4788,7 @@ function SalesPageContent() {
                       {transportOptions.map((transport) => (
                         <Chip
                           key={transport.id}
-                          label={`${transport.accountName}: ${transport.amount.toFixed(2)}`}
+                          label={`${transport.accountName}: ${transport.amount.toFixed(0)}`}
                           onDelete={() => handleRemoveTransport(transport.id)}
                           color="primary"
                           variant="outlined"
@@ -4707,7 +4796,7 @@ function SalesPageContent() {
                       ))}
                     </Box>
                     <Typography variant="body2" sx={{ mt: 1, fontWeight: 'bold' }}>
-                      Transport Total: {calculateTransportTotal().toFixed(2)}
+                      Transport Total: {calculateTransportTotal().toFixed(0)}
                     </Typography>
                   </Box>
                 )}
@@ -4746,7 +4835,21 @@ function SalesPageContent() {
                           onChange={(e) => handlePaymentDataChange('cash', e.target.value)}
                           onFocus={(e) => e.target.select()}
                           inputProps={{ step: 'any' }}
-                          sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' } }}
+                          sx={{
+                            bgcolor: 'white',
+                            '& .MuiInputBase-input': {
+                              padding: '8px',
+                              fontWeight: 'bold',
+                              color: '#000000',
+                              '-webkit-text-fill-color': '#000000 !important'
+                            },
+                            '& .MuiInputBase-input::placeholder': {
+                              color: '#000000',
+                              '-webkit-text-fill-color': '#000000 !important',
+                              fontWeight: 'bold',
+                              opacity: 1
+                            }
+                          }}
                           placeholder="0"
                         />
                       </Box>
@@ -4778,7 +4881,21 @@ function SalesPageContent() {
                               }
                             }
                           }}
-                          sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' } }}
+                          sx={{
+                            bgcolor: 'white',
+                            '& .MuiInputBase-input': {
+                              padding: '8px',
+                              fontWeight: 'bold',
+                              color: '#000000',
+                              '-webkit-text-fill-color': '#000000 !important'
+                            },
+                            '& .MuiInputBase-input::placeholder': {
+                              color: '#000000',
+                              '-webkit-text-fill-color': '#000000 !important',
+                              fontWeight: 'bold',
+                              opacity: 1
+                            }
+                          }}
                           placeholder="0"
                         />
                       </Box>
@@ -4829,7 +4946,15 @@ function SalesPageContent() {
                               {...params}
                               placeholder="Select Bank"
                               onFocus={(e) => e.target.select()}
-                              sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' } }}
+                              sx={{
+                                bgcolor: 'white',
+                                '& .MuiInputBase-input': {
+                                  padding: '8px',
+                                  fontWeight: 'bold',
+                                  color: '#000000',
+                                  '-webkit-text-fill-color': '#000000 !important'
+                                }
+                              }}
                             />
                           )}
                         />
@@ -4844,8 +4969,16 @@ function SalesPageContent() {
                           fullWidth
                           size="small"
                           type="number"
-                          value={Number(paymentData.totalCashReceived).toFixed(2)}
-                          sx={{ bgcolor: '#f5f5f5', '& .MuiInputBase-input': { padding: '8px' } }}
+                          value={Number(paymentData.totalCashReceived).toFixed(0)}
+                          sx={{
+                            bgcolor: '#f5f5f5',
+                            '& .MuiInputBase-input': {
+                              padding: '8px',
+                              fontWeight: 'bold',
+                              color: '#000000 !important',
+                              '-webkit-text-fill-color': '#000000 !important'
+                            }
+                          }}
                           disabled
                         />
                       </Box>
@@ -4865,7 +4998,15 @@ function SalesPageContent() {
                       value={paymentData.notes}
                       onChange={(e) => handlePaymentDataChange('notes', e.target.value)}
                       onFocus={(e) => e.target.select()}
-                      sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' } }}
+                      sx={{
+                        bgcolor: 'white',
+                        '& .MuiInputBase-input': {
+                          padding: '8px',
+                          fontWeight: 'bold',
+                          color: '#000000',
+                          '-webkit-text-fill-color': '#000000 !important'
+                        }
+                      }}
                       placeholder="Enter any notes..."
                     />
                   </Box>
@@ -4891,14 +5032,21 @@ function SalesPageContent() {
                       <TextField
                         size="small"
                         type="number"
-                        value={parseFloat(formSelectedCustomer?.cus_balance || 0).toFixed(2)}
+                        value={parseFloat(formSelectedCustomer?.cus_balance || 0).toFixed(0)}
                         inputProps={{ readOnly: true }}
                         sx={{
                           bgcolor: '#fffbeb',
                           '& .MuiInputBase-input': {
                             padding: '8px',
                             fontWeight: 'bold',
-                            color: '#b45309'
+                            color: '#000000 !important',
+                            '-webkit-text-fill-color': '#000000 !important'
+                          },
+                          '& .MuiInputBase-input::placeholder': {
+                            color: '#000000',
+                            '-webkit-text-fill-color': '#000000 !important',
+                            fontWeight: 'bold',
+                            opacity: 1
                           },
                           flex: 1
                         }}
@@ -4918,9 +5066,24 @@ function SalesPageContent() {
                         type="number"
                         value={(() => {
                           const productTotal = productTableData.reduce((sum, product) => sum + parseFloat(product.amount || 0), 0);
-                          return productTotal.toFixed(2);
+                          return productTotal.toFixed(0);
                         })()}
-                        sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' }, flex: 1 }}
+                        sx={{
+                          bgcolor: 'white',
+                          '& .MuiInputBase-input': {
+                            padding: '8px',
+                            fontWeight: 'bold',
+                            color: '#000000 !important',
+                            '-webkit-text-fill-color': '#000000 !important'
+                          },
+                          '& .MuiInputBase-input::placeholder': {
+                            color: '#000000',
+                            '-webkit-text-fill-color': '#000000 !important',
+                            fontWeight: 'bold',
+                            opacity: 1
+                          },
+                          flex: 1
+                        }}
                         disabled
                         inputProps={{ readOnly: true }}
                       />
@@ -4936,10 +5099,25 @@ function SalesPageContent() {
                       <TextField
                         size="small"
                         type="number"
-                        value={calculateTotalAmount().toFixed(2)}
+                        value={calculateTotalAmount().toFixed(0)}
                         onChange={() => {}}
-                        sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' }, flex: 1 }}
-                        inputProps={{ readOnly: true, style: { color: '#000' } }}
+                        sx={{
+                          bgcolor: 'white',
+                          '& .MuiInputBase-input': {
+                            padding: '8px',
+                            fontWeight: 'bold',
+                            color: '#000000 !important',
+                            '-webkit-text-fill-color': '#000000 !important'
+                          },
+                          '& .MuiInputBase-input::placeholder': {
+                            color: '#000000',
+                            '-webkit-text-fill-color': '#000000 !important',
+                            fontWeight: 'bold',
+                            opacity: 1
+                          },
+                          flex: 1
+                        }}
+                        inputProps={{ readOnly: true }}
                       />
                     </Box>
                   )}
@@ -4956,7 +5134,22 @@ function SalesPageContent() {
                       onChange={(e) => handlePaymentDataChange('labour', e.target.value)}
                       onFocus={(e) => e.target.select()}
                       inputProps={{ step: 'any' }}
-                      sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' }, flex: 1 }}
+                      sx={{
+                        bgcolor: 'white',
+                        '& .MuiInputBase-input': {
+                          padding: '8px',
+                          fontWeight: 'bold',
+                          color: '#000000',
+                          '-webkit-text-fill-color': '#000000 !important'
+                        },
+                        '& .MuiInputBase-input::placeholder': {
+                          color: '#000000',
+                          '-webkit-text-fill-color': '#000000 !important',
+                          fontWeight: 'bold',
+                          opacity: 1
+                        },
+                        flex: 1
+                      }}
                       placeholder="0"
                     />
                   </Box>
@@ -4972,7 +5165,7 @@ function SalesPageContent() {
                       value={(() => {
                         const totalDelivery = (parseFloat(paymentData.deliveryCharges || 0) + calculateTransportTotal());
                         if (totalDelivery === 0) return '';
-                        return totalDelivery % 1 === 0 ? String(totalDelivery) : totalDelivery.toFixed(2);
+                        return totalDelivery % 1 === 0 ? String(totalDelivery) : totalDelivery.toFixed(0);
                       })()}
                       onChange={(e) => {
                         // Calculate delivery charges by subtracting transport from total
@@ -4983,12 +5176,27 @@ function SalesPageContent() {
                       }}
                       onFocus={(e) => e.target.select()}
                       inputProps={{ step: 'any' }}
-                      sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px', fontWeight: 'bold' }, flex: 1 }}
+                      sx={{
+                        bgcolor: 'white',
+                        '& .MuiInputBase-input': {
+                          padding: '8px',
+                          fontWeight: 'bold',
+                          color: '#000000',
+                          '-webkit-text-fill-color': '#000000 !important'
+                        },
+                        '& .MuiInputBase-input::placeholder': {
+                          color: '#000000',
+                          '-webkit-text-fill-color': '#000000 !important',
+                          fontWeight: 'bold',
+                          opacity: 1
+                        },
+                        flex: 1
+                      }}
                       placeholder="0"
                     />
                     {calculateTransportTotal() > 0 && (
                       <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
-                        (includes Transport: {calculateTransportTotal().toFixed(2)})
+                        (includes Transport: {calculateTransportTotal().toFixed(0)})
                       </Typography>
                     )}
                   </Box>
@@ -5005,7 +5213,22 @@ function SalesPageContent() {
                       onChange={(e) => handlePaymentDataChange('discount', e.target.value)}
                       onFocus={(e) => e.target.select()}
                       inputProps={{ step: 'any' }}
-                      sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' }, flex: 1 }}
+                      sx={{
+                        bgcolor: 'white',
+                        '& .MuiInputBase-input': {
+                          padding: '8px',
+                          fontWeight: 'bold',
+                          color: '#000000',
+                          '-webkit-text-fill-color': '#000000 !important'
+                        },
+                        '& .MuiInputBase-input::placeholder': {
+                          color: '#000000',
+                          '-webkit-text-fill-color': '#000000 !important',
+                          fontWeight: 'bold',
+                          opacity: 1
+                        },
+                        flex: 1
+                      }}
                       placeholder="0"
                     />
                   </Box>
@@ -5019,8 +5242,23 @@ function SalesPageContent() {
                       <TextField
                         size="small"
                         type="number"
-                        value={calculateGrandTotal().toFixed(2)}
-                        sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px', fontWeight: 'bold' }, flex: 1 }}
+                        value={calculateGrandTotal().toFixed(0)}
+                        sx={{
+                          bgcolor: 'white',
+                          '& .MuiInputBase-input': {
+                            padding: '8px',
+                            fontWeight: 'bold',
+                            color: '#000000 !important',
+                            '-webkit-text-fill-color': '#000000 !important'
+                          },
+                          '& .MuiInputBase-input::placeholder': {
+                            color: '#000000',
+                            '-webkit-text-fill-color': '#000000 !important',
+                            fontWeight: 'bold',
+                            opacity: 1
+                          },
+                          flex: 1
+                        }}
                         disabled
                         inputProps={{ readOnly: true }}
                       />
@@ -5042,7 +5280,14 @@ function SalesPageContent() {
                           '& .MuiInputBase-input': {
                             padding: '8px',
                             fontWeight: 'bold',
-                            color: 'success.main'
+                            color: '#000000 !important',
+                            '-webkit-text-fill-color': '#000000 !important'
+                          },
+                          '& .MuiInputBase-input::placeholder': {
+                            color: '#000000',
+                            '-webkit-text-fill-color': '#000000 !important',
+                            fontWeight: 'bold',
+                            opacity: 1
                           },
                           flex: 1
                         }}
@@ -5098,15 +5343,22 @@ function SalesPageContent() {
                             const cashReturn = parseFloat(paymentData.cash || 0);
                             const bankReturn = parseFloat(paymentData.bank || 0);
                             const totalReturn = cashReturn + bankReturn;
-                            return totalReturn === 0 ? '' : totalReturn.toFixed(2);
+                            return totalReturn === 0 ? '' : totalReturn.toFixed(0);
                           })()}
                           sx={{
                             bgcolor: 'white',
                             '& .MuiInputBase-input': {
                               fontWeight: 'bold',
                               fontSize: '1.1rem',
-                              color: 'error.main',
+                              color: '#000000 !important',
+                              '-webkit-text-fill-color': '#000000 !important',
                               padding: '8px'
+                            },
+                            '& .MuiInputBase-input::placeholder': {
+                              color: '#000000',
+                              '-webkit-text-fill-color': '#000000 !important',
+                              fontWeight: 'bold',
+                              opacity: 1
                             },
                             flex: 1
                           }}
@@ -5134,14 +5386,21 @@ function SalesPageContent() {
                       <TextField
                         size="small"
                         type="number"
-                        value={calculateBalance().toFixed(2)}
+                        value={calculateBalance().toFixed(0)}
                         sx={{
                           bgcolor: 'white',
                           '& .MuiInputBase-input': {
                             fontWeight: 'bold',
                             fontSize: '1.1rem',
-                            color: 'primary.main',
+                            color: '#000000 !important',
+                            '-webkit-text-fill-color': '#000000 !important',
                             padding: '8px'
+                          },
+                          '& .MuiInputBase-input::placeholder': {
+                            color: '#000000',
+                            '-webkit-text-fill-color': '#000000 !important',
+                            fontWeight: 'bold',
+                            opacity: 1
                           },
                           flex: 1
                         }}
@@ -5463,8 +5722,8 @@ function SalesPageContent() {
                             <TableRow key={detail.sale_detail_id || index}>
                               <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }}>{index + 1}</TableCell>
                               <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }}>{detail.product?.pro_title || 'N/A'}</TableCell>
-                              <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }} align="right">{fmtAmt(detail.qnty)}</TableCell>
-                              <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }} align="right">{fmtAmt(detail.unit_rate)}</TableCell>
+                              <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }} align="right">{fmtRateQty(detail.qnty)}</TableCell>
+                              <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }} align="right">{fmtRateQty(detail.unit_rate)}</TableCell>
                               <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }} align="right">{fmtAmt(detail.total_amount)}</TableCell>
                             </TableRow>
                           ))
@@ -5602,7 +5861,7 @@ function SalesPageContent() {
                       <Box key={d.sale_detail_id || i} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                         <Box sx={{ pr: 1, flex: 1 }}>
                           <Typography sx={{ fontSize: '10px' }}>{d.product?.pro_title || 'Item'}</Typography>
-                          <Typography sx={{ fontSize: '9px', color: 'text.secondary' }}>Qty: {fmtAmt(d.qnty)} x {fmtAmt(d.unit_rate)}</Typography>
+                          <Typography sx={{ fontSize: '9px', color: 'text.secondary' }}>Qty: {fmtRateQty(d.qnty)} x {fmtRateQty(d.unit_rate)}</Typography>
                         </Box>
                         <Typography sx={{ fontSize: '10px', minWidth: '35mm', textAlign: 'right' }}>{fmtAmt(d.total_amount)}</Typography>
                       </Box>
@@ -5916,8 +6175,8 @@ function SalesPageContent() {
                             <TableRow key={detail.sale_detail_id || index}>
                               <TableCell sx={{ px: 1, border: '1px solid #ddd' }}>{index + 1}</TableCell>
                               <TableCell sx={{ px: 1, border: '1px solid #ddd' }}>{detail.product?.pro_title || 'N/A'}</TableCell>
-                              <TableCell sx={{ px: 1, border: '1px solid #ddd' }} align="right">{fmtAmt(detail.qnty)}</TableCell>
-                              <TableCell sx={{ px: 1, border: '1px solid #ddd' }} align="right">{fmtAmt(detail.unit_rate)}</TableCell>
+                              <TableCell sx={{ px: 1, border: '1px solid #ddd' }} align="right">{fmtRateQty(detail.qnty)}</TableCell>
+                              <TableCell sx={{ px: 1, border: '1px solid #ddd' }} align="right">{fmtRateQty(detail.unit_rate)}</TableCell>
                               <TableCell sx={{ px: 1, border: '1px solid #ddd' }} align="right">{fmtAmt(detail.total_amount)}</TableCell>
                             </TableRow>
                           ))
@@ -6279,7 +6538,7 @@ function SalesPageContent() {
                         <TableCell>{getBillDisplayNo(sale)}</TableCell>
                         <TableCell>{sale.customer?.cus_name || 'N/A'}</TableCell>
                         <TableCell>{new Date(sale.created_at).toLocaleDateString()}</TableCell>
-                        <TableCell align="right">{parseFloat(sale.total_amount || 0).toFixed(2)}</TableCell>
+                        <TableCell align="right">{parseFloat(sale.total_amount || 0).toFixed(0)}</TableCell>
                         <TableCell align="center">
                           <Button
                             size="small"
@@ -7246,15 +7505,15 @@ function SalesPageContent() {
                             )}
                           </TableCell>
                           <TableCell sx={{ color: 'text.secondary', fontSize: '0.85rem' }}>{sale.reference || '—'}</TableCell>
-                          <TableCell sx={{ fontWeight: 'bold' }}>{parseFloat(sale.total_amount).toFixed(2)}</TableCell>
-                          <TableCell>{parseFloat(sale.discount || 0).toFixed(2)}</TableCell>
-                          <TableCell>{parseFloat(sale.shipping_amount || 0).toFixed(2)}</TableCell>
-                          <TableCell sx={{ fontWeight: 'medium' }}>{parseFloat(sale.payment || 0).toFixed(2)}</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold' }}>{parseFloat(sale.total_amount).toFixed(0)}</TableCell>
+                          <TableCell>{parseFloat(sale.discount || 0).toFixed(0)}</TableCell>
+                          <TableCell>{parseFloat(sale.shipping_amount || 0).toFixed(0)}</TableCell>
+                          <TableCell sx={{ fontWeight: 'medium' }}>{parseFloat(sale.payment || 0).toFixed(0)}</TableCell>
                           <TableCell sx={{
                             fontWeight: 'bold',
                             color: balance > 0 ? 'error.main' : balance < 0 ? 'success.main' : 'text.secondary'
                           }}>
-                            {balance.toFixed(2)}
+                            {balance.toFixed(0)}
                           </TableCell>
                           <TableCell>
                             <Chip
@@ -7433,7 +7692,7 @@ function SalesPageContent() {
                         ].map((row, i) => (
                           <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.4 }}>
                             <Typography sx={{ fontSize: '0.82rem', color: '#64748b' }}>{row.label}</Typography>
-                            <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: row.color }}>{row.value.toFixed(2)}</Typography>
+                            <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: row.color }}>{row.value.toFixed(0)}</Typography>
                           </Box>
                         ))}
                         <Divider sx={{ my: 1 }} />
@@ -7443,7 +7702,7 @@ function SalesPageContent() {
                             fontWeight: 900, fontSize: '1.1rem',
                             color: bal > 0 ? '#dc2626' : bal < 0 ? '#16a34a' : '#94a3b8'
                           }}>
-                            {bal.toFixed(2)}
+                            {bal.toFixed(0)}
                           </Typography>
                         </Box>
                       </Box>
@@ -7556,7 +7815,7 @@ function SalesPageContent() {
                       <TableCell>{sale.sale_id}</TableCell>
                       <TableCell>{sale.customer?.cus_name || 'N/A'}</TableCell>
                       <TableCell>{new Date(sale.created_at).toLocaleDateString()}</TableCell>
-                      <TableCell align="right">{parseFloat(sale.total_amount || 0).toFixed(2)}</TableCell>
+                      <TableCell align="right">{parseFloat(sale.total_amount || 0).toFixed(0)}</TableCell>
                       <TableCell align="center">
                         <Button
                           size="small"
@@ -8279,7 +8538,7 @@ function SalesPageContent() {
                             <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }}>{detail.product?.pro_title || detail.product?.pro_name || detail.product?.prod_name || 'N/A'}</TableCell>
                             <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }} align="right">{detail.qnty || 0}</TableCell>
                             <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }} align="right">{parseFloat(detail.unit_rate || 0).toFixed(2)}</TableCell>
-                            <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }} align="right">{parseFloat(detail.total_amount || 0).toFixed(2)}</TableCell>
+                            <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }} align="right">{parseFloat(detail.total_amount || 0).toFixed(0)}</TableCell>
                           </TableRow>
                         ))
                       ) : (
@@ -8636,7 +8895,7 @@ function SalesPageContent() {
                     <Typography variant="body2"><strong>Customer:</strong> {selectedSaleForReturn.customer?.cus_name || 'N/A'}</Typography>
                   </Grid>
                   <Grid item xs={6}>
-                    <Typography variant="body2"><strong>Total Amount:</strong> {parseFloat(selectedSaleForReturn.total_amount || 0).toFixed(2)}</Typography>
+                    <Typography variant="body2"><strong>Total Amount:</strong> {parseFloat(selectedSaleForReturn.total_amount || 0).toFixed(0)}</Typography>
                   </Grid>
                   <Grid item xs={6}>
                     <Typography variant="body2"><strong>Date:</strong> {new Date(selectedSaleForReturn.created_at).toLocaleDateString()}</Typography>
@@ -8682,7 +8941,7 @@ function SalesPageContent() {
                               />
                             </TableCell>
                             <TableCell align="right">{parseFloat(detail.unit_rate || 0).toFixed(2)}</TableCell>
-                            <TableCell align="right">{parseFloat(detail.total_amount || 0).toFixed(2)}</TableCell>
+                            <TableCell align="right">{parseFloat(detail.total_amount || 0).toFixed(0)}</TableCell>
                             <TableCell align="center">
                               <IconButton
                                 size="small"
@@ -8744,7 +9003,7 @@ function SalesPageContent() {
                   <TextField
                     fullWidth
                     label="Total Amount"
-                    value={calculateReturnTotal().toFixed(2)}
+                    value={calculateReturnTotal().toFixed(0)}
                     disabled
                     sx={{ mb: 2 }}
                   />
@@ -8764,7 +9023,7 @@ function SalesPageContent() {
                   <TextField
                     fullWidth
                     label="Net Total"
-                    value={calculateReturnNetTotal().toFixed(2)}
+                    value={calculateReturnNetTotal().toFixed(0)}
                     disabled
                     sx={{ mb: 2 }}
                   />
@@ -8895,7 +9154,7 @@ function SalesPageContent() {
                   <Card sx={{ bgcolor: 'grey.50', borderBottom: '4px solid', borderColor: 'grey.400' }}>
                     <CardContent sx={{ p: 2 }}>
                       <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold', textTransform: 'uppercase' }}>Opening Balance</Typography>
-                      <Typography variant="h5" sx={{ fontWeight: 'bold', mt: 1 }}>{ledgerData.summary.openingBalance.toFixed(2)}</Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold', mt: 1 }}>{ledgerData.summary.openingBalance.toFixed(0)}</Typography>
                     </CardContent>
                   </Card>
                 </Grid>
@@ -8903,7 +9162,7 @@ function SalesPageContent() {
                   <Card sx={{ bgcolor: 'success.50', borderBottom: '4px solid', borderColor: 'success.main' }}>
                     <CardContent sx={{ p: 2 }}>
                       <Typography variant="caption" color="success.main" sx={{ fontWeight: 'bold', textTransform: 'uppercase' }}>Total Debit (Sales)</Typography>
-                      <Typography variant="h5" sx={{ fontWeight: 'bold', mt: 1, color: 'success.main' }}>{ledgerData.summary.totalDebit.toFixed(2)}</Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold', mt: 1, color: 'success.main' }}>{ledgerData.summary.totalDebit.toFixed(0)}</Typography>
                     </CardContent>
                   </Card>
                 </Grid>
@@ -8911,7 +9170,7 @@ function SalesPageContent() {
                   <Card sx={{ bgcolor: 'error.50', borderBottom: '4px solid', borderColor: 'error.main' }}>
                     <CardContent sx={{ p: 2 }}>
                       <Typography variant="caption" color="error.main" sx={{ fontWeight: 'bold', textTransform: 'uppercase' }}>Total Credit (Payments)</Typography>
-                      <Typography variant="h5" sx={{ fontWeight: 'bold', mt: 1, color: 'error.main' }}>{ledgerData.summary.totalCredit.toFixed(2)}</Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold', mt: 1, color: 'error.main' }}>{ledgerData.summary.totalCredit.toFixed(0)}</Typography>
                     </CardContent>
                   </Card>
                 </Grid>
@@ -8919,7 +9178,7 @@ function SalesPageContent() {
                   <Card sx={{ bgcolor: 'primary.50', borderBottom: '4px solid', borderColor: 'primary.main' }}>
                     <CardContent sx={{ p: 2 }}>
                       <Typography variant="caption" color="primary.main" sx={{ fontWeight: 'bold', textTransform: 'uppercase' }}>Closing Balance</Typography>
-                      <Typography variant="h5" sx={{ fontWeight: 'bold', mt: 1, color: 'primary.main' }}>{ledgerData.summary.closingBalance.toFixed(2)}</Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold', mt: 1, color: 'primary.main' }}>{ledgerData.summary.closingBalance.toFixed(0)}</Typography>
                     </CardContent>
                   </Card>
                 </Grid>
@@ -8962,12 +9221,12 @@ function SalesPageContent() {
                           </Tooltip>
                         </TableCell>
                         <TableCell align="right" sx={{ color: entry.debit_amount > 0 ? 'success.main' : 'inherit', fontWeight: entry.debit_amount > 0 ? 'bold' : 'normal' }}>
-                          {entry.debit_amount > 0 ? entry.debit_amount.toFixed(2) : '-'}
+                          {entry.debit_amount > 0 ? entry.debit_amount.toFixed(0) : '-'}
                         </TableCell>
                         <TableCell align="right" sx={{ color: entry.credit_amount > 0 ? 'error.main' : 'inherit', fontWeight: entry.credit_amount > 0 ? 'bold' : 'normal' }}>
-                          {entry.credit_amount > 0 ? entry.credit_amount.toFixed(2) : '-'}
+                          {entry.credit_amount > 0 ? entry.credit_amount.toFixed(0) : '-'}
                         </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>{entry.closing_balance.toFixed(2)}</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>{entry.closing_balance.toFixed(0)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

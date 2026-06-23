@@ -218,3 +218,43 @@ input[type=number] {
   -moz-appearance: textfield;
   appearance: textfield;
 }
+
+/* Make all input fields and dropdowns text color bold and black (including disabled ones) */
+.MuiInputBase-input,
+.MuiInputBase-input.Mui-disabled,
+.MuiSelect-select,
+.MuiSelect-select.Mui-disabled,
+input,
+input:disabled,
+select,
+select:disabled,
+textarea,
+textarea:disabled {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important; /* Force black text in webkit browsers for disabled inputs */
+  opacity: 1 !important; /* Override browser transparency for disabled fields */
+  font-weight: bold !important;
+}
+
+/* Ensure placeholder texts are readable but not full black */
+.MuiInputBase-input::placeholder {
+  color: #666666 !important;
+  -webkit-text-fill-color: #666666 !important;
+  font-weight: normal !important;
+}
+
+/* Force numeric placeholders (like 0) to be black and bold */
+input[type="number"]::placeholder,
+.MuiInputBase-input[type="number"]::placeholder {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+  font-weight: bold !important;
+  opacity: 1 !important;
+}
+
+/* Keep the transaction type selection input in the header banner white */
+.MuiInputBase-input[placeholder="Select Transaction Type"] {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  font-weight: bold !important;
+}
