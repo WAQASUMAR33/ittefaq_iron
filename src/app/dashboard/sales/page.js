@@ -872,7 +872,7 @@ function SalesPageContent() {
       cost_price: getProductCostPrice(formSelectedProduct) // hidden cost price for loss check
     };
 
-    setProductTableData(prev => [...prev, newProduct]);
+    setProductTableData(prev => [newProduct, ...prev]);
     showSnackbar('Product added to cart', 'success');
 
     // Reset form
@@ -1305,9 +1305,10 @@ function SalesPageContent() {
           const returnReceipt = {
             ...(selectedSaleForReturnMain || {}),
             return_id: saleReturnData.return_id,
+            customer: formSelectedCustomer || selectedSaleForReturnMain?.customer || {},
             sale_details: productTableData.map((item, idx) => ({
               sale_detail_id: idx,
-              product: { pro_title: item.product_name },
+              product: { pro_title: item.pro_title || item.product_name || 'Unknown Product' },
               qnty: item.quantity,
               unit_rate: item.rate,
               total_amount: item.amount
@@ -3989,12 +3990,12 @@ function SalesPageContent() {
                         const q = inputValue.toLowerCase().trim();
                         if (!q) return options;
                         return options.filter(o =>
-                          (o.cus_name || '').toLowerCase().includes(q) ||
-                          (o.cus_phone_no || '').toLowerCase().includes(q) ||
-                          (o.cus_phone_no2 || '').toLowerCase().includes(q) ||
-                          (o.cus_address || '').toLowerCase().includes(q) ||
-                          (o.cus_reference || '').toLowerCase().includes(q) ||
-                          (o.city?.city_name || '').toLowerCase().includes(q)
+                          (o.cus_name || '').toLowerCase().startsWith(q) ||
+                          (o.cus_phone_no || '').toLowerCase().startsWith(q) ||
+                          (o.cus_phone_no2 || '').toLowerCase().startsWith(q) ||
+                          (o.cus_address || '').toLowerCase().startsWith(q) ||
+                          (o.cus_reference || '').toLowerCase().startsWith(q) ||
+                          (o.city?.city_name || '').toLowerCase().startsWith(q)
                         );
                       }}
                       value={formSelectedCustomer}
@@ -4178,6 +4179,14 @@ function SalesPageContent() {
                       options={products || []}
                       getOptionLabel={(option) => option.pro_title || ''}
                       ListboxProps={{ sx: { maxHeight: 130 } }}
+                      filterOptions={(options, { inputValue }) => {
+                        const q = inputValue.toLowerCase().trim();
+                        if (!q) return options;
+                        return options.filter(o =>
+                          (o.pro_title || '').toLowerCase().startsWith(q) ||
+                          (o.pro_code || '').toLowerCase().startsWith(q)
+                        );
+                      }}
                       renderOption={(props, option) => (
                         <li {...props} key={option.pro_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -6928,6 +6937,18 @@ function SalesPageContent() {
                         return isCustomer;
                       })}
                       getOptionLabel={(option) => option.cus_name || ''}
+                      filterOptions={(options, { inputValue }) => {
+                        const q = inputValue.toLowerCase().trim();
+                        if (!q) return options;
+                        return options.filter(o =>
+                          (o.cus_name || '').toLowerCase().startsWith(q) ||
+                          (o.cus_phone_no || '').toLowerCase().startsWith(q) ||
+                          (o.cus_phone_no2 || '').toLowerCase().startsWith(q) ||
+                          (o.cus_address || '').toLowerCase().startsWith(q) ||
+                          (o.cus_reference || '').toLowerCase().startsWith(q) ||
+                          (o.city?.city_name || '').toLowerCase().startsWith(q)
+                        );
+                      }}
                       value={customers.find(c => c.cus_id.toString() === filterCustomer) || null}
                       onChange={(event, newValue) => {
                         setFilterCustomer(newValue ? newValue.cus_id.toString() : '');
