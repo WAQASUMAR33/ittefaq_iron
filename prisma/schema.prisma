@@ -258,6 +258,7 @@ model Ledger {
 
   @@index([cus_id], map: "ledger_cus_id_fkey")
   @@index([updated_by], map: "ledger_updated_by_fkey")
+  @@index([created_at])
   @@map("ledger")
 }
 

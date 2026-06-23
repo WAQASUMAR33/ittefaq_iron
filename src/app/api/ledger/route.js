@@ -11,10 +11,33 @@ function errorResponse(message, status = 400) {
 // ========================================
 // GET — Get all ledger entries or one entry
 // ========================================
+// Helper to parse dates in Pakistan Standard Time (UTC+5)
+function parseLocalDateRange(startDateStr, endDateStr) {
+  if (!startDateStr && !endDateStr) return null;
+  const tzOffset = '+05:00';
+  const range = {};
+  if (startDateStr) {
+    range.gte = new Date(`${startDateStr}T00:00:00.000${tzOffset}`);
+  }
+  if (endDateStr) {
+    range.lte = new Date(`${endDateStr}T23:59:59.999${tzOffset}`);
+  }
+  return range;
+}
+
+// ========================================
+// GET — Get all ledger entries or one entry
+// ========================================
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id') ? parseInt(searchParams.get('id')) : null; // optional: ?id=1
   const customerId = searchParams.get('customerId') ? parseInt(searchParams.get('customerId')) : null; // optional: ?customerId=1
+  const startDate = searchParams.get('startDate');
+  const endDate = searchParams.get('endDate');
+  const categoryId = searchParams.get('categoryId') ? parseInt(searchParams.get('categoryId')) : null;
+  const typeId = searchParams.get('typeId') ? parseInt(searchParams.get('typeId')) : null;
+  const search = searchParams.get('search');
+  const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')) : null;
 
   try {
     if (id) {
@@ -63,7 +86,47 @@ export async function GET(request) {
       where.cus_id = customerId;
     }
 
-    const ledgerEntries = await prisma.ledger.findMany({
+    if (startDate || endDate) {
+      where.created_at = parseLocalDateRange(startDate, endDate);
+    }
+
+    if (categoryId || typeId) {
+      where.customer = {};
+      if (categoryId) {
+        where.customer.cus_category = categoryId;
+      }
+      if (typeId) {
+        where.customer.cus_type = typeId;
+      }
+    }
+
+    if (search) {
+      const searchLower = search.toLowerCase();
+      const orConditions = [
+        { details: { contains: searchLower } },
+        { bill_no: { contains: searchLower } },
+        {
+          customer: {
+            OR: [
+              { cus_name: { contains: searchLower } },
+              { cus_phone_no: { contains: searchLower } },
+              { cus_phone_no2: { contains: searchLower } },
+              { cus_reference: { contains: searchLower } }
+            ]
+          }
+        }
+      ];
+
+      const searchInt = parseInt(search);
+      if (!isNaN(searchInt)) {
+        orConditions.push({ cus_id: searchInt });
+      }
+
+      where.OR = orConditions;
+    }
+
+    const hasFilters = customerId || startDate || endDate || categoryId || typeId || search;
+    const queryOptions = {
       where,
       include: {
         customer: {
@@ -94,7 +157,16 @@ export async function GET(request) {
         }
       },
       orderBy: { created_at: 'desc' }
-    });
+    };
+
+    if (limit) {
+      queryOptions.take = limit;
+    } else if (!hasFilters) {
+      // Limit to 200 entries by default to make loading extremely fast
+      queryOptions.take = 200;
+    }
+
+    const ledgerEntries = await prisma.ledger.findMany(queryOptions);
 
     return NextResponse.json(ledgerEntries);
   } catch (err) {

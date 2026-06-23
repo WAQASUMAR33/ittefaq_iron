@@ -218,6 +218,9 @@ export default function FinancePage() {
   const [selectedSubCategory, setSelectedSubCategory] = useState(''); // This will be customer type ID
   const [sortBy, setSortBy] = useState('created_at');
   const [sortOrder, setSortOrder] = useState('asc');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [staticDataLoaded, setStaticDataLoaded] = useState(false);
 
   // Customer dropdown filter states
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
@@ -294,14 +297,73 @@ export default function FinancePage() {
   const [printFromDate, setPrintFromDate] = useState('');
   const [printToDate, setPrintToDate] = useState('');
 
-  // Fetch data
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const fetchStaticData = async () => {
+    try {
+      const [customersRes, categoriesRes, typesRes] = await Promise.all([
+        fetch('/api/customers'),
+        fetch('/api/customer-category'),
+        fetch('/api/customer-types')
+      ]);
 
+      if (customersRes.ok) {
+        const customersData = await customersRes.json();
+        setCustomers(customersData);
+      }
+      if (categoriesRes.ok) {
+        const categoriesData = await categoriesRes.json();
+        setCustomerCategories(categoriesData);
+      }
+      if (typesRes.ok) {
+        const typesData = await typesRes.json();
+        setCustomerTypes(typesData);
+      }
+
+      await fetchCashBankAccounts();
+      setStaticDataLoaded(true);
+    } catch (error) {
+      console.error('Error fetching static data:', error);
+    }
+  };
+
+  const fetchLedgerData = async () => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams();
+      if (selectedCustomer) params.append('customerId', selectedCustomer);
+      if (selectedCategory) params.append('categoryId', selectedCategory);
+      if (selectedSubCategory) params.append('typeId', selectedSubCategory);
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      if (searchTerm) params.append('search', searchTerm);
+
+      const res = await fetch(`/api/ledger?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setLedgerEntries(data);
+      }
+    } catch (error) {
+      console.error('Error fetching ledger entries:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch data on mount
   useEffect(() => {
     setMounted(true);
+    fetchStaticData();
+    fetchLedgerData();
   }, []);
+
+  // Reactive effect when filters change
+  useEffect(() => {
+    if (staticDataLoaded) {
+      const timer = setTimeout(() => {
+        fetchLedgerData();
+      }, 300); // 300ms debounce
+      return () => clearTimeout(timer);
+    }
+  }, [selectedCustomer, selectedCategory, selectedSubCategory, startDate, endDate, searchTerm, staticDataLoaded]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -321,39 +383,7 @@ export default function FinancePage() {
   }, [showCustomerDropdown, showAccountDropdown]);
 
   const fetchData = async () => {
-    try {
-      setLoading(true);
-      const [ledgerRes, customersRes, categoriesRes, typesRes] = await Promise.all([
-        fetch('/api/ledger'),
-        fetch('/api/customers'),
-        fetch('/api/customer-category'),
-        fetch('/api/customer-types')
-      ]);
-
-      if (ledgerRes.ok) {
-        const ledgerData = await ledgerRes.json();
-        setLedgerEntries(ledgerData);
-      }
-      if (customersRes.ok) {
-        const customersData = await customersRes.json();
-        setCustomers(customersData);
-      }
-      if (categoriesRes.ok) {
-        const categoriesData = await categoriesRes.json();
-        setCustomerCategories(categoriesData);
-      }
-      if (typesRes.ok) {
-        const typesData = await typesRes.json();
-        setCustomerTypes(typesData);
-      }
-
-      // Fetch cash and bank accounts
-      await fetchCashBankAccounts();
-    } catch (error) {
-      console.error('Error fetching data:', error);
-    } finally {
-      setLoading(false);
-    }
+    await fetchLedgerData();
   };
 
   // Open purchase invoice (used by eye icon / Bill links)
@@ -671,7 +701,15 @@ export default function FinancePage() {
     const matchesCategory = !selectedCategory || entry.customer?.cus_category == selectedCategory;
     const matchesSubCategory = !selectedSubCategory || entry.customer?.cus_type == selectedSubCategory;
 
-    return matchesSearch && matchesCustomer && matchesCategory && matchesSubCategory;
+    // Date range filter
+    let matchesDate = true;
+    if (startDate || endDate) {
+      const entryDateStr = entry.created_at.substring(0, 10); // YYYY-MM-DD
+      if (startDate) matchesDate = matchesDate && entryDateStr >= startDate;
+      if (endDate) matchesDate = matchesDate && entryDateStr <= endDate;
+    }
+
+    return matchesSearch && matchesCustomer && matchesCategory && matchesSubCategory && matchesDate;
   });
 
   // Customer filtering logic
@@ -778,7 +816,7 @@ export default function FinancePage() {
   }, [finalLedgerEntries]);
 
   // Stats calculations - use filtered entries for accuracy when filters are applied
-  const statsEntries = (selectedCustomer || searchTerm || selectedCategory || selectedSubCategory)
+  const statsEntries = (selectedCustomer || searchTerm || selectedCategory || selectedSubCategory || startDate || endDate)
     ? filteredLedgerEntries
     : ledgerEntries;
 
@@ -1603,6 +1641,8 @@ export default function FinancePage() {
     setSelectedSubCategory('');
     setSortBy('created_at');
     setSortOrder('asc');
+    setStartDate('');
+    setEndDate('');
   };
 
   // Print Ledger between two dates
@@ -1983,13 +2023,14 @@ export default function FinancePage() {
                 </Button>
               </Box>
 
-              {/* Reordered Filters: Category → Sub-Category → Account → Search */}
+              {/* Reordered Filters: Category → Sub-Category → Account → From Date → To Date → Search */}
               <Box sx={{
                 display: 'grid',
                 gridTemplateColumns: {
                   xs: '1fr',
                   sm: '1fr 1fr',
-                  md: 'repeat(4, 1fr)'
+                  md: 'repeat(3, 1fr)',
+                  lg: 'repeat(6, 1fr)'
                 },
                 gap: 3,
                 width: '100%'
@@ -2126,12 +2167,48 @@ export default function FinancePage() {
                   />
                 </Box>
 
-                {/* Search - FOURTH */}
+                {/* From Date Filter - FOURTH */}
+                <Box>
+                  <TextField
+                    fullWidth
+                    label="From Date"
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: 1.5,
+                        bgcolor: 'white',
+                      }
+                    }}
+                  />
+                </Box>
+
+                {/* To Date Filter - FIFTH */}
+                <Box>
+                  <TextField
+                    fullWidth
+                    label="To Date"
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: 1.5,
+                        bgcolor: 'white',
+                      }
+                    }}
+                  />
+                </Box>
+
+                {/* Search - SIXTH */}
                 <Box>
                   <TextField
                     fullWidth
                     label="Search"
-                    placeholder="Search by name, phone, reference, account #, bill #, details..."
+                    placeholder="Search by name, phone, reference..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     InputProps={{
