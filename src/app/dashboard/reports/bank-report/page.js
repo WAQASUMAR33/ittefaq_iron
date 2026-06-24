@@ -12,6 +12,22 @@ const fmtAmt = (val) => {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
+// Map ledger amounts to correct debit/credit columns based on trnx_type
+// This matches the logic used in the finance ledger page
+const getLedgerEntryDisplayAmounts = (entry) => {
+  const debitAmt = parseFloat(entry.debit_amount || 0);
+  const creditAmt = parseFloat(entry.credit_amount || 0);
+  const entryAmount = debitAmt > 0 ? debitAmt : creditAmt;
+
+  if (entry.trnx_type === 'DEBIT') {
+    return { debit: entryAmount, credit: 0 };
+  } else if (entry.trnx_type === 'CREDIT') {
+    return { debit: 0, credit: entryAmount };
+  } else {
+    return { debit: debitAmt, credit: creditAmt };
+  }
+};
+
 /** ORDER memo lines (equal D/C) — exclude from summary totals; columns still use D=deposit in, C=withdrawal out. */
 function excludeMemoFromBankCashSummary(entries) {
   return entries.filter((e) => {
@@ -104,8 +120,14 @@ export default function BankReport() {
         filteredData.summary = {
           ...data.summary,
           totalLedgerEntries: forSum.length,
-          totalLedgerDebit: forSum.reduce((sum, l) => sum + parseFloat(l.debit_amount || 0), 0),
-          totalLedgerCredit: forSum.reduce((sum, l) => sum + parseFloat(l.credit_amount || 0), 0),
+          totalLedgerDebit: forSum.reduce((sum, l) => {
+            const { debit } = getLedgerEntryDisplayAmounts(l);
+            return sum + debit;
+          }, 0),
+          totalLedgerCredit: forSum.reduce((sum, l) => {
+            const { credit } = getLedgerEntryDisplayAmounts(l);
+            return sum + credit;
+          }, 0),
           totalBankSales: filteredData.bankSales.reduce((sum, s) => sum + parseFloat(s.payment || 0), 0),
           totalBankPurchases: filteredData.bankPurchases.reduce((sum, p) => sum + parseFloat(p.payment || 0), 0),
         };
@@ -133,10 +155,9 @@ export default function BankReport() {
     csv += `Period: ${formatDate(startDate)} to ${formatDate(endDate)}\n\n`;
     csv += 'BANK LEDGER ENTRIES\n';
     csv += 'S.No,Date,Account,Description,Withdrawal,Deposit,Balance\n';
-    reportData.ledgerEntries.forEach((e, i) => {
-      const w = parseFloat(e.credit_amount || 0);
-      const d = parseFloat(e.debit_amount || 0);
-      csv += `${i + 1},${formatDate(e.created_at)},${e.customer?.cus_name || '-'},${e.details || ''},${w > 0 ? formatCurrency(w) : ''},${d > 0 ? formatCurrency(d) : ''},${formatCurrency(e.closing_balance)}\n`;
+    reportData.ledgerEntries.forEach((entry, i) => {
+      const displayAmts = getLedgerEntryDisplayAmounts(entry);
+      csv += `${i + 1},${formatDate(entry.created_at)},${entry.customer?.cus_name || '-'},${entry.details || ''},${displayAmts.credit > 0 ? formatCurrency(displayAmts.credit) : ''},${displayAmts.debit > 0 ? formatCurrency(displayAmts.debit) : ''},${formatCurrency(entry.closing_balance)}\n`;
     });
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -146,14 +167,10 @@ export default function BankReport() {
     a.click();
   };
 
-  // Bank: net = debits - credits from ledger entries only
-  const netFlow = reportData
-    ? (parseFloat(reportData.summary.totalLedgerDebit || 0) -
-        parseFloat(reportData.summary.totalLedgerCredit || 0))
-    : 0;
-
-  const openingBalance = reportData?.ledgerEntries[0] ? parseFloat(reportData.ledgerEntries[0].opening_balance || 0) : 0;
-  const closingBalance = openingBalance + netFlow;
+  const openingBalance = reportData?.ledgerEntries?.[0] ? parseFloat(reportData.ledgerEntries[0].opening_balance || 0) : 0;
+  const closingBalance = reportData?.ledgerEntries?.length > 0
+    ? parseFloat(reportData.ledgerEntries[reportData.ledgerEntries.length - 1].closing_balance || 0)
+    : openingBalance;
 
   return (
     <DashboardLayout>
@@ -358,46 +375,43 @@ export default function BankReport() {
                         </tr>
                       );
                     })()}
-                    {(() => {
-                      let runningBalance = reportData.ledgerEntries[0] ? parseFloat(reportData.ledgerEntries[0].opening_balance || 0) : 0;
-                      return reportData.ledgerEntries.map((entry, index) => {
-                        // Bank Account: debit increases balance (deposit), credit decreases balance (withdrawal)
-                        runningBalance = runningBalance + parseFloat(entry.debit_amount || 0) - parseFloat(entry.credit_amount || 0);
-                        return (
-                          <tr key={entry.l_id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} hover:bg-cyan-50 print:bg-white transition-colors`}>
-                            <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200 print:border-black">{index + 1}</td>
-                            <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200 print:border-black whitespace-nowrap">{formatDate(entry.created_at)}</td>
-                            <td className="px-3 py-2.5 text-slate-900 font-medium border-r border-slate-200 print:border-black">{entry.customer?.cus_name || '-'}</td>
-                            <td className="px-3 py-2.5 text-slate-700 border-r border-slate-200 print:border-black">{entry.details || '-'}</td>
-                            {(() => {
-                              const firstIndex = reportData.ledgerEntries.findIndex(e => e.bill_no === entry.bill_no && ((e.cus_id || e.customer?.cus_id) === (entry.cus_id || entry.customer?.cus_id)));
-                              const isFirstBill = entry.bill_no && firstIndex === index;
-                              return (
-                                <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200 print:border-black">
-                                  {entry.bill_no ? (
-                                    isFirstBill ? (
-                                      <div>
-                                        Bill: {entry.bill_no}{' '}
-                                        {((entry.trnx_type === 'PURCHASE' && parseFloat(entry.debit_amount || 0) > 0) || (/incity \(own\) - (labour|delivery)/i).test(entry.details || '')) ? (
-                                          <div className="text-xs text-blue-600 font-bold">— {fmtAmt(entry.debit_amount)}</div>
-                                        ) : null}
-                                      </div>
-                                    ) : null
-                                  ) : ('')}
-                                </td>
-                              );
-                            })()}
-                            <td className={`px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums ${parseFloat(entry.credit_amount) > 0 ? 'text-red-600 font-semibold print:text-black' : 'text-slate-400'}`}>
-                              {parseFloat(entry.credit_amount) > 0 ? formatCurrency(entry.credit_amount) : '-'}
-                            </td>
-                            <td className={`px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums ${parseFloat(entry.debit_amount) > 0 ? 'text-emerald-600 font-semibold print:text-black' : 'text-slate-400'}`}>
-                              {parseFloat(entry.debit_amount) > 0 ? formatCurrency(entry.debit_amount) : '-'}
-                            </td>
-                            <td className="px-3 py-2.5 text-right font-semibold text-slate-900 tabular-nums">{formatCurrency(runningBalance)}</td>
-                          </tr>
-                        );
-                      });
-                    })()}
+                    {reportData.ledgerEntries.map((entry, index) => {
+                      const displayAmts = getLedgerEntryDisplayAmounts(entry);
+                      const balance = parseFloat(entry.closing_balance || 0);
+                      return (
+                        <tr key={entry.l_id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} hover:bg-cyan-50 print:bg-white transition-colors`}>
+                          <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200 print:border-black">{index + 1}</td>
+                          <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200 print:border-black whitespace-nowrap">{formatDate(entry.created_at)}</td>
+                          <td className="px-3 py-2.5 text-slate-900 font-medium border-r border-slate-200 print:border-black">{entry.customer?.cus_name || '-'}</td>
+                          <td className="px-3 py-2.5 text-slate-700 border-r border-slate-200 print:border-black">{entry.details || '-'}</td>
+                          {(() => {
+                            const firstIndex = reportData.ledgerEntries.findIndex(e => e.bill_no === entry.bill_no && ((e.cus_id || e.customer?.cus_id) === (entry.cus_id || entry.customer?.cus_id)));
+                            const isFirstBill = entry.bill_no && firstIndex === index;
+                            return (
+                              <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200 print:border-black">
+                                {entry.bill_no ? (
+                                  isFirstBill ? (
+                                    <div>
+                                      Bill: {entry.bill_no}{' '}
+                                      {((entry.trnx_type === 'PURCHASE' && displayAmts.debit > 0) || (/incity \(own\) - (labour|delivery)/i).test(entry.details || '')) ? (
+                                        <div className="text-xs text-blue-600 font-bold">— {fmtAmt(displayAmts.debit)}</div>
+                                      ) : null}
+                                    </div>
+                                  ) : null
+                                ) : ('')}
+                              </td>
+                            );
+                          })()}
+                          <td className={`px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums ${displayAmts.credit > 0 ? 'text-green-600 font-semibold print:text-black' : 'text-slate-400'}`}>
+                            {displayAmts.credit > 0 ? formatCurrency(displayAmts.credit) : '-'}
+                          </td>
+                          <td className={`px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums ${displayAmts.debit > 0 ? 'text-red-600 font-semibold print:text-black' : 'text-slate-400'}`}>
+                            {displayAmts.debit > 0 ? formatCurrency(displayAmts.debit) : '-'}
+                          </td>
+                          <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${balance >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatCurrency(balance)}</td>
+                        </tr>
+                      );
+                    })}
                     {reportData.ledgerEntries.length === 0 && (
                       <tr><td colSpan="8" className="px-6 py-12 text-center text-slate-500">No bank transactions found for the selected period</td></tr>
                     )}
@@ -406,8 +420,8 @@ export default function BankReport() {
                     <tr className="bg-slate-800 text-white font-bold print:bg-gray-200 print:text-black">
                       <td colSpan="4" className="px-3 py-3 text-right uppercase text-xs tracking-wider border-r border-slate-600 print:border-black">Grand Total</td>
                       <td className="px-3 py-3 border-r border-slate-600 print:border-black" />
-                      <td className="px-3 py-3 text-right border-r border-slate-600 print:border-black tabular-nums text-red-200 print:text-black">{formatCurrency(reportData.summary.totalLedgerCredit)}</td>
-                      <td className="px-3 py-3 text-right border-r border-slate-600 print:border-black tabular-nums text-emerald-200 print:text-black">{formatCurrency(reportData.summary.totalLedgerDebit)}</td>
+                      <td className="px-3 py-3 text-right border-r border-slate-600 print:border-black tabular-nums text-emerald-200 print:text-black">{formatCurrency(reportData.summary.totalLedgerCredit)}</td>
+                      <td className="px-3 py-3 text-right border-r border-slate-600 print:border-black tabular-nums text-red-200 print:text-black">{formatCurrency(reportData.summary.totalLedgerDebit)}</td>
                       <td className="px-3 py-3 text-right tabular-nums print:text-black">{formatCurrency(closingBalance)}</td>
                     </tr>
                   </tfoot>
