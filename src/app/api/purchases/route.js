@@ -756,7 +756,7 @@ export async function POST(request) {
           debit_amount: isReturn ? 0 : supplierAmount,
           credit_amount: isReturn ? supplierAmount : 0,
           bill_no: newPurchase.pur_id.toString(),
-          trnx_type: 'CREDIT',
+          trnx_type: isReturn ? 'CREDIT' : 'DEBIT',
           details: `${isReturn ? 'Purchase Return' : 'Purchase Invoice'}${invoice_number ? ` #${invoice_number}` : ''} ${isReturn ? 'to' : 'from'} ${supplierData?.cus_name || 'Supplier'}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}${safeParseFloat(discount) > 0 ? ` [After Discount: ${safeParseFloat(discount)}]` : ''}`,
           payments: 0,
           updated_by: updated_by ? parseInt(updated_by) : null
@@ -794,7 +794,7 @@ export async function POST(request) {
           debit_amount: isReturn ? totalPaymentAmount2 : 0,
           credit_amount: isReturn ? 0 : totalPaymentAmount2,
           bill_no: newPurchase.pur_id.toString(),
-          trnx_type: 'DEBIT',
+          trnx_type: isReturn ? 'DEBIT' : 'CREDIT',
           details: `${isReturn ? 'Payment received from' : 'Payment to'} ${supplierData?.cus_name || 'Supplier'} — ${paymentBreakdown}`,
           payments: totalPaymentAmount2,
           cash_payment: cashPaymentAmount,
@@ -967,7 +967,7 @@ export async function POST(request) {
             if (i === 0) allocate = parseFloat((perAccount + remainder).toFixed(2));
 
             const cargoOpeningBalance = await resolveOpeningBalance(tx, cargoAcc.cus_id, newPurchase.created_at);
-            const cargoEntry = createLedgerEntry({
+            const cargoEntry = createPayableLedgerEntry({
               cus_id: cargoAcc.cus_id,
               opening_balance: cargoOpeningBalance,
               debit_amount: 0,
@@ -1006,11 +1006,11 @@ export async function POST(request) {
             ? priorLabourEntries[priorLabourEntries.length - 1].closing_balance
             : await resolveOpeningBalance(tx, labourAccount.cus_id, newPurchase.created_at);
 
-          const labourEntry = createLedgerEntry({
+          const labourEntry = createPayableLedgerEntry({
             cus_id: labourAccount.cus_id,
             opening_balance: labourOpeningBalance,
-            debit_amount: 0,
-            credit_amount: outLabourAmt,
+            debit_amount: outLabourAmt,
+            credit_amount: 0,
             bill_no: newPurchase.pur_id.toString(),
             trnx_type: 'DEBIT',
             details: `Out Labour - Purchase #${newPurchase.pur_id}${invoice_number ? ` (Inv: ${invoice_number})` : ''}`,
@@ -1363,7 +1363,7 @@ export async function PUT(request) {
           debit_amount: supplierAmount,
           credit_amount: 0,
           bill_no: id.toString(),
-          trnx_type: 'CREDIT',
+          trnx_type: 'DEBIT',
           details: `Purchase Update from ${supplierData?.cus_name || 'Supplier'}${invoice_number ? ` #${invoice_number}` : ''}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
           payments: 0,
           updated_by: updated_by ? parseInt(updated_by) : null
@@ -1387,7 +1387,7 @@ export async function PUT(request) {
           debit_amount: 0,
           credit_amount: paymentAmount,
           bill_no: id.toString(),
-          trnx_type: 'DEBIT',
+          trnx_type: 'CREDIT',
           details: `Payment to ${supplierData?.cus_name || 'Supplier'} - Purchase Update${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
           payments: paymentAmount,
           cash_payment: cashPaymentAmt,
@@ -1507,7 +1507,7 @@ export async function PUT(request) {
             if (i === 0) allocatePUT = parseFloat((perAccountPUT + remainderPUT).toFixed(2));
 
             const cargoOpeningBalance = await getOpeningBalanceForAccount(cargoAcc.cus_id);
-            const cargoEntry = createLedgerEntry({
+            const cargoEntry = createPayableLedgerEntry({
               cus_id: cargoAcc.cus_id,
               opening_balance: cargoOpeningBalance,
               debit_amount: 0,
@@ -1543,11 +1543,11 @@ export async function PUT(request) {
             ? priorLabourEntriesPUT[priorLabourEntriesPUT.length - 1].closing_balance
             : await getOpeningBalanceForAccount(labourAccountPUT.cus_id);
 
-          const labourEntryPUT = createLedgerEntry({
+          const labourEntryPUT = createPayableLedgerEntry({
             cus_id: labourAccountPUT.cus_id,
             opening_balance: labourOpeningBalancePUT,
-            debit_amount: 0,
-            credit_amount: outLabourAmtPUT,
+            debit_amount: outLabourAmtPUT,
+            credit_amount: 0,
             bill_no: id.toString(),
             trnx_type: 'DEBIT',
             details: `Out Labour - Purchase #${id}${invoice_number ? ` (Inv: ${invoice_number})` : ''}`,
