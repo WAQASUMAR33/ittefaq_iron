@@ -69,7 +69,13 @@ export async function GET(request) {
           pro_baser_price: true,
           pro_crate: true,
           pro_unit: true,
-          pro_packing: true
+          pro_packing: true,
+          store_stocks: {
+            select: {
+              store_id: true,
+              stock_quantity: true
+            }
+          }
         },
         orderBy: { created_at: 'desc' }
       });
