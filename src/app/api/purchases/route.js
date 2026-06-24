@@ -109,8 +109,6 @@ async function recalculateLedgerBalances(tx, cus_id) {
   if (!customer) return;
 
   const categoryTitle = (customer.customer_category?.cus_cat_title || '').toLowerCase();
-  const isPayable = categoryTitle.includes('supplier') || categoryTitle.includes('creditor');
-  const nature = isPayable ? 'PAYABLE' : 'RECEIVABLE';
 
   const entries = await tx.ledger.findMany({
     where: { cus_id },
@@ -143,9 +141,18 @@ async function recalculateLedgerBalances(tx, cus_id) {
       const opening = runningBalance;
       const debit = parseFloat(entry.debit_amount || 0);
       const credit = parseFloat(entry.credit_amount || 0);
-      const closing = nature === 'PAYABLE'
-        ? opening - debit + credit
-        : opening + debit - credit;
+      
+      let change = 0;
+      if (categoryTitle.includes('cash') || categoryTitle.includes('bank')) {
+        if (entry.trnx_type === 'DEBIT') {
+          change = debit - credit;
+        } else {
+          change = credit - debit;
+        }
+      } else {
+        change = credit - debit;
+      }
+      const closing = opening + change;
 
       if (
         Math.abs(parseFloat(entry.opening_balance) - opening) > 0.01 ||

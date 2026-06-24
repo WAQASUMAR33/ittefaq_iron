@@ -319,6 +319,7 @@ export async function POST(request) {
           // Customer account receiving pay payment: debit becomes credit, but balance increases (added to previous balance)
           mainAccountEntry.debit_amount = 0;
           mainAccountEntry.credit_amount = parseFloat(total_amount);
+          mainAccountEntry.closing_balance = mainAccountEntry.opening_balance + parseFloat(total_amount);
         }
       } else if (payment_type === 'PAY') {
         const isMainBankOrCash = BANK_CASH_CATEGORIES.includes(categoryMap[parseInt(account_id)]);
@@ -512,7 +513,11 @@ export async function POST(request) {
 
       await Promise.all(balanceUpdates);
 
-      return payment;
+      return {
+        ...payment,
+        customer_opening_balance: mainAccountEntry.opening_balance,
+        customer_closing_balance: mainAccountEntry.closing_balance
+      };
     }, { timeout: 15000 });
 
     return NextResponse.json(result);

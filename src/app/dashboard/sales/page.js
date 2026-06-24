@@ -3908,20 +3908,20 @@ function SalesPageContent() {
                       autoHighlight
                       openOnFocus
                       selectOnFocus
+                      onKeyDown={(e) => {
+                        if ((e.key === 'Tab' || e.key === 'Enter') && !e.shiftKey) {
+                          e.preventDefault();
+                          const customerInput = document.getElementById('customer-search-dropdown-input');
+                          if (customerInput) {
+                            customerInput.focus();
+                          }
+                        }
+                      }}
                       renderInput={(params) => (
                         <TextField
                           {...params}
                           placeholder="All Customer Types"
                           variant="outlined"
-                          onKeyDown={(e) => {
-                            if (e.key === 'Tab' && !e.shiftKey) {
-                              e.preventDefault();
-                              const customerInput = document.getElementById('customer-search-dropdown-input');
-                              if (customerInput) {
-                                customerInput.focus();
-                              }
-                            }
-                          }}
                           sx={{
                             bgcolor: 'white',
                             width: 250,
@@ -4037,6 +4037,23 @@ function SalesPageContent() {
                       fullWidth
                       size="small"
                       sx={{ minWidth: 450 }}
+                      onKeyDown={(e) => {
+                        if ((e.key === 'Tab' || e.key === 'Enter') && !e.shiftKey) {
+                          e.preventDefault();
+                          if (billType === 'SALE_RETURN') {
+                            const invoiceInput = document.querySelector('input[placeholder*="Search Sale ID"]');
+                            if (invoiceInput) invoiceInput.focus();
+                          } else {
+                            const productInput = document.getElementById('product-select-dropdown-input');
+                            if (productInput) {
+                              productInput.focus();
+                            } else {
+                              const fallbackInput = document.querySelector('input[placeholder*="Select product"]');
+                              if (fallbackInput) fallbackInput.focus();
+                            }
+                          }
+                        }
+                      }}
                       options={customers.filter(customer => {
                         // Filter by Category: Customer
                         // User requested: "customer catagory customer type any"
@@ -4098,30 +4115,6 @@ function SalesPageContent() {
                           fullWidth
                           placeholder="Search by name, phone, address, city, reference"
                           onFocus={(e) => e.target.select()}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Tab' && !e.shiftKey) {
-                              e.preventDefault();
-                              const productInput = document.getElementById('product-select-dropdown-input');
-                              if (productInput) {
-                                productInput.focus();
-                              }
-                            }
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              if (billType === 'SALE_RETURN') {
-                                const invoiceInput = document.querySelector('input[placeholder*="Search Sale ID"]');
-                                if (invoiceInput) invoiceInput.focus();
-                              } else {
-                                const productInput = document.getElementById('product-select-dropdown-input');
-                                if (productInput) {
-                                  productInput.focus();
-                                } else {
-                                  const fallbackInput = document.querySelector('input[placeholder*="Select product"]');
-                                  if (fallbackInput) fallbackInput.focus();
-                                }
-                              }
-                            }
-                          }}
                           sx={{
                             bgcolor: '#e8f5e9',
                             minWidth: 450,

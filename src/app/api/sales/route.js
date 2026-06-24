@@ -226,8 +226,6 @@ async function recalculateLedgerBalances(tx, cus_id) {
   if (!customer) return;
 
   const categoryTitle = (customer.customer_category?.cus_cat_title || '').toLowerCase();
-  const isPayable = categoryTitle.includes('supplier') || categoryTitle.includes('creditor');
-  const nature = isPayable ? 'PAYABLE' : 'RECEIVABLE';
 
   const entries = await tx.ledger.findMany({
     where: { cus_id },
@@ -260,9 +258,18 @@ async function recalculateLedgerBalances(tx, cus_id) {
       const opening = runningBalance;
       const debit = parseFloat(entry.debit_amount || 0);
       const credit = parseFloat(entry.credit_amount || 0);
-      const closing = nature === 'PAYABLE'
-        ? opening - debit + credit
-        : opening + debit - credit;
+      
+      let change = 0;
+      if (categoryTitle.includes('cash') || categoryTitle.includes('bank')) {
+        if (entry.trnx_type === 'DEBIT') {
+          change = debit - credit;
+        } else {
+          change = credit - debit;
+        }
+      } else {
+        change = credit - debit;
+      }
+      const closing = opening + change;
 
       if (
         Math.abs(parseFloat(entry.opening_balance) - opening) > 0.01 ||
@@ -1243,12 +1250,12 @@ export async function POST(request) {
         // ORDER: no full SALE debit (only payment credits). Regular BILL: full amount debit.
         // Order → sale conversion: full total_amount debited, then advance re-credited + combined cash/bank credit.
         if (!actualIsLoadedOrder && !isOrder) {
-          // Bill debit amount is the final amount (discount already applied)
+          // Bill credit amount is the final amount (discount already applied)
           const debitAmount = parseFloat(total_amount);
 
           if (debitAmount > 0) {
             // Build details showing discount information
-            let billDetails = `Sale Bill - ${bill_type || 'BILL'} - Customer Account (Debit)`;
+            let billDetails = `Sale Bill - ${bill_type || 'BILL'} - Customer Account (Credit)`;
             if (parseFloat(discount || 0) > 0) {
               billDetails += ` [Discount Applied: ${parseFloat(discount || 0)}]`;
             }
@@ -1256,15 +1263,15 @@ export async function POST(request) {
             const billEntry = createLedgerEntry({
               cus_id,
               opening_balance: runningBalance,
-              debit_amount: debitAmount,
-              credit_amount: 0,
+              debit_amount: 0,
+              credit_amount: debitAmount,
               bill_no: sale.sale_id.toString(),
-              trnx_type: 'DEBIT',
+              trnx_type: 'CREDIT',
               details: billDetails,
               payments: 0,
               updated_by: validatedUpdatedBy
             });
-            console.log(`📝 Bill Entry Created: Opening=${billEntry.opening_balance}, Debit=${billEntry.debit_amount}, Closing=${billEntry.closing_balance}`);
+            console.log(`📝 Bill Entry Created: Opening=${billEntry.opening_balance}, Credit=${billEntry.credit_amount}, Closing=${billEntry.closing_balance}`);
             console.log(`   Details: ${billDetails}`);
             ledgerEntries.push(billEntry);
             runningBalance = billEntry.closing_balance;  // Update running balance
@@ -1274,34 +1281,34 @@ export async function POST(request) {
         } else if (actualIsLoadedOrder) {
           const orderTotal = parseFloat(total_amount) || 0;
           if (orderTotal > 0) {
-            let billDetails = `Sale Bill (order conversion) - ${bill_type || 'BILL'} - Customer Account (Debit)`;
+            let billDetails = `Sale Bill (order conversion) - ${bill_type || 'BILL'} - Customer Account (Credit)`;
             if (parseFloat(discount || 0) > 0) {
               billDetails += ` [Discount Applied: ${parseFloat(discount || 0)}]`;
             }
             const billEntry = createLedgerEntry({
               cus_id,
               opening_balance: runningBalance,
-              debit_amount: orderTotal,
-              credit_amount: 0,
+              debit_amount: 0,
+              credit_amount: orderTotal,
               bill_no: sale.sale_id.toString(),
-              trnx_type: 'DEBIT',
+              trnx_type: 'CREDIT',
               details: billDetails,
               payments: 0,
               updated_by: validatedUpdatedBy
             });
-            console.log(`📝 Bill Entry (order conversion, full amount): Opening=${billEntry.opening_balance}, Debit=${billEntry.debit_amount}, Closing=${billEntry.closing_balance}`);
+            console.log(`📝 Bill Entry (order conversion, full amount): Opening=${billEntry.opening_balance}, Credit=${billEntry.credit_amount}, Closing=${billEntry.closing_balance}`);
             ledgerEntries.push(billEntry);
             runningBalance = billEntry.closing_balance;
           }
         }
 
-        // 2. Customer account (credit) for payments
-        // Order → BILL conversion: full bill debited above; then advance credit + single combined cash+bank credit.
+        // 2. Customer account (debit) for payments
+        // Order → BILL conversion: full bill credited above; then advance debit + single combined cash+bank debit.
         // Other cases: one combined line (cash + bank + advance when applicable).
         const cashAmount = eff_cash;
         const bankAmount = eff_bank;
         const advancePaymentAmount = parseFloat(advance_payment || 0);
-        // Advance is credited at ORDER creation time; never re-credit it here for regular bills.
+        // Advance is debited at ORDER creation time; never re-debit it here for regular bills.
         // The actualIsLoadedOrder path handles advance explicitly with its own conditional logic.
         const totalPaymentForCustomer = cashAmount + bankAmount;
 
@@ -1310,7 +1317,7 @@ export async function POST(request) {
           const orderPrepaid = parseFloat(advance_payment || 0);
           const remaining = Math.max(0, orderTotal - orderPrepaid - cashAmount - bankAmount);
 
-          // Single combined payment credit (cash + bank)
+          // Single combined payment debit (cash + bank)
           const totalNewPayment = cashAmount + bankAmount;
           if (totalNewPayment > 0) {
             const paymentParts = [];
@@ -1319,22 +1326,22 @@ export async function POST(request) {
             const combinedPayEntry = createLedgerEntry({
               cus_id,
               opening_balance: runningBalance,
-              debit_amount: 0,
-              credit_amount: totalNewPayment,
+              debit_amount: totalNewPayment,
+              credit_amount: 0,
               bill_no: sale.sale_id.toString(),
-              trnx_type: 'CREDIT',
-              details: `Payment Received - ${bill_type || 'BILL'} - Customer Account (Credit) [${paymentParts.join(', ')}]`,
+              trnx_type: 'DEBIT',
+              details: `Payment Received - ${bill_type || 'BILL'} - Customer Account (Debit) [${paymentParts.join(', ')}]`,
               payments: totalNewPayment,
               cash_payment: cashAmount,
               bank_payment: bankAmount,
               updated_by: validatedUpdatedBy
             });
-            console.log(`💳 Combined payment credit: ${totalNewPayment}, remaining=${remaining}, Closing=${combinedPayEntry.closing_balance}`);
+            console.log(`💳 Combined payment debit: ${totalNewPayment}, remaining=${remaining}, Closing=${combinedPayEntry.closing_balance}`);
             ledgerEntries.push(combinedPayEntry);
             runningBalance = combinedPayEntry.closing_balance;
           }
         } else if (!isOrder && totalPaymentForCustomer > 0) {
-          // BILL / other: customer A/R is adjusted by this payment credit.
+          // BILL / other: customer A/R is adjusted by this payment debit.
           // ORDER: do not post to the customer's ledger — only Cash/Bank (below); cus_balance stays unchanged.
           const salePaymentParts = [];
           if (cashAmount > 0) salePaymentParts.push(`Cash: ${cashAmount}`);
@@ -1346,21 +1353,21 @@ export async function POST(request) {
           const paymentEntry = createLedgerEntry({
             cus_id,
             opening_balance: runningBalance,
-            debit_amount: 0,
-            credit_amount: totalPaymentForCustomer,
+            debit_amount: totalPaymentForCustomer,
+            credit_amount: 0,
             bill_no: sale.sale_id.toString(),
-            trnx_type: 'CREDIT',
-            details: `Payment Received - ${billLabel} - Customer Account (Credit)${salePaymentDesc}`,
+            trnx_type: 'DEBIT',
+            details: `Payment Received - ${billLabel} - Customer Account (Debit)${salePaymentDesc}`,
             payments: totalPaymentForCustomer,
             cash_payment: cashAmount,
             bank_payment: bankAmount,
             updated_by: validatedUpdatedBy
           });
-          console.log(`💳 Payment Entry: Opening=${paymentEntry.opening_balance}, Credit=${paymentEntry.credit_amount}, Closing=${paymentEntry.closing_balance}`);
+          console.log(`💳 Payment Entry: Opening=${paymentEntry.opening_balance}, Debit=${paymentEntry.debit_amount}, Closing=${paymentEntry.closing_balance}`);
           ledgerEntries.push(paymentEntry);
           runningBalance = paymentEntry.closing_balance;
         } else if (isOrder && (cashAmount > 0 || bankAmount > 0)) {
-          // ORDER advance payment: single combined credit on customer account (reduces their balance)
+          // ORDER advance payment: single combined debit on customer account (reduces their balance)
           const totalAdvance = cashAmount + bankAmount;
           const advanceParts = [];
           if (cashAmount > 0) advanceParts.push(`${cashAmount.toLocaleString('en-PK')} Cash Account`);
@@ -1369,17 +1376,17 @@ export async function POST(request) {
           const orderAdvanceEntry = createLedgerEntry({
             cus_id,
             opening_balance: runningBalance,
-            debit_amount: 0,
-            credit_amount: totalAdvance,
+            debit_amount: totalAdvance,
+            credit_amount: 0,
             bill_no: sale.sale_id.toString(),
-            trnx_type: 'CREDIT',
+            trnx_type: 'DEBIT',
             details: `Advance Payment — ${advanceParts.join(' + ')}`,
             payments: totalAdvance,
             cash_payment: cashAmount,
             bank_payment: bankAmount,
             updated_by: validatedUpdatedBy
           });
-          console.log(`💳 ORDER advance: Credit=${orderAdvanceEntry.credit_amount}, Closing=${orderAdvanceEntry.closing_balance}, Desc="${orderAdvanceEntry.details}"`);
+          console.log(`💳 ORDER advance: Debit=${orderAdvanceEntry.debit_amount}, Closing=${orderAdvanceEntry.closing_balance}, Desc="${orderAdvanceEntry.details}"`);
           ledgerEntries.push(orderAdvanceEntry);
           runningBalance = orderAdvanceEntry.closing_balance;
         }
@@ -1423,23 +1430,23 @@ export async function POST(request) {
             const bankEntry = createLedgerEntry({
               cus_id: bankAccountToUse.cus_id,
               opening_balance: await resolveOpeningBalance(tx, bankAccountToUse.cus_id, saleCreatedAt),
-              debit_amount: Number(eff_bank.toFixed(2)),
-              credit_amount: 0,
+              debit_amount: 0,
+              credit_amount: Number(eff_bank.toFixed(2)),
               bill_no: sale.sale_id.toString(),
-              trnx_type: 'DEBIT',
-              details: `Payment Received - ${isOrder ? 'ORDER' : (bill_type || 'BILL')} - ${customer?.cus_name || 'Customer'} - BANK Account: ${bankAccountToUse.cus_name} (Debit)`,
+              trnx_type: 'CREDIT',
+              details: `Payment Received - ${isOrder ? 'ORDER' : (bill_type || 'BILL')} - ${customer?.cus_name || 'Customer'} - BANK Account: ${bankAccountToUse.cus_name} (Credit)`,
               payments: Number(eff_bank.toFixed(2)),
               cash_payment: 0,
               bank_payment: Number(eff_bank.toFixed(2)),  // Mark as bank payment
               updated_by: validatedUpdatedBy
             });
-            console.log(`🏦 Bank Ledger Entry: Opening=${bankEntry.opening_balance}, Debit=${bankEntry.debit_amount}, Closing=${bankEntry.closing_balance}`);
+            console.log(`🏦 Bank Ledger Entry: Opening=${bankEntry.opening_balance}, Credit=${bankEntry.credit_amount}, Closing=${bankEntry.closing_balance}`);
             ledgerEntries.push(bankEntry);
           }
         }
 
-        // 4. Cash Account - DEBIT (when cash payment is received)
-        // When cash payment is received, cash account balance INCREASES (debit increases asset)
+        // 4. Cash Account - CREDIT (when cash payment is received)
+        // When cash payment is received, cash account balance DECREASES (credit decreases asset)
         // Always create ledger entry for cash payments
         if (eff_cash > 0 && specialAccounts.cash) {
           console.log(`💵 CASH PAYMENT DETECTED: ${eff_cash}`);
@@ -1448,17 +1455,17 @@ export async function POST(request) {
           const cashEntry = createLedgerEntry({
             cus_id: specialAccounts.cash.cus_id,
             opening_balance: await resolveOpeningBalance(tx, specialAccounts.cash.cus_id, saleCreatedAt),
-            debit_amount: Number(eff_cash.toFixed(2)),
-            credit_amount: 0,
+            debit_amount: 0,
+            credit_amount: Number(eff_cash.toFixed(2)),
             bill_no: sale.sale_id.toString(),
-            trnx_type: 'DEBIT',
-            details: `Payment Received - ${isOrder ? 'ORDER' : (bill_type || 'BILL')} - ${customer?.cus_name || 'Customer'} - CASH Account (Debit)`,
+            trnx_type: 'CREDIT',
+            details: `Payment Received - ${isOrder ? 'ORDER' : (bill_type || 'BILL')} - ${customer?.cus_name || 'Customer'} - CASH Account (Credit)`,
             payments: Number(eff_cash.toFixed(2)),
             cash_payment: Number(eff_cash.toFixed(2)),  // Mark as cash payment
             bank_payment: 0,
             updated_by: validatedUpdatedBy
           });
-          console.log(`💵 Cash Ledger Entry: Opening=${cashEntry.opening_balance}, Debit=${cashEntry.debit_amount}, Closing=${cashEntry.closing_balance}`);
+          console.log(`💵 Cash Ledger Entry: Opening=${cashEntry.opening_balance}, Credit=${cashEntry.credit_amount}, Closing=${cashEntry.closing_balance}`);
           ledgerEntries.push(cashEntry);
         } else if (eff_cash > 0) {
           console.error(
@@ -1466,7 +1473,7 @@ export async function POST(request) {
           );
         }
 
-        // 5. Transport account entries — credit each transport account for its delivery charge share
+        // 5. Transport account entries — debit each transport account for its delivery charge share
         if (transport_details && transport_details.length > 0) {
           for (const td of transport_details) {
             const transportAmount = parseFloat(td.amount) || 0;
@@ -1481,18 +1488,18 @@ export async function POST(request) {
             const transportEntry = createLedgerEntry({
               cus_id: transportAccount.cus_id,
               opening_balance: await resolveOpeningBalance(tx, transportAccount.cus_id, saleCreatedAt),
-              debit_amount: 0,
-              credit_amount: Number(transportAmount.toFixed(2)),
+              debit_amount: Number(transportAmount.toFixed(2)),
+              credit_amount: 0,
               bill_no: sale.sale_id.toString(),
-              trnx_type: 'CREDIT',
-              details: `Transport Charges - ${bill_type || 'BILL'} - ${customer?.cus_name || 'Customer'} (Credit)`,
+              trnx_type: 'DEBIT',
+              details: `Transport Charges - ${bill_type || 'BILL'} - ${customer?.cus_name || 'Customer'} (Debit)`,
               payments: 0,
               updated_by: validatedUpdatedBy
             });
 
             ledgerEntries.push(transportEntry);
 
-            console.log(`🚚 Transport Entry: Account=${transportAccount.cus_name}, Credit=${transportAmount}, Closing=${transportEntry.closing_balance}`);
+            console.log(`🚚 Transport Entry: Account=${transportAccount.cus_name}, Debit=${transportAmount}, Closing=${transportEntry.closing_balance}`);
           }
         }
 
@@ -1653,7 +1660,7 @@ export async function POST(request) {
         if (eff_bank > 0 && usedBankAccountId && !bankHandledBySplitPayment) {
           // Find the bank account ledger entry - it will be the DEBIT entry with bank_payment
           const bankLedgerEntry = ledgerEntries.find(e =>
-            e.cus_id === usedBankAccountId && e.trnx_type === 'DEBIT' && e.bank_payment > 0
+            e.cus_id === usedBankAccountId && e.trnx_type === 'CREDIT' && e.bank_payment > 0
           );
 
           if (bankLedgerEntry) {
@@ -2135,10 +2142,10 @@ export async function PUT(request) {
         console.log(`   Advance Payment: ${advance_payment}`);
         console.log(`${'='.repeat(60)}`);
 
-        // ── 4a. Customer SALE debit (bill amount) — FIRST: add amount to customer ledger ──
+        // ── 4a. Customer SALE credit (bill amount) — FIRST: add amount to customer ledger ──
         const debitAmount = parseFloat(total_amount);
         if (!isOrder && debitAmount > 0) {
-          let billDetails = `Sale Bill - ${bill_type || 'BILL'} - Customer Account (Debit)`;
+          let billDetails = `Sale Bill - ${bill_type || 'BILL'} - Customer Account (Credit)`;
           if (parseFloat(discount || 0) > 0) {
             billDetails += ` [Discount Applied: ${parseFloat(discount || 0)}]`;
           }
@@ -2146,15 +2153,15 @@ export async function PUT(request) {
           const billEntry = createLedgerEntry({
             cus_id,
             opening_balance: runningBalance,
-            debit_amount: debitAmount,
-            credit_amount: 0,
+            debit_amount: 0,
+            credit_amount: debitAmount,
             bill_no: sale.sale_id.toString(),
-            trnx_type: 'DEBIT',
+            trnx_type: 'CREDIT',
             details: billDetails,
             payments: 0,
             updated_by: validatedUpdatedBy
           });
-          console.log(`   📝 Bill Debit: ${debitAmount}, Closing=${billEntry.closing_balance}`);
+          console.log(`   📝 Bill Credit: ${debitAmount}, Closing=${billEntry.closing_balance}`);
           ledgerEntries.push(billEntry);
           runningBalance = billEntry.closing_balance;
         }
@@ -2180,21 +2187,21 @@ export async function PUT(request) {
           const orderAdvanceEntry = createLedgerEntry({
             cus_id,
             opening_balance: runningBalance,
-            debit_amount: 0,
-            credit_amount: advPaymentAmt,
+            debit_amount: advPaymentAmt,
+            credit_amount: 0,
             bill_no: sale.sale_id.toString(),
-            trnx_type: 'CREDIT',
+            trnx_type: 'DEBIT',
             details: `Advance Payment — ${advanceParts.join(' + ')}`,
             payments: advPaymentAmt,
             cash_payment: advCash,
             bank_payment: advBank,
             updated_by: validatedUpdatedBy
           });
-          console.log(`   💳 Advance Credit: ${advPaymentAmt}, Closing=${orderAdvanceEntry.closing_balance}`);
+          console.log(`   💳 Advance Debit: ${advPaymentAmt}, Closing=${orderAdvanceEntry.closing_balance}`);
           ledgerEntries.push(orderAdvanceEntry);
           runningBalance = orderAdvanceEntry.closing_balance;
 
-          // Bank debit for advance
+          // Bank credit for advance
           if (advBank > 0 && specialAccounts) {
             let bankAccountToUse = specialAccounts.bank;
             if (bank_title && bank_title.trim() && bankAccountToUse) {
@@ -2214,43 +2221,43 @@ export async function PUT(request) {
               const bankEntry = createLedgerEntry({
                 cus_id: bankAccountToUse.cus_id,
                 opening_balance: currentBankBalance,
-                debit_amount: Number(advBank.toFixed(2)),
-                credit_amount: 0,
+                debit_amount: 0,
+                credit_amount: Number(advBank.toFixed(2)),
                 bill_no: sale.sale_id.toString(),
-                trnx_type: 'DEBIT',
-                details: `Payment Received - ORDER - ${freshCustomer.cus_name} - BANK Account: ${bankAccountToUse.cus_name} (Debit)`,
+                trnx_type: 'CREDIT',
+                details: `Payment Received - ORDER - ${freshCustomer.cus_name} - BANK Account: ${bankAccountToUse.cus_name} (Credit)`,
                 payments: Number(advBank.toFixed(2)),
                 cash_payment: 0,
                 bank_payment: Number(advBank.toFixed(2)),
                 updated_by: validatedUpdatedBy
               });
-              console.log(`   🏦 Advance Bank Debit: ${advBank}, Closing=${bankEntry.closing_balance}`);
+              console.log(`   🏦 Advance Bank Credit: ${advBank}, Closing=${bankEntry.closing_balance}`);
               ledgerEntries.push(bankEntry);
             }
           }
 
-          // Cash debit for advance
+          // Cash credit for advance
           if (advCash > 0 && specialAccounts?.cash) {
             const currentCashBalance = await getRunningBalanceForAccount(specialAccounts.cash.cus_id);
             const cashEntry = createLedgerEntry({
               cus_id: specialAccounts.cash.cus_id,
               opening_balance: currentCashBalance,
-              debit_amount: Number(advCash.toFixed(2)),
-              credit_amount: 0,
+              debit_amount: 0,
+              credit_amount: Number(advCash.toFixed(2)),
               bill_no: sale.sale_id.toString(),
-              trnx_type: 'DEBIT',
-              details: `Payment Received - ORDER - ${freshCustomer.cus_name} - CASH Account (Debit)`,
+              trnx_type: 'CREDIT',
+              details: `Payment Received - ORDER - ${freshCustomer.cus_name} - CASH Account (Credit)`,
               payments: Number(advCash.toFixed(2)),
               cash_payment: Number(advCash.toFixed(2)),
               bank_payment: 0,
               updated_by: validatedUpdatedBy
             });
-            console.log(`   💵 Advance Cash Debit: ${advCash}, Closing=${cashEntry.closing_balance}`);
+            console.log(`   💵 Advance Cash Credit: ${advCash}, Closing=${cashEntry.closing_balance}`);
             ledgerEntries.push(cashEntry);
           }
         }
 
-        // ── 4c. Customer payment credit ──
+        // ── 4c. Customer payment debit ──
         const cashAmount = eff_cash;
         const bankAmount = eff_bank;
         const totalPaymentForCustomer = cashAmount + bankAmount;
@@ -2268,28 +2275,28 @@ export async function PUT(request) {
             paymentDetails = `Advance Payment — ${advanceParts.join(' + ')}`;
           } else {
             const paymentDesc = paymentParts.length > 0 ? ` [${paymentParts.join(', ')}]` : '';
-            paymentDetails = `Payment Received - ${bill_type || 'BILL'} - Customer Account (Credit)${paymentDesc}`;
+            paymentDetails = `Payment Received - ${bill_type || 'BILL'} - Customer Account (Debit)${paymentDesc}`;
           }
 
           const paymentEntry = createLedgerEntry({
             cus_id,
             opening_balance: runningBalance,
-            debit_amount: 0,
-            credit_amount: totalPaymentForCustomer,
+            debit_amount: totalPaymentForCustomer,
+            credit_amount: 0,
             bill_no: sale.sale_id.toString(),
-            trnx_type: 'CREDIT',
+            trnx_type: 'DEBIT',
             details: paymentDetails,
             payments: totalPaymentForCustomer,
             cash_payment: cashAmount,
             bank_payment: bankAmount,
             updated_by: validatedUpdatedBy
           });
-          console.log(`   💳 Payment Credit: ${totalPaymentForCustomer}, Closing=${paymentEntry.closing_balance}`);
+          console.log(`   💳 Payment Debit: ${totalPaymentForCustomer}, Closing=${paymentEntry.closing_balance}`);
           ledgerEntries.push(paymentEntry);
           runningBalance = paymentEntry.closing_balance;
         }
 
-        // ── 4d. Bank Account debit (bank payment received) ──
+        // ── 4d. Bank Account credit (bank payment received) ──
         let usedBankAccountId = null;
 
         if (eff_bank > 0 && specialAccounts) {
@@ -2316,39 +2323,39 @@ export async function PUT(request) {
             const bankEntry = createLedgerEntry({
               cus_id: bankAccountToUse.cus_id,
               opening_balance: currentBankBalance,
-              debit_amount: Number(eff_bank.toFixed(2)),
-              credit_amount: 0,
+              debit_amount: 0,
+              credit_amount: Number(eff_bank.toFixed(2)),
               bill_no: sale.sale_id.toString(),
-              trnx_type: 'DEBIT',
-              details: `Payment Received - ${bill_type || 'BILL'} - ${freshCustomer.cus_name} - BANK Account: ${bankAccountToUse.cus_name} (Debit)`,
+              trnx_type: 'CREDIT',
+              details: `Payment Received - ${bill_type || 'BILL'} - ${freshCustomer.cus_name} - BANK Account: ${bankAccountToUse.cus_name} (Credit)`,
               payments: Number(eff_bank.toFixed(2)),
               cash_payment: 0,
               bank_payment: Number(eff_bank.toFixed(2)),
               updated_by: validatedUpdatedBy
             });
-            console.log(`   🏦 Bank Debit: ${eff_bank}, Closing=${bankEntry.closing_balance}`);
+            console.log(`   🏦 Bank Credit: ${eff_bank}, Closing=${bankEntry.closing_balance}`);
             ledgerEntries.push(bankEntry);
           }
         }
 
-        // ── 4e. Cash Account debit (cash payment received) ──
+        // ── 4e. Cash Account credit (cash payment received) ──
         if (eff_cash > 0 && specialAccounts?.cash) {
           const currentCashBalance = await getRunningBalanceForAccount(specialAccounts.cash.cus_id);
 
           const cashEntry = createLedgerEntry({
             cus_id: specialAccounts.cash.cus_id,
             opening_balance: currentCashBalance,
-            debit_amount: Number(eff_cash.toFixed(2)),
-            credit_amount: 0,
+            debit_amount: 0,
+            credit_amount: Number(eff_cash.toFixed(2)),
             bill_no: sale.sale_id.toString(),
-            trnx_type: 'DEBIT',
-            details: `Payment Received - ${isOrder ? 'ORDER' : (bill_type || 'BILL')} - ${freshCustomer.cus_name} - CASH Account (Debit)`,
+            trnx_type: 'CREDIT',
+            details: `Payment Received - ${isOrder ? 'ORDER' : (bill_type || 'BILL')} - ${freshCustomer.cus_name} - CASH Account (Credit)`,
             payments: Number(eff_cash.toFixed(2)),
             cash_payment: Number(eff_cash.toFixed(2)),
             bank_payment: 0,
             updated_by: validatedUpdatedBy
           });
-          console.log(`   💵 Cash Debit: ${eff_cash}, Closing=${cashEntry.closing_balance}`);
+          console.log(`   💵 Cash Credit: ${eff_cash}, Closing=${cashEntry.closing_balance}`);
           ledgerEntries.push(cashEntry);
         }
 
@@ -2366,17 +2373,17 @@ export async function PUT(request) {
             const transportEntry = createLedgerEntry({
               cus_id: transportAccount.cus_id,
               opening_balance: currentTransportBalance,
-              debit_amount: 0,
-              credit_amount: Number(transportAmount.toFixed(2)),
+              debit_amount: Number(transportAmount.toFixed(2)),
+              credit_amount: 0,
               bill_no: sale.sale_id.toString(),
-              trnx_type: 'CREDIT',
-              details: `Transport Charges - ${bill_type || 'BILL'} - ${freshCustomer.cus_name} (Credit)`,
+              trnx_type: 'DEBIT',
+              details: `Transport Charges - ${bill_type || 'BILL'} - ${freshCustomer.cus_name} (Debit)`,
               payments: 0,
               updated_by: validatedUpdatedBy
             });
             ledgerEntries.push(transportEntry);
 
-            console.log(`   🚚 Transport Credit: Account=${transportAccount.cus_name}, Amount=${transportAmount}`);
+            console.log(`   🚚 Transport Debit: Account=${transportAccount.cus_name}, Amount=${transportAmount}`);
           }
         }
 

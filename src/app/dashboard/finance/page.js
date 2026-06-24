@@ -269,6 +269,7 @@ export default function FinancePage() {
   const [customerCategories, setCustomerCategories] = useState([]);
   const [customerTypes, setCustomerTypes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [showLedgerForm, setShowLedgerForm] = useState(false);
   const [showJournalForm, setShowJournalForm] = useState(false);
@@ -416,8 +417,12 @@ export default function FinancePage() {
   // Fetch data on mount
   useEffect(() => {
     setMounted(true);
-    fetchStaticData();
-    fetchLedgerData();
+    const init = async () => {
+      await fetchStaticData();
+      await fetchLedgerData();
+      setInitialLoading(false);
+    };
+    init();
   }, []);
 
   // Reactive effect when filters change
@@ -448,7 +453,10 @@ export default function FinancePage() {
   }, [showCustomerDropdown, showAccountDropdown]);
 
   const fetchData = async () => {
-    await fetchLedgerData();
+    await Promise.all([
+      fetchLedgerData(),
+      fetchStaticData()
+    ]);
   };
 
   // Open purchase invoice (used by eye icon / Bill links)
@@ -1174,16 +1182,21 @@ export default function FinancePage() {
 
         const bankAcc = bankAccounts.find(b => b.cus_id === parseInt(receivePaymentData.bank_account));
         const cashAcc = cashAccounts.find(c => c.cus_id === parseInt(receivePaymentData.cash_account));
-        const remainingBalance = previousBalance - totalAmount;
+        
+        const displayPrevBal = result.customer_opening_balance !== undefined ? result.customer_opening_balance : previousBalance;
+        const displayRemBal = result.customer_closing_balance !== undefined ? result.customer_closing_balance : (previousBalance - totalAmount);
 
         setPaymentReceiptData({
           type: 'RECEIVE',
           paymentId: result.payment_id,
           date: new Date().toLocaleDateString('en-GB'),
           time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
-          customer,
-          previousBalance,
-          remainingBalance,
+          customer: {
+            ...customer,
+            cus_balance: displayRemBal
+          },
+          previousBalance: displayPrevBal,
+          remainingBalance: displayRemBal,
           cashAmount,
           bankAmount,
           discountAmount,
@@ -1257,16 +1270,21 @@ export default function FinancePage() {
 
         const bankAcc = bankAccounts.find(b => b.cus_id === parseInt(payPaymentData.bank_account));
         const cashAcc = cashAccounts.find(c => c.cus_id === parseInt(payPaymentData.cash_account));
-        const remainingBalance = previousBalance + totalAmount;
+        
+        const displayPrevBal = result.customer_opening_balance !== undefined ? result.customer_opening_balance : previousBalance;
+        const displayRemBal = result.customer_closing_balance !== undefined ? result.customer_closing_balance : (previousBalance + totalAmount);
 
         setPaymentReceiptData({
           type: 'PAY',
           paymentId: result.payment_id,
           date: new Date().toLocaleDateString('en-GB'),
           time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
-          customer,
-          previousBalance,
-          remainingBalance,
+          customer: {
+            ...customer,
+            cus_balance: displayRemBal
+          },
+          previousBalance: displayPrevBal,
+          remainingBalance: displayRemBal,
           cashAmount,
           bankAmount,
           discountAmount,
@@ -1865,7 +1883,7 @@ export default function FinancePage() {
     setShowPrintLedgerDialog(false);
   };
 
-  if (loading) {
+  if (initialLoading) {
     return (
       <DashboardLayout>
         <Box sx={{
@@ -2393,7 +2411,8 @@ export default function FinancePage() {
 
         {/* Professional Ledger Table */}
         <Box sx={{ flex: 1, minHeight: 0 }}>
-          <Card sx={{ borderRadius: 0, boxShadow: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <Card sx={{ borderRadius: 0, boxShadow: 3, height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+            {loading && <LinearProgress color="primary" sx={{ width: '100%', height: 3, position: 'absolute', top: 0, zIndex: 10 }} />}
             {/* Professional Ledger Header - Dynamic Account Name */}
             <CardHeader
               title={
@@ -2568,7 +2587,7 @@ export default function FinancePage() {
               </Box>
             ) : (
               <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                <TableContainer sx={{ flex: 1 }}>
+                <TableContainer sx={{ flex: 1, opacity: loading ? 0.6 : 1, transition: 'opacity 0.2s' }}>
                   <Table stickyHeader>
                     <TableHead>
                       <TableRow sx={{ bgcolor: '#1f2937', borderBottom: 2, borderColor: '#e5e7eb' }}>
