@@ -154,7 +154,7 @@ export default function BankReport() {
     let csv = 'BANK BOOK\n';
     csv += `Period: ${formatDate(startDate)} to ${formatDate(endDate)}\n\n`;
     csv += 'BANK LEDGER ENTRIES\n';
-    csv += 'S.No,Date,Account,Description,Withdrawal,Deposit,Balance\n';
+    csv += 'S.No,Date,Account,Description,Credit,Debit,Balance\n';
     reportData.ledgerEntries.forEach((entry, i) => {
       const displayAmts = getLedgerEntryDisplayAmounts(entry);
       csv += `${i + 1},${formatDate(entry.created_at)},${entry.customer?.cus_name || '-'},${entry.details || ''},${displayAmts.credit > 0 ? formatCurrency(displayAmts.credit) : ''},${displayAmts.debit > 0 ? formatCurrency(displayAmts.debit) : ''},${formatCurrency(entry.closing_balance)}\n`;
@@ -296,14 +296,14 @@ export default function BankReport() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4 print:hidden">
                 <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-200 rounded-xl p-4">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wide">Total Debit (Deposits)</p>
+                    <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wide">Total Debit</p>
                     <ArrowDownLeft className="w-4 h-4 text-emerald-500" />
                   </div>
                   <p className="text-2xl font-bold text-emerald-800 mt-1">Rs. {formatCurrency(reportData.summary.totalLedgerDebit)}</p>
                 </div>
                 <div className="bg-gradient-to-br from-red-50 to-red-100 border border-red-200 rounded-xl p-4">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold text-red-600 uppercase tracking-wide">Total Credit (Withdrawals)</p>
+                    <p className="text-xs font-semibold text-red-600 uppercase tracking-wide">Total Credit</p>
                     <ArrowUpRight className="w-4 h-4 text-red-500" />
                   </div>
                   <p className="text-2xl font-bold text-red-800 mt-1">Rs. {formatCurrency(reportData.summary.totalLedgerCredit)}</p>
@@ -323,7 +323,7 @@ export default function BankReport() {
                 <table className="w-full text-sm">
                   <tbody>
                     <tr className="border-b border-gray-400">
-                      <td className="px-4 py-2 font-medium border-r border-gray-400 w-1/3">Total Debit (Deposits):</td>
+                      <td className="px-4 py-2 font-medium border-r border-gray-400 w-1/3">Total Debit:</td>
                       <td className="px-4 py-2 text-right font-bold border-r border-gray-400 w-1/3">{formatCurrency(reportData.summary.totalLedgerDebit)}</td>
                       <td rowSpan="2" className="px-4 py-2 text-center w-1/3">
                         <div className="font-semibold text-xs uppercase">Closing Balance</div>
@@ -331,7 +331,7 @@ export default function BankReport() {
                       </td>
                     </tr>
                     <tr>
-                      <td className="px-4 py-2 font-medium border-r border-gray-400">Total Credit (Withdrawals):</td>
+                      <td className="px-4 py-2 font-medium border-r border-gray-400">Total Credit:</td>
                       <td className="px-4 py-2 text-right font-bold border-r border-gray-400">{formatCurrency(reportData.summary.totalLedgerCredit)}</td>
                     </tr>
                   </tbody>
@@ -351,8 +351,8 @@ export default function BankReport() {
                       <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Account</th>
                       <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Description</th>
                       <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Bill</th>
-                      <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Withdrawal</th>
-                      <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Deposit</th>
+                      <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Credit</th>
+                      <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Debit</th>
                       <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider">Balance</th>
                     </tr>
                   </thead>
