@@ -64,7 +64,6 @@ export async function GET(request) {
         select: {
           pro_id: true,
           pro_title: true,
-          pro_code: true,
           pro_cost_price: true,
           pro_sale_price: true,
           pro_baser_price: true,
