@@ -301,6 +301,22 @@ export async function POST(request) {
         payments: netAmount,
         updated_by: parseInt(created_by)
       });
+
+      // Apply custom payment requirement for RECEIVE (Pay Payment modal)
+      if (payment_type === 'RECEIVE') {
+        const isMainBankOrCash = BANK_CASH_CATEGORIES.includes(categoryMap[parseInt(account_id)]);
+        if (isMainBankOrCash) {
+          // Cash/Bank account pay out: credit becomes debit, but balance decreases
+          mainAccountEntry.debit_amount = parseFloat(total_amount);
+          mainAccountEntry.credit_amount = 0;
+          mainAccountEntry.closing_balance = mainAccountEntry.opening_balance - parseFloat(total_amount);
+        } else if (!mainAccountIsSupplier) {
+          // Customer account receiving pay payment: debit becomes credit, but balance increases (added to previous balance)
+          mainAccountEntry.debit_amount = 0;
+          mainAccountEntry.credit_amount = parseFloat(total_amount);
+        }
+      }
+
       ledgerEntries.push({
         ...mainAccountEntry,
         cash_payment: parseFloat(cash_amount),
@@ -345,6 +361,15 @@ export async function POST(request) {
           payments: parseFloat(cash_amount),
           updated_by: parseInt(created_by)
         });
+
+        // Apply custom payment requirement for RECEIVE (Pay Payment modal)
+        if (payment_type === 'RECEIVE') {
+          // cash account is payment source: credit becomes debit, but balance decreases
+          cashAccountEntry.debit_amount = parseFloat(cash_amount);
+          cashAccountEntry.credit_amount = 0;
+          cashAccountEntry.closing_balance = cashAccountEntry.opening_balance - parseFloat(cash_amount);
+        }
+
         ledgerEntries.push({
           ...cashAccountEntry,
           cash_payment: parseFloat(cash_amount),
@@ -390,6 +415,15 @@ export async function POST(request) {
           payments: parseFloat(bank_amount),
           updated_by: parseInt(created_by)
         });
+
+        // Apply custom payment requirement for RECEIVE (Pay Payment modal)
+        if (payment_type === 'RECEIVE') {
+          // bank account is payment source: credit becomes debit, but balance decreases
+          bankAccountEntry.debit_amount = parseFloat(bank_amount);
+          bankAccountEntry.credit_amount = 0;
+          bankAccountEntry.closing_balance = bankAccountEntry.opening_balance - parseFloat(bank_amount);
+        }
+
         ledgerEntries.push({
           ...bankAccountEntry,
           cash_payment: 0,
