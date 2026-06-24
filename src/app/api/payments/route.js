@@ -149,6 +149,7 @@ export async function POST(request) {
       where: { cus_id: { in: affectedAccountIds } },
       select: {
         cus_id: true,
+        cus_name: true,
         cus_balance: true,
         cus_category: true,
         customer_category: { select: { cus_cat_title: true } }
@@ -164,6 +165,10 @@ export async function POST(request) {
       const catTitle = (acc.customer_category?.cus_cat_title || '').toLowerCase();
       if (catTitle.includes('supplier')) supplierAccountIds.add(acc.cus_id);
     });
+
+    // Resolve main customer name
+    const mainCustomer = accountBalances.find(acc => acc.cus_id === parseInt(account_id));
+    const mainCustomerName = mainCustomer?.cus_name || '';
 
     // Bank (23) and Cash (24) are asset accounts — same direction as customer/supplier now
     // PAY (Pay Amount)    = money OUT → CREDIT → selected account balance decreases
@@ -358,7 +363,7 @@ export async function POST(request) {
           bill_no: `PAY-${payment.payment_id}`,
           trnx_type: 'CASH',
           details: payment_type === 'RECEIVE'
-            ? `payment to customer account ${customer.cus_name}`
+            ? `payment to customer account ${mainCustomerName}`
             : `${payment_type.toLowerCase()} payment - cash`,
           payments: parseFloat(cash_amount),
           updated_by: parseInt(created_by)
@@ -414,7 +419,7 @@ export async function POST(request) {
           bill_no: `PAY-${payment.payment_id}`,
           trnx_type: 'BANK_TRANSFER',
           details: payment_type === 'RECEIVE'
-            ? `payment to customer account ${customer.cus_name}`
+            ? `payment to customer account ${mainCustomerName}`
             : `${payment_type.toLowerCase()} payment - bank`,
           payments: parseFloat(bank_amount),
           updated_by: parseInt(created_by)
