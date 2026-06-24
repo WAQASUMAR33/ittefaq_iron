@@ -937,7 +937,7 @@ export default function FinancePage() {
 
   const handleNewJournalEntry = () => {
     if (selectedCustomer) {
-      const customer = customers.find(c => c.cus_id === selectedCustomer);
+      const customer = customers.find(c => Number(c.cus_id) === Number(selectedCustomer));
       if (customer) {
         setJournalData({
           journal_date: new Date().toISOString().split('T')[0],
@@ -1075,7 +1075,7 @@ export default function FinancePage() {
   // Payment Functions
   const handleReceivePayment = () => {
     if (selectedCustomer) {
-      const customer = customers.find(c => c.cus_id === selectedCustomer);
+      const customer = customers.find(c => Number(c.cus_id) === Number(selectedCustomer));
       if (customer) {
         setReceivePaymentData({
           total_payment: '',
@@ -1093,7 +1093,7 @@ export default function FinancePage() {
 
   const handlePayPayment = () => {
     if (selectedCustomer) {
-      const customer = customers.find(c => c.cus_id === selectedCustomer);
+      const customer = customers.find(c => Number(c.cus_id) === Number(selectedCustomer));
       if (customer) {
         setPayPaymentData({
           total_payment: '',
@@ -1165,7 +1165,7 @@ export default function FinancePage() {
         created_by: 7 // Super admin user ID
       };
 
-      const customer = customers.find(c => c.cus_id === selectedCustomer);
+      const customer = customers.find(c => Number(c.cus_id) === Number(selectedCustomer));
       const previousBalance = parseFloat(customer?.cus_balance || 0);
 
       const response = await fetch('/api/payments', {
@@ -1253,7 +1253,7 @@ export default function FinancePage() {
         created_by: 7 // Super admin user ID
       };
 
-      const customer = customers.find(c => c.cus_id === selectedCustomer);
+      const customer = customers.find(c => Number(c.cus_id) === Number(selectedCustomer));
       const previousBalance = parseFloat(customer?.cus_balance || 0);
 
       const response = await fetch('/api/payments', {
@@ -1414,7 +1414,7 @@ export default function FinancePage() {
   };
 
   const handleSendLedgerPdfWhatsApp = async () => {
-    const customer = selectedCustomer ? customers.find(c => c.cus_id === selectedCustomer) : null;
+    const customer = selectedCustomer ? customers.find(c => Number(c.cus_id) === Number(selectedCustomer)) : null;
     const phone = customer?.cus_phone_no;
     if (!phone) {
       alert('Please select a customer with a phone number to send the ledger.');
@@ -1755,7 +1755,7 @@ export default function FinancePage() {
       return;
     }
 
-    const customer = selectedCustomer ? customers.find(c => c.cus_id === selectedCustomer) : null;
+    const customer = selectedCustomer ? customers.find(c => Number(c.cus_id) === Number(selectedCustomer)) : null;
     const custName = customer?.cus_name || 'All Accounts';
     const balance = dateFilteredEntries.length > 0 ? parseFloat(dateFilteredEntries[dateFilteredEntries.length - 1].closing_balance || 0) : 0;
 
@@ -2188,7 +2188,7 @@ export default function FinancePage() {
                     selectOnFocus={true}
                     options={filteredAccounts}
                     getOptionLabel={(option) => option.cus_name}
-                    value={selectedCustomer ? customers.find(c => c.cus_id === selectedCustomer) : null}
+                    value={selectedCustomer ? customers.find(c => Number(c.cus_id) === Number(selectedCustomer)) : null}
                     onChange={(event, newValue) => {
                       if (newValue) {
                         setSelectedCustomer(newValue.cus_id);
@@ -3760,7 +3760,7 @@ export default function FinancePage() {
                     Selected Account
                   </Typography>
                   <Typography variant="h6" sx={{ fontWeight: 700, color: '#14532d' }}>
-                    {customers.find(c => c.cus_id === selectedCustomer)?.cus_name || 'Individual Account'}
+                    {customers.find(c => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || 'Individual Account'}
                   </Typography>
                 </Grid>
                 <Grid item xs={12}>
@@ -3796,7 +3796,7 @@ export default function FinancePage() {
                 value={receivePaymentData.cash_amount}
                 onChange={(e) => setReceivePaymentData((prev) => {
                   const updated = { ...prev, cash_amount: e.target.value };
-                  const accName = customers.find((c) => c.cus_id === selectedCustomer)?.cus_name || '';
+                  const accName = customers.find((c) => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || '';
                   updated.description = buildFinancePaymentDescription(
                     'RECEIVE',
                     accName,
@@ -3825,7 +3825,7 @@ export default function FinancePage() {
                   value={receivePaymentData.bank_account}
                   onChange={(e) => setReceivePaymentData((prev) => {
                     const updated = { ...prev, bank_account: e.target.value };
-                    const accName = customers.find((c) => c.cus_id === selectedCustomer)?.cus_name || '';
+                    const accName = customers.find((c) => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || '';
                     updated.description = buildFinancePaymentDescription(
                       'RECEIVE',
                       accName,
@@ -3858,7 +3858,7 @@ export default function FinancePage() {
                 value={receivePaymentData.bank_amount}
                 onChange={(e) => setReceivePaymentData((prev) => {
                   const updated = { ...prev, bank_amount: e.target.value };
-                  const accName = customers.find((c) => c.cus_id === selectedCustomer)?.cus_name || '';
+                  const accName = customers.find((c) => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || '';
                   updated.description = buildFinancePaymentDescription(
                     'RECEIVE',
                     accName,
@@ -3890,7 +3890,7 @@ export default function FinancePage() {
                 value={receivePaymentData.discount}
                 onChange={(e) => setReceivePaymentData((prev) => {
                   const updated = { ...prev, discount: e.target.value };
-                  const accName = customers.find((c) => c.cus_id === selectedCustomer)?.cus_name || '';
+                  const accName = customers.find((c) => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || '';
                   updated.description = buildFinancePaymentDescription(
                     'RECEIVE',
                     accName,
@@ -3994,7 +3994,7 @@ export default function FinancePage() {
                     Selected Account
                   </Typography>
                   <Typography variant="h6" sx={{ fontWeight: 700, color: '#7f1d1d' }}>
-                    {customers.find(c => c.cus_id === selectedCustomer)?.cus_name || 'Individual Account'}
+                    {customers.find(c => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || 'Individual Account'}
                   </Typography>
                 </Grid>
                 <Grid item xs={12}>
@@ -4030,7 +4030,7 @@ export default function FinancePage() {
                 value={payPaymentData.cash_amount}
                 onChange={(e) => setPayPaymentData((prev) => {
                   const updated = { ...prev, cash_amount: e.target.value };
-                  const accName = customers.find((c) => c.cus_id === selectedCustomer)?.cus_name || '';
+                  const accName = customers.find((c) => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || '';
                   updated.description = buildFinancePaymentDescription(
                     'PAY',
                     accName,
@@ -4059,7 +4059,7 @@ export default function FinancePage() {
                   value={payPaymentData.bank_account}
                   onChange={(e) => setPayPaymentData((prev) => {
                     const updated = { ...prev, bank_account: e.target.value };
-                    const accName = customers.find((c) => c.cus_id === selectedCustomer)?.cus_name || '';
+                    const accName = customers.find((c) => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || '';
                     updated.description = buildFinancePaymentDescription(
                       'PAY',
                       accName,
@@ -4092,7 +4092,7 @@ export default function FinancePage() {
                 value={payPaymentData.bank_amount}
                 onChange={(e) => setPayPaymentData((prev) => {
                   const updated = { ...prev, bank_amount: e.target.value };
-                  const accName = customers.find((c) => c.cus_id === selectedCustomer)?.cus_name || '';
+                  const accName = customers.find((c) => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || '';
                   updated.description = buildFinancePaymentDescription(
                     'PAY',
                     accName,
@@ -4124,7 +4124,7 @@ export default function FinancePage() {
                 value={payPaymentData.discount}
                 onChange={(e) => setPayPaymentData((prev) => {
                   const updated = { ...prev, discount: e.target.value };
-                  const accName = customers.find((c) => c.cus_id === selectedCustomer)?.cus_name || '';
+                  const accName = customers.find((c) => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || '';
                   updated.description = buildFinancePaymentDescription(
                     'PAY',
                     accName,
@@ -4996,7 +4996,7 @@ export default function FinancePage() {
                   Selected Account
                 </Typography>
                 <Typography variant="h6" sx={{ fontWeight: 700, color: '#1e3a8a' }}>
-                  {customers.find(c => c.cus_id === selectedCustomer)?.cus_name || 'Unknown'}
+                  {customers.find(c => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || 'Unknown'}
                 </Typography>
                 <Typography variant="body2" sx={{ color: '#3b82f6', fontWeight: 600 }}>
                   Balance: PKR {fmtAmt(currentBalance)}
