@@ -1,17 +1,8 @@
-import { Poppins } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import CustomThemeProvider from "./providers/theme-provider";
 import { AppRouterCacheProvider } from "@mui/material-nextjs/v16-appRouter";
 import ChunkErrorRecovery from "./components/chunk-error-recovery";
-
-const poppins = Poppins({
-  variable: "--font-poppins",
-  subsets: ["latin"],
-  weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"],
-  display: "swap",
-  preload: true,
-});
 
 export const metadata = {
   title: "Ittefaq Iron and Cement Store",
@@ -22,7 +13,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body
-        className={`${poppins.variable} antialiased`}
+        className="antialiased"
         suppressHydrationWarning={true}
       >
         <ChunkErrorRecovery />
