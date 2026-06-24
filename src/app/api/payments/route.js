@@ -307,7 +307,7 @@ export async function POST(request) {
         updated_by: parseInt(created_by)
       });
 
-      // Apply custom payment requirement for RECEIVE (Pay Payment modal)
+      // Apply custom payment requirement
       if (payment_type === 'RECEIVE') {
         const isMainBankOrCash = BANK_CASH_CATEGORIES.includes(categoryMap[parseInt(account_id)]);
         if (isMainBankOrCash) {
@@ -319,6 +319,19 @@ export async function POST(request) {
           // Customer account receiving pay payment: debit becomes credit, but balance increases (added to previous balance)
           mainAccountEntry.debit_amount = 0;
           mainAccountEntry.credit_amount = parseFloat(total_amount);
+        }
+      } else if (payment_type === 'PAY') {
+        const isMainBankOrCash = BANK_CASH_CATEGORIES.includes(categoryMap[parseInt(account_id)]);
+        if (isMainBankOrCash) {
+          // Cash/Bank account receive payment: debit becomes credit, but balance increases
+          mainAccountEntry.debit_amount = 0;
+          mainAccountEntry.credit_amount = parseFloat(total_amount);
+          mainAccountEntry.closing_balance = mainAccountEntry.opening_balance + parseFloat(total_amount);
+        } else if (!mainAccountIsSupplier) {
+          // Customer account making payment: credit becomes debit, but balance decreases
+          mainAccountEntry.debit_amount = parseFloat(total_amount);
+          mainAccountEntry.credit_amount = 0;
+          mainAccountEntry.closing_balance = mainAccountEntry.opening_balance - parseFloat(total_amount);
         }
       }
 
@@ -364,17 +377,24 @@ export async function POST(request) {
           trnx_type: 'CASH',
           details: payment_type === 'RECEIVE'
             ? `payment to customer account ${mainCustomerName}`
+            : payment_type === 'PAY'
+            ? `payment from customer account ${mainCustomerName}`
             : `${payment_type.toLowerCase()} payment - cash`,
           payments: parseFloat(cash_amount),
           updated_by: parseInt(created_by)
         });
 
-        // Apply custom payment requirement for RECEIVE (Pay Payment modal)
+        // Apply custom payment requirement
         if (payment_type === 'RECEIVE') {
           // cash account is payment source: credit becomes debit, but balance decreases
           cashAccountEntry.debit_amount = parseFloat(cash_amount);
           cashAccountEntry.credit_amount = 0;
           cashAccountEntry.closing_balance = cashAccountEntry.opening_balance - parseFloat(cash_amount);
+        } else if (payment_type === 'PAY') {
+          // cash account is payment source/destination: debit becomes credit, but balance increases
+          cashAccountEntry.debit_amount = 0;
+          cashAccountEntry.credit_amount = parseFloat(cash_amount);
+          cashAccountEntry.closing_balance = cashAccountEntry.opening_balance + parseFloat(cash_amount);
         }
 
         ledgerEntries.push({
@@ -420,17 +440,24 @@ export async function POST(request) {
           trnx_type: 'BANK_TRANSFER',
           details: payment_type === 'RECEIVE'
             ? `payment to customer account ${mainCustomerName}`
+            : payment_type === 'PAY'
+            ? `payment from customer account ${mainCustomerName}`
             : `${payment_type.toLowerCase()} payment - bank`,
           payments: parseFloat(bank_amount),
           updated_by: parseInt(created_by)
         });
 
-        // Apply custom payment requirement for RECEIVE (Pay Payment modal)
+        // Apply custom payment requirement
         if (payment_type === 'RECEIVE') {
           // bank account is payment source: credit becomes debit, but balance decreases
           bankAccountEntry.debit_amount = parseFloat(bank_amount);
           bankAccountEntry.credit_amount = 0;
           bankAccountEntry.closing_balance = bankAccountEntry.opening_balance - parseFloat(bank_amount);
+        } else if (payment_type === 'PAY') {
+          // bank account is payment source/destination: debit becomes credit, but balance increases
+          bankAccountEntry.debit_amount = 0;
+          bankAccountEntry.credit_amount = parseFloat(bank_amount);
+          bankAccountEntry.closing_balance = bankAccountEntry.opening_balance + parseFloat(bank_amount);
         }
 
         ledgerEntries.push({
