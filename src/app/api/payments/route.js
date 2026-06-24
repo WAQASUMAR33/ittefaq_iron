@@ -357,7 +357,9 @@ export async function POST(request) {
           credit_amount: cashCreditAmount,
           bill_no: `PAY-${payment.payment_id}`,
           trnx_type: 'CASH',
-          details: `${payment_type.toLowerCase()} payment - cash`,
+          details: payment_type === 'RECEIVE'
+            ? `payment to customer account ${customer.cus_name}`
+            : `${payment_type.toLowerCase()} payment - cash`,
           payments: parseFloat(cash_amount),
           updated_by: parseInt(created_by)
         });
@@ -411,7 +413,9 @@ export async function POST(request) {
           credit_amount: bankCreditAmount,
           bill_no: `PAY-${payment.payment_id}`,
           trnx_type: 'BANK_TRANSFER',
-          details: `${payment_type.toLowerCase()} payment - bank`,
+          details: payment_type === 'RECEIVE'
+            ? `payment to customer account ${customer.cus_name}`
+            : `${payment_type.toLowerCase()} payment - bank`,
           payments: parseFloat(bank_amount),
           updated_by: parseInt(created_by)
         });
