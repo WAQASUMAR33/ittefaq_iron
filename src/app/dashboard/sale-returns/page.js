@@ -685,11 +685,11 @@ export default function SaleReturnsPage() {
     const labour = parseFloat(returnItem.labour_charges || 0);
     const delivery = parseFloat(returnItem.shipping_amount || 0);
     const discount = parseFloat(returnItem.discount || 0);
-    const netReturn = totalAmount - labour - delivery - discount;
+    const netReturn = totalAmount + labour + delivery - discount;
     const payment = parseFloat(returnItem.payment || 0);
     const remaining = netReturn - payment;
     const newBal = parseFloat(customer?.cus_balance ?? 0);
-    const prevBal = parseFloat(returnItem.previous_customer_balance ?? (newBal + netReturn));
+    const prevBal = parseFloat(returnItem.previous_customer_balance ?? (newBal + netReturn - payment));
     const returnDate = new Date(returnItem.return_date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
     const returnTime = new Date(returnItem.return_date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
@@ -747,16 +747,16 @@ export default function SaleReturnsPage() {
           <table style="flex:1;border-collapse:collapse;border:1px solid #000;">
             <tr><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">منسوخ کردہ رقم</td><td style="text-align:right;padding:5px 8px;border:1px solid #ddd;">${fmtN(totalAmount)}</td></tr>
             ${discount > 0 ? `<tr><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">رعایت</td><td style="text-align:right;padding:5px 8px;border:1px solid #ddd;">-${fmtN(discount)}</td></tr>` : ''}
-            ${labour > 0 ? `<tr><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">مزدوری</td><td style="text-align:right;padding:5px 8px;border:1px solid #ddd;">-${fmtN(labour)}</td></tr>` : ''}
-            ${delivery > 0 ? `<tr><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">کرایہ</td><td style="text-align:right;padding:5px 8px;border:1px solid #ddd;">-${fmtN(delivery)}</td></tr>` : ''}
+            ${labour > 0 ? `<tr><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">مزدوری</td><td style="text-align:right;padding:5px 8px;border:1px solid #ddd;">+${fmtN(labour)}</td></tr>` : ''}
+            ${delivery > 0 ? `<tr><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">کرایہ</td><td style="text-align:right;padding:5px 8px;border:1px solid #ddd;">+${fmtN(delivery)}</td></tr>` : ''}
             <tr style="background:#e8f5e9;"><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">کل منسوخی</td><td style="font-weight:bold;text-align:right;padding:5px 8px;border:1px solid #ddd;color:#2e7d32;">${fmtN(netReturn)}</td></tr>
             <tr><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">سابقہ بقایا</td><td style="text-align:right;padding:5px 8px;border:1px solid #ddd;">${fmtN(prevBal)}</td></tr>
             <tr style="background:#f5f5f5;"><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">موجودہ بقایا</td><td style="font-weight:bold;text-align:right;padding:5px 8px;border:1px solid #ddd;">${fmtN(newBal)}</td></tr>
           </table>
           <table style="flex:1;border-collapse:collapse;border:1px solid #000;">
-            <tr><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">رقم بل</td><td style="text-align:right;padding:5px 8px;border:1px solid #ddd;">${fmtN(netReturn)}</td></tr>
-            ${labour > 0 ? `<tr><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">مزدوری</td><td style="text-align:right;padding:5px 8px;border:1px solid #ddd;">${fmtN(labour)}</td></tr>` : ''}
-            ${delivery > 0 ? `<tr><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">کرایہ</td><td style="text-align:right;padding:5px 8px;border:1px solid #ddd;">${fmtN(delivery)}</td></tr>` : ''}
+            <tr><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">رقم بل</td><td style="text-align:right;padding:5px 8px;border:1px solid #ddd;">${fmtN(totalAmount)}</td></tr>
+            ${labour > 0 ? `<tr><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">مزدوری</td><td style="text-align:right;padding:5px 8px;border:1px solid #ddd;">+${fmtN(labour)}</td></tr>` : ''}
+            ${delivery > 0 ? `<tr><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">کرایہ</td><td style="text-align:right;padding:5px 8px;border:1px solid #ddd;">+${fmtN(delivery)}</td></tr>` : ''}
             ${discount > 0 ? `<tr><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">رعایت</td><td style="text-align:right;padding:5px 8px;border:1px solid #ddd;">-${fmtN(discount)}</td></tr>` : ''}
             <tr style="background:#f5f5f5;"><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">کل واپسی رقم</td><td style="font-weight:bold;text-align:right;padding:5px 8px;border:1px solid #ddd;">${fmtN(netReturn)}</td></tr>
             <tr><td style="font-weight:bold;direction:rtl;padding:5px 8px;border:1px solid #ddd;">نقد کیش</td><td style="text-align:right;padding:5px 8px;border:1px solid #ddd;">${fmtN(returnItem.cash_payment || 0)}</td></tr>
@@ -1666,13 +1666,13 @@ export default function SaleReturnsPage() {
                               {formData.shipping_amount > 0 && (
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                                   <Typography color="text.secondary">Delivery Charges</Typography>
-                                  <Typography sx={{ fontWeight: '700', color: 'error.main' }}>- PKR {fmtAmt(formData.shipping_amount)}</Typography>
+                                  <Typography sx={{ fontWeight: '700', color: 'success.main' }}>+ PKR {fmtAmt(formData.shipping_amount)}</Typography>
                                 </Box>
                               )}
                               {formData.labour_charges > 0 && (
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                                   <Typography color="text.secondary">Labour Charges</Typography>
-                                  <Typography sx={{ fontWeight: '700', color: 'error.main' }}>- PKR {fmtAmt(formData.labour_charges)}</Typography>
+                                  <Typography sx={{ fontWeight: '700', color: 'success.main' }}>+ PKR {fmtAmt(formData.labour_charges)}</Typography>
                                 </Box>
                               )}
                               <Divider />
@@ -1681,8 +1681,8 @@ export default function SaleReturnsPage() {
                                   <Typography variant="h6" sx={{ fontWeight: '800' }}>Net Return</Typography>
                                   <Typography variant="caption" color="text.secondary">Adjusted customer balance</Typography>
                                 </Box>
-                                <Typography variant="h5" sx={{ fontWeight: '900', color: 'error.main' }}>
-                                  PKR {fmtAmt(Math.max(0, formData.total_return_amount - formData.shipping_amount - formData.labour_charges))}
+                                <Typography variant="h5" sx={{ fontWeight: '900', color: 'success.main' }}>
+                                  PKR {fmtAmt(formData.total_return_amount + formData.shipping_amount + formData.labour_charges)}
                                 </Typography>
                               </Box>
                               <Button

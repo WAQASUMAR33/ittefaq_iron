@@ -6,6 +6,86 @@ import { getNextId } from '@/lib/id-helper';
 
 const prisma = new PrismaClient();
 
+// Chronologically recalculates all ledger entry opening/closing balances for a customer and updates their customer table balance.
+async function recalculateLedgerBalances(tx, cus_id) {
+  const customer = await tx.customer.findUnique({
+    where: { cus_id },
+    include: { customer_category: true }
+  });
+  if (!customer) return;
+
+  const categoryTitle = (customer.customer_category?.cus_cat_title || '').toLowerCase();
+
+  const entries = await tx.ledger.findMany({
+    where: { cus_id },
+    orderBy: [
+      { created_at: 'asc' },
+      { l_id: 'asc' }
+    ]
+  });
+
+  // Re-sort in JS: created_at ASC → bill_no (numeric) ASC → l_id ASC
+  entries.sort((a, b) => {
+    const timeDiff = a.created_at.getTime() - b.created_at.getTime();
+    if (timeDiff !== 0) return timeDiff;
+    const billA = parseInt(a.bill_no) || 0;
+    const billB = parseInt(b.bill_no) || 0;
+    if (billA !== billB) return billA - billB;
+    return a.l_id - b.l_id;
+  });
+
+  let runningBalance = 0;
+  const updates = [];
+  if (entries.length > 0) {
+    runningBalance = parseFloat(entries[0].opening_balance || 0);
+    
+    for (const entry of entries) {
+      const opening = runningBalance;
+      const debit = parseFloat(entry.debit_amount || 0);
+      const credit = parseFloat(entry.credit_amount || 0);
+      
+      let change = 0;
+      if (categoryTitle.includes('cash') || categoryTitle.includes('bank')) {
+        if (entry.trnx_type === 'DEBIT') {
+          change = debit - credit;
+        } else {
+          change = credit - debit;
+        }
+      } else {
+        change = credit - debit;
+      }
+      const closing = opening + change;
+
+      if (
+        Math.abs(parseFloat(entry.opening_balance) - opening) > 0.01 ||
+        Math.abs(parseFloat(entry.closing_balance) - closing) > 0.01
+      ) {
+        updates.push(
+          tx.ledger.update({
+            where: { l_id: entry.l_id },
+            data: {
+              opening_balance: Number(opening.toFixed(2)),
+              closing_balance: Number(closing.toFixed(2))
+            }
+          })
+        );
+      }
+      runningBalance = closing;
+    }
+  }
+
+  if (updates.length > 0) {
+    const client = typeof tx.$transaction === 'function' ? tx : prisma;
+    await client.$transaction(updates);
+  }
+
+  await tx.customer.update({
+    where: { cus_id },
+    data: { cus_balance: Number(runningBalance.toFixed(2)) }
+  });
+  console.log(`   📊 Recalculated ledger for ${customer.cus_name} (ID: ${cus_id}). Final balance: ${runningBalance.toFixed(2)} (${updates.length} entries updated in batch)`);
+}
+
 // Helper: get special accounts (Cash, Bank, Sundry Debtors/Creditors)
 async function getSpecialAccounts(tx) {
   // Find special accounts by category, not by exact name
@@ -222,8 +302,8 @@ export async function POST(request) {
     const labourChargesAmount = parseFloat(labour_charges || 0);
     const shippingAmount = parseFloat(shipping_amount || 0);
 
-    // Grand Total = Product Total - Discount - Delivery Charges - Labour Charges
-    const grandTotal = computedTotal - discountAmount - labourChargesAmount - shippingAmount;
+    // Grand Total = Product Total + Delivery Charges + Labour Charges - Discount
+    const grandTotal = computedTotal + labourChargesAmount + shippingAmount - discountAmount;
     const refundAmount = parseFloat(payment || 0); // Amount being refunded to customer
     const cashRefund = parseFloat(cash_return || 0);
     const bankRefund = parseFloat(bank_return || 0);
@@ -352,20 +432,23 @@ export async function POST(request) {
 
         await Promise.all(storeStockRestorePromises);
 
+        // Track all affected customer account IDs for recalculating balances
+        const affectedCusIds = [cus_id];
+
         // Create ledger entries for Sale Return
-        // Entry 1: Main return entry - Customer side (credit because return reduces debt)
+        // Entry 1: Main return entry - Customer side (debit because return reduces customer's balance)
         const l_id_sr = await getNextId('ledger', 'l_id', tx);
         await tx.ledger.create({
           data: {
             l_id: l_id_sr,
             cus_id,
             opening_balance: customer.cus_balance,
-            debit_amount: 0,
-            credit_amount: grandTotal, // Grand total with all charges
+            debit_amount: grandTotal, // Grand total with all charges
+            credit_amount: 0,
             closing_balance: customer.cus_balance - grandTotal,
             bill_no: saleReturn.return_id.toString(),
-            trnx_type: 'SALE_RETURN',
-            details: `Sale Return - Product: ${computedTotal}, Delivery: -${shippingAmount}, Labour: -${labourChargesAmount}, Discount: -${discountAmount}, Net: ${grandTotal}`,
+            trnx_type: 'DEBIT',
+            details: `Sale Return - Product: ${computedTotal}, Delivery: +${shippingAmount}, Labour: +${labourChargesAmount}, Discount: -${discountAmount}, Net: ${grandTotal}`,
             payments: 0,
             updated_by
           }
@@ -391,7 +474,9 @@ export async function POST(request) {
         if (cashRefund > 0) {
           const cashAccount = specialAccounts.cash;
           if (cashAccount) {
-            // Ledger entry: Cash account credits (money going out)
+            affectedCusIds.push(cashAccount.cus_id);
+
+            // Ledger entry: Cash account DEBIT (money going out reduces cash balance)
             const l_id_cash_out = await getNextId('ledger', 'l_id', tx);
             await tx.ledger.create({
               data: {
@@ -402,7 +487,7 @@ export async function POST(request) {
                 credit_amount: cashRefund, // Cash decreases (credit)
                 closing_balance: cashAccount.cus_balance - cashRefund,
                 bill_no: saleReturn.return_id.toString(),
-                trnx_type: 'CASH_PAYMENT',
+                trnx_type: 'DEBIT',
                 details: `Refund Paid Out (CASH) - Sale Return #${saleReturn.return_id} - Amount: ${cashRefund}`,
                 payments: cashRefund,
                 updated_by
@@ -427,11 +512,11 @@ export async function POST(request) {
                 l_id: l_id_cus_cash,
                 cus_id,
                 opening_balance: customer.cus_balance - grandTotal, // Balance after main return
-                debit_amount: cashRefund, // Cash payment received/credited to customer
-                credit_amount: 0,
+                debit_amount: 0,
+                credit_amount: cashRefund, // Cash payment refund credited to customer
                 closing_balance: customerAfterCash,
                 bill_no: saleReturn.return_id.toString(),
-                trnx_type: 'CASH_PAYMENT',
+                trnx_type: 'CREDIT',
                 details: `Customer Balance Update - CASH Refund Received: ${cashRefund} for Sale Return #${saleReturn.return_id}`,
                 payments: 0,
                 updated_by
@@ -464,7 +549,9 @@ export async function POST(request) {
           }
 
           if (bankAccount) {
-            // Ledger entry: Bank account credits (money going out)
+            affectedCusIds.push(bankAccount.cus_id);
+
+            // Ledger entry: Bank account DEBIT (money going out reduces bank balance)
             const l_id_bank_out = await getNextId('ledger', 'l_id', tx);
             await tx.ledger.create({
               data: {
@@ -475,7 +562,7 @@ export async function POST(request) {
                 credit_amount: bankRefund, // Bank decreases (credit)
                 closing_balance: bankAccount.cus_balance - bankRefund,
                 bill_no: saleReturn.return_id.toString(),
-                trnx_type: 'BANK_PAYMENT',
+                trnx_type: 'DEBIT',
                 details: `Refund Paid Out (BANK) - Sale Return #${saleReturn.return_id} - Amount: ${bankRefund}`,
                 payments: bankRefund,
                 updated_by
@@ -500,11 +587,11 @@ export async function POST(request) {
                 l_id: l_id_cus_bank,
                 cus_id,
                 opening_balance: customer.cus_balance - grandTotal + cashRefund, // Balance after cash refund
-                debit_amount: bankRefund, // Bank payment received/credited to customer
-                credit_amount: 0,
+                debit_amount: 0,
+                credit_amount: bankRefund, // Bank payment refund credited to customer
                 closing_balance: customerAfterBank,
                 bill_no: saleReturn.return_id.toString(),
-                trnx_type: 'BANK_PAYMENT',
+                trnx_type: 'CREDIT',
                 details: `Customer Balance Update - BANK Refund Received: ${bankRefund} for Sale Return #${saleReturn.return_id}`,
                 payments: 0,
                 updated_by
@@ -544,12 +631,19 @@ export async function POST(request) {
         }
       } // End of if (!isQuotationReturn)
 
-      return saleReturn;
+      return { saleReturn, affectedCusIds: isQuotationReturn ? [] : affectedCusIds };
     }, {
       timeout: 60000 // 60 seconds timeout for complex transactions with multiple operations
     });
 
-    return NextResponse.json(result, { status: 201 });
+    // Recalculate balances chronologically for all affected accounts (outside transaction)
+    if (result.affectedCusIds && result.affectedCusIds.length > 0) {
+      for (const cid of result.affectedCusIds) {
+        await recalculateLedgerBalances(prisma, cid);
+      }
+    }
+
+    return NextResponse.json(result.saleReturn, { status: 201 });
   } catch (error) {
     console.error('Error creating sale return:', error);
     return NextResponse.json({ error: 'Failed to create sale return: ' + error.message }, { status: 500 });
@@ -567,7 +661,7 @@ export async function DELETE(request) {
     }
 
     // Use transaction to ensure data consistency
-    await prisma.$transaction(async (tx) => {
+    const affectedCusIds = await prisma.$transaction(async (tx) => {
       // Get existing sale return with details
       const existingReturn = await tx.saleReturn.findUnique({
         where: { return_id: id },
@@ -580,6 +674,13 @@ export async function DELETE(request) {
       if (!existingReturn) {
         throw new Error('Sale return not found');
       }
+
+      // Get affected customer accounts from ledger before deletion
+      const entries = await tx.ledger.findMany({
+        where: { bill_no: id.toString() },
+        select: { cus_id: true }
+      });
+      const affected = [...new Set(entries.map(e => e.cus_id))];
 
       // Reverse store stock quantities
       const storeStockReversePromises = existingReturn.return_details.map(async detail => {
@@ -609,7 +710,7 @@ export async function DELETE(request) {
 
       // Delete ledger entries for this return
       await tx.ledger.deleteMany({
-        where: { bill_no: id }
+        where: { bill_no: id.toString() }
       });
 
       // Delete return details
@@ -621,9 +722,18 @@ export async function DELETE(request) {
       await tx.saleReturn.delete({
         where: { return_id: id }
       });
+
+      return affected;
     }, {
       timeout: 15000 // 15 seconds timeout for complex transactions
     });
+
+    // Recalculate balances chronologically for all affected accounts (outside transaction)
+    if (affectedCusIds && affectedCusIds.length > 0) {
+      for (const cid of affectedCusIds) {
+        await recalculateLedgerBalances(prisma, cid);
+      }
+    }
 
     return NextResponse.json({ message: 'Sale return deleted successfully' });
   } catch (error) {
