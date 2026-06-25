@@ -3060,8 +3060,8 @@ function SalesPageContent() {
         const newPaymentData = {
           ...prev,
           advancePayment: advanceValue,
-          discount: discountValue,
-          labour: labourValue,
+          discount: 0,
+          labour: 0,
           deliveryCharges: deliveryValue,
           notes: `Return from Sale #${fullSale.sale_id}. Original Amount: ${fullSale.total_amount}`,
           isLoadedOrder: false
@@ -5375,37 +5375,7 @@ function SalesPageContent() {
                     </Box>
                   )}
 
-                  {/* TOTAL AMOUNT PAID FOR THAT SALE - Show for Sale Return */}
-                  {billType === 'SALE_RETURN' && (
-                    <Box sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 'medium', color: 'success.main', minWidth: '140px' }}>
-                        AMOUNT PAID
-                      </Typography>
-                      <TextField
-                        size="small"
-                        type="number"
-                        value={paymentData.advancePayment === 0 ? '' : paymentData.advancePayment}
-                        sx={{
-                          bgcolor: 'success.50',
-                          '& .MuiInputBase-input': {
-                            padding: '8px',
-                            fontWeight: 'bold',
-                            color: '#000000 !important',
-                            '-webkit-text-fill-color': '#000000 !important'
-                          },
-                          '& .MuiInputBase-input::placeholder': {
-                            color: '#000000',
-                            '-webkit-text-fill-color': '#000000 !important',
-                            fontWeight: 'bold',
-                            opacity: 1
-                          },
-                          flex: 1
-                        }}
-                        disabled
-                        inputProps={{ readOnly: true }}
-                      />
-                    </Box>
-                  )}
+
 
                   {/* RETURN PAYMENT - CASH and BANK (Hidden) for Sale Return */}
                   {billType === 'SALE_RETURN' && (
