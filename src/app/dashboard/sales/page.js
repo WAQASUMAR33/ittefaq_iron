@@ -7621,7 +7621,7 @@ function SalesPageContent() {
                           onMouseLeave={() => setHoveredSale(null)}
                           sx={{ '&:hover': { bgcolor: '#f1f5f9', cursor: 'pointer' }, transition: 'background 0.15s' }}
                         >
-                          <TableCell sx={{ fontWeight: 'medium' }}>{getBillDisplayNo(sale)}</TableCell>
+                          <TableCell sx={{ fontWeight: 'medium' }}>{sale.is_return ? sale.return_id : sale.sale_id}</TableCell>
                           <TableCell>{sale.customer?.cus_name || 'N/A'}</TableCell>
                           <TableCell sx={{ minWidth: 160, maxWidth: 220 }}>
                             {(sale.sale_details || []).length === 0 ? (
