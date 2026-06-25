@@ -420,6 +420,7 @@ export async function POST(request) {
       await Promise.all(returnDetailPromises);
 
       // Skip financial transactions for quotation returns
+      let affectedCusIds = [];
       if (!isQuotationReturn) {
         // Restore store stock quantities (skip for quotations)
         // Use detail.store_id if available (for manual items), otherwise sale.store_id
@@ -433,7 +434,7 @@ export async function POST(request) {
         await Promise.all(storeStockRestorePromises);
 
         // Track all affected customer account IDs for recalculating balances
-        const affectedCusIds = [cus_id];
+        affectedCusIds = [cus_id];
 
         // Create ledger entries for Sale Return
         // Entry 1: Main return entry - Customer side (debit because return reduces customer's balance)
