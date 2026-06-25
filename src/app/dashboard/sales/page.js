@@ -973,6 +973,9 @@ function SalesPageContent() {
 
   // Get display bill number: B-1 for BILL, O-1 for ORDER, Q-1 for QUOTATION, fallback to sale_id
   const getBillDisplayNo = (sale) => {
+    if (sale?.bill_type === 'SALE_RETURN' || sale?.is_return) {
+      return `INV-R-${sale?.return_id || ''}`;
+    }
     const bn = sale?.bill_number;
     const bt = sale?.bill_type || 'BILL';
     const prefix = bt === 'BILL' ? 'B' : ['ORDER', 'ORDER_TRASH'].includes(bt) ? 'O' : bt === 'QUOTATION' ? 'Q' : 'B';
@@ -2154,43 +2157,68 @@ function SalesPageContent() {
       setLoading(true);
       console.log('🔄 Starting to fetch data...');
 
-      // Fetch sales data first and separately to ensure it's not affected by other API failures
+      // Fetch sales and sale returns data first and separately to ensure it's not affected by other API failures
       try {
-        const salesRes = await fetch('/api/sales');
+        const [salesRes, returnsRes] = await Promise.all([
+          fetch('/api/sales'),
+          fetch('/api/sale-returns')
+        ]);
         console.log('📡 Sales API response status:', salesRes.status, salesRes.statusText);
+        console.log('📡 Sale Returns API response status:', returnsRes.status, returnsRes.statusText);
+
+        let salesList = [];
+        let returnsList = [];
 
         if (salesRes.ok) {
-          const salesData = await salesRes.json();
-          console.log('🔍 Sales API response:', salesData);
-          console.log('🔍 Sales count:', salesData.length);
-          console.log('🔍 Sales data type:', typeof salesData);
-          console.log('🔍 Sales is array:', Array.isArray(salesData));
-
-          if (Array.isArray(salesData) && salesData.length > 0) {
-            console.log('🔍 First sale structure:', {
-              sale_id: salesData[0].sale_id,
-              hasCustomer: !!salesData[0].customer,
-              customerName: salesData[0].customer?.cus_name,
-              total_amount: salesData[0].total_amount,
-              keys: Object.keys(salesData[0])
-            });
-          }
-
-          if (!Array.isArray(salesData)) {
-            console.error('❌ Sales data is not an array!', salesData);
-            setSales([]);
-          } else {
-            setSales(salesData);
+          salesList = await salesRes.json();
+          if (!Array.isArray(salesList)) {
+            console.error('❌ Sales data is not an array!', salesList);
+            salesList = [];
           }
         } else {
-          const errorText = await salesRes.text();
-          console.error('❌ Sales API error:', salesRes.status, salesRes.statusText);
-          console.error('❌ Error response:', errorText);
-          setSales([]);
+          console.error('❌ Sales API error:', salesRes.status);
         }
+
+        if (returnsRes.ok) {
+          const returnsData = await returnsRes.json();
+          if (Array.isArray(returnsData)) {
+            returnsList = returnsData.map(ret => ({
+              ...ret,
+              sale_id: `SR-${ret.return_id}`, // unique string ID for key and references
+              actual_sale_id: ret.sale_id, // preserve actual numeric sale ID
+              is_return: true,
+              bill_type: 'SALE_RETURN',
+              total_amount: Number(ret.total_amount) || 0,
+              discount: Number(ret.discount) || 0,
+              shipping_amount: Number(ret.shipping_amount) || 0,
+              labour_charges: Number(ret.labour_charges) || 0,
+              payment: Number(ret.payment) || 0,
+              payment_type: ret.payment_type,
+              created_at: ret.created_at,
+              updated_at: ret.updated_at,
+              customer: ret.customer,
+              sale_details: (ret.return_details || []).map(d => ({
+                ...d,
+                product: d.product,
+                product_name: d.product?.pro_title,
+                qnty: Number(d.qnty || d.return_quantity || 0),
+                unit_rate: Number(d.unit_rate || 0),
+                total_amount: Number(d.total_amount || d.return_amount || 0)
+              }))
+            }));
+          } else {
+            console.error('❌ Returns data is not an array!', returnsData);
+          }
+        } else {
+          console.error('❌ Sale Returns API error:', returnsRes.status);
+        }
+
+        const combined = [...salesList, ...returnsList];
+        combined.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        combined.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        setSales(combined);
       } catch (salesError) {
-        console.error('❌ Sales fetch error:', salesError);
-        console.error('❌ Error stack:', salesError.stack);
+        console.error('❌ Sales/Returns fetch error:', salesError);
         setSales([]);
       }
 
@@ -2613,23 +2641,37 @@ function SalesPageContent() {
     console.log('📋 Viewing bill:', sale);
 
     try {
-      // Fetch fresh sale data with all payment details
-      const response = await fetch(`/api/sales?id=${sale.sale_id}`);
-      if (!response.ok) throw new Error('Failed to fetch sale details');
+      // Fetch fresh data with all payment details
+      const isReturn = sale.is_return || sale.bill_type === 'SALE_RETURN';
+      const returnId = sale.return_id || (typeof sale.sale_id === 'string' ? parseInt(sale.sale_id.replace('SR-', '')) : sale.sale_id);
+      const endpoint = isReturn ? `/api/sale-returns?id=${returnId}` : `/api/sales?id=${sale.sale_id}`;
+      const response = await fetch(endpoint);
+      if (!response.ok) throw new Error('Failed to fetch bill details');
       const saleData = await response.json();
+      
+      // Ensure mapped return fields align on details view
+      const formattedData = isReturn ? {
+        ...saleData,
+        is_return: true,
+        bill_type: 'SALE_RETURN',
+        sale_id: `SR-${saleData.return_id}`,
+        actual_sale_id: saleData.sale_id,
+        sale_details: (saleData.return_details || []).map(d => ({
+          ...d,
+          product: d.product,
+          product_name: d.product?.pro_title,
+          qnty: Number(d.qnty || d.return_quantity || 0),
+          unit_rate: Number(d.unit_rate || 0),
+          total_amount: Number(d.total_amount || d.return_amount || 0)
+        }))
+      } : saleData;
 
-      console.log('💰 Sale data with payments:', {
-        cash_payment: saleData.cash_payment,
-        bank_payment: saleData.bank_payment,
-        bank_title: saleData.bank_title,
-        payment: saleData.payment,
-        split_payments: saleData.split_payments
-      });
+      console.log('💰 Fresh data with payments:', formattedData);
 
-      setSelectedBill(saleData);
+      setSelectedBill(formattedData);
       setViewBillDialog(true);
     } catch (error) {
-      console.error('Error fetching sale details:', error);
+      console.error('Error fetching bill details:', error);
       // Fallback to using the data from the list if API call fails
       setSelectedBill(sale);
       setViewBillDialog(true);
@@ -2641,23 +2683,37 @@ function SalesPageContent() {
     console.log('📋 Viewing receipt:', sale);
 
     try {
-      // Fetch fresh sale data with all payment details
-      const response = await fetch(`/api/sales?id=${sale.sale_id}`);
-      if (!response.ok) throw new Error('Failed to fetch sale details');
+      // Fetch fresh data with all payment details
+      const isReturn = sale.is_return || sale.bill_type === 'SALE_RETURN';
+      const returnId = sale.return_id || (typeof sale.sale_id === 'string' ? parseInt(sale.sale_id.replace('SR-', '')) : sale.sale_id);
+      const endpoint = isReturn ? `/api/sale-returns?id=${returnId}` : `/api/sales?id=${sale.sale_id}`;
+      const response = await fetch(endpoint);
+      if (!response.ok) throw new Error('Failed to fetch receipt details');
       const saleData = await response.json();
+      
+      // Ensure mapped return fields align on details view
+      const formattedData = isReturn ? {
+        ...saleData,
+        is_return: true,
+        bill_type: 'SALE_RETURN',
+        sale_id: `SR-${saleData.return_id}`,
+        actual_sale_id: saleData.sale_id,
+        sale_details: (saleData.return_details || []).map(d => ({
+          ...d,
+          product: d.product,
+          product_name: d.product?.pro_title,
+          qnty: Number(d.qnty || d.return_quantity || 0),
+          unit_rate: Number(d.unit_rate || 0),
+          total_amount: Number(d.total_amount || d.return_amount || 0)
+        }))
+      } : saleData;
 
-      console.log('💰 Sale data with payments:', {
-        cash_payment: saleData.cash_payment,
-        bank_payment: saleData.bank_payment,
-        bank_title: saleData.bank_title,
-        payment: saleData.payment,
-        split_payments: saleData.split_payments
-      });
+      console.log('💰 Fresh data with payments:', formattedData);
 
-      setSelectedBill(saleData);
+      setSelectedBill(formattedData);
       setViewBillDialog(true);
     } catch (error) {
-      console.error('Error fetching sale details:', error);
+      console.error('Error fetching receipt details:', error);
       // Fallback to using the data from the list if API call fails
       setSelectedBill(sale);
       setViewBillDialog(true);
@@ -2929,12 +2985,7 @@ function SalesPageContent() {
       if (response.ok) {
         showSnackbar('Sale return processed successfully', 'success');
         handleCloseReturnDialog();
-        // Refresh sales list
-        const salesResponse = await fetch('/api/sales');
-        if (salesResponse.ok) {
-          const salesData = await salesResponse.json();
-          setSales(Array.isArray(salesData) ? salesData : []);
-        }
+        await fetchData();
       } else {
         const errorData = await response.json();
         showSnackbar('Error: ' + (errorData.error || 'Failed to process return'), 'error');
@@ -3313,8 +3364,8 @@ function SalesPageContent() {
 
     console.log('🔍 Filtering', sales.length, 'sales...');
     const filtered = sales.filter(sale => {
-      // Filter to only show BILL type (exclude QUOTATION and other types)
-      const isBillType = sale.bill_type === 'BILL' || !sale.bill_type;
+      // Filter to only show BILL and SALE_RETURN type (exclude QUOTATION and other types)
+      const isBillType = sale.bill_type === 'BILL' || sale.bill_type === 'SALE_RETURN' || !sale.bill_type;
       if (!isBillType) {
         return false;
       }
@@ -3322,6 +3373,8 @@ function SalesPageContent() {
       // All filters are empty by default, so all sales should match
       const matchesSearch = searchTerm === '' ||
         sale.sale_id?.toString().includes(searchTerm) ||
+        (sale.is_return && sale.return_id?.toString().includes(searchTerm)) ||
+        (sale.is_return && sale.actual_sale_id?.toString().includes(searchTerm)) ||
         sale.customer?.cus_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         sale.reference?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         sale.bill_number?.toString().includes(searchTerm) ||
@@ -5702,7 +5755,7 @@ function SalesPageContent() {
                     letterSpacing: 1,
                     mt: 2
                   }}>
-                    SALE INVOICE
+                    {currentBillData?.is_return ? 'SALE RETURN INVOICE' : 'SALE INVOICE'}
                   </Typography>
                 </Box>
 
@@ -5737,6 +5790,22 @@ function SalesPageContent() {
                         {getBillDisplayNo(currentBillData)}
                       </Typography>
                     </Box>
+                    <Box sx={{ display: 'flex', mb: 0.5 }}>
+                      <Typography variant="body2" sx={{ width: '100px', flexShrink: 0 }}>
+                        {currentBillData?.is_return ? 'Return ID:' : 'Sale ID:'}
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        {currentBillData?.is_return ? currentBillData.return_id : currentBillData.sale_id}
+                      </Typography>
+                    </Box>
+                    {currentBillData?.is_return && currentBillData.sale_id && (
+                      <Box sx={{ display: 'flex', mb: 0.5 }}>
+                        <Typography variant="body2" sx={{ width: '100px', flexShrink: 0 }}>Sale ID:</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                          {currentBillData.sale_id}
+                        </Typography>
+                      </Box>
+                    )}
                     <Box sx={{ display: 'flex', mb: 0.5 }}>
                       <Typography variant="body2" sx={{ width: '100px', flexShrink: 0 }}>Date:</Typography>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
@@ -5903,10 +5972,16 @@ function SalesPageContent() {
                   <Typography sx={{ fontSize: '12px', fontWeight: 'bold' }}>اتفاق آئرن اینڈ سیمنٹ سٹور</Typography>
                   <Typography sx={{ fontSize: '10px' }}>گجرات سرگودھا روڈ، پاہڑیانوالی</Typography>
                   <Typography sx={{ fontSize: '10px' }}>Ph: 0346-7560306, 0300-7560306</Typography>
-                  <Typography sx={{ mt: 0.5, fontSize: '11px', fontWeight: 'bold' }}>SALE RECEIPT</Typography>
+                  <Typography sx={{ mt: 0.5, fontSize: '11px', fontWeight: 'bold' }}>{currentBillData?.is_return ? 'SALE RETURN RECEIPT' : 'SALE RECEIPT'}</Typography>
                 </Box>
                 <Box sx={{ py: 1 }}>
                   <Typography sx={{ fontSize: '10px' }}>Inv#: {getBillDisplayNo(currentBillData)}</Typography>
+                  <Typography sx={{ fontSize: '10px' }}>
+                    {currentBillData?.is_return ? `Return ID: ${currentBillData.return_id}` : `Sale ID: ${currentBillData.sale_id}`}
+                  </Typography>
+                  {currentBillData?.is_return && currentBillData.sale_id && (
+                    <Typography sx={{ fontSize: '10px' }}>Sale ID: {currentBillData.sale_id}</Typography>
+                  )}
                   <Typography sx={{ fontSize: '10px' }}>Type: {currentBillData.bill_type || 'BILL'}</Typography>
                   <Typography sx={{ fontSize: '10px' }}>Date: {new Date(currentBillData.created_at).toLocaleDateString('en-GB')}</Typography>
                   <Typography sx={{ fontSize: '10px' }}>Time: {new Date(currentBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</Typography>
@@ -6039,6 +6114,12 @@ function SalesPageContent() {
                   </Box>
                   <Box sx={{ py: 1 }}>
                     <Typography sx={{ fontSize: '10px' }}>Inv#: {getBillDisplayNo(currentBillData)}</Typography>
+                    <Typography sx={{ fontSize: '10px' }}>
+                      {currentBillData?.is_return ? `Return ID: ${currentBillData.return_id}` : `Sale ID: ${currentBillData.sale_id}`}
+                    </Typography>
+                    {currentBillData?.is_return && currentBillData.sale_id && (
+                      <Typography sx={{ fontSize: '10px' }}>Sale ID: {currentBillData.sale_id}</Typography>
+                    )}
                     <Typography sx={{ fontSize: '10px' }}>Type: {currentBillData.bill_type || 'BILL'}</Typography>
                     <Typography sx={{ fontSize: '10px' }}>
                       Date: {new Date(currentBillData.created_at).toLocaleDateString('en-GB')}
@@ -8523,7 +8604,7 @@ function SalesPageContent() {
                   letterSpacing: 1,
                   mt: 2
                 }}>
-                  SALE INVOICE
+                  {selectedBill?.is_return || selectedBill?.bill_type === 'SALE_RETURN' ? 'SALE RETURN INVOICE' : 'SALE INVOICE'}
                 </Typography>
               </Box>
 
@@ -8558,6 +8639,22 @@ function SalesPageContent() {
                       {getBillDisplayNo(selectedBill)}
                     </Typography>
                   </Box>
+                  <Box sx={{ display: 'flex', mb: 0.5 }}>
+                    <Typography variant="body2" sx={{ width: '100px', flexShrink: 0 }}>
+                      {selectedBill?.is_return || selectedBill?.bill_type === 'SALE_RETURN' ? 'Return ID:' : 'Sale ID:'}
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                      {selectedBill?.is_return || selectedBill?.bill_type === 'SALE_RETURN' ? selectedBill.return_id : selectedBill.sale_id}
+                    </Typography>
+                  </Box>
+                  {(selectedBill?.is_return || selectedBill?.bill_type === 'SALE_RETURN') && selectedBill.sale_id && (
+                    <Box sx={{ display: 'flex', mb: 0.5 }}>
+                      <Typography variant="body2" sx={{ width: '100px', flexShrink: 0 }}>Sale ID:</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                        {selectedBill.sale_id}
+                      </Typography>
+                    </Box>
+                  )}
                   <Box sx={{ display: 'flex', mb: 0.5 }}>
                     <Typography variant="body2" sx={{ width: '100px', flexShrink: 0 }}>Date:</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 'bold' }}>

@@ -305,7 +305,7 @@ async function recalculateLedgerBalances(tx, cus_id) {
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id') ? parseInt(searchParams.get('id')) : null;
+    const id = searchParams.get('id') ? parseInt(searchParams.get('id')) : searchParams.get('sale_id') ? parseInt(searchParams.get('sale_id')) : null;
 
     if (id) {
       // Fetch single sale

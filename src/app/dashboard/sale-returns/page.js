@@ -726,6 +726,8 @@ export default function SaleReturnsPage() {
           </div>
           <div style="text-align:right;">
             <p style="margin:3px 0;">Invoice No: <strong>INV-R-${returnItem.return_id}</strong></p>
+            <p style="margin:3px 0;">Return ID: <strong>${returnItem.return_id}</strong></p>
+            ${returnItem.sale_id ? `<p style="margin:3px 0;">Sale ID: <strong>${returnItem.sale_id}</strong></p>` : ''}
             <p style="margin:3px 0;">Time: <strong>${returnTime}</strong></p>
             <p style="margin:3px 0;">Date: <strong>${returnDate}</strong></p>
             <p style="margin:3px 0;">Bill Type: <strong>SALE_RETURN</strong></p>
