@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getNextId } from '@/lib/id-helper';
+import { updateStoreStock } from '@/lib/storeStock';
 
 // Helper for JSON errors
 function errorResponse(message, status = 400) {
@@ -205,8 +206,52 @@ export async function POST(request) {
       }
     });
 
+    if (body.store_id) {
+      await updateStoreStock(
+        parseInt(body.store_id),
+        newProduct.pro_id,
+        parseFloat(newProduct.pro_stock_qnty) || 0,
+        'set',
+        user.user_id
+      );
+    }
+
+    const createdProductWithRelations = await prisma.product.findUnique({
+      where: { pro_id: newProduct.pro_id },
+      include: {
+        category: {
+          select: {
+            cat_id: true,
+            cat_name: true,
+            cat_code: true
+          }
+        },
+        sub_category: {
+          select: {
+            sub_cat_id: true,
+            sub_cat_name: true,
+            sub_cat_code: true
+          }
+        },
+        updated_by_user: {
+          select: {
+            user_id: true,
+            full_name: true,
+            email: true,
+            role: true
+          }
+        },
+        store_stocks: {
+          select: {
+            store_id: true,
+            stock_quantity: true
+          }
+        }
+      }
+    });
+
     console.log('✅ Product created successfully');
-    return NextResponse.json(newProduct, { status: 201 });
+    return NextResponse.json(createdProductWithRelations, { status: 201 });
   } catch (err) {
     console.error('❌ Error creating product:', err);
     return errorResponse('Failed to create product', 500);
@@ -299,9 +344,60 @@ export async function PUT(request) {
             email: true,
             role: true
           }
+        },
+        store_stocks: {
+          select: {
+            store_id: true,
+            stock_quantity: true
+          }
         }
       }
     });
+
+    if (body.store_id && body.pro_stock_qnty !== undefined) {
+      await updateStoreStock(
+        parseInt(body.store_id),
+        updatedProduct.pro_id,
+        parseFloat(updatedProduct.pro_stock_qnty) || 0,
+        'set',
+        user.user_id
+      );
+
+      const finalProduct = await prisma.product.findUnique({
+        where: { pro_id: updatedProduct.pro_id },
+        include: {
+          category: {
+            select: {
+              cat_id: true,
+              cat_name: true,
+              cat_code: true
+            }
+          },
+          sub_category: {
+            select: {
+              sub_cat_id: true,
+              sub_cat_name: true,
+              sub_cat_code: true
+            }
+          },
+          updated_by_user: {
+            select: {
+              user_id: true,
+              full_name: true,
+              email: true,
+              role: true
+            }
+          },
+          store_stocks: {
+            select: {
+              store_id: true,
+              stock_quantity: true
+            }
+          }
+        }
+      });
+      return NextResponse.json(finalProduct);
+    }
 
     return NextResponse.json(updatedProduct);
   } catch (err) {

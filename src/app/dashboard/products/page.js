@@ -78,6 +78,7 @@ export default function ProductsPage() {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [subcategories, setSubcategories] = useState([]);
+  const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showProductForm, setShowProductForm] = useState(false);
@@ -112,7 +113,8 @@ export default function ProductsPage() {
     pro_unit: '',
     pro_packing: '',
     cat_id: '',
-    sub_cat_id: ''
+    sub_cat_id: '',
+    store_id: ''
   });
 
   // Snackbar state
@@ -136,10 +138,11 @@ export default function ProductsPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [productsRes, categoriesRes, subcategoriesRes] = await Promise.all([
+      const [productsRes, categoriesRes, subcategoriesRes, storesRes] = await Promise.all([
         fetch('/api/products'),
         fetch('/api/categories'),
-        fetch('/api/subcategories')
+        fetch('/api/subcategories'),
+        fetch('/api/stores')
       ]);
 
       if (productsRes.ok) {
@@ -153,6 +156,12 @@ export default function ProductsPage() {
       if (subcategoriesRes.ok) {
         const subcategoriesData = await subcategoriesRes.json();
         setSubcategories(subcategoriesData);
+      }
+      if (storesRes.ok) {
+        const storesData = await storesRes.json();
+        if (storesData.success && Array.isArray(storesData.data)) {
+          setStores(storesData.data);
+        }
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -207,7 +216,8 @@ export default function ProductsPage() {
           pro_unit: '',
           pro_packing: '',
           cat_id: '',
-          sub_cat_id: ''
+          sub_cat_id: '',
+          store_id: ''
         });
         setSnackbar({
           open: true,
@@ -248,7 +258,8 @@ export default function ProductsPage() {
       pro_unit: product.pro_unit || '',
       pro_packing: product.pro_packing || '',
       cat_id: product.cat_id || '',
-      sub_cat_id: product.sub_cat_id || ''
+      sub_cat_id: product.sub_cat_id || '',
+      store_id: product.store_stocks?.[0]?.store_id || ''
     });
     // Populate Category and Subcategory input states
     const category = categories.find(c => c.cat_id === product.cat_id);
@@ -293,7 +304,8 @@ export default function ProductsPage() {
           pro_unit: '',
           pro_packing: '',
           cat_id: '',
-          sub_cat_id: ''
+          sub_cat_id: '',
+          store_id: ''
         });
         setSnackbar({
           open: true,
@@ -465,6 +477,15 @@ export default function ProductsPage() {
       return;
     }
 
+    if (parseFloat(formData.pro_stock_qnty) > 0 && !formData.store_id) {
+      setSnackbar({
+        open: true,
+        message: 'Please select a store for the initial stock quantity',
+        severity: 'error'
+      });
+      return;
+    }
+
     if (editingProduct) {
       await handleUpdateProduct(e);
     } else {
@@ -486,7 +507,8 @@ export default function ProductsPage() {
       pro_unit: '',
       pro_packing: '',
       cat_id: '',
-      sub_cat_id: ''
+      sub_cat_id: '',
+      store_id: ''
     });
     // Clear Category and Subcategory input states
     setCategoryInput('');
@@ -1119,9 +1141,33 @@ export default function ProductsPage() {
 
                       {/* Store */}
                       <TableCell>
-                        <Typography variant="body2">
-                          All Stores
-                        </Typography>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                          {product.store_stocks && product.store_stocks.length > 0 ? (
+                            product.store_stocks.map(ss => {
+                              const storeObj = stores.find(st => st.storeid === ss.store_id);
+                              return (
+                                <Chip 
+                                  key={ss.store_id}
+                                  label={`${storeObj ? storeObj.store_name : `Store #${ss.store_id}`}: ${parseFloat(ss.stock_quantity || 0)}`}
+                                  size="small"
+                                  sx={{ 
+                                    fontSize: '0.75rem', 
+                                    height: '20px',
+                                    backgroundColor: '#f1f5f9',
+                                    color: '#334155',
+                                    fontWeight: 500,
+                                    border: '1px solid #e2e8f0',
+                                    width: 'fit-content'
+                                  }}
+                                />
+                              );
+                            })
+                          ) : (
+                            <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', fontSize: '0.85rem' }}>
+                              No stock recorded
+                            </Typography>
+                          )}
+                        </Box>
                       </TableCell>
 
                       {/* Qty */}
@@ -1686,6 +1732,38 @@ export default function ProductsPage() {
                           }
                         }}
                       />
+                    </Grid>
+
+                    {/* Store Selection Dropdown */}
+                    <Grid item xs={12} sm={6} md={4}>
+                      <FormControl fullWidth required={parseFloat(formData.pro_stock_qnty) > 0}>
+                        <InputLabel id="store-select-label" sx={{ fontSize: '0.95rem', fontWeight: 500 }}>Store</InputLabel>
+                        <Select
+                          labelId="store-select-label"
+                          name="store_id"
+                          value={formData.store_id}
+                          label="Store"
+                          onChange={handleFormChange}
+                          sx={{
+                            borderRadius: 2,
+                            height: '48px',
+                            backgroundColor: 'white',
+                            fontSize: '0.95rem',
+                            '&:hover': {
+                              backgroundColor: '#f9fafb'
+                            }
+                          }}
+                        >
+                          <MenuItem value="">
+                            <em>None</em>
+                          </MenuItem>
+                          {stores.map((store) => (
+                            <MenuItem key={store.storeid} value={store.storeid}>
+                              {store.store_name}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
                     </Grid>
 
                     {/* Low Stock Alert Quantity */}
