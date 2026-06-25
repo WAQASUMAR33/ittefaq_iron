@@ -992,9 +992,6 @@ function SalesPageContent() {
     const transportTotal = calculateTransportTotal();
     const totalDelivery = deliveryCharges + transportTotal;
     const discount = parseFloat(paymentData.discount) || 0;
-    if (billType === 'SALE_RETURN') {
-      return Number((productTotal - labour - totalDelivery - discount).toFixed(0));
-    }
     return Number((productTotal + labour + totalDelivery - discount).toFixed(0));
   };
 
