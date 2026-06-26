@@ -4142,7 +4142,6 @@ function SalesPageContent() {
                       value={formSelectedCustomer}
                       onChange={(event, newValue) => {
                         setFormSelectedCustomer(newValue);
-                        // Reset search results if changing customer
                         if (billType === 'SALE_RETURN') {
                           setSaleSearchResults([]);
                           setSelectedSaleForReturnMain(null);
@@ -4179,7 +4178,8 @@ function SalesPageContent() {
                             borderRadius: 1,
                             '& .MuiOutlinedInput-root': {
                               fontSize: '1.1rem',
-                              color: 'white',
+                              color: 'white !important',
+                              '-webkit-text-fill-color': 'white !important',
                               '& fieldset': {
                                 borderColor: '#1b5e20',
                                 borderWidth: '2px'
@@ -4193,9 +4193,11 @@ function SalesPageContent() {
                             },
                             '& .MuiInputBase-input': {
                               fontWeight: 'bold',
-                              color: 'white',
+                              color: 'white !important',
+                              '-webkit-text-fill-color': 'white !important',
                               '&::placeholder': {
-                                color: 'rgba(255, 255, 255, 0.7)',
+                                color: 'rgba(255, 255, 255, 0.7) !important',
+                                '-webkit-text-fill-color': 'rgba(255, 255, 255, 0.7) !important',
                                 opacity: 1
                               }
                             }
@@ -4932,16 +4934,31 @@ function SalesPageContent() {
                           onFocus={(e) => e.target.select()}
                           inputProps={{ step: 'any' }}
                           sx={{
-                            bgcolor: 'white',
+                            bgcolor: '#2e7d32',
+                            borderRadius: 1,
+                            '& .MuiOutlinedInput-root': {
+                              color: 'white !important',
+                              '-webkit-text-fill-color': 'white !important',
+                              '& fieldset': {
+                                borderColor: '#1b5e20',
+                                borderWidth: '2px'
+                              },
+                              '&:hover fieldset': {
+                                borderColor: '#1b5e20'
+                              },
+                              '&.Mui-focused fieldset': {
+                                borderColor: '#1b5e20'
+                              }
+                            },
                             '& .MuiInputBase-input': {
                               padding: '8px',
                               fontWeight: 'bold',
-                              color: '#000000',
-                              '-webkit-text-fill-color': '#000000 !important'
+                              color: 'white !important',
+                              '-webkit-text-fill-color': 'white !important'
                             },
                             '& .MuiInputBase-input::placeholder': {
-                              color: '#000000',
-                              '-webkit-text-fill-color': '#000000 !important',
+                              color: 'rgba(255, 255, 255, 0.7) !important',
+                              '-webkit-text-fill-color': 'rgba(255, 255, 255, 0.7) !important',
                               fontWeight: 'bold',
                               opacity: 1
                             }
