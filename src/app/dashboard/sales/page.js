@@ -4548,21 +4548,7 @@ function SalesPageContent() {
                     />
                   </Box>
                 </Grid>
-                <Grid item xs={12} md={1.5}>
-                  <Box>
-                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
-                      COST RATE:
-                    </Typography>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      type="number"
-                      value={formSelectedProduct ? getProductCostPrice(formSelectedProduct) : ''}
-                      sx={{ bgcolor: '#f8f9fa', width: 150, minWidth: 150 }}
-                      disabled
-                    />
-                  </Box>
-                </Grid>
+
 
                 <Grid item xs={12} md={1.5}>
                   <Box>
