@@ -450,10 +450,10 @@ export default function CashReport() {
                             );
                           })()}
                           <td className="px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums">
-                            {displayAmts.debit > 0 ? <span className="text-red-600 print:text-black">{formatCurrency(displayAmts.debit)}</span> : '-'}
+                            {displayAmts.debit > 0 ? <span className="text-green-600 print:text-black">{formatCurrency(displayAmts.debit)}</span> : '-'}
                           </td>
                           <td className="px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums">
-                            {displayAmts.credit > 0 ? <span className="text-green-600 print:text-black">{formatCurrency(displayAmts.credit)}</span> : '-'}
+                            {displayAmts.credit > 0 ? <span className="text-red-600 print:text-black">{formatCurrency(displayAmts.credit)}</span> : '-'}
                           </td>
                           <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${balance >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatCurrency(balance)}</td>
                         </tr>

@@ -402,10 +402,10 @@ export default function BankReport() {
                               </td>
                             );
                           })()}
-                          <td className={`px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums ${displayAmts.credit > 0 ? 'text-green-600 font-semibold print:text-black' : 'text-slate-400'}`}>
+                          <td className={`px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums ${displayAmts.credit > 0 ? 'text-red-600 font-semibold print:text-black' : 'text-slate-400'}`}>
                             {displayAmts.credit > 0 ? formatCurrency(displayAmts.credit) : '-'}
                           </td>
-                          <td className={`px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums ${displayAmts.debit > 0 ? 'text-red-600 font-semibold print:text-black' : 'text-slate-400'}`}>
+                          <td className={`px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums ${displayAmts.debit > 0 ? 'text-green-600 font-semibold print:text-black' : 'text-slate-400'}`}>
                             {displayAmts.debit > 0 ? formatCurrency(displayAmts.debit) : '-'}
                           </td>
                           <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${balance >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatCurrency(balance)}</td>
@@ -420,8 +420,8 @@ export default function BankReport() {
                     <tr className="bg-slate-800 text-white font-bold print:bg-gray-200 print:text-black">
                       <td colSpan="4" className="px-3 py-3 text-right uppercase text-xs tracking-wider border-r border-slate-600 print:border-black">Grand Total</td>
                       <td className="px-3 py-3 border-r border-slate-600 print:border-black" />
-                      <td className="px-3 py-3 text-right border-r border-slate-600 print:border-black tabular-nums text-emerald-200 print:text-black">{formatCurrency(reportData.summary.totalLedgerCredit)}</td>
-                      <td className="px-3 py-3 text-right border-r border-slate-600 print:border-black tabular-nums text-red-200 print:text-black">{formatCurrency(reportData.summary.totalLedgerDebit)}</td>
+                      <td className="px-3 py-3 text-right border-r border-slate-600 print:border-black tabular-nums text-red-200 print:text-black">{formatCurrency(reportData.summary.totalLedgerCredit)}</td>
+                      <td className="px-3 py-3 text-right border-r border-slate-600 print:border-black tabular-nums text-emerald-200 print:text-black">{formatCurrency(reportData.summary.totalLedgerDebit)}</td>
                       <td className="px-3 py-3 text-right tabular-nums print:text-black">{formatCurrency(closingBalance)}</td>
                     </tr>
                   </tfoot>
