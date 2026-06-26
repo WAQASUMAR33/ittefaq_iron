@@ -154,10 +154,10 @@ export default function BankReport() {
     let csv = 'BANK BOOK\n';
     csv += `Period: ${formatDate(startDate)} to ${formatDate(endDate)}\n\n`;
     csv += 'BANK LEDGER ENTRIES\n';
-    csv += 'S.No,Date,Account,Description,Credit,Debit,Balance\n';
+    csv += 'S.No,Date,Account,Description,Debit,Credit,Balance\n';
     reportData.ledgerEntries.forEach((entry, i) => {
       const displayAmts = getLedgerEntryDisplayAmounts(entry);
-      csv += `${i + 1},${formatDate(entry.created_at)},${entry.customer?.cus_name || '-'},${entry.details || ''},${displayAmts.credit > 0 ? formatCurrency(displayAmts.credit) : ''},${displayAmts.debit > 0 ? formatCurrency(displayAmts.debit) : ''},${formatCurrency(entry.closing_balance)}\n`;
+      csv += `${i + 1},${formatDate(entry.created_at)},${entry.customer?.cus_name || '-'},${entry.details || ''},${displayAmts.debit > 0 ? formatCurrency(displayAmts.debit) : ''},${displayAmts.credit > 0 ? formatCurrency(displayAmts.credit) : ''},${formatCurrency(entry.closing_balance)}\n`;
     });
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -351,8 +351,8 @@ export default function BankReport() {
                       <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Account</th>
                       <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Description</th>
                       <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Bill</th>
-                      <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Credit</th>
                       <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Debit</th>
+                      <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Credit</th>
                       <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider">Balance</th>
                     </tr>
                   </thead>
@@ -402,11 +402,11 @@ export default function BankReport() {
                               </td>
                             );
                           })()}
-                          <td className={`px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums ${displayAmts.credit > 0 ? 'text-red-600 font-semibold print:text-black' : 'text-slate-400'}`}>
-                            {displayAmts.credit > 0 ? formatCurrency(displayAmts.credit) : '-'}
-                          </td>
                           <td className={`px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums ${displayAmts.debit > 0 ? 'text-green-600 font-semibold print:text-black' : 'text-slate-400'}`}>
                             {displayAmts.debit > 0 ? formatCurrency(displayAmts.debit) : '-'}
+                          </td>
+                          <td className={`px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums ${displayAmts.credit > 0 ? 'text-red-600 font-semibold print:text-black' : 'text-slate-400'}`}>
+                            {displayAmts.credit > 0 ? formatCurrency(displayAmts.credit) : '-'}
                           </td>
                           <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${balance >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatCurrency(balance)}</td>
                         </tr>
@@ -420,8 +420,8 @@ export default function BankReport() {
                     <tr className="bg-slate-800 text-white font-bold print:bg-gray-200 print:text-black">
                       <td colSpan="4" className="px-3 py-3 text-right uppercase text-xs tracking-wider border-r border-slate-600 print:border-black">Grand Total</td>
                       <td className="px-3 py-3 border-r border-slate-600 print:border-black" />
-                      <td className="px-3 py-3 text-right border-r border-slate-600 print:border-black tabular-nums text-red-200 print:text-black">{formatCurrency(reportData.summary.totalLedgerCredit)}</td>
                       <td className="px-3 py-3 text-right border-r border-slate-600 print:border-black tabular-nums text-emerald-200 print:text-black">{formatCurrency(reportData.summary.totalLedgerDebit)}</td>
+                      <td className="px-3 py-3 text-right border-r border-slate-600 print:border-black tabular-nums text-red-200 print:text-black">{formatCurrency(reportData.summary.totalLedgerCredit)}</td>
                       <td className="px-3 py-3 text-right tabular-nums print:text-black">{formatCurrency(closingBalance)}</td>
                     </tr>
                   </tfoot>
