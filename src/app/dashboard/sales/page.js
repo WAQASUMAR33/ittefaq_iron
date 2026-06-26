@@ -3707,7 +3707,7 @@ function SalesPageContent() {
   const renderSalesCreateView = () => (
     <DashboardLayout>
       <Container maxWidth={false} sx={{ py: 1 }}>
-        <Stack spacing={2}>
+        <Stack spacing={2} className="no-print">
           {/* Header */}
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
