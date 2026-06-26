@@ -51,15 +51,8 @@ async function recalculateLedgerBalances(tx, cus_id) {
         } else {
           change = credit - debit;
         }
-      } else if (
-        categoryTitle.includes('supplier') ||
-        categoryTitle.includes('labour') ||
-        categoryTitle.includes('transport') ||
-        categoryTitle.includes('delivery')
-      ) {
-        change = debit - credit;
       } else {
-        change = credit - debit;
+        change = debit - credit;
       }
       const closing = opening + change;
 
