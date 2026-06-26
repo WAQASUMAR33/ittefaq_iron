@@ -750,13 +750,13 @@ export async function POST(request) {
         console.log(`   Opening Balance: ${runningSupplierBalance}`);
         console.log(`   Bill Amount (products + labour + delivery) [OUT charges excluded]: ${supplierAmount}${safeParseFloat(discount) > 0 ? ` (After Discount: ${safeParseFloat(discount)})` : ''}`);
 
-        const supplierEntry = createPayableLedgerEntry({
+        const supplierEntry = createLedgerEntry({
           cus_id: cus_id,
           opening_balance: runningSupplierBalance,
-          debit_amount: isReturn ? 0 : supplierAmount,
-          credit_amount: isReturn ? supplierAmount : 0,
+          debit_amount: isReturn ? supplierAmount : 0,
+          credit_amount: isReturn ? 0 : supplierAmount,
           bill_no: newPurchase.pur_id.toString(),
-          trnx_type: isReturn ? 'CREDIT' : 'DEBIT',
+          trnx_type: isReturn ? 'DEBIT' : 'CREDIT',
           details: `${isReturn ? 'Purchase Return' : 'Purchase Invoice'}${invoice_number ? ` #${invoice_number}` : ''} ${isReturn ? 'to' : 'from'} ${supplierData?.cus_name || 'Supplier'}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}${safeParseFloat(discount) > 0 ? ` [After Discount: ${safeParseFloat(discount)}]` : ''}`,
           payments: 0,
           updated_by: updated_by ? parseInt(updated_by) : null
@@ -788,13 +788,13 @@ export async function POST(request) {
         if (bankPaymentAmount > 0) paymentParts.push(`${bankPaymentAmount.toLocaleString('en-PK')} Bank Account (${bankNameForDesc || 'Bank'})`);
         const paymentBreakdown = paymentParts.join(' + ');
 
-        const paymentEntry = createPayableLedgerEntry({
+        const paymentEntry = createLedgerEntry({
           cus_id: cus_id,
           opening_balance: runningSupplierBalance,
-          debit_amount: isReturn ? totalPaymentAmount2 : 0,
-          credit_amount: isReturn ? 0 : totalPaymentAmount2,
+          debit_amount: isReturn ? 0 : totalPaymentAmount2,
+          credit_amount: isReturn ? totalPaymentAmount2 : 0,
           bill_no: newPurchase.pur_id.toString(),
-          trnx_type: isReturn ? 'DEBIT' : 'CREDIT',
+          trnx_type: isReturn ? 'CREDIT' : 'DEBIT',
           details: `${isReturn ? 'Payment received from' : 'Payment to'} ${supplierData?.cus_name || 'Supplier'} — ${paymentBreakdown}`,
           payments: totalPaymentAmount2,
           cash_payment: cashPaymentAmount,
@@ -852,13 +852,13 @@ export async function POST(request) {
 
           const supplierForPayment = await tx.customer.findUnique({ where: { cus_id }, select: { cus_name: true } });
 
-          const bankEntry = createLedgerEntry({
+          const bankEntry = createPayableLedgerEntry({
             cus_id: bankAccountToUse.cus_id,
             opening_balance: bankOpeningBalance,
-            debit_amount: isReturn ? parseFloat(bank_payment) : 0,
-            credit_amount: isReturn ? 0 : parseFloat(bank_payment),
+            debit_amount: isReturn ? 0 : parseFloat(bank_payment),
+            credit_amount: isReturn ? parseFloat(bank_payment) : 0,
             bill_no: newPurchase.pur_id.toString(),
-            trnx_type: 'DEBIT',
+            trnx_type: 'CREDIT',
             details: `${isReturn ? 'Refund from' : 'Payment to'} ${supplierForPayment?.cus_name || 'Supplier'} — Bank Account (${bankAccountToUse.cus_name})`,
             payments: parseFloat(bank_payment),
             cash_payment: 0,
@@ -894,13 +894,13 @@ export async function POST(request) {
 
         const supplierForPaymentCash = await tx.customer.findUnique({ where: { cus_id }, select: { cus_name: true } });
 
-        const cashEntry = createLedgerEntry({
+        const cashEntry = createPayableLedgerEntry({
           cus_id: effectiveCashAccountId,
           opening_balance: cashOpeningBalance,
-          debit_amount: isReturn ? cashPaymentAmount : 0,
-          credit_amount: isReturn ? 0 : cashPaymentAmount,
+          debit_amount: isReturn ? 0 : cashPaymentAmount,
+          credit_amount: isReturn ? cashPaymentAmount : 0,
           bill_no: newPurchase.pur_id.toString(),
-          trnx_type: 'DEBIT',
+          trnx_type: 'CREDIT',
           details: `${isReturn ? 'Cash Refund from' : 'Payment to'} ${supplierForPaymentCash?.cus_name || 'Supplier'} — Cash Account${vehicle_no ? ` (Vehicle: ${vehicle_no})` : ''}`,
           payments: cashPaymentAmount,
           cash_payment: cashPaymentAmount,
@@ -924,13 +924,13 @@ export async function POST(request) {
         if (outDeliveryAmt > 0) outParts.push(`Delivery: ${outDeliveryAmt}`);
         if (outLabourAmt > 0) outParts.push(`Labour: ${outLabourAmt}`);
 
-        const supplierOutDebit = createPayableLedgerEntry({
+        const supplierOutDebit = createLedgerEntry({
           cus_id: cus_id,
           opening_balance: runningSupplierBalance,
-          debit_amount: 0,
-          credit_amount: totalOutCharges,
+          debit_amount: totalOutCharges,
+          credit_amount: 0,
           bill_no: newPurchase.pur_id.toString(),
-          trnx_type: 'CREDIT',
+          trnx_type: 'DEBIT',
           details: `Cargo/Out Charges added to ${supplierForOut?.cus_name || 'Supplier'} — ${outParts.join(' + ')} - Purchase #${newPurchase.pur_id}${invoice_number ? ` (Inv: ${invoice_number})` : ''}`,
           payments: 0,
           updated_by: updated_by ? parseInt(updated_by) : null
@@ -1006,13 +1006,13 @@ export async function POST(request) {
             ? priorLabourEntries[priorLabourEntries.length - 1].closing_balance
             : await resolveOpeningBalance(tx, labourAccount.cus_id, newPurchase.created_at);
 
-          const labourEntry = createPayableLedgerEntry({
+          const labourEntry = createLedgerEntry({
             cus_id: labourAccount.cus_id,
             opening_balance: labourOpeningBalance,
-            debit_amount: outLabourAmt,
-            credit_amount: 0,
+            debit_amount: 0,
+            credit_amount: outLabourAmt,
             bill_no: newPurchase.pur_id.toString(),
-            trnx_type: 'DEBIT',
+            trnx_type: 'CREDIT',
             details: `Out Labour - Purchase #${newPurchase.pur_id}${invoice_number ? ` (Inv: ${invoice_number})` : ''}`,
             payments: 0,
             updated_by: updated_by ? parseInt(updated_by) : null
@@ -1357,13 +1357,13 @@ export async function PUT(request) {
           select: { cus_name: true }
         });
 
-        const supplierEntry = createPayableLedgerEntry({
+        const supplierEntry = createLedgerEntry({
           cus_id: cus_id,
           opening_balance: runningSupplierBalance,
-          debit_amount: supplierAmount,
-          credit_amount: 0,
+          debit_amount: 0,
+          credit_amount: supplierAmount,
           bill_no: id.toString(),
-          trnx_type: 'DEBIT',
+          trnx_type: 'CREDIT',
           details: `Purchase Update from ${supplierData?.cus_name || 'Supplier'}${invoice_number ? ` #${invoice_number}` : ''}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
           payments: 0,
           updated_by: updated_by ? parseInt(updated_by) : null
@@ -1381,13 +1381,13 @@ export async function PUT(request) {
           select: { cus_name: true }
         });
 
-        const paymentEntry = createPayableLedgerEntry({
+        const paymentEntry = createLedgerEntry({
           cus_id: cus_id,
           opening_balance: runningSupplierBalance,
-          debit_amount: 0,
-          credit_amount: paymentAmount,
+          debit_amount: paymentAmount,
+          credit_amount: 0,
           bill_no: id.toString(),
-          trnx_type: 'CREDIT',
+          trnx_type: 'DEBIT',
           details: `Payment to ${supplierData?.cus_name || 'Supplier'} - Purchase Update${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
           payments: paymentAmount,
           cash_payment: cashPaymentAmt,
@@ -1408,13 +1408,13 @@ export async function PUT(request) {
         const cashOpeningBalance = await getOpeningBalanceForAccount(credit_account_id);
         const supplierName = (await tx.customer.findUnique({ where: { cus_id }, select: { cus_name: true } }))?.cus_name || 'Supplier';
 
-        const cashEntry = createLedgerEntry({
+        const cashEntry = createPayableLedgerEntry({
           cus_id: credit_account_id,
           opening_balance: cashOpeningBalance,
-          debit_amount: 0,
-          credit_amount: cashPaymentAmt,
+          debit_amount: cashPaymentAmt,
+          credit_amount: 0,
           bill_no: id.toString(),
-          trnx_type: 'DEBIT',
+          trnx_type: 'CREDIT',
           details: `Cash Payment for Purchase Update to ${supplierName}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
           payments: cashPaymentAmt,
           cash_payment: cashPaymentAmt,
@@ -1435,13 +1435,13 @@ export async function PUT(request) {
         const bankOpeningBalance = await getOpeningBalanceForAccount(bankAccIdForEntry);
         const supplierName = (await tx.customer.findUnique({ where: { cus_id }, select: { cus_name: true } }))?.cus_name || 'Supplier';
 
-        const bankEntry = createLedgerEntry({
+        const bankEntry = createPayableLedgerEntry({
           cus_id: bankAccIdForEntry,
           opening_balance: bankOpeningBalance,
-          debit_amount: 0,
-          credit_amount: bankPaymentAmt,
+          debit_amount: bankPaymentAmt,
+          credit_amount: 0,
           bill_no: id.toString(),
-          trnx_type: 'DEBIT',
+          trnx_type: 'CREDIT',
           details: `Bank Payment for Purchase Update to ${supplierName}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
           payments: bankPaymentAmt,
           cash_payment: 0,
@@ -1464,13 +1464,13 @@ export async function PUT(request) {
         if (outDeliveryAmtPUT > 0) outPartsPUT.push(`Delivery: ${outDeliveryAmtPUT}`);
         if (outLabourAmtPUT > 0) outPartsPUT.push(`Labour: ${outLabourAmtPUT}`);
 
-        const supplierOutDebitPUT = createPayableLedgerEntry({
+        const supplierOutDebitPUT = createLedgerEntry({
           cus_id: cus_id,
           opening_balance: runningSupplierBalance,
-          debit_amount: 0,
-          credit_amount: totalOutChargesPUT,
+          debit_amount: totalOutChargesPUT,
+          credit_amount: 0,
           bill_no: id.toString(),
-          trnx_type: 'CREDIT',
+          trnx_type: 'DEBIT',
           details: `Cargo/Out Charges added to ${supplierForOutPUT?.cus_name || 'Supplier'} — ${outPartsPUT.join(' + ')} - Purchase #${id}${invoice_number ? ` (Inv: ${invoice_number})` : ''}`,
           payments: 0,
           updated_by: updated_by ? parseInt(updated_by) : null
@@ -1543,13 +1543,13 @@ export async function PUT(request) {
             ? priorLabourEntriesPUT[priorLabourEntriesPUT.length - 1].closing_balance
             : await getOpeningBalanceForAccount(labourAccountPUT.cus_id);
 
-          const labourEntryPUT = createPayableLedgerEntry({
+          const labourEntryPUT = createLedgerEntry({
             cus_id: labourAccountPUT.cus_id,
             opening_balance: labourOpeningBalancePUT,
-            debit_amount: outLabourAmtPUT,
-            credit_amount: 0,
+            debit_amount: 0,
+            credit_amount: outLabourAmtPUT,
             bill_no: id.toString(),
-            trnx_type: 'DEBIT',
+            trnx_type: 'CREDIT',
             details: `Out Labour - Purchase #${id}${invoice_number ? ` (Inv: ${invoice_number})` : ''}`,
             payments: 0,
             updated_by: updated_by ? parseInt(updated_by) : null
@@ -1583,10 +1583,10 @@ export async function PUT(request) {
           const labourEntry = createLedgerEntry({
             cus_id: incityLabourAccount.cus_id,
             opening_balance: incityLabourOpeningBalance,
-            debit_amount: incityLabourAmt,
-            credit_amount: 0,
+            debit_amount: 0,
+            credit_amount: incityLabourAmt,
             bill_no: id.toString(),
-            trnx_type: 'DEBIT',
+            trnx_type: 'CREDIT',
             details: `Incity (Own) - Labour - Purchase Update #${id}${invoice_number ? ` (Inv: ${invoice_number})` : ''}`,
             payments: 0,
             cash_payment: 0,
@@ -1604,10 +1604,10 @@ export async function PUT(request) {
           const labourPaymentEntryPUT = createLedgerEntry({
             cus_id: incityLabourAccount.cus_id,
             opening_balance: labourEntry.closing_balance,
-            debit_amount: 0,
-            credit_amount: incityLabourAmt,
+            debit_amount: incityLabourAmt,
+            credit_amount: 0,
             bill_no: id.toString(),
-            trnx_type: 'DEBIT',
+            trnx_type: 'CREDIT',
             details: `Payment for Incity (Own) Labour - Purchase Update #${id}${invoice_number ? ` (Inv: ${invoice_number})` : ''} ${supplierForIncityPUT?.cus_name ? `- Supplier: ${supplierForIncityPUT.cus_name}` : ''}`,
             payments: incityLabourAmt,
             cash_payment: incityLabourCashPUT,
@@ -1628,10 +1628,10 @@ export async function PUT(request) {
               const cashLabourEntryPUT = createLedgerEntry({
                 cus_id: credit_account_id,
                 opening_balance: cashLabourOpeningBalance,
-                debit_amount: 0,
-                credit_amount: incityLabourCashPUT,
+                debit_amount: incityLabourCashPUT,
+                credit_amount: 0,
                 bill_no: id.toString(),
-                trnx_type: 'DEBIT',
+                trnx_type: 'CREDIT',
                 details: `Cash Payment for Incity Labour - Purchase Update #${id}${supplierForIncityPUT?.cus_name ? ` - Supplier: ${supplierForIncityPUT.cus_name}` : ''}`,
                 payments: incityLabourCashPUT,
                 cash_payment: incityLabourCashPUT,
@@ -1651,10 +1651,10 @@ export async function PUT(request) {
               const bankLabourEntryPUT = createLedgerEntry({
                 cus_id: bankAccountIdInt,
                 opening_balance: bankLabourOpeningBalance,
-                debit_amount: 0,
-                credit_amount: incityLabourBankPUT,
+                debit_amount: incityLabourBankPUT,
+                credit_amount: 0,
                 bill_no: id.toString(),
-                trnx_type: 'DEBIT',
+                trnx_type: 'CREDIT',
                 details: `Bank Payment for Incity Labour - Purchase Update #${id}${supplierForIncityPUT?.cus_name ? ` - Supplier: ${supplierForIncityPUT.cus_name}` : ''}`,
                 payments: incityLabourBankPUT,
                 cash_payment: 0,
