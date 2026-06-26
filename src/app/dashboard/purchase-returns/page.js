@@ -732,7 +732,7 @@ export default function PurchaseReturnsPage() {
                 <Grid item xs={12} md={3}>
                   <Autocomplete
                     options={customers}
-                    getOptionLabel={(option) => `${option.cus_name} (ID: ${option.cus_id})`}
+                    getOptionLabel={(option) => option.cus_name}
                     value={selectedSupplier}
                     onChange={(e, val) => setSelectedSupplier(val)}
                     autoSelect={true}
@@ -961,7 +961,7 @@ export default function PurchaseReturnsPage() {
                       </Typography>
                       <Autocomplete
                         options={customers}
-                        getOptionLabel={(option) => `${option.cus_name} (ID: ${option.cus_id})`}
+                        getOptionLabel={(option) => option.cus_name}
                         value={selectedCustomerAccount}
                         onChange={(e, val) => handleCustomerAccountSelect(val)}
                         autoSelect={true}
@@ -1000,7 +1000,7 @@ export default function PurchaseReturnsPage() {
                       </Typography>
                       <Autocomplete
                         options={filteredPurchases}
-                        getOptionLabel={(option) => `${option.invoice_number || `PUR-${option.pur_id}`} - ${formatCurrency(option.net_total || option.total_amount)}`}
+                        getOptionLabel={(option) => `${option.invoice_number || 'N/A'} - ${formatCurrency(option.net_total || option.total_amount)}`}
                         value={selectedPurchase}
                         onChange={(e, val) => handlePurchaseSelect(val)}
                         disabled={!selectedCustomerAccount}

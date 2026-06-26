@@ -159,7 +159,7 @@ export default function CustomerLedgerReport() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Select Customer *</label>
                 <Autocomplete
                   options={customers}
-                  getOptionLabel={(option) => `${option.cus_name} (${option.cus_phone_no || option.cus_phone_no2 || 'No Phone'}) ${option.cus_reference ? `[Ref: ${option.cus_reference}]` : ''}`}
+                  getOptionLabel={(option) => `${option.cus_name} (${option.cus_phone_no || option.cus_phone_no2 || 'No Phone'})`}
                   value={selectedCustomer}
                   onChange={(event, newValue) => {
                     setSelectedCustomer(newValue);

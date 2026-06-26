@@ -415,7 +415,7 @@ export default function SalesAnalyticsPage() {
                 options={billOptions}
                 value={selectedBills}
                 onChange={(_, v) => setSelectedBills(v)}
-                getOptionLabel={(o) => `#${o.sale_id} · ${o.cus_name}`}
+                getOptionLabel={(o) => o.cus_name}
                 isOptionEqualToValue={(o, v) => o.sale_id === v.sale_id}
                 renderTags={(value, getTagProps) =>
                   value.map((option, index) => (

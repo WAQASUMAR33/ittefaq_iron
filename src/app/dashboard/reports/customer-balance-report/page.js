@@ -323,7 +323,7 @@ export default function CustomerBalanceReport() {
                                 <Autocomplete
                                     size="small"
                                     options={autocompleteCustomers}
-                                    getOptionLabel={(option) => `${option.cus_name} (${option.cus_id})`}
+                                    getOptionLabel={(option) => option.cus_name}
                                     value={selectedCustomer}
                                     onChange={(event, newValue) => setSelectedCustomer(newValue)}
                                     renderInput={(params) => (

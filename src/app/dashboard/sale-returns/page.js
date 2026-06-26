@@ -725,7 +725,7 @@ export default function SaleReturnsPage() {
             ${customer?.cus_address ? `<p style="margin:3px 0;">Address: <strong>${customer.cus_address}</strong></p>` : ''}
           </div>
           <div style="text-align:right;">
-            <p style="margin:3px 0;">Invoice No: <strong>INV-R-${returnItem.return_id}</strong></p>
+            <p style="margin:3px 0;">Invoice No: <strong>${returnItem.return_id}</strong></p>
             <p style="margin:3px 0;">Return ID: <strong>${returnItem.return_id}</strong></p>
             ${returnItem.sale_id ? `<p style="margin:3px 0;">Sale ID: <strong>${returnItem.sale_id}</strong></p>` : ''}
             <p style="margin:3px 0;">Time: <strong>${returnTime}</strong></p>
@@ -1349,7 +1349,7 @@ export default function SaleReturnsPage() {
                         <Grid item xs={12} md={4}>
                           <Autocomplete
                             options={loaders}
-                            getOptionLabel={(o) => `${o.loader_name} (${o.loader_number})`}
+                            getOptionLabel={(o) => o.loader_name}
                             value={loaders.find(l => l.loader_id === formData.loader_id) || null}
                             onChange={(e, v) => setFormData(p => ({ ...p, loader_id: v ? v.loader_id : '' }))}
                             autoSelect={true}

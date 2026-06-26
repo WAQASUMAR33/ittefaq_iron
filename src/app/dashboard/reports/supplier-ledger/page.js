@@ -160,7 +160,7 @@ export default function SupplierLedgerReport() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Select Supplier *</label>
                 <Autocomplete
                   options={suppliers}
-                  getOptionLabel={(option) => `${option.cus_name} (${option.cus_phone_no || option.cus_phone_no2 || 'No Phone'}) ${option.cus_reference ? `[Ref: ${option.cus_reference}]` : ''}`}
+                  getOptionLabel={(option) => `${option.cus_name} (${option.cus_phone_no || option.cus_phone_no2 || 'No Phone'})`}
                   value={selectedSupplier}
                   onChange={(event, newValue) => selectSupplier(newValue)}
                   inputValue={supplierSearchTerm}

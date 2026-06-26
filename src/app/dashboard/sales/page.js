@@ -974,11 +974,14 @@ function SalesPageContent() {
   // Get display bill number: B-1 for BILL, O-1 for ORDER, Q-1 for QUOTATION, fallback to sale_id
   const getBillDisplayNo = (sale) => {
     if (sale?.bill_type === 'SALE_RETURN' || sale?.is_return) {
-      return `INV-R-${sale?.return_id || ''}`;
+      return sale?.sale_id ? `${sale.sale_id}` : (sale?.return_id ? `${sale.return_id}` : '');
+    }
+    const bt = sale?.bill_type || 'BILL';
+    if (bt === 'BILL') {
+      return sale?.sale_id ? `${sale.sale_id}` : '';
     }
     const bn = sale?.bill_number;
-    const bt = sale?.bill_type || 'BILL';
-    const prefix = bt === 'BILL' ? 'B' : ['ORDER', 'ORDER_TRASH'].includes(bt) ? 'O' : bt === 'QUOTATION' ? 'Q' : 'B';
+    const prefix = ['ORDER', 'ORDER_TRASH'].includes(bt) ? 'O' : bt === 'QUOTATION' ? 'Q' : 'B';
     return bn ? `${prefix}-${bn}` : `#${sale?.sale_id || ''}`;
   };
 
@@ -4334,9 +4337,6 @@ function SalesPageContent() {
                         <li {...props} key={option.pro_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <Typography sx={{ fontWeight: 500 }}>{option.pro_title}</Typography>
-                            {option.pro_code && (
-                              <Typography variant="caption" sx={{ color: 'text.secondary', ml: 0.5 }}>#{option.pro_code}</Typography>
-                            )}
                           </Box>
 
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
