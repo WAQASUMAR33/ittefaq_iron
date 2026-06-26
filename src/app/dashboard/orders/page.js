@@ -187,6 +187,7 @@ function OrdersPageContent() {
 
   // Form state for sales creation
   const [formSelectedCustomer, setFormSelectedCustomer] = useState(null);
+  const [selectedCustomerType, setSelectedCustomerType] = useState(null); // customer type filter in form
   const [formSelectedProduct, setFormSelectedProduct] = useState(null);
   const [formSelectedStore, setFormSelectedStore] = useState(null);
 
@@ -359,6 +360,7 @@ function OrdersPageContent() {
     const state = {
       // Customer and store selection
       formSelectedCustomer: formSelectedCustomer ? { ...formSelectedCustomer } : null,
+      selectedCustomerType: selectedCustomerType ? { ...selectedCustomerType } : null,
       formSelectedStore: formSelectedStore ? { ...formSelectedStore } : null,
 
       // Product table (deep copy array)
@@ -400,6 +402,7 @@ function OrdersPageContent() {
 
     // Restore all state at once to ensure consistency
     setFormSelectedCustomer(state.formSelectedCustomer);
+    setSelectedCustomerType(state.selectedCustomerType || null);
     setFormSelectedStore(state.formSelectedStore);
     setProductTableData(state.productTableData || []);
     setPaymentData(state.paymentData || {
@@ -434,6 +437,7 @@ function OrdersPageContent() {
   const clearFormState = () => {
     console.log('🧹 Clearing order form state');
     setFormSelectedCustomer(null);
+    setSelectedCustomerType(null);
     setFormSelectedProduct(null);
     setFormSelectedStore(null);
     setProductTableData([]);
@@ -491,7 +495,7 @@ function OrdersPageContent() {
     // NOW clear form for the new blank screen (but keep transport accounts)
     clearFormState();
     showSnackbar(`📋 Order Screen ${newStack.length} | Starting fresh (previous state saved)`, 'info');
-  }, [formSelectedCustomer, formSelectedStore, productTableData, paymentData, billType, formSelectedProduct, productFormData, newTransport, transportAccounts, transportOptions, currentScreenIndex, screenStack]);
+  }, [formSelectedCustomer, selectedCustomerType, formSelectedStore, productTableData, paymentData, billType, formSelectedProduct, productFormData, newTransport, transportAccounts, transportOptions, currentScreenIndex, screenStack]);
 
   // Go back to previous screen (Ctrl+Left) - NO AUTO-CLEAR, only navigate if possible
   const goToPreviousScreen = useCallback(() => {
@@ -665,6 +669,26 @@ function OrdersPageContent() {
       console.log(`💾 Auto-saved on customer change - Order Screen ${currentScreenIndex + 1}`);
     }
   }, [formSelectedCustomer]);
+
+  // Auto-clear selected customer if their type does not match the chosen type filter
+  useEffect(() => {
+    if (formSelectedCustomer && selectedCustomerType) {
+      if (formSelectedCustomer.cus_type !== selectedCustomerType.cus_type_id) {
+        setFormSelectedCustomer(null);
+      }
+    }
+  }, [selectedCustomerType]);
+
+  // Auto-save when customer type changes
+  useEffect(() => {
+    if (currentScreenIndex >= 0 && screenStack[currentScreenIndex]) {
+      const updatedState = captureScreenState();
+      const newStack = [...screenStack];
+      newStack[currentScreenIndex] = updatedState;
+      setScreenStack(newStack);
+      console.log(`💾 Auto-saved on customer type change - Order Screen ${currentScreenIndex + 1}`);
+    }
+  }, [selectedCustomerType]);
 
   // Auto-save when store changes
   useEffect(() => {
@@ -2241,6 +2265,10 @@ function OrdersPageContent() {
 
       // 1. Set Customer
       setFormSelectedCustomer(saleData.customer);
+      if (saleData.customer && customerTypes.length > 0) {
+        const matchingType = customerTypes.find(t => t.cus_type_id === saleData.customer.cus_type);
+        setSelectedCustomerType(matchingType || null);
+      }
 
       // 2. Set Store (find matching store object)
       const storeId = saleData.store_id || (saleData.sale_details?.[0]?.store_id);
@@ -2541,6 +2569,49 @@ function OrdersPageContent() {
             <CardContent sx={{ p: 2 }}>
               {/* First Row - Date, Customer, Reference */}
               <Grid container spacing={2} sx={{ mb: 2 }}>
+                <Grid item xs={12} md={2}>
+                  <Box>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
+                      CUSTOMER TYPE
+                    </Typography>
+                    <Autocomplete
+                      id="customer-type-select"
+                      size="small"
+                      options={customerTypes || []}
+                      getOptionLabel={(option) => option.cus_type_title || ''}
+                      value={selectedCustomerType}
+                      onChange={(event, newValue) => {
+                        setSelectedCustomerType(newValue);
+                      }}
+                      isOptionEqualToValue={(option, value) => option.cus_type_id === value?.cus_type_id}
+                      autoHighlight
+                      openOnFocus
+                      selectOnFocus
+                      onKeyDown={(e) => {
+                        if ((e.key === 'Tab' || e.key === 'Enter') && !e.shiftKey) {
+                          e.preventDefault();
+                          const customerInput = document.getElementById('customer-autocomplete-input');
+                          if (customerInput) {
+                            customerInput.focus();
+                          }
+                        }
+                      }}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          placeholder="All Types"
+                          onFocus={(e) => e.target.select()}
+                          sx={{
+                            bgcolor: 'white',
+                            '& .MuiInputBase-input': {
+                              fontWeight: selectedCustomerType ? 'bold' : 'normal'
+                            }
+                          }}
+                        />
+                      )}
+                    />
+                  </Box>
+                </Grid>
                 <Grid item xs={12} md={3}>
                   <Box sx={{ position: 'relative' }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
@@ -2562,10 +2633,14 @@ function OrdersPageContent() {
                       )}
                     </Box>
                     <Autocomplete
+                      id="customer-autocomplete"
                       size="small"
                       options={customers.filter(customer => {
                         const category = customerCategories.find(c => c.cus_cat_id === customer.cus_category);
-                        return category && category.cus_cat_title.toLowerCase().includes('customer');
+                        const isCustomer = category && category.cus_cat_title.toLowerCase().includes('customer');
+                        if (!isCustomer) return false;
+                        if (!selectedCustomerType) return true;
+                        return customer.cus_type === selectedCustomerType.cus_type_id;
                       })}
                       getOptionLabel={(option) => option.cus_name || ''}
                       ListboxProps={{ sx: { maxHeight: 180 } }}
@@ -2597,17 +2672,24 @@ function OrdersPageContent() {
                       openOnFocus={true}
                       selectOnFocus={true}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter' && formSelectedCustomer) {
+                        if ((e.key === 'Enter' || e.key === 'Tab') && !e.shiftKey) {
                           e.preventDefault();
-                          const productInputs = document.querySelectorAll('input[placeholder*="Select product"]');
-                          if (productInputs.length > 0) {
-                            productInputs[0]?.focus();
+                          const productInput = document.getElementById('product-autocomplete-input');
+                          if (productInput) {
+                            productInput.focus();
+                          }
+                        } else if (e.key === 'Tab' && e.shiftKey) {
+                          e.preventDefault();
+                          const typeInput = document.getElementById('customer-type-select');
+                          if (typeInput) {
+                            typeInput.focus();
                           }
                         }
                       }}
                       renderInput={(params) => (
                         <TextField
                           {...params}
+                          id="customer-autocomplete-input"
                           placeholder="Search by name or phone..."
                           onFocus={(e) => e.target.select()}
                           sx={{ bgcolor: 'white', minWidth: 250, '& .MuiInputBase-input': { fontWeight: formSelectedCustomer ? 'bold' : 'normal' } }}
@@ -2725,11 +2807,18 @@ function OrdersPageContent() {
                           if (storeInputs.length > 0) {
                             storeInputs[0].focus();
                           }
+                        } else if (e.key === 'Tab' && e.shiftKey) {
+                          e.preventDefault();
+                          const customerInput = document.getElementById('customer-autocomplete-input');
+                          if (customerInput) {
+                            customerInput.focus();
+                          }
                         }
                       }}
                       renderInput={(params) => (
                         <TextField
                           {...params}
+                          id="product-autocomplete-input"
                           placeholder={products.length === 0 ? "No products available" : "Select product"}
                           onFocus={(e) => e.target.select()}
                           sx={{ bgcolor: 'white', width: 350, minWidth: 350, '& .MuiInputBase-input': { fontWeight: formSelectedProduct ? 'bold' : 'normal' } }}
@@ -2882,6 +2971,15 @@ function OrdersPageContent() {
                       variant="contained"
                       id="add-product-btn"
                       onClick={handleAddProductToTable}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Tab' && !e.shiftKey && productTableData.length === 0) {
+                          e.preventDefault();
+                          const labourInput = document.getElementById('payment-labour-input');
+                          if (labourInput) {
+                            labourInput.focus();
+                          }
+                        }
+                      }}
                       sx={{
                         bgcolor: '#6f42c1',
                         color: 'white',
@@ -3011,8 +3109,18 @@ function OrdersPageContent() {
                           <TableCell sx={{ py: 1 }}>
                             <IconButton
                               size="small"
+                              className="table-delete-btn"
                               onClick={() => handleRemoveProductFromTable(product.id)}
                               sx={{ color: 'error.main' }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Tab' && !e.shiftKey && index === productTableData.length - 1) {
+                                  e.preventDefault();
+                                  const labourInput = document.getElementById('payment-labour-input');
+                                  if (labourInput) {
+                                    labourInput.focus();
+                                  }
+                                }
+                              }}
                             >
                               <DeleteIcon fontSize="small" />
                             </IconButton>
@@ -3063,6 +3171,7 @@ function OrdersPageContent() {
                           )}
                         </Box>
                         <TextField
+                          id="payment-cash-input"
                           fullWidth
                           size="small"
                           type="number"
@@ -3070,6 +3179,15 @@ function OrdersPageContent() {
                           onChange={(e) => handlePaymentDataChange('cash', e.target.value)}
                           onFocus={(e) => e.target.select()}
                           inputProps={{ step: 'any' }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Tab' && e.shiftKey) {
+                              e.preventDefault();
+                              const discountInput = document.getElementById('payment-discount-input');
+                              if (discountInput) {
+                                discountInput.focus();
+                              }
+                            }
+                          }}
                           sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' } }}
                           placeholder=" "
                         />
@@ -3241,12 +3359,27 @@ function OrdersPageContent() {
                       LABOUR
                     </Typography>
                     <TextField
+                      id="payment-labour-input"
                       size="small"
                       type="number"
                       value={paymentData.labour === 0 ? '' : paymentData.labour}
                       onChange={(e) => handlePaymentDataChange('labour', e.target.value)}
                       onFocus={(e) => e.target.select()}
                       inputProps={{ step: 'any' }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Tab' && e.shiftKey) {
+                          e.preventDefault();
+                          if (productTableData.length > 0) {
+                            const deleteBtns = document.getElementsByClassName('table-delete-btn');
+                            if (deleteBtns.length > 0) {
+                              deleteBtns[deleteBtns.length - 1].focus();
+                            }
+                          } else {
+                            const addBtn = document.getElementById('add-product-btn');
+                            if (addBtn) addBtn.focus();
+                          }
+                        }
+                      }}
                       sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' }, flex: 1 }}
                       placeholder=" "
                     />
@@ -3280,12 +3413,22 @@ function OrdersPageContent() {
                       DISCOUNT
                     </Typography>
                     <TextField
+                      id="payment-discount-input"
                       size="small"
                       type="number"
                       value={paymentData.discount === 0 ? '' : paymentData.discount}
                       onChange={(e) => handlePaymentDataChange('discount', e.target.value)}
                       onFocus={(e) => e.target.select()}
                       inputProps={{ step: 'any' }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Tab' && !e.shiftKey) {
+                          e.preventDefault();
+                          const cashInput = document.getElementById('payment-cash-input');
+                          if (cashInput) {
+                            cashInput.focus();
+                          }
+                        }
+                      }}
                       sx={{ bgcolor: 'white', '& .MuiInputBase-input': { padding: '8px' }, flex: 1 }}
                       placeholder=" "
                     />
@@ -3359,6 +3502,7 @@ function OrdersPageContent() {
                   onClick={() => {
                     setCurrentBillData(null);
                     setFormSelectedCustomer(null);
+                    setSelectedCustomerType(null);
                     setFormSelectedProduct(null);
                     setFormSelectedStore(null);
                     setProductTableData([]);

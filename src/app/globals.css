@@ -259,3 +259,8 @@ input[type="number"]::placeholder,
   -webkit-text-fill-color: #ffffff !important;
   font-weight: bold !important;
 }
+
+/* Hide native select element in MUI Select components to avoid text overlap */
+.MuiSelect-nativeInput {
+  opacity: 0 !important;
+}
