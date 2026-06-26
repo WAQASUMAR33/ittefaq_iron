@@ -6312,8 +6312,8 @@ function SalesPageContent() {
                                 const netReturn = productTotal - labour - shipping - discount;
                                 const totalRefund = parseFloat(currentBillData.payment || 0);
                                 const prevBal = parseFloat(currentBillData.previous_customer_balance ?? currentBillData.customer?.cus_balance ?? 0);
-                                // Balance after return credit applied
-                                const newBal = prevBal - netReturn;
+                                // Balance after return credit AND payment applied
+                                const newBal = prevBal - netReturn + totalRefund;
                                 return (
                                   <>
                                     <TableRow>
@@ -6393,31 +6393,32 @@ function SalesPageContent() {
                             {currentBillData?.is_return ? (
                               // ── SALE RETURN right panel (Urdu) ──
                               (() => {
+                                const productTotal = parseFloat(currentBillData.total_amount || 0);
                                 const labour = parseFloat(currentBillData.labour_charges || 0);
                                 const delivery = parseFloat(currentBillData.shipping_amount || 0);
                                 const discount = parseFloat(currentBillData.discount || 0);
-                                // billAmt = net return (items - labour - delivery - discount)
-                                const billAmt = parseFloat(currentBillData.total_amount || 0) - labour - delivery - discount;
+                                // netReturn = items - labour - delivery - discount
+                                const netReturn = productTotal - labour - delivery - discount;
                                 const cash = parseFloat(currentBillData.cash_refund || currentBillData.cash_payment || 0);
                                 const bank = parseFloat(currentBillData.bank_refund || currentBillData.bank_payment || 0);
                                 // remaining = net return not yet refunded
-                                const remaining = billAmt - (cash + bank);
+                                const remaining = netReturn - (cash + bank);
                                 return (
                                   <>
                                     <TableRow>
                                       <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رقم بل</TableCell>
-                                      <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(billAmt)}</TableCell>
+                                      <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(productTotal)}</TableCell>
                                     </TableRow>
                                     {labour > 0 && (
                                       <TableRow>
                                         <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>مزدوری</TableCell>
-                                        <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(labour)}</TableCell>
+                                        <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>-{fmtAmt(labour)}</TableCell>
                                       </TableRow>
                                     )}
                                     {delivery > 0 && (
                                       <TableRow>
                                         <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>کرایہ</TableCell>
-                                        <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(delivery)}</TableCell>
+                                        <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>-{fmtAmt(delivery)}</TableCell>
                                       </TableRow>
                                     )}
                                     {discount > 0 && (
@@ -6428,7 +6429,7 @@ function SalesPageContent() {
                                     )}
                                     <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                                       <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>کل واپسی رقم</TableCell>
-                                      <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(billAmt)}</TableCell>
+                                      <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>{fmtAmt(netReturn)}</TableCell>
                                     </TableRow>
                                     <TableRow>
                                       <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>نقد</TableCell>
