@@ -3964,7 +3964,8 @@ function SalesPageContent() {
                       openOnFocus={true}
                       selectOnFocus={true}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
+                        if ((e.key === 'Enter' || e.key === 'Tab') && !e.shiftKey) {
+                          e.preventDefault();
                           setTimeout(() => {
                             const customerInput = document.getElementById('customer-search-dropdown-input');
                             if (customerInput) {
@@ -4617,7 +4618,7 @@ function SalesPageContent() {
               <TableContainer component={Paper} sx={{ mb: 2, border: '1px solid #e9ecef' }}>
                 <Table size="small">
                   <TableHead>
-                    <TableRow sx={{ bgcolor: '#2e7d32' }}>
+                    <TableRow sx={{ bgcolor: '#2e7d32', '& th': { bgcolor: '#2e7d32 !important' } }}>
                       <TableCell sx={{ fontWeight: 'bold', py: 1, color: 'white' }}>S. No</TableCell>
                       <TableCell sx={{ fontWeight: 'bold', py: 1, color: 'white' }}>Store</TableCell>
                       <TableCell sx={{ fontWeight: 'bold', py: 1, color: 'white' }}>Product</TableCell>
@@ -4631,7 +4632,7 @@ function SalesPageContent() {
                   <TableBody>
                     {productTableData.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
+                        <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
                           <Typography variant="body2" color="text.secondary">
                             No products added yet
                           </Typography>
@@ -4811,7 +4812,7 @@ function SalesPageContent() {
                       })
                     )}
                     {productTableData.length > 0 && (
-                      <TableRow sx={{ bgcolor: '#2e7d32', borderTop: '2px solid #dee2e6' }}>
+                      <TableRow sx={{ bgcolor: '#2e7d32', borderTop: '2px solid #dee2e6', '& td': { bgcolor: '#2e7d32 !important' } }}>
                         <TableCell colSpan={6} sx={{ py: 2, fontWeight: 'bold', textAlign: 'right', color: 'white' }}>
                           Total Amount:
                         </TableCell>
