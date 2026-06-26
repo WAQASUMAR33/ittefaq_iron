@@ -1144,7 +1144,7 @@ function PurchasesPageContent() {
       qnty: '1',
       unit_rate: (product.pro_sale_price || 0).toString(), // maintain sale rate here
       crate: (product.pro_crate || product.pro_cost_price || product.pro_sale_price || 0).toString(), // prioritized cost rate for purchase
-      cost_rate: product.pro_cost_price ? String(product.pro_cost_price) : (product.pro_crate ? String(product.pro_crate) : (product.pro_sale_price ? String(product.pro_sale_price) : ''))
+      cost_rate: (product.pro_crate || product.pro_cost_price || product.pro_sale_price || 0).toString()
     });
   };
 
@@ -3716,7 +3716,7 @@ function PurchasesPageContent() {
                         size="small"
                         type="number"
                         value={productFormData.crate || productFormData.unit_rate}
-                        onChange={(e) => setProductFormData(prev => ({ ...prev, crate: e.target.value }))}
+                        onChange={(e) => setProductFormData(prev => ({ ...prev, crate: e.target.value, cost_rate: e.target.value }))}
                         onFocus={(e) => e.target.select()}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
