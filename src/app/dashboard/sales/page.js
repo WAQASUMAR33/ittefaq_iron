@@ -3876,7 +3876,7 @@ function SalesPageContent() {
                   borderRadius: 2,
                   background: billType === 'SALE_RETURN'
                     ? 'linear-gradient(45deg, #c62828 30%, #ef5350 90%)' // Red for Return
-                    : 'linear-gradient(45deg, #1976d2 30%, #2196f3 90%)', // Blue for Sale
+                    : 'linear-gradient(45deg, #047857 30%, #10b981 90%)', // Green for Sale
                   boxShadow: '0 3px 5px 2px rgba(0,0,0,0.1)',
                   color: 'white',
                   transition: 'all 0.3s ease',
@@ -3945,12 +3945,13 @@ function SalesPageContent() {
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2, mb: 3, p: 2, bgcolor: '#f5f5f5', borderRadius: 1 }}>
                   
                   {/* Left Side: Customer Type Dropdown Filter */}
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1 }}>
                     <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'black', whiteSpace: 'nowrap' }}>
                       Customer Type:
                     </Typography>
                     <Autocomplete
                       size="small"
+                      sx={{ minWidth: 450 }}
                       options={customerTypes || []}
                       getOptionLabel={(option) => option.cus_type_title || ''}
                       value={selectedCustomerTypeFilter}
@@ -3977,7 +3978,7 @@ function SalesPageContent() {
                           variant="outlined"
                           sx={{
                             bgcolor: 'white',
-                            width: 250,
+                            minWidth: 450,
                             '& .MuiInputBase-input': {
                               fontWeight: 'bold',
                               color: 'black'
@@ -4089,7 +4090,11 @@ function SalesPageContent() {
                     <Autocomplete
                       fullWidth
                       size="small"
-                      sx={{ minWidth: 450 }}
+                      sx={{ 
+                        minWidth: 450,
+                        '& .MuiAutocomplete-popupIndicator': { color: 'white' },
+                        '& .MuiAutocomplete-clearIndicator': { color: 'white' }
+                      }}
                       onKeyDown={(e) => {
                         if ((e.key === 'Tab' || e.key === 'Enter') && !e.shiftKey) {
                           e.preventDefault();
@@ -4169,16 +4174,18 @@ function SalesPageContent() {
                           placeholder="Search by name, phone, address, city, reference"
                           onFocus={(e) => e.target.select()}
                           sx={{
-                            bgcolor: '#e8f5e9',
+                            bgcolor: '#2e7d32',
                             minWidth: 450,
+                            borderRadius: 1,
                             '& .MuiOutlinedInput-root': {
                               fontSize: '1.1rem',
+                              color: 'white',
                               '& fieldset': {
-                                borderColor: '#4caf50',
+                                borderColor: '#1b5e20',
                                 borderWidth: '2px'
                               },
                               '&:hover fieldset': {
-                                borderColor: '#2e7d32'
+                                borderColor: '#1b5e20'
                               },
                               '&.Mui-focused fieldset': {
                                 borderColor: '#1b5e20'
@@ -4186,7 +4193,11 @@ function SalesPageContent() {
                             },
                             '& .MuiInputBase-input': {
                               fontWeight: 'bold',
-                              color: '#1b5e20'
+                              color: 'white',
+                              '&::placeholder': {
+                                color: 'rgba(255, 255, 255, 0.7)',
+                                opacity: 1
+                              }
                             }
                           }}
                         />
