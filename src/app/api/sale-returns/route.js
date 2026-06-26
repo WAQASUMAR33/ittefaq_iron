@@ -444,11 +444,11 @@ export async function POST(request) {
             l_id: l_id_sr,
             cus_id,
             opening_balance: customer.cus_balance,
-            debit_amount: grandTotal, // Grand total with all charges
-            credit_amount: 0,
+            debit_amount: 0,
+            credit_amount: grandTotal, // Sale return reduces customer balance (credit)
             closing_balance: customer.cus_balance - grandTotal,
             bill_no: saleReturn.return_id.toString(),
-            trnx_type: 'DEBIT',
+            trnx_type: 'CREDIT',
             details: `Sale Return - Product: ${computedTotal}, Delivery: +${shippingAmount}, Labour: +${labourChargesAmount}, Discount: -${discountAmount}, Net: ${grandTotal}`,
             payments: 0,
             updated_by
@@ -478,17 +478,18 @@ export async function POST(request) {
             affectedCusIds.push(cashAccount.cus_id);
 
             // Ledger entry: Cash account DEBIT (money going out reduces cash balance)
+            // Ledger entry: Cash account DEBIT (money going out reduces cash balance, Debit column entry, type CREDIT)
             const l_id_cash_out = await getNextId('ledger', 'l_id', tx);
             await tx.ledger.create({
               data: {
                 l_id: l_id_cash_out,
                 cus_id: cashAccount.cus_id,
                 opening_balance: cashAccount.cus_balance,
-                debit_amount: 0,
-                credit_amount: cashRefund, // Cash decreases (credit)
+                debit_amount: cashRefund,
+                credit_amount: 0,
                 closing_balance: cashAccount.cus_balance - cashRefund,
                 bill_no: saleReturn.return_id.toString(),
-                trnx_type: 'DEBIT',
+                trnx_type: 'CREDIT',
                 details: `Refund Paid Out (CASH) - Sale Return #${saleReturn.return_id} - Amount: ${cashRefund}`,
                 payments: cashRefund,
                 updated_by
@@ -505,7 +506,7 @@ export async function POST(request) {
               }
             });
 
-            // Entry 2b: CUSTOMER Balance Update after CASH Refund (immediately after cash account)
+            // Entry 2b: CUSTOMER Balance Update after CASH Refund (immediately after cash account, Debit column, type DEBIT)
             const customerAfterCash = customer.cus_balance - grandTotal + cashRefund;
             const l_id_cus_cash = await getNextId('ledger', 'l_id', tx);
             await tx.ledger.create({
@@ -513,11 +514,11 @@ export async function POST(request) {
                 l_id: l_id_cus_cash,
                 cus_id,
                 opening_balance: customer.cus_balance - grandTotal, // Balance after main return
-                debit_amount: 0,
-                credit_amount: cashRefund, // Cash payment refund credited to customer
+                debit_amount: cashRefund,
+                credit_amount: 0,
                 closing_balance: customerAfterCash,
                 bill_no: saleReturn.return_id.toString(),
-                trnx_type: 'CREDIT',
+                trnx_type: 'DEBIT',
                 details: `Customer Balance Update - CASH Refund Received: ${cashRefund} for Sale Return #${saleReturn.return_id}`,
                 payments: 0,
                 updated_by
@@ -553,17 +554,18 @@ export async function POST(request) {
             affectedCusIds.push(bankAccount.cus_id);
 
             // Ledger entry: Bank account DEBIT (money going out reduces bank balance)
+            // Ledger entry: Bank account DEBIT (money going out reduces bank balance, Debit column, type CREDIT)
             const l_id_bank_out = await getNextId('ledger', 'l_id', tx);
             await tx.ledger.create({
               data: {
                 l_id: l_id_bank_out,
                 cus_id: bankAccount.cus_id,
                 opening_balance: bankAccount.cus_balance,
-                debit_amount: 0,
-                credit_amount: bankRefund, // Bank decreases (credit)
+                debit_amount: bankRefund,
+                credit_amount: 0,
                 closing_balance: bankAccount.cus_balance - bankRefund,
                 bill_no: saleReturn.return_id.toString(),
-                trnx_type: 'DEBIT',
+                trnx_type: 'CREDIT',
                 details: `Refund Paid Out (BANK) - Sale Return #${saleReturn.return_id} - Amount: ${bankRefund}`,
                 payments: bankRefund,
                 updated_by
@@ -580,7 +582,7 @@ export async function POST(request) {
               }
             });
 
-            // Entry 3b: CUSTOMER Balance Update after BANK Refund (immediately after bank account)
+            // Entry 3b: CUSTOMER Balance Update after BANK Refund (immediately after bank account, Debit column, type DEBIT)
             const customerAfterBank = customer.cus_balance - grandTotal + cashRefund + bankRefund;
             const l_id_cus_bank = await getNextId('ledger', 'l_id', tx);
             await tx.ledger.create({
@@ -588,11 +590,11 @@ export async function POST(request) {
                 l_id: l_id_cus_bank,
                 cus_id,
                 opening_balance: customer.cus_balance - grandTotal + cashRefund, // Balance after cash refund
-                debit_amount: 0,
-                credit_amount: bankRefund, // Bank payment refund credited to customer
+                debit_amount: bankRefund,
+                credit_amount: 0,
                 closing_balance: customerAfterBank,
                 bill_no: saleReturn.return_id.toString(),
-                trnx_type: 'CREDIT',
+                trnx_type: 'DEBIT',
                 details: `Customer Balance Update - BANK Refund Received: ${bankRefund} for Sale Return #${saleReturn.return_id}`,
                 payments: 0,
                 updated_by
