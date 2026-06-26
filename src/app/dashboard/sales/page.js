@@ -5482,38 +5482,66 @@ function SalesPageContent() {
                     <Box sx={{
                       mt: 2,
                       p: 2,
-                      bgcolor: 'primary.light',
+                      bgcolor: 'primary.main',
                       borderRadius: 1,
                       display: 'flex',
-                      alignItems: 'center',
-                      gap: 1
+                      gap: 2,
+                      width: '100%',
+                      alignItems: 'center'
                     }}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main', minWidth: '140px' }}>
-                        BALANCE
-                      </Typography>
-                      <TextField
-                        size="small"
-                        type="number"
-                        value={calculateBalance().toFixed(0)}
-                        sx={{
-                          bgcolor: 'white',
-                          '& .MuiInputBase-input': {
-                            fontWeight: 'bold',
-                            fontSize: '1.1rem',
-                            color: '#000000 !important',
-                            '-webkit-text-fill-color': '#000000 !important',
-                            padding: '8px'
-                          },
-                          '& .MuiInputBase-input::placeholder': {
-                            color: '#000000',
-                            '-webkit-text-fill-color': '#000000 !important',
-                            fontWeight: 'bold',
-                            opacity: 1
-                          },
-                          flex: 1
-                        }}
-                        disabled
-                      />
+                      {/* BILL BALANCE */}
+                      <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'white', minWidth: '105px' }}>
+                          BILL BALANCE
+                        </Typography>
+                        <TextField
+                          size="small"
+                          type="number"
+                          value={calculateBalance().toFixed(0)}
+                          sx={{
+                            bgcolor: 'white',
+                            borderRadius: 1,
+                            '& .MuiInputBase-input': {
+                              fontWeight: 'bold',
+                              fontSize: '1.1rem',
+                              color: '#000000 !important',
+                              '-webkit-text-fill-color': '#000000 !important',
+                              padding: '8px'
+                            },
+                            flex: 1
+                          }}
+                          disabled
+                          inputProps={{ readOnly: true }}
+                        />
+                      </Box>
+
+                      {/* TOTAL BALANCE */}
+                      <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'white', minWidth: '115px' }}>
+                          TOTAL BALANCE
+                        </Typography>
+                        <TextField
+                          size="small"
+                          type="number"
+                          value={(
+                            parseFloat(formSelectedCustomer?.cus_balance || 0) + calculateBalance()
+                          ).toFixed(0)}
+                          sx={{
+                            bgcolor: 'white',
+                            borderRadius: 1,
+                            '& .MuiInputBase-input': {
+                              fontWeight: 'bold',
+                              fontSize: '1.1rem',
+                              color: '#000000 !important',
+                              '-webkit-text-fill-color': '#000000 !important',
+                              padding: '8px'
+                            },
+                            flex: 1
+                          }}
+                          disabled
+                          inputProps={{ readOnly: true }}
+                        />
+                      </Box>
                     </Box>
                   )}
                 </Box>
