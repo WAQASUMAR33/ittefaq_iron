@@ -1305,9 +1305,9 @@ function PurchasesPageContent() {
     const discount = parseFloat(formData.discount || 0);
 
     const unloadingAmount = parseFloat(formData.unloading_amount || 0);
-    // Transport and labour only added to supplier total when "Include Labour Charges" checkbox is checked
-    const transportAmount = formData.include_labour ? parseFloat(formData.transport_amount || 0) : 0;
-    const labourAmount = formData.include_labour ? parseFloat(formData.labour_amount || 0) : 0;
+    // Transport and labour always added to supplier total
+    const transportAmount = parseFloat(formData.transport_amount || 0);
+    const labourAmount = parseFloat(formData.labour_amount || 0);
 
     return Number((totalAmount + unloadingAmount + transportAmount + labourAmount - discount).toFixed(2));
   };
