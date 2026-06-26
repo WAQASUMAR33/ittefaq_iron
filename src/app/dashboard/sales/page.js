@@ -3959,16 +3959,18 @@ function SalesPageContent() {
                         setSelectedCustomerTypeFilter(newValue);
                       }}
                       isOptionEqualToValue={(option, value) => option.cus_type_id === value?.cus_type_id}
-                      autoHighlight
-                      openOnFocus
-                      selectOnFocus
+                      autoSelect={true}
+                      autoHighlight={true}
+                      openOnFocus={true}
+                      selectOnFocus={true}
                       onKeyDown={(e) => {
-                        if ((e.key === 'Tab' || e.key === 'Enter') && !e.shiftKey) {
-                          e.preventDefault();
-                          const customerInput = document.getElementById('customer-search-dropdown-input');
-                          if (customerInput) {
-                            customerInput.focus();
-                          }
+                        if (e.key === 'Enter') {
+                          setTimeout(() => {
+                            const customerInput = document.getElementById('customer-search-dropdown-input');
+                            if (customerInput) {
+                              customerInput.focus();
+                            }
+                          }, 50);
                         }
                       }}
                       renderInput={(params) => (
@@ -4615,7 +4617,7 @@ function SalesPageContent() {
               <TableContainer component={Paper} sx={{ mb: 2, border: '1px solid #e9ecef' }}>
                 <Table size="small">
                   <TableHead>
-                    <TableRow sx={{ bgcolor: '#343a40' }}>
+                    <TableRow sx={{ bgcolor: '#2e7d32' }}>
                       <TableCell sx={{ fontWeight: 'bold', py: 1, color: 'white' }}>S. No</TableCell>
                       <TableCell sx={{ fontWeight: 'bold', py: 1, color: 'white' }}>Store</TableCell>
                       <TableCell sx={{ fontWeight: 'bold', py: 1, color: 'white' }}>Product</TableCell>
@@ -4809,7 +4811,7 @@ function SalesPageContent() {
                       })
                     )}
                     {productTableData.length > 0 && (
-                      <TableRow sx={{ bgcolor: '#343a40', borderTop: '2px solid #dee2e6' }}>
+                      <TableRow sx={{ bgcolor: '#2e7d32', borderTop: '2px solid #dee2e6' }}>
                         <TableCell colSpan={6} sx={{ py: 2, fontWeight: 'bold', textAlign: 'right', color: 'white' }}>
                           Total Amount:
                         </TableCell>
