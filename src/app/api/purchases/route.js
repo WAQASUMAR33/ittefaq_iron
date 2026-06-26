@@ -967,7 +967,7 @@ export async function POST(request) {
             if (i === 0) allocate = parseFloat((perAccount + remainder).toFixed(2));
 
             const cargoOpeningBalance = await resolveOpeningBalance(tx, cargoAcc.cus_id, newPurchase.created_at);
-            const cargoEntry = createPayableLedgerEntry({
+            const cargoEntry = createLedgerEntry({
               cus_id: cargoAcc.cus_id,
               opening_balance: cargoOpeningBalance,
               debit_amount: 0,
@@ -1041,13 +1041,13 @@ export async function POST(request) {
             ? priorCashEntries[priorCashEntries.length - 1].closing_balance
             : await resolveOpeningBalance(tx, incityCashAccount.cus_id, newPurchase.created_at);
 
-          const incityCashEntry = createLedgerEntry({
+          const incityCashEntry = createPayableLedgerEntry({
             cus_id: incityCashAccount.cus_id,
             opening_balance: incityOpeningBalance,
-            debit_amount: 0,
-            credit_amount: incityTotal,
+            debit_amount: incityTotal,
+            credit_amount: 0,
             bill_no: newPurchase.pur_id.toString(),
-            trnx_type: 'DEBIT',
+            trnx_type: 'CREDIT',
             details: `Incity Charges Payment - Purchase #${newPurchase.pur_id}${invoice_number ? ` (Inv: ${invoice_number})` : ''}`,
             payments: incityTotal,
             cash_payment: incityTotal,
@@ -1507,7 +1507,7 @@ export async function PUT(request) {
             if (i === 0) allocatePUT = parseFloat((perAccountPUT + remainderPUT).toFixed(2));
 
             const cargoOpeningBalance = await getOpeningBalanceForAccount(cargoAcc.cus_id);
-            const cargoEntry = createPayableLedgerEntry({
+            const cargoEntry = createLedgerEntry({
               cus_id: cargoAcc.cus_id,
               opening_balance: cargoOpeningBalance,
               debit_amount: 0,
@@ -1625,7 +1625,7 @@ export async function PUT(request) {
                 ? priorCashEntries[priorCashEntries.length - 1].closing_balance
                 : await getOpeningBalanceForAccount(credit_account_id);
 
-              const cashLabourEntryPUT = createLedgerEntry({
+              const cashLabourEntryPUT = createPayableLedgerEntry({
                 cus_id: credit_account_id,
                 opening_balance: cashLabourOpeningBalance,
                 debit_amount: incityLabourCashPUT,
@@ -1648,7 +1648,7 @@ export async function PUT(request) {
                 ? priorBankEntries[priorBankEntries.length - 1].closing_balance
                 : await getOpeningBalanceForAccount(bankAccountIdInt);
 
-              const bankLabourEntryPUT = createLedgerEntry({
+              const bankLabourEntryPUT = createPayableLedgerEntry({
                 cus_id: bankAccountIdInt,
                 opening_balance: bankLabourOpeningBalance,
                 debit_amount: incityLabourBankPUT,
@@ -1730,13 +1730,13 @@ export async function PUT(request) {
                 ? priorCashEntries[priorCashEntries.length - 1].closing_balance
                 : await getOpeningBalanceForAccount(credit_account_id);
 
-              const cashDeliveryEntryPUT = createLedgerEntry({
+              const cashDeliveryEntryPUT = createPayableLedgerEntry({
                 cus_id: credit_account_id,
                 opening_balance: cashDeliveryOpeningBalance,
-                debit_amount: 0,
-                credit_amount: incityDeliveryCashPUT,
+                debit_amount: incityDeliveryCashPUT,
+                credit_amount: 0,
                 bill_no: id.toString(),
-                trnx_type: 'DEBIT',
+                trnx_type: 'CREDIT',
                 details: `Cash Payment for Incity Delivery - Purchase Update #${id}`,
                 payments: incityDeliveryCashPUT,
                 cash_payment: incityDeliveryCashPUT,
@@ -1753,13 +1753,13 @@ export async function PUT(request) {
                 ? priorBankEntries[priorBankEntries.length - 1].closing_balance
                 : await getOpeningBalanceForAccount(bankAccountIdInt);
 
-              const bankDeliveryEntryPUT = createLedgerEntry({
+              const bankDeliveryEntryPUT = createPayableLedgerEntry({
                 cus_id: bankAccountIdInt,
                 opening_balance: bankDeliveryOpeningBalance,
-                debit_amount: 0,
-                credit_amount: incityDeliveryBankPUT,
+                debit_amount: incityDeliveryBankPUT,
+                credit_amount: 0,
                 bill_no: id.toString(),
-                trnx_type: 'DEBIT',
+                trnx_type: 'CREDIT',
                 details: `Bank Payment for Incity Delivery - Purchase Update #${id}`,
                 payments: incityDeliveryBankPUT,
                 cash_payment: 0,
