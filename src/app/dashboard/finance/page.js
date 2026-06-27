@@ -358,6 +358,51 @@ export default function FinancePage() {
   const [isSendingLedgerWhatsApp, setIsSendingLedgerWhatsApp] = useState(false);
   const [isSendingSaleWhatsApp, setIsSendingSaleWhatsApp] = useState(false);
 
+  // Inline Cell Editing States & Handlers
+  const [inlineEditing, setInlineEditing] = useState(null); // { l_id, field, value }
+  const [savingInline, setSavingInline] = useState(false);
+
+  const handleInlineSave = async (entry, field, newValue) => {
+    if (savingInline) return;
+    setSavingInline(true);
+    try {
+      const parsedValue = parseFloat(newValue) || 0;
+      const payload = {
+        id: entry.l_id,
+        cus_id: entry.cus_id,
+        direct_edit: true
+      };
+
+      if (field === 'credit') {
+        payload.credit_amount = parsedValue;
+      } else if (field === 'debit') {
+        payload.debit_amount = parsedValue;
+      } else if (field === 'balance') {
+        payload.closing_balance = parsedValue;
+      }
+
+      const res = await fetch('/api/ledger', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        // Refresh the ledger data to recalculate running balances
+        await fetchData();
+      } else {
+        const errData = await res.json();
+        alert('❌ Error: ' + (errData.message || 'Failed to update entry'));
+      }
+    } catch (error) {
+      console.error('Error saving inline edit:', error);
+      alert('❌ Error: ' + error.message);
+    } finally {
+      setInlineEditing(null);
+      setSavingInline(false);
+    }
+  };
+
   // Print Ledger Dialog states
   const [showPrintLedgerDialog, setShowPrintLedgerDialog] = useState(false);
   const [printFromDate, setPrintFromDate] = useState('');
@@ -2876,10 +2921,47 @@ export default function FinancePage() {
                                  borderColor: 'divider',
                                  textAlign: 'right',
                                  bgcolor: rowBgColor,
-                                 fontWeight: 700
+                                 fontWeight: 700,
+                                 cursor: 'pointer',
+                                 position: 'relative'
+                               }}
+                               onClick={(e) => {
+                                 e.stopPropagation();
+                                 if (inlineEditing?.l_id === entry.l_id && inlineEditing?.field === 'credit') return;
+                                 setInlineEditing({
+                                   l_id: entry.l_id,
+                                   field: 'credit',
+                                   value: (entry.credit_amount || 0).toString()
+                                 });
                                }}
                              >
-                               {displayAmts.credit > 0 ? (
+                               {inlineEditing?.l_id === entry.l_id && inlineEditing?.field === 'credit' ? (
+                                 <input
+                                   type="number"
+                                   defaultValue={inlineEditing.value}
+                                   autoFocus
+                                   onBlur={(e) => handleInlineSave(entry, 'credit', e.target.value)}
+                                   onKeyDown={(e) => {
+                                     if (e.key === 'Enter') {
+                                       handleInlineSave(entry, 'credit', e.target.value);
+                                     } else if (e.key === 'Escape') {
+                                       setInlineEditing(null);
+                                     }
+                                   }}
+                                   onClick={(e) => e.stopPropagation()}
+                                   onDoubleClick={(e) => e.stopPropagation()}
+                                   style={{
+                                     width: '90px',
+                                     textAlign: 'right',
+                                     padding: '2px 4px',
+                                     border: '1px solid #16a34a',
+                                     borderRadius: '4px',
+                                     fontWeight: 700,
+                                     fontFamily: 'monospace',
+                                     outline: 'none'
+                                   }}
+                                 />
+                               ) : displayAmts.credit > 0 ? (
                                  <Typography
                                    variant="body2"
                                    sx={{
@@ -2905,10 +2987,47 @@ export default function FinancePage() {
                                  borderColor: 'divider',
                                  textAlign: 'right',
                                  bgcolor: rowBgColor,
-                                 fontWeight: 700
+                                 fontWeight: 700,
+                                 cursor: 'pointer',
+                                 position: 'relative'
+                               }}
+                               onClick={(e) => {
+                                 e.stopPropagation();
+                                 if (inlineEditing?.l_id === entry.l_id && inlineEditing?.field === 'debit') return;
+                                 setInlineEditing({
+                                   l_id: entry.l_id,
+                                   field: 'debit',
+                                   value: (entry.debit_amount || 0).toString()
+                                 });
                                }}
                              >
-                               {displayAmts.debit > 0 ? (
+                               {inlineEditing?.l_id === entry.l_id && inlineEditing?.field === 'debit' ? (
+                                 <input
+                                   type="number"
+                                   defaultValue={inlineEditing.value}
+                                   autoFocus
+                                   onBlur={(e) => handleInlineSave(entry, 'debit', e.target.value)}
+                                   onKeyDown={(e) => {
+                                     if (e.key === 'Enter') {
+                                       handleInlineSave(entry, 'debit', e.target.value);
+                                     } else if (e.key === 'Escape') {
+                                       setInlineEditing(null);
+                                     }
+                                   }}
+                                   onClick={(e) => e.stopPropagation()}
+                                   onDoubleClick={(e) => e.stopPropagation()}
+                                   style={{
+                                     width: '90px',
+                                     textAlign: 'right',
+                                     padding: '2px 4px',
+                                     border: '1px solid #dc2626',
+                                     borderRadius: '4px',
+                                     fontWeight: 700,
+                                     fontFamily: 'monospace',
+                                     outline: 'none'
+                                   }}
+                                 />
+                               ) : displayAmts.debit > 0 ? (
                                  <Typography
                                    variant="body2"
                                    sx={{
@@ -2928,22 +3047,67 @@ export default function FinancePage() {
                              </TableCell>
 
                             {/* Running Balance */}
-                             <TableCell sx={{ textAlign: 'right', bgcolor: rowBgColor }}>
-                               <Typography
-                                 variant="body2"
-                                 sx={{
-                                   fontWeight: 700,
-                                   fontFamily: 'monospace',
-                                   color: '#1d4ed8',
-                                   bgcolor: '#eff6ff',
-                                   px: 1,
-                                   py: 0.5,
-                                   borderRadius: 1,
-                                   fontSize: '0.95rem'
-                                 }}
-                               >
-                                 {fmtAmt(entry.closing_balance)}
-                               </Typography>
+                             <TableCell
+                               sx={{
+                                 textAlign: 'right',
+                                 bgcolor: rowBgColor,
+                                 cursor: 'pointer',
+                                 position: 'relative'
+                               }}
+                               onClick={(e) => {
+                                 e.stopPropagation();
+                                 if (inlineEditing?.l_id === entry.l_id && inlineEditing?.field === 'balance') return;
+                                 setInlineEditing({
+                                   l_id: entry.l_id,
+                                   field: 'balance',
+                                   value: (entry.closing_balance || 0).toString()
+                                 });
+                               }}
+                             >
+                               {inlineEditing?.l_id === entry.l_id && inlineEditing?.field === 'balance' ? (
+                                 <input
+                                   type="number"
+                                   defaultValue={inlineEditing.value}
+                                   autoFocus
+                                   onBlur={(e) => handleInlineSave(entry, 'balance', e.target.value)}
+                                   onKeyDown={(e) => {
+                                     if (e.key === 'Enter') {
+                                       handleInlineSave(entry, 'balance', e.target.value);
+                                     } else if (e.key === 'Escape') {
+                                       setInlineEditing(null);
+                                     }
+                                   }}
+                                   onClick={(e) => e.stopPropagation()}
+                                   onDoubleClick={(e) => e.stopPropagation()}
+                                   style={{
+                                     width: '100px',
+                                     textAlign: 'right',
+                                     padding: '2px 4px',
+                                     border: '1px solid #1d4ed8',
+                                     borderRadius: '4px',
+                                     fontWeight: 700,
+                                     fontFamily: 'monospace',
+                                     outline: 'none'
+                                   }}
+                                 />
+                               ) : (
+                                 <Typography
+                                   variant="body2"
+                                   sx={{
+                                     fontWeight: 700,
+                                     fontFamily: 'monospace',
+                                     color: '#1d4ed8',
+                                     bgcolor: '#eff6ff',
+                                     px: 1,
+                                     py: 0.5,
+                                     borderRadius: 1,
+                                     fontSize: '0.95rem',
+                                     display: 'inline-block'
+                                   }}
+                                 >
+                                   {fmtAmt(entry.closing_balance)}
+                                 </Typography>
+                               )}
                              </TableCell>
                           </TableRow>
                         );

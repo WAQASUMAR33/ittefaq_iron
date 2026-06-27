@@ -328,21 +328,148 @@ export async function PUT(request) {
       cus_id,
       debit_amount = 0,
       credit_amount = 0,
+      closing_balance,
       bill_no,
       trnx_type,
       details,
-      updated_by
+      updated_by,
+      direct_edit = false
     } = body;
 
     if (!id)     return errorResponse('Ledger ID is required');
     if (!cus_id) return errorResponse('Customer ID is required');
-    if (parseFloat(debit_amount) < 0 || parseFloat(credit_amount) < 0) {
-      return errorResponse('Debit and credit amounts must be non-negative');
-    }
 
     // Fetch existing entry
     const existingLedger = await prisma.ledger.findUnique({ where: { l_id: id } });
     if (!existingLedger) return errorResponse('Ledger entry not found', 404);
+
+    if (direct_edit) {
+      const result = await prisma.$transaction(async (tx) => {
+        // 1. Update the target ledger entry with the new values
+        const updateData = {};
+        if (debit_amount !== undefined) updateData.debit_amount = parseFloat(debit_amount || 0);
+        if (credit_amount !== undefined) updateData.credit_amount = parseFloat(credit_amount || 0);
+        if (closing_balance !== undefined) updateData.closing_balance = parseFloat(closing_balance || 0);
+        if (details !== undefined) updateData.details = details;
+        if (bill_no !== undefined) updateData.bill_no = bill_no ? String(bill_no) : null;
+        if (updated_by !== undefined) updateData.updated_by = updated_by;
+
+        const updatedEntry = await tx.ledger.update({
+          where: { l_id: id },
+          data: updateData
+        });
+
+        // 2. Fetch all ledger entries for this customer to recalculate running balances
+        const customer = await tx.customer.findUnique({
+          where: { cus_id: existingLedger.cus_id },
+          include: { customer_category: true }
+        });
+        if (!customer) throw new Error('Customer not found');
+
+        const categoryTitle = (customer.customer_category?.cus_cat_title || '').toLowerCase();
+
+        const entries = await tx.ledger.findMany({
+          where: { cus_id: existingLedger.cus_id },
+          orderBy: [
+            { created_at: 'asc' },
+            { l_id: 'asc' }
+          ]
+        });
+
+        // Re-sort in JS to match standard chronological order: created_at ASC → bill_no ASC → l_id ASC
+        entries.sort((a, b) => {
+          const timeDiff = a.created_at.getTime() - b.created_at.getTime();
+          if (timeDiff !== 0) return timeDiff;
+          const billA = parseInt(a.bill_no) || 0;
+          const billB = parseInt(b.bill_no) || 0;
+          if (billA !== billB) return billA - billB;
+          return a.l_id - b.l_id;
+        });
+
+        let runningBalance = entries.length > 0 ? parseFloat(entries[0].opening_balance || 0) : 0;
+        
+        for (let i = 0; i < entries.length; i++) {
+          const entry = entries[i];
+          let opening = runningBalance;
+          let closing = entry.closing_balance;
+
+          // If this is the entry we just updated and user provided a new closing balance, lock it
+          if (entry.l_id === id && closing_balance !== undefined) {
+            opening = runningBalance;
+            closing = parseFloat(closing_balance || 0);
+          } else {
+            // Otherwise calculate chronologically
+            opening = runningBalance;
+            const debit = parseFloat(entry.debit_amount || 0);
+            const credit = parseFloat(entry.credit_amount || 0);
+            let change = 0;
+            if (categoryTitle.includes('cash') || categoryTitle.includes('bank')) {
+              if (entry.trnx_type === 'DEBIT') {
+                change = debit - credit;
+              } else {
+                change = credit - debit;
+              }
+            } else {
+              change = debit - credit;
+            }
+            closing = opening + change;
+          }
+
+          // Update entry in db if values changed
+          if (
+            Math.abs(parseFloat(entry.opening_balance) - opening) > 0.01 ||
+            Math.abs(parseFloat(entry.closing_balance) - closing) > 0.01 ||
+            entry.l_id === id // make sure the updated entry gets updated values
+          ) {
+            await tx.ledger.update({
+              where: { l_id: entry.l_id },
+              data: {
+                opening_balance: opening,
+                closing_balance: closing
+              }
+            });
+            entry.opening_balance = opening;
+            entry.closing_balance = closing;
+          }
+
+          runningBalance = closing;
+        }
+
+        // Update customer balance
+        await tx.customer.update({
+          where: { cus_id: existingLedger.cus_id },
+          data: { cus_balance: runningBalance }
+        });
+
+        return updatedEntry;
+      });
+
+      // Return complete entry
+      const completeLedger = await prisma.ledger.findUnique({
+        where: { l_id: result.l_id },
+        include: {
+          customer: {
+            select: {
+              cus_id: true,
+              cus_name: true,
+              cus_phone_no: true,
+              cus_category: true,
+              cus_type: true,
+              customer_category: { select: { cus_cat_title: true } },
+              customer_type: { select: { cus_type_title: true } }
+            }
+          },
+          updated_by_user: {
+            select: { user_id: true, full_name: true, role: true }
+          }
+        }
+      });
+      return NextResponse.json(completeLedger);
+    }
+
+    if (parseFloat(debit_amount) < 0 || parseFloat(credit_amount) < 0) {
+      return errorResponse('Debit and credit amounts must be non-negative');
+    }
 
     // Only payment/receiving entries may be edited here
     const NON_EDITABLE = ['SALE', 'SALE_RETURN', 'PURCHASE', 'PURCHASE_RETURN', 'ORDER'];
