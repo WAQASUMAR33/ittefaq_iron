@@ -1471,7 +1471,7 @@ export default function FinancePage() {
         const debit = displayAmts.debit > 0 ? fmtAmt(displayAmts.debit) : '';
         const credit = displayAmts.credit > 0 ? fmtAmt(displayAmts.credit) : '';
         const bal = fmtAmt(entry.closing_balance);
-        return [i + 1, date, type, account, desc, bill, credit, debit, bal];
+        return [entry.l_id, date, type, account, desc, bill, credit, debit, bal];
       });
 
       const totalDebit = finalLedgerEntries.reduce((s, e) => {
@@ -1485,7 +1485,7 @@ export default function FinancePage() {
 
       autoTable(doc, {
         startY: 112,
-        head: [['S#', 'Date & Time', 'Type', 'Account', 'Description', 'Credit (PKR)', 'Debit (PKR)', 'Balance (PKR)']],
+        head: [['L_ID', 'Date & Time', 'Type', 'Account', 'Description', 'Credit (PKR)', 'Debit (PKR)', 'Balance (PKR)']],
         body: rows,
         foot: [['', '', '', '', '', 'TOTALS', fmtAmt(totalCredit), fmtAmt(totalDebit), fmtAmt(balance)]],
         styles: { fontSize: 7.5, cellPadding: 3 },
@@ -2603,7 +2603,7 @@ export default function FinancePage() {
                             letterSpacing: 0.5
                           }}
                         >
-                          S.NO
+                          L_ID
                         </TableCell>
                         <TableCell
                           sx={{
@@ -2774,7 +2774,7 @@ export default function FinancePage() {
                                 bgcolor: rowBgColor
                               }}
                             >
-                              {index + 1}
+                              {entry.l_id}
                               <IconButton
                                 size="small"
                                 className="edit-icon"
