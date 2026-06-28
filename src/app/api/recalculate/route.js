@@ -3,8 +3,12 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-export async function GET() {
-  console.log('=== Starting Vercel-side balance recalculation ===');
+export async function GET(request) {
+  const { searchParams } = new URL(request.url);
+  const offset = parseInt(searchParams.get('offset') || '0');
+  const limit = parseInt(searchParams.get('limit') || '15');
+  
+  console.log(`=== Vercel-side balance recalculation batch: offset=${offset}, limit=${limit} ===`);
   const results = [];
 
   try {
@@ -18,7 +22,9 @@ export async function GET() {
     });
 
     const dirtyCusIds = payEntries.map(e => e.cus_id);
-    results.push(`Found ${dirtyCusIds.length} accounts with PAY- transactions to recalculate.`);
+    const batchCusIds = dirtyCusIds.slice(offset, offset + limit);
+
+    results.push(`Found total ${dirtyCusIds.length} dirty accounts. Processing batch of ${batchCusIds.length} (range: ${offset} to ${offset + limit}).`);
 
     // 2. Fetch cash and bank categories to check accounts
     const cashBankCats = await prisma.customerCategory.findMany({
@@ -31,8 +37,8 @@ export async function GET() {
     });
     const cashBankCatIds = cashBankCats.map(c => c.cus_cat_id);
 
-    // 3. For each dirty customer, recalculate balances
-    for (const cusId of dirtyCusIds) {
+    // 3. For each customer in this batch, recalculate balances
+    for (const cusId of batchCusIds) {
       const account = await prisma.customer.findUnique({
         where: { cus_id: cusId },
         include: { customer_category: true }
@@ -95,12 +101,11 @@ export async function GET() {
         data: { cus_balance: Number(runningBalance.toFixed(2)) }
       });
 
-      if (balanceUpdateCount > 0) {
-        results.push(`Updated ${balanceUpdateCount} entries for account ${account.cus_name} (ID: ${cusId}). Final balance: ${runningBalance.toFixed(2)}`);
-      }
+      results.push(`Processed ${account.cus_name} (ID: ${cusId}). Entries updated: ${balanceUpdateCount}. New balance: ${runningBalance.toFixed(2)}`);
     }
 
-    return NextResponse.json({ success: true, logs: results });
+    const hasMore = offset + limit < dirtyCusIds.length;
+    return NextResponse.json({ success: true, hasMore, nextOffset: offset + limit, totalDirty: dirtyCusIds.length, logs: results });
   } catch (error) {
     console.error('Recalculation API error:', error);
     return NextResponse.json({ success: false, error: error.message, logs: results }, { status: 500 });
