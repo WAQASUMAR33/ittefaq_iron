@@ -824,7 +824,7 @@ export default function FinancePage() {
     // Date range filter
     let matchesDate = true;
     if (startDate || endDate) {
-      const entryDateStr = entry.created_at.substring(0, 10); // YYYY-MM-DD
+      const entryDateStr = new Date(entry.created_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
       if (startDate) matchesDate = matchesDate && entryDateStr >= startDate;
       if (endDate) matchesDate = matchesDate && entryDateStr <= endDate;
     }
@@ -2928,7 +2928,7 @@ export default function FinancePage() {
                               }}
                             >
                               <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                {new Date(entry.created_at).toISOString().split('T')[0]}
+                                {new Date(entry.created_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' })}
                               </Typography>
                             </TableCell>
 
