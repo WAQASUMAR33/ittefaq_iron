@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getNextId } from '@/lib/id-helper';
 import { updateStoreStock } from '@/lib/storeStock';
-import { createLedgerEntry, createPayableLedgerEntry } from '@/lib/ledger-helper';
+import { createLedgerEntry } from '@/lib/ledger-helper';
 
 // Helper for JSON errors
 function errorResponse(message, status = 400) {
@@ -852,13 +852,13 @@ export async function POST(request) {
 
           const supplierForPayment = await tx.customer.findUnique({ where: { cus_id }, select: { cus_name: true } });
 
-          const bankEntry = createPayableLedgerEntry({
+          const bankEntry = createLedgerEntry({
             cus_id: bankAccountToUse.cus_id,
             opening_balance: bankOpeningBalance,
-            debit_amount: isReturn ? 0 : parseFloat(bank_payment),
-            credit_amount: isReturn ? parseFloat(bank_payment) : 0,
+            debit_amount: isReturn ? parseFloat(bank_payment) : 0,
+            credit_amount: isReturn ? 0 : parseFloat(bank_payment),
             bill_no: newPurchase.pur_id.toString(),
-            trnx_type: 'CREDIT',
+            trnx_type: isReturn ? 'DEBIT' : 'CREDIT',
             details: `${isReturn ? 'Refund from' : 'Payment to'} ${supplierForPayment?.cus_name || 'Supplier'} — Bank Account (${bankAccountToUse.cus_name})`,
             payments: parseFloat(bank_payment),
             cash_payment: 0,
@@ -894,13 +894,13 @@ export async function POST(request) {
 
         const supplierForPaymentCash = await tx.customer.findUnique({ where: { cus_id }, select: { cus_name: true } });
 
-        const cashEntry = createPayableLedgerEntry({
+        const cashEntry = createLedgerEntry({
           cus_id: effectiveCashAccountId,
           opening_balance: cashOpeningBalance,
-          debit_amount: isReturn ? 0 : cashPaymentAmount,
-          credit_amount: isReturn ? cashPaymentAmount : 0,
+          debit_amount: isReturn ? cashPaymentAmount : 0,
+          credit_amount: isReturn ? 0 : cashPaymentAmount,
           bill_no: newPurchase.pur_id.toString(),
-          trnx_type: 'CREDIT',
+          trnx_type: isReturn ? 'DEBIT' : 'CREDIT',
           details: `${isReturn ? 'Cash Refund from' : 'Payment to'} ${supplierForPaymentCash?.cus_name || 'Supplier'} — Cash Account${vehicle_no ? ` (Vehicle: ${vehicle_no})` : ''}`,
           payments: cashPaymentAmount,
           cash_payment: cashPaymentAmount,
@@ -1041,11 +1041,11 @@ export async function POST(request) {
             ? priorCashEntries[priorCashEntries.length - 1].closing_balance
             : await resolveOpeningBalance(tx, incityCashAccount.cus_id, newPurchase.created_at);
 
-          const incityCashEntry = createPayableLedgerEntry({
+          const incityCashEntry = createLedgerEntry({
             cus_id: incityCashAccount.cus_id,
             opening_balance: incityOpeningBalance,
-            debit_amount: incityTotal,
-            credit_amount: 0,
+            debit_amount: 0,
+            credit_amount: incityTotal,
             bill_no: newPurchase.pur_id.toString(),
             trnx_type: 'CREDIT',
             details: `Incity Charges Payment - Purchase #${newPurchase.pur_id}${invoice_number ? ` (Inv: ${invoice_number})` : ''}`,
@@ -1408,11 +1408,11 @@ export async function PUT(request) {
         const cashOpeningBalance = await getOpeningBalanceForAccount(credit_account_id);
         const supplierName = (await tx.customer.findUnique({ where: { cus_id }, select: { cus_name: true } }))?.cus_name || 'Supplier';
 
-        const cashEntry = createPayableLedgerEntry({
+        const cashEntry = createLedgerEntry({
           cus_id: credit_account_id,
           opening_balance: cashOpeningBalance,
-          debit_amount: cashPaymentAmt,
-          credit_amount: 0,
+          debit_amount: 0,
+          credit_amount: cashPaymentAmt,
           bill_no: id.toString(),
           trnx_type: 'CREDIT',
           details: `Cash Payment for Purchase Update to ${supplierName}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
@@ -1435,11 +1435,11 @@ export async function PUT(request) {
         const bankOpeningBalance = await getOpeningBalanceForAccount(bankAccIdForEntry);
         const supplierName = (await tx.customer.findUnique({ where: { cus_id }, select: { cus_name: true } }))?.cus_name || 'Supplier';
 
-        const bankEntry = createPayableLedgerEntry({
+        const bankEntry = createLedgerEntry({
           cus_id: bankAccIdForEntry,
           opening_balance: bankOpeningBalance,
-          debit_amount: bankPaymentAmt,
-          credit_amount: 0,
+          debit_amount: 0,
+          credit_amount: bankPaymentAmt,
           bill_no: id.toString(),
           trnx_type: 'CREDIT',
           details: `Bank Payment for Purchase Update to ${supplierName}${vehicle_no ? ` - Vehicle: ${vehicle_no}` : ''}`,
@@ -1625,11 +1625,11 @@ export async function PUT(request) {
                 ? priorCashEntries[priorCashEntries.length - 1].closing_balance
                 : await getOpeningBalanceForAccount(credit_account_id);
 
-              const cashLabourEntryPUT = createPayableLedgerEntry({
+              const cashLabourEntryPUT = createLedgerEntry({
                 cus_id: credit_account_id,
                 opening_balance: cashLabourOpeningBalance,
-                debit_amount: incityLabourCashPUT,
-                credit_amount: 0,
+                debit_amount: 0,
+                credit_amount: incityLabourCashPUT,
                 bill_no: id.toString(),
                 trnx_type: 'CREDIT',
                 details: `Cash Payment for Incity Labour - Purchase Update #${id}${supplierForIncityPUT?.cus_name ? ` - Supplier: ${supplierForIncityPUT.cus_name}` : ''}`,
@@ -1648,11 +1648,11 @@ export async function PUT(request) {
                 ? priorBankEntries[priorBankEntries.length - 1].closing_balance
                 : await getOpeningBalanceForAccount(bankAccountIdInt);
 
-              const bankLabourEntryPUT = createPayableLedgerEntry({
+              const bankLabourEntryPUT = createLedgerEntry({
                 cus_id: bankAccountIdInt,
                 opening_balance: bankLabourOpeningBalance,
-                debit_amount: incityLabourBankPUT,
-                credit_amount: 0,
+                debit_amount: 0,
+                credit_amount: incityLabourBankPUT,
                 bill_no: id.toString(),
                 trnx_type: 'CREDIT',
                 details: `Bank Payment for Incity Labour - Purchase Update #${id}${supplierForIncityPUT?.cus_name ? ` - Supplier: ${supplierForIncityPUT.cus_name}` : ''}`,
@@ -1730,11 +1730,11 @@ export async function PUT(request) {
                 ? priorCashEntries[priorCashEntries.length - 1].closing_balance
                 : await getOpeningBalanceForAccount(credit_account_id);
 
-              const cashDeliveryEntryPUT = createPayableLedgerEntry({
+              const cashDeliveryEntryPUT = createLedgerEntry({
                 cus_id: credit_account_id,
                 opening_balance: cashDeliveryOpeningBalance,
-                debit_amount: incityDeliveryCashPUT,
-                credit_amount: 0,
+                debit_amount: 0,
+                credit_amount: incityDeliveryCashPUT,
                 bill_no: id.toString(),
                 trnx_type: 'CREDIT',
                 details: `Cash Payment for Incity Delivery - Purchase Update #${id}`,
@@ -1753,11 +1753,11 @@ export async function PUT(request) {
                 ? priorBankEntries[priorBankEntries.length - 1].closing_balance
                 : await getOpeningBalanceForAccount(bankAccountIdInt);
 
-              const bankDeliveryEntryPUT = createPayableLedgerEntry({
+              const bankDeliveryEntryPUT = createLedgerEntry({
                 cus_id: bankAccountIdInt,
                 opening_balance: bankDeliveryOpeningBalance,
-                debit_amount: incityDeliveryBankPUT,
-                credit_amount: 0,
+                debit_amount: 0,
+                credit_amount: incityDeliveryBankPUT,
                 bill_no: id.toString(),
                 trnx_type: 'CREDIT',
                 details: `Bank Payment for Incity Delivery - Purchase Update #${id}`,
