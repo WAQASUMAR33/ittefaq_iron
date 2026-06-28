@@ -396,9 +396,9 @@ export async function POST(request) {
           credit_amount: cashCreditAmount,
           bill_no: `PAY-${payment.payment_id}`,
           trnx_type: cashTrnxType,
-          details: payment_type === 'RECEIVE'
+          details: description || (payment_type === 'RECEIVE'
             ? `payment received from customer account ${mainCustomerName}`
-            : `payment made to customer account ${mainCustomerName}`,
+            : `payment made to customer account ${mainCustomerName}`),
           payments: parseFloat(cash_amount),
           updated_by: parseInt(created_by)
         });
@@ -459,9 +459,9 @@ export async function POST(request) {
           credit_amount: bankCreditAmount,
           bill_no: `PAY-${payment.payment_id}`,
           trnx_type: bankTrnxType,
-          details: payment_type === 'RECEIVE'
+          details: description || (payment_type === 'RECEIVE'
             ? `payment received from customer account ${mainCustomerName}`
-            : `payment made to customer account ${mainCustomerName}`,
+            : `payment made to customer account ${mainCustomerName}`),
           payments: parseFloat(bank_amount),
           updated_by: parseInt(created_by)
         });
