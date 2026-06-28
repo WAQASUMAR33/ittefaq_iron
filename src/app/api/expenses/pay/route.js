@@ -68,6 +68,7 @@ export async function POST(request) {
                 credit_amount: expenseAmount,
                 bill_no: `EXP-${expense_id}`,
                 trnx_type: trnxType,
+                ledger_type: 'Expense',
                 details: `Payment for ${expense.expense_title?.title || 'Expense'}: ${expense.exp_title}${payment_reference ? ` - Ref: ${payment_reference}` : ''}`,
                 payments: expenseAmount,
                 updated_by: updated_by ? parseInt(updated_by) : null

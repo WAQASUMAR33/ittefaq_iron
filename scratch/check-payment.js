@@ -2,13 +2,11 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function main() {
-  const p = await prisma.payment.findFirst();
-  console.log('Payment keys:', p ? Object.keys(p) : 'null');
-  console.log('Payment record:', p);
-
-  const pd = await prisma.paymentDetail.findFirst();
-  console.log('PaymentDetail keys:', pd ? Object.keys(pd) : 'null');
-  console.log('PaymentDetail record:', pd);
+  const p = await prisma.payment.findUnique({
+    where: { payment_id: 194 }
+  });
+  console.log('Payment 194:', JSON.stringify(p, null, 2));
+  await prisma.$disconnect();
 }
 
-main().finally(() => prisma.$disconnect());
+main();

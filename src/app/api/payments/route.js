@@ -306,6 +306,7 @@ export async function POST(request) {
         credit_amount: mainCreditAmount,
         bill_no: `PAY-${payment.payment_id}`,
         trnx_type: trnxTypeToUse,
+        ledger_type: payment_type === 'PAY' ? 'Payment' : 'Receiving',
         details: parseFloat(discount_amount) > 0 
           ? `${description || `${payment_type.toLowerCase()} payment`} (Total: ${total_amount}, Discount: ${discount_amount}, Net: ${netAmount})`
           : (description || `${payment_type.toLowerCase()} payment`),
@@ -396,6 +397,7 @@ export async function POST(request) {
           credit_amount: cashCreditAmount,
           bill_no: `PAY-${payment.payment_id}`,
           trnx_type: cashTrnxType,
+          ledger_type: payment_type === 'PAY' ? 'Payment' : 'Receiving',
           details: description || (payment_type === 'RECEIVE'
             ? `payment received from customer account ${mainCustomerName}`
             : `payment made to customer account ${mainCustomerName}`),
@@ -459,6 +461,7 @@ export async function POST(request) {
           credit_amount: bankCreditAmount,
           bill_no: `PAY-${payment.payment_id}`,
           trnx_type: bankTrnxType,
+          ledger_type: payment_type === 'PAY' ? 'Payment' : 'Receiving',
           details: description || (payment_type === 'RECEIVE'
             ? `payment received from customer account ${mainCustomerName}`
             : `payment made to customer account ${mainCustomerName}`),

@@ -1082,7 +1082,8 @@ export async function POST(request) {
             payments: entry.payments,
             cash_payment: entry.cash_payment,
             bank_payment: entry.bank_payment,
-            updated_by: entry.updated_by
+            updated_by: entry.updated_by,
+            ledger_type: entry.ledger_type
           }
         });
 
@@ -1795,6 +1796,7 @@ export async function PUT(request) {
             cash_payment: entry.cash_payment,
             bank_payment: entry.bank_payment,
             updated_by: entry.updated_by,
+            ledger_type: entry.ledger_type,
             created_at: existingPurchase.created_at // PRESERVE TIMESTAMP!
           }
         });

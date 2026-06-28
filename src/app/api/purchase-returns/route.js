@@ -182,6 +182,7 @@ export async function POST(request) {
         credit_amount: returnAmount,
         bill_no: `PR-${newPurchaseReturn.id}`,
         trnx_type: 'PURCHASE_RETURN',
+        ledger_type: 'Purchase Return',
         details: `Purchase Return #${newPurchaseReturn.id} - ${return_reason} - Goods returned to ${supplier?.cus_name || 'Supplier'}`,
         payments: 0,
         updated_by: null
@@ -357,6 +358,7 @@ export async function PUT(request) {
         credit_amount: newReturnAmount,
         bill_no: `PR-${id}`,
         trnx_type: 'PURCHASE_RETURN',
+        ledger_type: 'Purchase Return',
         details: `Purchase Return #${id} (Updated) - ${return_reason} - Goods returned to ${supplierBeforeReverse?.cus_name || 'Supplier'}`,
         payments: 0,
         updated_by: null
@@ -457,6 +459,7 @@ export async function DELETE(request) {
         credit_amount: 0,
         bill_no: `PR-${id}-DELETED`,
         trnx_type: 'PURCHASE_RETURN',
+        ledger_type: 'Purchase Return',
         details: `Purchase Return #${id} CANCELLED/DELETED - Reversal entry for ${supplier?.cus_name || 'Supplier'}`,
         payments: 0,
         updated_by: null

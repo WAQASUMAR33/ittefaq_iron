@@ -569,6 +569,7 @@ export async function POST(request) {
               payments: parseFloat(row.payments || credit || 0),
               cash_payment: parseFloat(row.cash_payment || (trnx.includes('CASH') ? (credit || debit) : 0)),
               bank_payment: parseFloat(row.bank_payment || (trnx.includes('BANK') ? (credit || debit) : 0)),
+              ledger_type: row.ledger_type ? String(row.ledger_type).trim() : null,
               created_at: row.created_at ? new Date(row.created_at) : new Date(),
             };
 

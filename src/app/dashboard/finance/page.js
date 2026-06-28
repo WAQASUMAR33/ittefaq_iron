@@ -286,6 +286,7 @@ export default function FinancePage() {
   const [sortOrder, setSortOrder] = useState('asc');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [selectedLedgerType, setSelectedLedgerType] = useState('');
   const [staticDataLoaded, setStaticDataLoaded] = useState(false);
 
   // Customer dropdown filter states
@@ -818,6 +819,7 @@ export default function FinancePage() {
     const matchesCustomer = !selectedCustomer || entry.cus_id == selectedCustomer;
     const matchesCategory = !selectedCategory || entry.customer?.cus_category == selectedCategory;
     const matchesSubCategory = !selectedSubCategory || entry.customer?.cus_type == selectedSubCategory;
+    const matchesLedgerType = !selectedLedgerType || entry.ledger_type === selectedLedgerType;
 
     // Date range filter
     let matchesDate = true;
@@ -827,7 +829,7 @@ export default function FinancePage() {
       if (endDate) matchesDate = matchesDate && entryDateStr <= endDate;
     }
 
-    return matchesSearch && matchesCustomer && matchesCategory && matchesSubCategory && matchesDate;
+    return matchesSearch && matchesCustomer && matchesCategory && matchesSubCategory && matchesLedgerType && matchesDate;
   });
 
   // Customer filtering logic
@@ -1506,7 +1508,8 @@ export default function FinancePage() {
         const date = entry.created_at
           ? new Date(entry.created_at).toLocaleDateString('en-GB') + ' ' + new Date(entry.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
           : '—';
-        const type = entry.trnx_type || '—';
+        const trnxType = entry.trnx_type || '—';
+        const ledgerType = entry.ledger_type || '—';
         const account = entry.customer?.cus_name || '—';
         const desc = entry.details
           ? String(entry.details).replace(/\{.*?\}/g, '').replace(/\|/g, ' ').trim().slice(0, 60)
@@ -1516,7 +1519,7 @@ export default function FinancePage() {
         const debit = displayAmts.debit > 0 ? fmtAmt(displayAmts.debit) : '';
         const credit = displayAmts.credit > 0 ? fmtAmt(displayAmts.credit) : '';
         const bal = fmtAmt(entry.closing_balance);
-        return [entry.l_id, date, type, account, desc, bill, credit, debit, bal];
+        return [entry.l_id, date, trnxType, ledgerType, account, desc, bill, credit, debit, bal];
       });
 
       const totalDebit = finalLedgerEntries.reduce((s, e) => {
@@ -1530,31 +1533,32 @@ export default function FinancePage() {
 
       autoTable(doc, {
         startY: 112,
-        head: [['L_ID', 'Date & Time', 'Type', 'Account', 'Description', 'Credit (PKR)', 'Debit (PKR)', 'Balance (PKR)']],
+        head: [['L_ID', 'Date & Time', 'Trnx Type', 'Ledger Type', 'Account', 'Description', 'Bill No', 'Credit (PKR)', 'Debit (PKR)', 'Balance (PKR)']],
         body: rows,
-        foot: [['', '', '', '', '', 'TOTALS', fmtAmt(totalCredit), fmtAmt(totalDebit), fmtAmt(balance)]],
-        styles: { fontSize: 7.5, cellPadding: 3 },
+        foot: [['', '', '', '', '', '', 'TOTALS', fmtAmt(totalCredit), fmtAmt(totalDebit), fmtAmt(balance)]],
+        styles: { fontSize: 7, cellPadding: 2.5 },
         headStyles: { fillColor: [31, 41, 55], textColor: 255, fontStyle: 'bold' },
         footStyles: { fillColor: [241, 245, 249], textColor: [0, 0, 0], fontStyle: 'bold' },
         columnStyles: {
           0: { cellWidth: 24, halign: 'center' },
-          1: { cellWidth: 90 },
-          2: { cellWidth: 70 },
-          3: { cellWidth: 90 },
-          4: { cellWidth: 'auto' },
-          5: { cellWidth: 50 },
-          6: { cellWidth: 72, halign: 'right' },
-          7: { cellWidth: 72, halign: 'right' },
-          8: { cellWidth: 78, halign: 'right' },
+          1: { cellWidth: 85 },
+          2: { cellWidth: 45 },
+          3: { cellWidth: 55 },
+          4: { cellWidth: 80 },
+          5: { cellWidth: 'auto' },
+          6: { cellWidth: 40 },
+          7: { cellWidth: 65, halign: 'right' },
+          8: { cellWidth: 65, halign: 'right' },
+          9: { cellWidth: 70, halign: 'right' },
         },
         didParseCell: (data) => {
           if (data.section === 'body') {
             const rowData = rows[data.row.index];
-            if (rowData && rowData[6] && !rowData[7]) {
-              // debit row - green tint
+            if (rowData && rowData[7] && !rowData[8]) {
+              // credit row (payment/refund received) - green tint
               data.cell.styles.fillColor = [220, 252, 231];
-            } else if (rowData && rowData[7] && !rowData[6]) {
-              // credit row - red tint
+            } else if (rowData && rowData[8] && !rowData[7]) {
+              // debit row (sales/orders) - red tint
               data.cell.styles.fillColor = [254, 226, 226];
             }
           }
@@ -1771,6 +1775,7 @@ export default function FinancePage() {
     setSortOrder('asc');
     setStartDate('');
     setEndDate('');
+    setSelectedLedgerType('');
   };
 
   // Print Ledger between two dates
@@ -2158,7 +2163,7 @@ export default function FinancePage() {
                   xs: '1fr',
                   sm: '1fr 1fr',
                   md: 'repeat(3, 1fr)',
-                  lg: 'repeat(6, 1fr)'
+                  lg: 'repeat(7, 1fr)'
                 },
                 gap: 3,
                 width: '100%'
@@ -2295,7 +2300,36 @@ export default function FinancePage() {
                   />
                 </Box>
 
-                {/* From Date Filter - FOURTH */}
+                {/* Ledger Type Filter - FOURTH */}
+                <Box>
+                  <FormControl fullWidth>
+                    <InputLabel>Ledger Type</InputLabel>
+                    <Select
+                      fullWidth
+                      value={selectedLedgerType}
+                      onChange={(e) => setSelectedLedgerType(e.target.value)}
+                      label="Ledger Type"
+                      sx={{
+                        borderRadius: 1.5,
+                        bgcolor: 'white',
+                      }}
+                    >
+                      <MenuItem value="">All Types</MenuItem>
+                      <MenuItem value="Sale">Sale</MenuItem>
+                      <MenuItem value="Purchase">Purchase</MenuItem>
+                      <MenuItem value="Payment">Payment</MenuItem>
+                      <MenuItem value="Receiving">Receiving</MenuItem>
+                      <MenuItem value="Expense">Expense</MenuItem>
+                      <MenuItem value="Order">Order</MenuItem>
+                      <MenuItem value="Sale Return">Sale Return</MenuItem>
+                      <MenuItem value="Purchase Return">Purchase Return</MenuItem>
+                      <MenuItem value="Journal">Journal</MenuItem>
+                      <MenuItem value="Adjustment">Adjustment</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Box>
+
+                {/* From Date Filter - FIFTH */}
                 <Box>
                   <TextField
                     fullWidth
@@ -2331,7 +2365,33 @@ export default function FinancePage() {
                   />
                 </Box>
 
-                {/* Search - SIXTH */}
+                {/* Ledger Type Filter */}
+                <Box>
+                  <FormControl fullWidth>
+                    <InputLabel>Ledger Type</InputLabel>
+                    <Select
+                      value={selectedLedgerType}
+                      onChange={(e) => setSelectedLedgerType(e.target.value)}
+                      label="Ledger Type"
+                      sx={{
+                        borderRadius: 1.5,
+                        bgcolor: 'white',
+                      }}
+                    >
+                      <MenuItem value="">All Types</MenuItem>
+                      <MenuItem value="Sale">Sale</MenuItem>
+                      <MenuItem value="Purchase">Purchase</MenuItem>
+                      <MenuItem value="Payment">Payment</MenuItem>
+                      <MenuItem value="Receiving">Receiving</MenuItem>
+                      <MenuItem value="Expense">Expense</MenuItem>
+                      <MenuItem value="Order">Order</MenuItem>
+                      <MenuItem value="Sale Return">Sale Return</MenuItem>
+                      <MenuItem value="Purchase Return">Purchase Return</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Box>
+
+                {/* Search - SEVENTH */}
                 <Box>
                   <TextField
                     fullWidth
@@ -2736,6 +2796,18 @@ export default function FinancePage() {
                         >
                           BALANCE (PKR)
                         </TableCell>
+                        <TableCell
+                          sx={{
+                            fontWeight: 800,
+                            fontSize: '0.85rem',
+                            bgcolor: '#1f2937',
+                            color: 'white',
+                            minWidth: 120,
+                            letterSpacing: 0.5
+                          }}
+                        >
+                          TYPE
+                        </TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -3109,11 +3181,24 @@ export default function FinancePage() {
                                  </Typography>
                                )}
                              </TableCell>
+
+                            {/* Ledger Type */}
+                            <TableCell
+                              sx={{
+                                bgcolor: rowBgColor,
+                                fontWeight: 700,
+                                color: '#1f2937'
+                              }}
+                            >
+                              <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                {entry.ledger_type || '-'}
+                              </Typography>
+                            </TableCell>
                           </TableRow>
                         );
                       })}
                       <TableRow sx={{ bgcolor: '#f9fafb', borderTop: 2, borderColor: '#374151' }}>
-                        <TableCell colSpan={4} sx={{ borderRight: 1, borderColor: '#e5e7eb', bgcolor: '#1f2937' }}>
+                        <TableCell colSpan={3} sx={{ borderRight: 1, borderColor: '#e5e7eb', bgcolor: '#1f2937' }}>
                           <Typography variant="h6" sx={{ fontWeight: 700, textAlign: 'center', color: 'white' }}>
                             TOTAL SUMMARY
                           </Typography>
@@ -3151,6 +3236,7 @@ export default function FinancePage() {
                                : '—'}
                            </Typography>
                          </TableCell>
+                         <TableCell sx={{ bgcolor: '#f9fafb' }}></TableCell>
                       </TableRow>
                     </TableBody>
                   </Table>

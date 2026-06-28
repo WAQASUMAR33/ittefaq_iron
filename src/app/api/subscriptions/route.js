@@ -150,6 +150,7 @@ export async function POST(request) {
           closing_balance: newBalance,
           bill_no: subscription.subscription_id.toString(),
           trnx_type: 'CASH',
+          ledger_type: 'Order',
           details: `Package Subscription - ${packageData.package_name}`,
           payments: packagePrice,
           updated_by: updated_by || null

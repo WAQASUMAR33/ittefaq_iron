@@ -251,6 +251,7 @@ model Ledger {
   cash_payment    Float           @default(0)
   bank_payment    Float           @default(0)
   updated_by      Int?
+  ledger_type     String?
   created_at      DateTime        @default(now())
   updated_at      DateTime        @updatedAt
   customer        Customer        @relation(fields: [cus_id], references: [cus_id])

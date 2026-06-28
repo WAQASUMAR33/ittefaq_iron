@@ -249,6 +249,35 @@ export async function POST(request) {
 
     const l_id = body.l_id || await getNextId('ledger', 'l_id');
 
+    let ledgerTypeVal = body.ledger_type;
+    if (!ledgerTypeVal) {
+      const bStr = (bill_no || '').toString().toUpperCase();
+      const detLower = (details || '').toLowerCase();
+      if (bStr.startsWith('PR-')) {
+        ledgerTypeVal = 'Purchase Return';
+      } else if (bStr.startsWith('EXP-')) {
+        ledgerTypeVal = 'Expense';
+      } else if (detLower.includes('package subscription')) {
+        ledgerTypeVal = 'Order';
+      } else if (detLower.includes('sale return') || detLower.includes('refund paid out')) {
+        ledgerTypeVal = 'Sale Return';
+      } else if (bStr.startsWith('PAY-')) {
+        ledgerTypeVal = detLower.includes('payment received') || detLower.includes('receive') ? 'Receiving' : 'Payment';
+      } else if (bStr.startsWith('JRN-')) {
+        ledgerTypeVal = 'Journal';
+      } else if (trnx_type === 'PURCHASE') {
+        ledgerTypeVal = 'Purchase';
+      } else if (trnx_type === 'SALE') {
+        ledgerTypeVal = detLower.includes('order') ? 'Order' : 'Sale';
+      } else if (detLower.includes('purchase')) {
+        ledgerTypeVal = 'Purchase';
+      } else if (detLower.includes('sale') || detLower.includes('bill')) {
+        ledgerTypeVal = detLower.includes('order') ? 'Order' : 'Sale';
+      } else if (detLower.includes('cargo') || detLower.includes('labour') || detLower.includes('delivery') || detLower.includes('fare')) {
+        ledgerTypeVal = 'Purchase';
+      }
+    }
+
     // Create the ledger entry
     const result = await prisma.ledger.create({
       data: {
@@ -262,7 +291,8 @@ export async function POST(request) {
         trnx_type: trnx_type,
         details: details || null,
         payments: parseFloat(payments || 0),
-        updated_by: validUpdatedBy
+        updated_by: validUpdatedBy,
+        ledger_type: ledgerTypeVal || null
       }
     });
 
@@ -557,7 +587,8 @@ export async function PUT(request) {
             payments:        0,
             cash_payment:    0,
             bank_payment:    0,
-            updated_by:      updated_by || null
+            updated_by:      updated_by || null,
+            ledger_type:     'Adjustment'
           }
         });
 

@@ -205,6 +205,7 @@ export async function POST(request) {
           credit_amount: cashAmt,
           bill_no: `EXP-${expense.exp_id}`,
           trnx_type: 'CASH_PAYMENT',
+          ledger_type: 'Expense',
           details: `Payment for ${expense.expense_title?.title || 'Expense'}: ${expense.exp_title}${paymentMethod === 'PARTIAL' ? ' (Partial cash payment)' : ''}${payment_reference ? ` - Ref: ${payment_reference}` : ''}`,
           payments: cashAmt,
           updated_by: updated_by ? parseInt(updated_by) : null
@@ -239,6 +240,7 @@ export async function POST(request) {
           credit_amount: bankAmt,
           bill_no: `EXP-${expense.exp_id}`,
           trnx_type: 'BANK_PAYMENT',
+          ledger_type: 'Expense',
           details: `Payment for ${expense.expense_title?.title || 'Expense'}: ${expense.exp_title}${paymentMethod === 'PARTIAL' ? ' (Partial bank payment)' : ''}${payment_reference ? ` - Ref: ${payment_reference}` : ''}`,
           payments: bankAmt,
           updated_by: updated_by ? parseInt(updated_by) : null
@@ -437,6 +439,7 @@ export async function PUT(request) {
           credit_amount: cashAmt,
           bill_no: `EXP-${id}`,
           trnx_type: 'CASH_PAYMENT',
+          ledger_type: 'Expense',
           details: `Payment for ${updatedExpense.expense_title?.title || 'Expense'}: ${updatedExpense.exp_title}${paymentMethod === 'PARTIAL' ? ' (Partial cash payment)' : ''}${payment_reference ? ` - Ref: ${payment_reference}` : ''}`,
           payments: cashAmt,
           updated_by: updated_by ? parseInt(updated_by) : null
@@ -470,6 +473,7 @@ export async function PUT(request) {
           credit_amount: bankAmt,
           bill_no: `EXP-${id}`,
           trnx_type: 'BANK_PAYMENT',
+          ledger_type: 'Expense',
           details: `Payment for ${updatedExpense.expense_title?.title || 'Expense'}: ${updatedExpense.exp_title}${paymentMethod === 'PARTIAL' ? ' (Partial bank payment)' : ''}${payment_reference ? ` - Ref: ${payment_reference}` : ''}`,
           payments: bankAmt,
           updated_by: updated_by ? parseInt(updated_by) : null

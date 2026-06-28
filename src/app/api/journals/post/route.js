@@ -80,6 +80,7 @@ export async function POST(request) {
               closing_balance: customer.cus_balance + parseFloat(detail.debit_amount),
               bill_no: `JRN-${journal.journal_id}`,
               trnx_type: 'CASH',
+              ledger_type: 'Journal',
               details: detail.description || `Journal Entry - ${journal.journal_type}`,
               payments: 0,
               updated_by: posted_by
@@ -108,6 +109,7 @@ export async function POST(request) {
               closing_balance: customer.cus_balance - parseFloat(detail.credit_amount),
               bill_no: `JRN-${journal.journal_id}`,
               trnx_type: 'CASH',
+              ledger_type: 'Journal',
               details: detail.description || `Journal Entry - ${journal.journal_type}`,
               payments: parseFloat(detail.credit_amount),
               updated_by: posted_by

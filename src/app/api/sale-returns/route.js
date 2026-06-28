@@ -449,6 +449,7 @@ export async function POST(request) {
             closing_balance: customer.cus_balance - grandTotal,
             bill_no: saleReturn.return_id.toString(),
             trnx_type: 'CREDIT',
+            ledger_type: 'Sale Return',
             details: `Sale Return - Product: ${computedTotal}, Delivery: +${shippingAmount}, Labour: +${labourChargesAmount}, Discount: -${discountAmount}, Net: ${grandTotal}`,
             payments: 0,
             updated_by
@@ -490,6 +491,7 @@ export async function POST(request) {
                 closing_balance: cashAccount.cus_balance - cashRefund,
                 bill_no: saleReturn.return_id.toString(),
                 trnx_type: 'CREDIT',
+                ledger_type: 'Sale Return',
                 details: `Refund Paid Out (CASH) - Sale Return #${saleReturn.return_id} - Amount: ${cashRefund}`,
                 payments: cashRefund,
                 updated_by
@@ -519,6 +521,7 @@ export async function POST(request) {
                 closing_balance: customerAfterCash,
                 bill_no: saleReturn.return_id.toString(),
                 trnx_type: 'DEBIT',
+                ledger_type: 'Sale Return',
                 details: `Customer Balance Update - CASH Refund Received: ${cashRefund} for Sale Return #${saleReturn.return_id}`,
                 payments: 0,
                 updated_by
@@ -566,6 +569,7 @@ export async function POST(request) {
                 closing_balance: bankAccount.cus_balance - bankRefund,
                 bill_no: saleReturn.return_id.toString(),
                 trnx_type: 'CREDIT',
+                ledger_type: 'Sale Return',
                 details: `Refund Paid Out (BANK) - Sale Return #${saleReturn.return_id} - Amount: ${bankRefund}`,
                 payments: bankRefund,
                 updated_by
@@ -595,6 +599,7 @@ export async function POST(request) {
                 closing_balance: customerAfterBank,
                 bill_no: saleReturn.return_id.toString(),
                 trnx_type: 'DEBIT',
+                ledger_type: 'Sale Return',
                 details: `Customer Balance Update - BANK Refund Received: ${bankRefund} for Sale Return #${saleReturn.return_id}`,
                 payments: 0,
                 updated_by

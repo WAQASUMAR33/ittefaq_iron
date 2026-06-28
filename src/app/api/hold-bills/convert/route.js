@@ -102,6 +102,7 @@ export async function POST(request) {
           closing_balance: holdBill.customer.cus_balance + netTotal,
           bill_no: sale.sale_id,
           trnx_type: 'CASH',
+          ledger_type: holdBill.bill_type === 'ORDER' ? 'Order' : 'Sale',
           details: `Sale - ${holdBill.bill_type} (Converted from Hold Bill #${holdBill.hold_bill_id})`,
           payments: 0,
           updated_by
@@ -121,6 +122,7 @@ export async function POST(request) {
             closing_balance: holdBill.customer.cus_balance + netTotal - parseFloat(holdBill.payment),
             bill_no: sale.sale_id,
             trnx_type: holdBill.payment_type,
+            ledger_type: 'Receiving',
             details: `Payment - ${holdBill.bill_type} (Converted from Hold Bill #${holdBill.hold_bill_id})`,
             payments: parseFloat(holdBill.payment),
             updated_by

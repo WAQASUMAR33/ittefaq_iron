@@ -57,6 +57,7 @@ export function createLedgerEntry(config) {
     cash_payment = 0,
     bank_payment = 0,
     updated_by = null,
+    ledger_type = null,
     account_nature = ACCOUNT_NATURE.RECEIVABLE
   } = config;
 
@@ -66,6 +67,36 @@ export function createLedgerEntry(config) {
   }
 
   const closing_balance = calculateClosingBalance(opening_balance, debit_amount, credit_amount, account_nature);
+
+  let finalLedgerType = ledger_type;
+  if (!finalLedgerType && bill_no) {
+    const bStr = bill_no.toString().toUpperCase();
+    const detLower = (details || '').toLowerCase();
+    
+    if (bStr.startsWith('PR-')) {
+      finalLedgerType = 'Purchase Return';
+    } else if (bStr.startsWith('EXP-')) {
+      finalLedgerType = 'Expense';
+    } else if (detLower.includes('package subscription')) {
+      finalLedgerType = 'Order';
+    } else if (detLower.includes('sale return') || detLower.includes('refund paid out')) {
+      finalLedgerType = 'Sale Return';
+    } else if (bStr.startsWith('PAY-')) {
+      finalLedgerType = detLower.includes('payment received') || detLower.includes('receive') ? 'Receiving' : 'Payment';
+    } else if (bStr.startsWith('JRN-')) {
+      finalLedgerType = 'Journal';
+    } else if (trnx_type === 'PURCHASE') {
+      finalLedgerType = 'Purchase';
+    } else if (trnx_type === 'SALE') {
+      finalLedgerType = detLower.includes('order') ? 'Order' : 'Sale';
+    } else if (detLower.includes('purchase')) {
+      finalLedgerType = 'Purchase';
+    } else if (detLower.includes('sale') || detLower.includes('bill')) {
+      finalLedgerType = detLower.includes('order') ? 'Order' : 'Sale';
+    } else if (detLower.includes('cargo') || detLower.includes('labour') || detLower.includes('delivery') || detLower.includes('fare')) {
+      finalLedgerType = 'Purchase'; // transport/labour charges from purchase
+    }
+  }
 
   return {
     cus_id,
@@ -80,7 +111,8 @@ export function createLedgerEntry(config) {
     // Preserve explicit cash/bank breakdown when provided so UI/reports can show amounts in Cash/Bank columns
     cash_payment: parseFloat(cash_payment || 0),
     bank_payment: parseFloat(bank_payment || 0),
-    updated_by: updated_by ? parseInt(updated_by) : null
+    updated_by: updated_by ? parseInt(updated_by) : null,
+    ledger_type: finalLedgerType
   };
 }
 
