@@ -972,13 +972,13 @@ export default function FinancePage() {
     parseFloat(receivePaymentData.cash_amount || 0) +
     parseFloat(receivePaymentData.bank_amount || 0) +
     parseFloat(receivePaymentData.discount || 0);
-  const receiveBalanceAfter = currentBalance + receiveTotalPreview;
+  const receiveBalanceAfter = currentBalance - receiveTotalPreview;
 
   const payTotalPreview =
     parseFloat(payPaymentData.cash_amount || 0) +
     parseFloat(payPaymentData.bank_amount || 0) +
     parseFloat(payPaymentData.discount || 0);
-  const payBalanceAfter = currentBalance - payTotalPreview;
+  const payBalanceAfter = currentBalance + payTotalPreview;
 
   const handleNewJournalEntry = () => {
     if (selectedCustomer) {
@@ -3942,7 +3942,7 @@ export default function FinancePage() {
               <strong>After Receive Amount:</strong> account balance → PKR{' '}
               {fmtAmt(receiveBalanceAfter)}{' '}
                 <Typography component="span" variant="caption" display="block" color="text.secondary">
-                  Receive Amount credits the selected account (balance increases by the entered amount).
+                  Receive Amount credits the selected account (balance decreases by the entered amount).
                 </Typography>
               </Alert>
             )}
@@ -4176,7 +4176,7 @@ export default function FinancePage() {
                 <strong>After Pay Amount:</strong> account balance → PKR{' '}
                 {fmtAmt(payBalanceAfter)}{' '}
                 <Typography component="span" variant="caption" display="block" color="text.secondary">
-                  Pay Amount debits the selected account (balance decreases by the entered amount).
+                  Pay Amount debits the selected account (balance increases by the entered amount).
                 </Typography>
               </Alert>
             )}
