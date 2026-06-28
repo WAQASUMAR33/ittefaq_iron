@@ -270,28 +270,32 @@ export async function POST(request) {
       //   Customer (receivable): RECEIVE → DEBIT, PAY → CREDIT
       let mainDebitAmount = 0;
       let mainCreditAmount = 0;
-      let trnxTypeToUse = payment_type === 'RECEIVE' ? 'DEBIT' : 'CREDIT';
+      let trnxTypeToUse = '';
 
       if (mainAccountIsBankOrCash) {
         if (payment_type === 'RECEIVE') {
-          mainDebitAmount = parseFloat(total_amount);
-          mainCreditAmount = 0;
-          trnxTypeToUse = 'CREDIT';
-        } else {
+          // Bank/Cash receiving money gets a DEBIT entry
           mainDebitAmount = parseFloat(total_amount);
           mainCreditAmount = 0;
           trnxTypeToUse = 'DEBIT';
+        } else {
+          // Bank/Cash paying money gets a CREDIT entry
+          mainDebitAmount = 0;
+          mainCreditAmount = parseFloat(total_amount);
+          trnxTypeToUse = 'CREDIT';
         }
       } else {
         // Customer or Supplier (non-cash/bank)
         if (payment_type === 'RECEIVE') {
-          mainDebitAmount = parseFloat(total_amount);
-          mainCreditAmount = 0;
-          trnxTypeToUse = 'DEBIT';
-        } else {
+          // Receiving money from customer/supplier gets a CREDIT entry
           mainDebitAmount = 0;
           mainCreditAmount = parseFloat(total_amount);
           trnxTypeToUse = 'CREDIT';
+        } else {
+          // Paying money to customer/supplier gets a DEBIT entry
+          mainDebitAmount = parseFloat(total_amount);
+          mainCreditAmount = 0;
+          trnxTypeToUse = 'DEBIT';
         }
       }
 
@@ -313,28 +317,28 @@ export async function POST(request) {
       if (payment_type === 'RECEIVE') {
         const isMainBankOrCash = BANK_CASH_CATEGORIES.includes(categoryMap[parseInt(account_id)]);
         if (isMainBankOrCash) {
-          // Cash/Bank account pay out: debit column, but balance decreases
+          // Cash/Bank account receives payment: debit column, balance increases
           mainAccountEntry.debit_amount = parseFloat(total_amount);
           mainAccountEntry.credit_amount = 0;
+          mainAccountEntry.closing_balance = mainAccountEntry.opening_balance + parseFloat(total_amount);
+        } else {
+          // Customer/Supplier account paying us: credit column, balance decreases
+          mainAccountEntry.debit_amount = 0;
+          mainAccountEntry.credit_amount = parseFloat(total_amount);
+          mainAccountEntry.closing_balance = mainAccountEntry.opening_balance - parseFloat(total_amount);
+        }
+      } else if (payment_type === 'PAY') {
+        const isMainBankOrCash = BANK_CASH_CATEGORIES.includes(categoryMap[parseInt(account_id)]);
+        if (isMainBankOrCash) {
+          // Cash/Bank account paying out: credit column, balance decreases
+          mainAccountEntry.debit_amount = 0;
+          mainAccountEntry.credit_amount = parseFloat(total_amount);
           mainAccountEntry.closing_balance = mainAccountEntry.opening_balance - parseFloat(total_amount);
         } else {
           // Customer/Supplier account receiving payment from us: debit column, balance increases
           mainAccountEntry.debit_amount = parseFloat(total_amount);
           mainAccountEntry.credit_amount = 0;
           mainAccountEntry.closing_balance = mainAccountEntry.opening_balance + parseFloat(total_amount);
-        }
-      } else if (payment_type === 'PAY') {
-        const isMainBankOrCash = BANK_CASH_CATEGORIES.includes(categoryMap[parseInt(account_id)]);
-        if (isMainBankOrCash) {
-          // Cash/Bank account receive payment: debit column, balance increases
-          mainAccountEntry.debit_amount = parseFloat(total_amount);
-          mainAccountEntry.credit_amount = 0;
-          mainAccountEntry.closing_balance = mainAccountEntry.opening_balance + parseFloat(total_amount);
-        } else {
-          // Customer/Supplier account making payment to us: credit column, balance decreases
-          mainAccountEntry.debit_amount = 0;
-          mainAccountEntry.credit_amount = parseFloat(total_amount);
-          mainAccountEntry.closing_balance = mainAccountEntry.opening_balance - parseFloat(total_amount);
         }
       }
 
@@ -351,23 +355,37 @@ export async function POST(request) {
       if (cash_account_id && parseFloat(cash_amount) > 0) {
         let cashDebitAmount = 0;
         let cashCreditAmount = 0;
+        let cashTrnxType = '';
+        let cashClosingBalance = 0;
+
         if (mainAccountIsBankOrCash) {
-          // account_id is a bank — cash_account is the counter-party
-          // PAY from bank → cash destination receives → DEBIT cash
-          // RECEIVE into bank → cash source sends → CREDIT cash
           if (payment_type === 'RECEIVE') {
+            // bank is receiving money from cash: cash balance decreases (credit)
+            cashDebitAmount = 0;
             cashCreditAmount = parseFloat(cash_amount);
+            cashTrnxType = 'CREDIT';
+            cashClosingBalance = (balanceMap[parseInt(cash_account_id)] || 0) - parseFloat(cash_amount);
           } else {
+            // bank is paying money to cash: cash balance increases (debit)
             cashDebitAmount = parseFloat(cash_amount);
+            cashCreditAmount = 0;
+            cashTrnxType = 'DEBIT';
+            cashClosingBalance = (balanceMap[parseInt(cash_account_id)] || 0) + parseFloat(cash_amount);
           }
         } else {
-          // account_id is customer/supplier — cash is OUR account
-          // PAY = customer pays us (credit their account) → cash INCREASES (DEBIT)
-          // RECEIVE = we charge customer (debit their account) → cash DECREASES (CREDIT)
+          // main account is customer/supplier
           if (payment_type === 'RECEIVE') {
-            cashCreditAmount = parseFloat(cash_amount); // Cash goes out when debiting customer
+            // we receive payment: cash balance increases (debit)
+            cashDebitAmount = parseFloat(cash_amount);
+            cashCreditAmount = 0;
+            cashTrnxType = 'DEBIT';
+            cashClosingBalance = (balanceMap[parseInt(cash_account_id)] || 0) + parseFloat(cash_amount);
           } else {
-            cashDebitAmount = parseFloat(cash_amount); // Cash comes in when customer pays us
+            // we pay customer: cash balance decreases (credit)
+            cashDebitAmount = 0;
+            cashCreditAmount = parseFloat(cash_amount);
+            cashTrnxType = 'CREDIT';
+            cashClosingBalance = (balanceMap[parseInt(cash_account_id)] || 0) - parseFloat(cash_amount);
           }
         }
 
@@ -377,28 +395,14 @@ export async function POST(request) {
           debit_amount: cashDebitAmount,
           credit_amount: cashCreditAmount,
           bill_no: `PAY-${payment.payment_id}`,
-          trnx_type: payment_type === 'PAY' ? 'DEBIT' : 'CASH',
+          trnx_type: cashTrnxType,
           details: payment_type === 'RECEIVE'
-            ? `payment to customer account ${mainCustomerName}`
-            : payment_type === 'PAY'
-            ? `payment from customer account ${mainCustomerName}`
-            : `${payment_type.toLowerCase()} payment - cash`,
+            ? `payment received from customer account ${mainCustomerName}`
+            : `payment made to customer account ${mainCustomerName}`,
           payments: parseFloat(cash_amount),
           updated_by: parseInt(created_by)
         });
-
-        // Apply custom payment requirement
-        if (payment_type === 'RECEIVE') {
-          // cash account is payment source: debit column, balance decreases
-          cashAccountEntry.debit_amount = parseFloat(cash_amount);
-          cashAccountEntry.credit_amount = 0;
-          cashAccountEntry.closing_balance = cashAccountEntry.opening_balance - parseFloat(cash_amount);
-        } else if (payment_type === 'PAY') {
-          // cash account is payment destination: debit column, balance increases
-          cashAccountEntry.debit_amount = parseFloat(cash_amount);
-          cashAccountEntry.credit_amount = 0;
-          cashAccountEntry.closing_balance = cashAccountEntry.opening_balance + parseFloat(cash_amount);
-        }
+        cashAccountEntry.closing_balance = cashClosingBalance;
 
         ledgerEntries.push({
           ...cashAccountEntry,
@@ -414,23 +418,37 @@ export async function POST(request) {
       if (bank_account_id && parseFloat(bank_amount) > 0) {
         let bankDebitAmount = 0;
         let bankCreditAmount = 0;
+        let bankTrnxType = '';
+        let bankClosingBalance = 0;
+
         if (mainAccountIsBankOrCash) {
-          // account_id is a bank — bank_account_id is the counter-party
-          // PAY from bank → bank destination receives → DEBIT bank_account
-          // RECEIVE into bank → bank source sends → CREDIT bank_account
           if (payment_type === 'RECEIVE') {
+            // bank (main) receives from bank (counter-party): bank (counter-party) decreases (credit)
+            bankDebitAmount = 0;
             bankCreditAmount = parseFloat(bank_amount);
+            bankTrnxType = 'CREDIT';
+            bankClosingBalance = (balanceMap[parseInt(bank_account_id)] || 0) - parseFloat(bank_amount);
           } else {
+            // bank (main) pays to bank (counter-party): bank (counter-party) increases (debit)
             bankDebitAmount = parseFloat(bank_amount);
+            bankCreditAmount = 0;
+            bankTrnxType = 'DEBIT';
+            bankClosingBalance = (balanceMap[parseInt(bank_account_id)] || 0) + parseFloat(bank_amount);
           }
         } else {
-          // account_id is customer/supplier — bank_account_id is OUR bank
-          // PAY = customer pays us (credit their account) → bank INCREASES (DEBIT)
-          // RECEIVE = we charge customer (debit their account) → bank DECREASES (CREDIT)
+          // main account is customer/supplier
           if (payment_type === 'RECEIVE') {
-            bankCreditAmount = parseFloat(bank_amount); // Bank goes out when debiting customer
+            // we receive payment: bank balance increases (debit)
+            bankDebitAmount = parseFloat(bank_amount);
+            bankCreditAmount = 0;
+            bankTrnxType = 'DEBIT';
+            bankClosingBalance = (balanceMap[parseInt(bank_account_id)] || 0) + parseFloat(bank_amount);
           } else {
-            bankDebitAmount = parseFloat(bank_amount); // Bank comes in when customer pays us
+            // we pay customer: bank balance decreases (credit)
+            bankDebitAmount = 0;
+            bankCreditAmount = parseFloat(bank_amount);
+            bankTrnxType = 'CREDIT';
+            bankClosingBalance = (balanceMap[parseInt(bank_account_id)] || 0) - parseFloat(bank_amount);
           }
         }
 
@@ -440,28 +458,14 @@ export async function POST(request) {
           debit_amount: bankDebitAmount,
           credit_amount: bankCreditAmount,
           bill_no: `PAY-${payment.payment_id}`,
-          trnx_type: payment_type === 'PAY' ? 'DEBIT' : 'BANK_TRANSFER',
+          trnx_type: bankTrnxType,
           details: payment_type === 'RECEIVE'
-            ? `payment to customer account ${mainCustomerName}`
-            : payment_type === 'PAY'
-            ? `payment from customer account ${mainCustomerName}`
-            : `${payment_type.toLowerCase()} payment - bank`,
+            ? `payment received from customer account ${mainCustomerName}`
+            : `payment made to customer account ${mainCustomerName}`,
           payments: parseFloat(bank_amount),
           updated_by: parseInt(created_by)
         });
-
-        // Apply custom payment requirement
-        if (payment_type === 'RECEIVE') {
-          // bank account is payment source: debit column, balance decreases
-          bankAccountEntry.debit_amount = parseFloat(bank_amount);
-          bankAccountEntry.credit_amount = 0;
-          bankAccountEntry.closing_balance = bankAccountEntry.opening_balance - parseFloat(bank_amount);
-        } else if (payment_type === 'PAY') {
-          // bank account is payment destination: debit column, balance increases
-          bankAccountEntry.debit_amount = parseFloat(bank_amount);
-          bankAccountEntry.credit_amount = 0;
-          bankAccountEntry.closing_balance = bankAccountEntry.opening_balance + parseFloat(bank_amount);
-        }
+        bankAccountEntry.closing_balance = bankClosingBalance;
 
         ledgerEntries.push({
           ...bankAccountEntry,
@@ -580,11 +584,11 @@ export async function DELETE(request) {
 
       let newBalance = parseFloat(currentCustomer.cus_balance || 0);
       if (payment.payment_type === 'RECEIVE') {
-        // RECEIVE (Receive Amount) added a DEBIT (increased balance) → reverse by subtracting
-        newBalance -= parseFloat(payment.net_amount);
-      } else {
-        // PAY (Pay Amount) added a CREDIT (decreased balance) → reverse by adding back
+        // RECEIVE (Receive Amount) subtracted balance (credited customer) → reverse by adding back
         newBalance += parseFloat(payment.net_amount);
+      } else {
+        // PAY (Pay Amount) added balance (debited customer) → reverse by subtracting
+        newBalance -= parseFloat(payment.net_amount);
       }
 
       await tx.customer.update({
