@@ -155,7 +155,6 @@ function isOrderCustomerMemoLedgerEntry(entry) {
   return d > 0 && c > 0 && Math.abs(d - c) < 0.02;
 }
 
-/** Auto description for Debit / Credit payment modals: cash, bank+name, discount only (no prefix) */
 const buildFinancePaymentDescription = (mode, accountName, cashAmount, bankAmount, bankAccountId, bankAccountsList, discountAmount) => {
   const bits = [];
   const cash = parseFloat(cashAmount || 0);
@@ -170,11 +169,12 @@ const buildFinancePaymentDescription = (mode, accountName, cashAmount, bankAmoun
   }
   if (disc > 0) bits.push(`Discount PKR ${fmtAmt(disc)}`);
   
+  const prefix = mode === 'PAY' ? 'Payment ' : mode === 'RECEIVE' ? 'Receiving ' : '';
   const content = bits.join(' | ');
   if (accountName && content) {
-    return `${accountName} - ${content}`;
+    return `${prefix}${accountName} - ${content}`;
   }
-  return content;
+  return prefix ? `${prefix}${content}` : content;
 };
 
 const getInvoiceNet = (bill) => {
