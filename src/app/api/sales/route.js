@@ -261,11 +261,7 @@ async function recalculateLedgerBalances(tx, cus_id) {
       
       let change = 0;
       if (categoryTitle.includes('cash') || categoryTitle.includes('bank')) {
-        if (entry.trnx_type === 'DEBIT') {
-          change = debit - credit;
-        } else {
-          change = credit - debit;
-        }
+        change = debit - credit;
       } else {
         change = debit - credit;
       }
