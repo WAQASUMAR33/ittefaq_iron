@@ -356,8 +356,8 @@ export async function PUT(request) {
     const {
       id,
       cus_id,
-      debit_amount = 0,
-      credit_amount = 0,
+      debit_amount,
+      credit_amount,
       closing_balance,
       bill_no,
       trnx_type,
@@ -497,7 +497,7 @@ export async function PUT(request) {
       return NextResponse.json(completeLedger);
     }
 
-    if (parseFloat(debit_amount) < 0 || parseFloat(credit_amount) < 0) {
+    if (parseFloat(debit_amount || 0) < 0 || parseFloat(credit_amount || 0) < 0) {
       return errorResponse('Debit and credit amounts must be non-negative');
     }
 
