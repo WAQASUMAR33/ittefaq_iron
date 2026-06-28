@@ -1198,7 +1198,7 @@ export default function FinancePage() {
 
       const paymentData = {
         payment_date: new Date().toISOString().split('T')[0],
-        payment_type: 'PAY',
+        payment_type: 'RECEIVE',
         account_id: selectedCustomer,
         total_amount: totalAmount,
         discount_amount: discountAmount,
@@ -1286,7 +1286,7 @@ export default function FinancePage() {
 
       const paymentData = {
         payment_date: new Date().toISOString().split('T')[0],
-        payment_type: 'RECEIVE',
+        payment_type: 'PAY',
         account_id: selectedCustomer,
         total_amount: totalAmount,
         discount_amount: discountAmount,
