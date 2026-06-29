@@ -88,6 +88,20 @@ const getLedgerEntryDisplayAmounts = (entry) => {
   const creditAmt = parseFloat(entry.credit_amount || 0);
   const entryAmount = debitAmt > 0 ? debitAmt : creditAmt;
 
+  const customer = entry.customer;
+  const categoryTitle = (customer?.customer_category?.cus_cat_title || '').toLowerCase();
+  const isCashBank = categoryTitle.includes('cash') || categoryTitle.includes('bank');
+
+  if (isCashBank) {
+    const type = (entry.ledger_type || '').toLowerCase();
+    const isDebitType = ['sale', 'receiving', 'order', 'purchase return', 'receipt'].includes(type);
+    if (isDebitType) {
+      return { debit: entryAmount, credit: 0 };
+    } else {
+      return { debit: 0, credit: entryAmount };
+    }
+  }
+
   if (entry.trnx_type === 'DEBIT') {
     return { debit: entryAmount, credit: 0 };
   } else if (entry.trnx_type === 'CREDIT') {
