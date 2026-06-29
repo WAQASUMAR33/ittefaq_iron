@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 export async function GET() {
-  console.log('=== Vercel-side specific ledger swap and recalculation for Allied bank ===');
+  console.log('=== Vercel-side force DEBIT for target Allied bank entries ===');
   const results = [];
   const targetIds = [1038, 1330];
   const affectedCusIds = new Set();
@@ -23,33 +23,16 @@ export async function GET() {
       const credit = parseFloat(entry.credit_amount || 0);
       const amount = Math.max(debit, credit);
 
-      let targetDebit = 0;
-      let targetCredit = 0;
-      let targetTrnxType = '';
-      let targetLedgerType = entry.ledger_type;
-
-      if (debit > 0) {
-        targetDebit = 0;
-        targetCredit = amount;
-        targetTrnxType = 'CREDIT';
-        targetLedgerType = entry.ledger_type === 'Receiving' ? 'Payment' : 'Payment';
-      } else {
-        targetDebit = amount;
-        targetCredit = 0;
-        targetTrnxType = 'DEBIT';
-        targetLedgerType = entry.ledger_type === 'Payment' ? 'Receiving' : 'Receiving';
-      }
-
       await prisma.ledger.update({
         where: { l_id: entry.l_id },
         data: {
-          debit_amount: targetDebit,
-          credit_amount: targetCredit,
-          trnx_type: targetTrnxType,
-          ledger_type: targetLedgerType
+          debit_amount: amount,
+          credit_amount: 0,
+          trnx_type: 'DEBIT',
+          ledger_type: 'Receiving'
         }
       });
-      results.push(`Swapped entry ${entry.l_id} to ${targetTrnxType} (${targetLedgerType})`);
+      results.push(`Forced entry ${entry.l_id} to DEBIT (Receiving) with amount ${amount}`);
     }
 
     // Recalculate balances
@@ -121,7 +104,7 @@ export async function GET() {
 
     return NextResponse.json({ success: true, logs: results });
   } catch (error) {
-    console.error('Swap/Recalculation API error:', error);
+    console.error('Force DEBIT API error:', error);
     return NextResponse.json({ success: false, error: error.message, logs: results }, { status: 500 });
   } finally {
     await prisma.$disconnect();
