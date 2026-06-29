@@ -2773,7 +2773,7 @@ export default function FinancePage() {
                             letterSpacing: 0.5
                           }}
                         >
-                          CREDIT (PKR)
+                          DEBIT (PKR)
                         </TableCell>
                         <TableCell
                           sx={{
@@ -2788,7 +2788,7 @@ export default function FinancePage() {
                             letterSpacing: 0.5
                           }}
                         >
-                          DEBIT (PKR)
+                          CREDIT (PKR)
                         </TableCell>
                         <TableCell
                           sx={{
@@ -2867,9 +2867,25 @@ export default function FinancePage() {
                           }
                         }
 
-                        // Color coding: Green for Credit, Red for Debit
-                        const rowBgColor = isCredit ? '#dcfce7' : '#fee2e2';
-                        const entryTypeColor = isCredit ? '#16a34a' : '#dc2626';
+                        // Color coding: Green for incoming/positive cash/owing decrease, Red for outgoing/negative cash/owing increase
+                        const rowCustomer = customers.find(c => Number(c.cus_id) === Number(entry.cus_id));
+                        const rowCategoryTitle = (rowCustomer?.customer_category?.cus_cat_title || '').toLowerCase();
+                        const isRowCashBank = rowCategoryTitle.includes('cash') || rowCategoryTitle.includes('bank');
+                        const isRowSupplier = rowCategoryTitle.includes('supplier') || rowCategoryTitle.includes('labour') || rowCategoryTitle.includes('transport') || rowCategoryTitle.includes('delivery');
+
+                        let isPositive = false;
+                        if (isRowCashBank || isRowSupplier) {
+                          isPositive = isDebit;
+                        } else {
+                          isPositive = isCredit;
+                        }
+
+                        const rowBgColor = isPositive ? '#dcfce7' : '#fee2e2';
+                        const entryTypeColor = isPositive ? '#16a34a' : '#dc2626';
+
+                        // Column text colors (Debit on left, Credit on right)
+                        const debitColor = (isRowCashBank || isRowSupplier) ? '#16a34a' : '#dc2626';
+                        const creditColor = (isRowCashBank || isRowSupplier) ? '#dc2626' : '#16a34a';
 
                         return (
                           <TableRow
@@ -2877,7 +2893,7 @@ export default function FinancePage() {
                             sx={{
                               bgcolor: rowBgColor,
                               '&:hover': {
-                                bgcolor: isCredit ? '#bbf7d0' : '#fecaca',
+                                bgcolor: isPositive ? '#bbf7d0' : '#fecaca',
                                 cursor: 'pointer',
                                 '& .edit-icon': {
                                   opacity: 1
@@ -2993,7 +3009,73 @@ export default function FinancePage() {
                               )}
                             </TableCell>
 
-                            {/* Credit Amount */}
+                             {/* Debit Amount */}
+                             <TableCell
+                               sx={{
+                                 borderRight: 1,
+                                 borderColor: 'divider',
+                                 textAlign: 'right',
+                                 bgcolor: rowBgColor,
+                                 fontWeight: 700,
+                                 cursor: 'pointer',
+                                 position: 'relative'
+                               }}
+                               onClick={(e) => {
+                                 e.stopPropagation();
+                                 if (inlineEditing?.l_id === entry.l_id && inlineEditing?.field === 'debit') return;
+                                 setInlineEditing({
+                                   l_id: entry.l_id,
+                                   field: 'debit',
+                                   value: (entry.debit_amount || 0).toString()
+                                 });
+                               }}
+                             >
+                               {inlineEditing?.l_id === entry.l_id && inlineEditing?.field === 'debit' ? (
+                                 <input
+                                   type="number"
+                                   defaultValue={inlineEditing.value}
+                                   autoFocus
+                                   onBlur={(e) => handleInlineSave(entry, 'debit', e.target.value)}
+                                   onKeyDown={(e) => {
+                                     if (e.key === 'Enter') {
+                                       handleInlineSave(entry, 'debit', e.target.value);
+                                     } else if (e.key === 'Escape') {
+                                        setInlineEditing(null);
+                                      }
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onDoubleClick={(e) => e.stopPropagation()}
+                                    style={{
+                                      width: '90px',
+                                      textAlign: 'right',
+                                      padding: '2px 4px',
+                                      border: `1px solid ${debitColor}`,
+                                      borderRadius: '4px',
+                                      fontWeight: 700,
+                                      fontFamily: 'monospace',
+                                      outline: 'none'
+                                    }}
+                                  />
+                                ) : displayAmts.debit > 0 ? (
+                                  <Typography
+                                    variant="body2"
+                                    sx={{
+                                      fontWeight: 700,
+                                      color: debitColor,
+                                      fontFamily: 'monospace',
+                                      fontSize: '0.95rem'
+                                    }}
+                                  >
+                                    {fmtAmt(displayAmts.debit)}
+                                  </Typography>
+                                ) : (
+                                  <Typography variant="body2" sx={{ color: '#d1d5db', fontWeight: 500 }}>
+                                    -
+                                  </Typography>
+                                )}
+                              </TableCell>
+
+                             {/* Credit Amount */}
                              <TableCell
                                sx={{
                                  borderRight: 1,
@@ -3033,7 +3115,7 @@ export default function FinancePage() {
                                      width: '90px',
                                      textAlign: 'right',
                                      padding: '2px 4px',
-                                     border: '1px solid #16a34a',
+                                     border: `1px solid ${creditColor}`,
                                      borderRadius: '4px',
                                      fontWeight: 700,
                                      fontFamily: 'monospace',
@@ -3045,7 +3127,7 @@ export default function FinancePage() {
                                    variant="body2"
                                    sx={{
                                      fontWeight: 700,
-                                     color: '#16a34a',
+                                     color: creditColor,
                                      fontFamily: 'monospace',
                                      fontSize: '0.95rem'
                                    }}
@@ -3059,71 +3141,6 @@ export default function FinancePage() {
                                )}
                              </TableCell>
 
-                            {/* Debit Amount */}
-                             <TableCell
-                               sx={{
-                                 borderRight: 1,
-                                 borderColor: 'divider',
-                                 textAlign: 'right',
-                                 bgcolor: rowBgColor,
-                                 fontWeight: 700,
-                                 cursor: 'pointer',
-                                 position: 'relative'
-                               }}
-                               onClick={(e) => {
-                                 e.stopPropagation();
-                                 if (inlineEditing?.l_id === entry.l_id && inlineEditing?.field === 'debit') return;
-                                 setInlineEditing({
-                                   l_id: entry.l_id,
-                                   field: 'debit',
-                                   value: (entry.debit_amount || 0).toString()
-                                 });
-                               }}
-                             >
-                               {inlineEditing?.l_id === entry.l_id && inlineEditing?.field === 'debit' ? (
-                                 <input
-                                   type="number"
-                                   defaultValue={inlineEditing.value}
-                                   autoFocus
-                                   onBlur={(e) => handleInlineSave(entry, 'debit', e.target.value)}
-                                   onKeyDown={(e) => {
-                                     if (e.key === 'Enter') {
-                                       handleInlineSave(entry, 'debit', e.target.value);
-                                     } else if (e.key === 'Escape') {
-                                       setInlineEditing(null);
-                                     }
-                                   }}
-                                   onClick={(e) => e.stopPropagation()}
-                                   onDoubleClick={(e) => e.stopPropagation()}
-                                   style={{
-                                     width: '90px',
-                                     textAlign: 'right',
-                                     padding: '2px 4px',
-                                     border: '1px solid #dc2626',
-                                     borderRadius: '4px',
-                                     fontWeight: 700,
-                                     fontFamily: 'monospace',
-                                     outline: 'none'
-                                   }}
-                                 />
-                               ) : displayAmts.debit > 0 ? (
-                                 <Typography
-                                   variant="body2"
-                                   sx={{
-                                     fontWeight: 700,
-                                     color: '#dc2626',
-                                     fontFamily: 'monospace',
-                                     fontSize: '0.95rem'
-                                   }}
-                                 >
-                                   {fmtAmt(displayAmts.debit)}
-                                 </Typography>
-                               ) : (
-                                 <Typography variant="body2" sx={{ color: '#d1d5db', fontWeight: 500 }}>
-                                   -
-                                 </Typography>
-                               )}
-                             </TableCell>
 
                             {/* Running Balance */}
                              <TableCell
