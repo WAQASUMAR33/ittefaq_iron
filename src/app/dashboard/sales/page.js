@@ -3940,59 +3940,59 @@ function SalesPageContent() {
 
               </Box>
 
-              {/* Filter and Order Search Row (Only show if NOT Return, to avoid clutter) */}
-              {billType !== 'SALE_RETURN' && (
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2, mb: 3, p: 2, bgcolor: '#f5f5f5', borderRadius: 1 }}>
-                  
-                  {/* Left Side: Customer Type Dropdown Filter */}
-                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'black', whiteSpace: 'nowrap' }}>
-                      Customer Type:
-                    </Typography>
-                    <Autocomplete
-                      size="small"
-                      sx={{ minWidth: 450 }}
-                      options={customerTypes || []}
-                      getOptionLabel={(option) => option.cus_type_title || ''}
-                      value={selectedCustomerTypeFilter}
-                      onChange={(event, newValue) => {
-                        setSelectedCustomerTypeFilter(newValue);
-                      }}
-                      isOptionEqualToValue={(option, value) => option.cus_type_id === value?.cus_type_id}
-                      autoSelect={true}
-                      autoHighlight={true}
-                      openOnFocus={true}
-                      selectOnFocus={true}
-                      onKeyDown={(e) => {
-                        if ((e.key === 'Enter' || e.key === 'Tab') && !e.shiftKey) {
-                          e.preventDefault();
-                          setTimeout(() => {
-                            const customerInput = document.getElementById('customer-search-dropdown-input');
-                            if (customerInput) {
-                              customerInput.focus();
-                            }
-                          }, 50);
-                        }
-                      }}
-                      renderInput={(params) => (
-                        <TextField
-                          {...params}
-                          placeholder="All Customer Types"
-                          variant="outlined"
-                          sx={{
-                            bgcolor: 'white',
-                            minWidth: 450,
-                            '& .MuiInputBase-input': {
-                              fontWeight: 'bold',
-                              color: 'black'
-                            }
-                          }}
-                        />
-                      )}
-                    />
-                  </Box>
+              {/* Filter and Order Search Row */}
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2, mb: 3, p: 2, bgcolor: '#f5f5f5', borderRadius: 1 }}>
+                
+                {/* Left Side: Customer Type Dropdown Filter */}
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'black', whiteSpace: 'nowrap' }}>
+                    Customer Type:
+                  </Typography>
+                  <Autocomplete
+                    size="small"
+                    sx={{ minWidth: 450 }}
+                    options={customerTypes || []}
+                    getOptionLabel={(option) => option.cus_type_title || ''}
+                    value={selectedCustomerTypeFilter}
+                    onChange={(event, newValue) => {
+                      setSelectedCustomerTypeFilter(newValue);
+                    }}
+                    isOptionEqualToValue={(option, value) => option.cus_type_id === value?.cus_type_id}
+                    autoSelect={true}
+                    autoHighlight={true}
+                    openOnFocus={true}
+                    selectOnFocus={true}
+                    onKeyDown={(e) => {
+                      if ((e.key === 'Enter' || e.key === 'Tab') && !e.shiftKey) {
+                        e.preventDefault();
+                        setTimeout(() => {
+                          const customerInput = document.getElementById('customer-search-dropdown-input');
+                          if (customerInput) {
+                            customerInput.focus();
+                          }
+                        }, 50);
+                      }
+                    }}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        placeholder="All Customer Types"
+                        variant="outlined"
+                        sx={{
+                          bgcolor: 'white',
+                          minWidth: 450,
+                          '& .MuiInputBase-input': {
+                            fontWeight: 'bold',
+                            color: 'black'
+                          }
+                        }}
+                      />
+                    )}
+                  />
+                </Box>
 
-                  {/* Right Side: Load Order Components */}
+                {/* Right Side: Load Order Components */}
+                {billType !== 'SALE_RETURN' ? (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                     <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'text.primary', whiteSpace: 'nowrap' }}>
                       Load Order:
@@ -4025,8 +4025,8 @@ function SalesPageContent() {
                       {isSearchingOrder ? <CircularProgress size={20} color="inherit" /> : 'Load'}
                     </Button>
                   </Box>
-                </Box>
-              )}
+                ) : <Box />}
+              </Box>
 
               {/* First Row - Date, Customer, Reference */}
               <Grid container spacing={2} sx={{ mb: 2, alignItems: 'flex-end' }}>
