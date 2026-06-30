@@ -156,6 +156,15 @@ export default function SaleReturnsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingReturn, setEditingReturn] = useState(null);
 
+  // Type-specific Customer States
+  const [selectedFilterType, setSelectedFilterType] = useState(null);
+  const [filterCustomers, setFilterCustomers] = useState([]);
+  const [filterCustomersLoading, setFilterCustomersLoading] = useState(false);
+
+  const [selectedFormType, setSelectedFormType] = useState(null);
+  const [formCustomers, setFormCustomers] = useState([]);
+  const [formCustomersLoading, setFormCustomersLoading] = useState(false);
+
   // Sale Search State
   const [saleSearchTerm, setSaleSearchTerm] = useState('');
   const [isSearchingSale, setIsSearchingSale] = useState(false);
@@ -221,6 +230,44 @@ export default function SaleReturnsPage() {
     cus_balance: '0'
   });
 
+  // Fetch filter customers when filter type changes
+  useEffect(() => {
+    if (selectedFilterType) {
+      setFilterCustomersLoading(true);
+      fetch(`/api/customers?dropdown=true&type=${selectedFilterType.cus_type_id}`)
+        .then(res => res.json())
+        .then(data => {
+          setFilterCustomers(data || []);
+          setFilterCustomersLoading(false);
+        })
+        .catch(err => {
+          console.error(err);
+          setFilterCustomersLoading(false);
+        });
+    } else {
+      setFilterCustomers([]);
+    }
+  }, [selectedFilterType]);
+
+  // Fetch form customers when form type changes
+  useEffect(() => {
+    if (selectedFormType) {
+      setFormCustomersLoading(true);
+      fetch(`/api/customers?dropdown=true&type=${selectedFormType.cus_type_id}`)
+        .then(res => res.json())
+        .then(data => {
+          setFormCustomers(data || []);
+          setFormCustomersLoading(false);
+        })
+        .catch(err => {
+          console.error(err);
+          setFormCustomersLoading(false);
+        });
+    } else {
+      setFormCustomers([]);
+    }
+  }, [selectedFormType]);
+
   // Fetch data
   const fetchData = async () => {
     setLoading(true);
@@ -228,23 +275,24 @@ export default function SaleReturnsPage() {
       const responses = await Promise.all([
         fetch('/api/sale-returns'),
         fetch('/api/sales'),
-        fetch('/api/customers?dropdown=true'),
         fetch('/api/products?dropdown=true'),
         fetch('/api/stores'),
-        fetch('/api/loaders')
+        fetch('/api/loaders'),
+        fetch('/api/customer-types'),
+        fetch('/api/customer-category'),
+        fetch('/api/cities')
       ]);
 
       const data = await Promise.all(responses.map(res => res.json()));
 
       setSaleReturns(data[0] || []);
       setSales(data[1] || []);
-      setCustomers(data[2] || []);
-      setProducts(data[3] || []);
-      setStores(data[4] || []);
-      setLoaders(data[5] || []);
-
-      // Fetch account related data
-      fetchAccountRelatedData();
+      setProducts(data[2] || []);
+      setStores(data[3] || []);
+      setLoaders(data[4] || []);
+      setCustomerTypes(data[5] || []);
+      setCustomerCategories(data[6] || []);
+      setCities(data[7] || []);
     } catch (error) {
       console.error('Error fetching data:', error);
       setSnackbar({ open: true, message: 'Error fetching data', severity: 'error' });
@@ -253,20 +301,6 @@ export default function SaleReturnsPage() {
     }
   };
 
-  const fetchAccountRelatedData = async () => {
-    try {
-      const [categoriesRes, typesRes, citiesRes] = await Promise.all([
-        fetch('/api/customer-category'),
-        fetch('/api/customer-types'),
-        fetch('/api/cities')
-      ]);
-      if (categoriesRes.ok) setCustomerCategories(await categoriesRes.json());
-      if (typesRes.ok) setCustomerTypes(await typesRes.json());
-      if (citiesRes.ok) setCities(await citiesRes.json());
-    } catch (error) {
-      console.error('Error fetching account related data:', error);
-    }
-  };
 
   const handleAccountFormChange = (e) => {
     const { name, value } = e.target;
@@ -286,6 +320,12 @@ export default function SaleReturnsPage() {
       if (response.ok) {
         const newCustomer = await response.json();
         setCustomers(prev => [...prev, newCustomer]);
+        if (selectedFormType && newCustomer.cus_type === selectedFormType.cus_type_id) {
+          setFormCustomers(prev => [...prev, newCustomer]);
+        }
+        if (selectedFilterType && newCustomer.cus_type === selectedFilterType.cus_type_id) {
+          setFilterCustomers(prev => [...prev, newCustomer]);
+        }
         setSnackbar({
           open: true,
           message: 'Account created successfully',
@@ -339,6 +379,7 @@ export default function SaleReturnsPage() {
 
   const clearFilters = () => {
     setSearchTerm('');
+    setSelectedFilterType(null);
     setSelectedCustomer(null);
     setSelectedStore(null);
     setDateFrom('');
@@ -346,8 +387,48 @@ export default function SaleReturnsPage() {
   };
 
   // Handle sale selection
-  const handleSaleSelect = (sale) => {
+  const handleSaleSelect = async (sale) => {
     setSelectedSale(sale);
+
+    let customerType = null;
+    let loadedFormCustomers = [];
+    
+    if (sale.customer) {
+      const typeId = sale.customer.cus_type;
+      const matchingType = customerTypes.find(t => t.cus_type_id === typeId);
+      if (matchingType) {
+        customerType = matchingType;
+        try {
+          const res = await fetch(`/api/customers?dropdown=true&type=${typeId}`);
+          if (res.ok) {
+            loadedFormCustomers = await res.json();
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
+    } else if (sale.cus_id) {
+      try {
+        const resCus = await fetch(`/api/customers?id=${sale.cus_id}`);
+        if (resCus.ok) {
+          const customer = await resCus.json();
+          const typeId = customer.cus_type;
+          const matchingType = customerTypes.find(t => t.cus_type_id === typeId);
+          if (matchingType) {
+            customerType = matchingType;
+            const res = await fetch(`/api/customers?dropdown=true&type=${typeId}`);
+            if (res.ok) {
+              loadedFormCustomers = await res.json();
+            }
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    setSelectedFormType(customerType);
+    setFormCustomers(loadedFormCustomers);
 
     setFormData(prev => ({
       ...prev,
@@ -622,8 +703,49 @@ export default function SaleReturnsPage() {
   };
 
   // Handle edit
-  const handleEdit = (saleReturn) => {
+  const handleEdit = async (saleReturn) => {
     setEditingReturn(saleReturn);
+
+    let customerType = null;
+    let loadedFormCustomers = [];
+    
+    if (saleReturn.customer) {
+      const typeId = saleReturn.customer.cus_type;
+      const matchingType = customerTypes.find(t => t.cus_type_id === typeId);
+      if (matchingType) {
+        customerType = matchingType;
+        try {
+          const res = await fetch(`/api/customers?dropdown=true&type=${typeId}`);
+          if (res.ok) {
+            loadedFormCustomers = await res.json();
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
+    } else if (saleReturn.cus_id) {
+      try {
+        const resCus = await fetch(`/api/customers?id=${saleReturn.cus_id}`);
+        if (resCus.ok) {
+          const customer = await resCus.json();
+          const typeId = customer.cus_type;
+          const matchingType = customerTypes.find(t => t.cus_type_id === typeId);
+          if (matchingType) {
+            customerType = matchingType;
+            const res = await fetch(`/api/customers?dropdown=true&type=${typeId}`);
+            if (res.ok) {
+              loadedFormCustomers = await res.json();
+            }
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    setSelectedFormType(customerType);
+    setFormCustomers(loadedFormCustomers);
+
     setFormData({
       sale_id: saleReturn.sale_id || '',
       cus_id: saleReturn.cus_id,
@@ -671,7 +793,7 @@ export default function SaleReturnsPage() {
   };
 
   const handleSendWhatsApp = async (returnItem) => {
-    const customer = customers.find(c => c.cus_id === returnItem.cus_id);
+    const customer = returnItem.customer || customers.find(c => c.cus_id === returnItem.cus_id);
     const phone = customer?.cus_phone_no;
     if (!phone) {
       showSnackbar('No phone number found for this customer', 'error');
@@ -803,7 +925,7 @@ export default function SaleReturnsPage() {
   // Filter and sort data
   const filteredAndSortedReturns = saleReturns
     .filter(returnItem => {
-      const customer = customers.find(c => c.cus_id === returnItem.cus_id);
+      const customer = returnItem.customer || customers.find(c => c.cus_id === returnItem.cus_id);
 
       const matchesSearch = (returnItem.reason?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         returnItem.reference?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -939,16 +1061,51 @@ export default function SaleReturnsPage() {
 
                     <Grid item xs={12} md={4}>
                       <Autocomplete
-                        options={customers}
-                        getOptionLabel={(option) => option.cus_name}
-                        value={selectedCustomer}
-                        onChange={(event, newValue) => setSelectedCustomer(newValue)}
+                        options={customerTypes}
+                        getOptionLabel={(option) => option.cus_type_title || ''}
+                        value={selectedFilterType}
+                        onChange={(event, newValue) => {
+                          setSelectedFilterType(newValue);
+                          setSelectedCustomer(null);
+                        }}
                         autoSelect={true}
                         autoHighlight={true}
                         openOnFocus={true}
                         selectOnFocus={true}
                         renderInput={(params) => (
-                          <TextField {...params} placeholder="Select Customer" onFocus={(e) => e.target.select()} sx={STYLES.input} />
+                          <TextField {...params} placeholder="Select Customer Type" onFocus={(e) => e.target.select()} sx={STYLES.input} />
+                        )}
+                      />
+                    </Grid>
+
+                    <Grid item xs={12} md={4}>
+                      <Autocomplete
+                        options={filterCustomers}
+                        getOptionLabel={(option) => option.cus_name || ''}
+                        value={selectedCustomer}
+                        onChange={(event, newValue) => setSelectedCustomer(newValue)}
+                        disabled={!selectedFilterType || filterCustomersLoading}
+                        autoSelect={true}
+                        autoHighlight={true}
+                        openOnFocus={true}
+                        selectOnFocus={true}
+                        loading={filterCustomersLoading}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            placeholder={filterCustomersLoading ? "Loading..." : selectedFilterType ? "Select Customer" : "Select Type First"}
+                            onFocus={(e) => e.target.select()}
+                            sx={STYLES.input}
+                            InputProps={{
+                              ...params.InputProps,
+                              endAdornment: (
+                                <>
+                                  {filterCustomersLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                                  {params.InputProps.endAdornment}
+                                </>
+                              ),
+                            }}
+                          />
                         )}
                       />
                     </Grid>
@@ -1306,30 +1463,71 @@ export default function SaleReturnsPage() {
                             }}>
                               <Box>
                                 <Typography variant="caption" color="primary.main" sx={{ fontWeight: 'bold', textTransform: 'uppercase' }}>Selected Sale</Typography>
-                                <Typography variant="body1" sx={{ fontWeight: '700' }}>#{selectedSale.sale_id} - {customers.find(c => c.cus_id === selectedSale.cus_id)?.cus_name || 'Walk-in'}</Typography>
+                                <Typography variant="body1" sx={{ fontWeight: '700' }}>#{selectedSale.sale_id} - {selectedSale.customer?.cus_name || formCustomers.find(c => c.cus_id === selectedSale.cus_id)?.cus_name || 'Walk-in'}</Typography>
                               </Box>
                               <IconButton size="small" color="error" onClick={() => {
                                 setSelectedSale(null);
+                                setSelectedFormType(null);
+                                setFormCustomers([]);
                                 setFormData(prev => ({ ...prev, sale_id: '', manual_sale_inv: '', return_details: [] }));
                               }}>
                                 <CloseIcon fontSize="small" />
                               </IconButton>
                             </Box>
                           ) : (
-                            <Autocomplete
-                              options={customers}
-                              getOptionLabel={(option) => option.cus_name}
-                              value={customers.find(c => c.cus_id === formData.cus_id) || null}
-                              onChange={(event, newValue) => {
-                                setFormData(prev => ({ ...prev, cus_id: newValue ? newValue.cus_id : '' }));
-                              }}
-                              autoSelect={true}
-                              autoHighlight={true}
-                              openOnFocus={true}
-                              selectOnFocus={true}
-                              ListboxProps={{ sx: { maxHeight: 180 } }}
-                              renderInput={(params) => <TextField {...params} label="Select Customer" onFocus={(e) => e.target.select()} sx={STYLES.input} />}
-                            />
+                            <Grid container spacing={2}>
+                              <Grid item xs={12} sm={6}>
+                                <Autocomplete
+                                  options={customerTypes}
+                                  getOptionLabel={(option) => option.cus_type_title || ''}
+                                  value={selectedFormType}
+                                  onChange={(event, newValue) => {
+                                    setSelectedFormType(newValue);
+                                    setFormData(prev => ({ ...prev, cus_id: '' }));
+                                  }}
+                                  autoSelect={true}
+                                  autoHighlight={true}
+                                  openOnFocus={true}
+                                  selectOnFocus={true}
+                                  ListboxProps={{ sx: { maxHeight: 180 } }}
+                                  renderInput={(params) => <TextField {...params} label="Customer Type" onFocus={(e) => e.target.select()} sx={STYLES.input} />}
+                                />
+                              </Grid>
+                              <Grid item xs={12} sm={6}>
+                                <Autocomplete
+                                  options={formCustomers}
+                                  getOptionLabel={(option) => option.cus_name || ''}
+                                  value={formCustomers.find(c => c.cus_id === formData.cus_id) || null}
+                                  onChange={(event, newValue) => {
+                                    setFormData(prev => ({ ...prev, cus_id: newValue ? newValue.cus_id : '' }));
+                                  }}
+                                  disabled={!selectedFormType || formCustomersLoading}
+                                  autoSelect={true}
+                                  autoHighlight={true}
+                                  openOnFocus={true}
+                                  selectOnFocus={true}
+                                  loading={formCustomersLoading}
+                                  ListboxProps={{ sx: { maxHeight: 180 } }}
+                                  renderInput={(params) => (
+                                    <TextField
+                                      {...params}
+                                      label={formCustomersLoading ? "Loading..." : selectedFormType ? "Select Customer" : "Select Type First"}
+                                      onFocus={(e) => e.target.select()}
+                                      sx={STYLES.input}
+                                      InputProps={{
+                                        ...params.InputProps,
+                                        endAdornment: (
+                                          <>
+                                            {formCustomersLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                                            {params.InputProps.endAdornment}
+                                          </>
+                                        ),
+                                      }}
+                                    />
+                                  )}
+                                />
+                              </Grid>
+                            </Grid>
                           )}
                         </Grid>
                       </Grid>

@@ -249,6 +249,12 @@ export async function GET(request) {
         }
       }
 
+      const typeParam = searchParams.get('type') || searchParams.get('typeFilter');
+      if (typeParam && typeParam !== 'all') {
+        where.cus_type = parseInt(typeParam);
+      }
+
+
       const customers = await prisma.customer.findMany({
         where,
         select: {
