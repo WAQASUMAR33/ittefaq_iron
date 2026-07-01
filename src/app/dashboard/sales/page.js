@@ -4341,7 +4341,7 @@ function SalesPageContent() {
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             {visibleCrates.includes(option.pro_id) && (
                               <Typography variant="body2" sx={{ color: 'text.secondary', mr: 1 }}>
-                                {option.pro_crate ? 'PKR ' + fmtRateQty(option.pro_crate) : 'N/A'}
+                                {option.pro_cost_price ? 'PKR ' + fmtRateQty(option.pro_cost_price) : 'N/A'}
                               </Typography>
                             )}
 
