@@ -976,7 +976,9 @@ async function getSaleReport(startDate, endDate) {
 
 // Profit Report - Calculate profit from sales
 async function getProfitReport(startDate, endDate) {
-  const whereClause = {};
+  const whereClause = {
+    bill_type: 'BILL'
+  };
 
   if (startDate && endDate) {
     whereClause.created_at = parseLocalDateRange(startDate, endDate);
