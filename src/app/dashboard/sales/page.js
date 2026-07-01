@@ -7597,42 +7597,29 @@ function SalesPageContent() {
                       return (
                         <TableRow
                           key={sale.sale_id}
-                          onMouseEnter={(e) => {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            const cardH = 460;
-                            const cardW = 480;
-                            const margin = 16;
-                            // Place card to left of row (inside content area), vertically near row
-                            let top = rect.top;
-                            if (top + cardH > window.innerHeight - margin) top = window.innerHeight - cardH - margin;
-                            if (top < margin) top = margin;
-                            // Horizontally: try left of table; if table left < cardW use right side with margin
-                            const tableLeft = rect.left;
-                            const left = tableLeft + cardW + margin < window.innerWidth
-                              ? Math.min(rect.left + 20, window.innerWidth - cardW - margin)
-                              : margin;
-                            setHoveredSale(sale);
-                            setHoverPos({ top, left });
-                          }}
-                          onMouseLeave={() => setHoveredSale(null)}
-                          sx={{ '&:hover': { bgcolor: '#f1f5f9', cursor: 'pointer' }, transition: 'background 0.15s' }}
+                          sx={{ '&:hover': { bgcolor: '#f1f5f9' }, transition: 'background 0.15s' }}
                         >
                           <TableCell sx={{ fontWeight: 'medium' }}>{sale.is_return ? sale.return_id : sale.sale_id}</TableCell>
                           <TableCell>{sale.customer?.cus_name || 'N/A'}</TableCell>
-                          <TableCell sx={{ minWidth: 160, maxWidth: 220 }}>
+                          <TableCell sx={{ minWidth: 200, maxWidth: 280 }}>
                             {(sale.sale_details || []).length === 0 ? (
                               <Typography sx={{ color: 'text.disabled', fontSize: '0.8rem' }}>—</Typography>
                             ) : (
                               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
                                 {sale.sale_details.map((d, i) => (
-                                  <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                    <Typography sx={{ fontSize: '0.78rem', color: '#334155', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 150 }}>
+                                  <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+                                    <Typography sx={{ fontSize: '0.78rem', color: '#334155', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 130 }}>
                                       {d.product?.pro_title || d.product_name || `Item ${i+1}`}
                                     </Typography>
                                     <Typography sx={{ fontSize: '0.78rem', color: '#64748b' }}>×</Typography>
                                     <Typography sx={{ fontSize: '0.78rem', color: '#1e293b', fontWeight: 700, whiteSpace: 'nowrap' }}>
                                       {parseFloat(d.qnty || 0)}
                                     </Typography>
+                                    {parseFloat(d.rate || 0) > 0 && (
+                                      <Typography sx={{ fontSize: '0.72rem', color: '#6b7280', whiteSpace: 'nowrap' }}>
+                                        @{parseFloat(d.rate).toLocaleString()}
+                                      </Typography>
+                                    )}
                                   </Box>
                                 ))}
                               </Box>
@@ -7722,130 +7709,7 @@ function SalesPageContent() {
         </Stack>
       </Container>
 
-      {/* Bill Quick-View Hover Card */}
-      {hoveredSale && (
-        <Paper elevation={16} sx={{
-          position: 'fixed',
-          top: hoverPos.top,
-          left: hoverPos.left,
-          width: 480,
-          zIndex: 9999,
-          borderRadius: 3,
-          overflow: 'hidden',
-          border: '1px solid #e2e8f0',
-          boxShadow: '0 20px 60px rgba(0,0,0,0.22)',
-          pointerEvents: 'none',
-          animation: 'fadeSlideIn 0.15s ease-out',
-          '@keyframes fadeSlideIn': {
-            from: { opacity: 0, transform: 'translateY(6px)' },
-            to: { opacity: 1, transform: 'translateY(0)' }
-          }
-        }}>
-              {hoveredSale && (() => {
-                const s = hoveredSale;
-                const bal = parseFloat(s.total_amount) - parseFloat(s.discount || 0) + parseFloat(s.shipping_amount || 0) - parseFloat(s.payment || 0);
-                return (
-                  <>
-                    {/* Header */}
-                    <Box sx={{
-                      background: s.bill_type === 'SALE_RETURN'
-                        ? 'linear-gradient(135deg,#c62828,#ef5350)'
-                        : s.bill_type === 'ORDER'
-                          ? 'linear-gradient(135deg,#1565c0,#42a5f5)'
-                          : 'linear-gradient(135deg,#1e3a5f,#2563eb)',
-                      px: 3, py: 2,
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between'
-                    }}>
-                      <Box>
-                        <Typography sx={{ fontWeight: 900, fontSize: '1.4rem', color: '#fff', letterSpacing: 0.5 }}>
-                          {getBillDisplayNo(s)}
-                        </Typography>
-                        <Typography sx={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.75)', mt: 0.25 }}>
-                          {new Date(s.created_at).toLocaleDateString('en-PK', { day: 'numeric', month: 'long', year: 'numeric' })}
-                        </Typography>
-                      </Box>
-                      <Chip
-                        label={s.bill_type || 'BILL'}
-                        sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: '#fff', fontWeight: 800, fontSize: '0.8rem', height: 28 }}
-                      />
-                    </Box>
 
-                    <Box sx={{ p: 2.5 }}>
-                      {/* Customer Row */}
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2, p: 1.5, bgcolor: '#f8fafc', borderRadius: 2 }}>
-                        <Avatar sx={{ bgcolor: '#2563eb', width: 40, height: 40, fontSize: '1rem', fontWeight: 800 }}>
-                          {s.customer?.cus_name?.[0]?.toUpperCase() || '?'}
-                        </Avatar>
-                        <Box sx={{ flex: 1, minWidth: 0 }}>
-                          <Typography sx={{ fontWeight: 700, fontSize: '1rem', color: '#1e293b' }}>{s.customer?.cus_name || 'N/A'}</Typography>
-                          {s.customer?.cus_phone_no && (
-                            <Typography sx={{ fontSize: '0.8rem', color: '#64748b' }}>{s.customer.cus_phone_no}</Typography>
-                          )}
-                        </Box>
-                        {s.reference && (
-                          <Box sx={{ textAlign: 'right' }}>
-                            <Typography sx={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>Ref</Typography>
-                            <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: '#475569' }}>{s.reference}</Typography>
-                          </Box>
-                        )}
-                      </Box>
-
-                      {/* Items Table */}
-                      {s.sale_details?.length > 0 && (
-                        <Box sx={{ mb: 2 }}>
-                          <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.8, mb: 0.75 }}>Items</Typography>
-                          <Box sx={{ border: '1px solid #e2e8f0', borderRadius: 1.5, overflow: 'hidden' }}>
-                            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto', bgcolor: '#f1f5f9', px: 1.5, py: 0.75, gap: 1 }}>
-                              {['Product', 'Qty', 'Amount'].map(h => (
-                                <Typography key={h} sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>{h}</Typography>
-                              ))}
-                            </Box>
-                            {s.sale_details.slice(0, 6).map((d, i) => (
-                              <Box key={i} sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto', px: 1.5, py: 0.6, gap: 1, borderTop: '1px solid #f1f5f9', '&:nth-of-type(even)': { bgcolor: '#fafafa' } }}>
-                                <Typography sx={{ fontSize: '0.82rem', color: '#334155', fontWeight: 500 }} noWrap>{d.product?.pro_title || `Item ${i + 1}`}</Typography>
-                                <Typography sx={{ fontSize: '0.82rem', color: '#64748b', textAlign: 'right' }}>{d.qnty}</Typography>
-                                <Typography sx={{ fontSize: '0.82rem', color: '#1e293b', fontWeight: 600, textAlign: 'right' }}>{parseFloat(d.total_amount || 0).toFixed(0)}</Typography>
-                              </Box>
-                            ))}
-                            {s.sale_details.length > 6 && (
-                              <Box sx={{ px: 1.5, py: 0.5, bgcolor: '#f8fafc', borderTop: '1px solid #f1f5f9' }}>
-                                <Typography sx={{ fontSize: '0.72rem', color: '#94a3b8' }}>+{s.sale_details.length - 6} more items</Typography>
-                              </Box>
-                            )}
-                          </Box>
-                        </Box>
-                      )}
-
-                      {/* Financial Summary */}
-                      <Box sx={{ bgcolor: '#f8fafc', borderRadius: 2, p: 1.5 }}>
-                        {[
-                          { label: 'Sub Total', value: parseFloat(s.total_amount || 0), color: '#334155' },
-                          ...(parseFloat(s.discount || 0) > 0 ? [{ label: 'Discount', value: -parseFloat(s.discount), color: '#16a34a' }] : []),
-                          ...(parseFloat(s.shipping_amount || 0) > 0 ? [{ label: 'Delivery', value: parseFloat(s.shipping_amount), color: '#334155' }] : []),
-                          { label: 'Paid', value: parseFloat(s.payment || 0), color: '#2563eb' },
-                        ].map((row, i) => (
-                          <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.4 }}>
-                            <Typography sx={{ fontSize: '0.82rem', color: '#64748b' }}>{row.label}</Typography>
-                            <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: row.color }}>{row.value.toFixed(0)}</Typography>
-                          </Box>
-                        ))}
-                        <Divider sx={{ my: 1 }} />
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Typography sx={{ fontWeight: 800, fontSize: '0.95rem', color: '#1e293b' }}>Balance</Typography>
-                          <Typography sx={{
-                            fontWeight: 900, fontSize: '1.1rem',
-                            color: bal > 0 ? '#dc2626' : bal < 0 ? '#16a34a' : '#94a3b8'
-                          }}>
-                            {bal.toFixed(0)}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    </Box>
-                  </>
-                );
-              })()}
-        </Paper>
-      )}
     </DashboardLayout>
   );
 
