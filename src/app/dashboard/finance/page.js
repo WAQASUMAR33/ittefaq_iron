@@ -1879,7 +1879,7 @@ export default function FinancePage() {
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:Arial,sans-serif;background:white;padding:20px;color:#111}
-  @media print{body{padding:10px}@page{size:A4 landscape;margin:8mm 10mm}}
+  @media print{body{padding:10px}@page{size:A4 portrait;margin:8mm 10mm}}
   table{width:100%;border-collapse:collapse}
   .header{text-align:center;padding-bottom:12px;border-bottom:3px solid #1f2937;margin-bottom:16px}
   .header h1{font-size:20px;font-weight:bold;direction:rtl;margin-bottom:4px}
