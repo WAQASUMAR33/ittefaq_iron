@@ -2443,28 +2443,19 @@ function SalesPageContent() {
           transportOptions: state.transportOptions
         };
 
-        const method = state.currentDraftId ? 'PUT' : 'POST';
-        const endpoint = state.currentDraftId
-          ? `/api/draft-sales?id=${state.currentDraftId}`
-          : '/api/draft-sales';
+        // Always use POST — PUT handler only toggles is_active and would deactivate the draft
+        const endpoint = '/api/draft-sales';
 
-        const payload = state.currentDraftId
-          ? {
-              id: state.currentDraftId,
-              store_id: state.formSelectedStore.storeid,
-              cus_id: state.formSelectedCustomer?.cus_id || null,
-              form_state: formState,
-              updated_by: 6
-            }
-          : {
-              store_id: state.formSelectedStore.storeid,
-              cus_id: state.formSelectedCustomer?.cus_id || null,
-              form_state: formState,
-              updated_by: 6
-            };
+        const payload = {
+          ...(state.currentDraftId ? { draft_id: state.currentDraftId } : {}),
+          store_id: state.formSelectedStore.storeid,
+          cus_id: state.formSelectedCustomer?.cus_id || null,
+          form_state: formState,
+          updated_by: 6
+        };
 
         fetch(endpoint, {
-          method: method,
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
           keepalive: true
@@ -2498,28 +2489,20 @@ function SalesPageContent() {
 
       setIsSavingDraft(true);
 
-      const method = currentDraftId ? 'PUT' : 'POST';
-      const endpoint = currentDraftId
-        ? `/api/draft-sales?id=${currentDraftId}`
-        : '/api/draft-sales';
+      // Always use POST — the API's POST handler supports both create and update
+      // (when draft_id is provided). The PUT handler is only for toggling is_active.
+      const endpoint = '/api/draft-sales';
 
-      const payload = currentDraftId
-        ? {
-          id: currentDraftId,
-          store_id: formSelectedStore.storeid,
-          cus_id: formSelectedCustomer?.cus_id || null,
-          form_state: formState,
-          updated_by: 6
-        }
-        : {
-          store_id: formSelectedStore.storeid,
-          cus_id: formSelectedCustomer?.cus_id || null,
-          form_state: formState,
-          updated_by: 6
-        };
+      const payload = {
+        ...(currentDraftId ? { draft_id: currentDraftId } : {}),
+        store_id: formSelectedStore.storeid,
+        cus_id: formSelectedCustomer?.cus_id || null,
+        form_state: formState,
+        updated_by: 6
+      };
 
       const response = await fetch(endpoint, {
-        method: method,
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
