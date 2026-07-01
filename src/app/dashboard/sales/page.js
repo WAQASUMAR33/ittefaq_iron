@@ -7613,13 +7613,12 @@ function SalesPageContent() {
                                     </Typography>
                                     <Typography sx={{ fontSize: '0.78rem', color: '#64748b' }}>×</Typography>
                                     <Typography sx={{ fontSize: '0.78rem', color: '#1e293b', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                                      {parseFloat(d.unit_rate || 0).toLocaleString()}
+                                    </Typography>
+                                    <Typography sx={{ fontSize: '0.78rem', color: '#64748b' }}>×</Typography>
+                                    <Typography sx={{ fontSize: '0.78rem', color: '#1e293b', fontWeight: 700, whiteSpace: 'nowrap' }}>
                                       {parseFloat(d.qnty || 0)}
                                     </Typography>
-                                    {parseFloat(d.rate || 0) > 0 && (
-                                      <Typography sx={{ fontSize: '0.72rem', color: '#6b7280', whiteSpace: 'nowrap' }}>
-                                        @{parseFloat(d.rate).toLocaleString()}
-                                      </Typography>
-                                    )}
                                   </Box>
                                 ))}
                               </Box>
