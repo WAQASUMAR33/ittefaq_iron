@@ -1,152 +1,219 @@
 const { PrismaClient } = require('@prisma/client');
-require('dotenv').config();
 
-let prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: process.env.DATABASE_URL
-    }
-  }
+const localUrl = "mysql://Ittefaqiron:DildilPakistan786-786_waqas@72.60.76.68:3306/Ittefaqiron";
+const liveUrl = "mysql://u889453186_parianwali:DildilPakistan786@786@parianwali@195.35.59.84:3306/u889453186_parianwali";
+
+let dbLocal = new PrismaClient({
+  datasources: { db: { url: localUrl } }
+});
+
+let dbLive = new PrismaClient({
+  datasources: { db: { url: liveUrl } }
 });
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function safeUpdate(l_id, data, retries = 5) {
+async function getDbClient(isLive) {
+  return isLive ? dbLive : dbLocal;
+}
+
+async function safeQuery(isLive, queryFn, retries = 5) {
+  let url = isLive ? liveUrl : localUrl;
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      await sleep(10);
-      return await prisma.ledger.update({
-        where: { l_id },
-        data
-      });
+      const client = await getDbClient(isLive);
+      return await queryFn(client);
     } catch (error) {
-      console.warn(`⚠️ Warning: Attempt ${attempt}/${retries} failed for l_id ${l_id}. Error: ${error.message}`);
+      console.warn(`⚠️ Warning: Query attempt ${attempt}/${retries} failed. Error: ${error.message}`);
       if (attempt === retries) throw error;
-      await sleep(200);
+      if (error.message.includes('closed the connection') || error.message.includes('Can\'t reach database') || error.message.includes('connection')) {
+        console.log('🔄 Re-connecting to database...');
+        try {
+          const oldClient = await getDbClient(isLive);
+          await oldClient.$disconnect();
+        } catch (e) {}
+        await sleep(2000 * attempt);
+        try {
+          const newClient = new PrismaClient({
+            datasources: { db: { url } }
+          });
+          await newClient.$connect();
+          if (isLive) {
+            dbLive = newClient;
+          } else {
+            dbLocal = newClient;
+          }
+          console.log('  ✅ Reconnected successfully.');
+        } catch (reconnectErr) {
+          console.warn('  ⚠️ Reconnection failed:', reconnectErr.message);
+        }
+      } else {
+        await sleep(1000);
+      }
     }
   }
 }
 
-async function main() {
-  console.log(`=== SWAPPING COLUMNS FOR ADDITIONAL LEDGER ENTRIES ON DATABASE ===`);
-  
-  const targetIds = [677, 761, 770, 1270, 1552, 1556];
-  const affectedCusIds = new Set();
+async function swapLedgerEntries(isLive, label, targetLIds) {
+  console.log(`\n==================================================`);
+  console.log(`Swapping target entries in ${label}...`);
+  console.log(`==================================================`);
 
-  try {
-    const entries = await prisma.ledger.findMany({
-      where: { l_id: { in: targetIds } }
+  let modifiedCount = 0;
+
+  for (const targetLId of targetLIds) {
+    const entry = await safeQuery(isLive, async (tx) => {
+      return await tx.ledger.findUnique({ where: { l_id: targetLId } });
     });
 
-    console.log(`Found ${entries.length} of ${targetIds.length} target entries.`);
-
-    for (const entry of entries) {
-      affectedCusIds.add(entry.cus_id);
-
-      const debit = parseFloat(entry.debit_amount || 0);
-      const credit = parseFloat(entry.credit_amount || 0);
-      const amount = Math.max(debit, credit);
-
-      let targetDebit = 0;
-      let targetCredit = 0;
-      let targetTrnxType = '';
-      let targetLedgerType = entry.ledger_type;
-
-      if (debit > 0) {
-        targetDebit = 0;
-        targetCredit = amount;
-        targetTrnxType = 'CREDIT';
-        targetLedgerType = entry.ledger_type === 'Receiving' ? 'Payment' : 'Payment';
-      } else {
-        targetDebit = amount;
-        targetCredit = 0;
-        targetTrnxType = 'DEBIT';
-        targetLedgerType = entry.ledger_type === 'Payment' ? 'Receiving' : 'Receiving';
-      }
-
-      await safeUpdate(entry.l_id, {
-        debit_amount: targetDebit,
-        credit_amount: targetCredit,
-        trnx_type: targetTrnxType,
-        ledger_type: targetLedgerType
-      });
-      console.log(`🔄 Swapped entry ${entry.l_id}: was ${debit > 0 ? 'DEBIT' : 'CREDIT'} (${amount}) -> now ${targetTrnxType} (${targetLedgerType})`);
+    if (!entry) {
+      console.log(`  Entry ${targetLId} not found.`);
+      continue;
     }
 
-    // Recalculate balances
-    console.log('\nRecalculating balances for affected accounts...');
-    for (const cusId of affectedCusIds) {
-      const account = await prisma.customer.findUnique({
-        where: { cus_id: cusId },
-        include: { customer_category: true }
-      });
-      if (!account) continue;
+    const debit = parseFloat(entry.debit_amount || 0);
+    const credit = parseFloat(entry.credit_amount || 0);
 
-      const remainingEntries = await prisma.ledger.findMany({
-        where: { cus_id: cusId },
-        orderBy: [
-          { created_at: 'asc' },
-          { l_id: 'asc' }
-        ]
-      });
+    let newDebit = 0;
+    let newCredit = 0;
+    let newTrnxType = 'CREDIT';
+    let newLedgerType = 'Payment';
 
-      if (remainingEntries.length === 0) continue;
-
-      const categoryTitle = (account.customer_category?.cus_cat_title || '').toLowerCase();
-      const isCashBank = categoryTitle.includes('cash') || categoryTitle.includes('bank');
-      const isSupplier = categoryTitle.includes('supplier') || categoryTitle.includes('labour') || categoryTitle.includes('transport') || categoryTitle.includes('delivery');
-
-      let runningBalance = parseFloat(remainingEntries[0].opening_balance || 0);
-      let balanceUpdateCount = 0;
-
-      for (const entry of remainingEntries) {
-        const opening = runningBalance;
-        const debit = parseFloat(entry.debit_amount || 0);
-        const credit = parseFloat(entry.credit_amount || 0);
-
-        let change = 0;
-        if (isCashBank) {
-          change = debit - credit;
-        } else if (isSupplier) {
-          change = debit - credit;
-        } else {
-          change = credit - debit;
-        }
-
-        const closing = opening + change;
-
-        if (
-          Math.abs(parseFloat(entry.opening_balance) - opening) > 0.01 ||
-          Math.abs(parseFloat(entry.closing_balance) - closing) > 0.01
-        ) {
-          await prisma.ledger.update({
-            where: { l_id: entry.l_id },
-            data: {
-              opening_balance: Number(opening.toFixed(2)),
-              closing_balance: Number(closing.toFixed(2))
-            }
-          });
-          balanceUpdateCount++;
-        }
-
-        runningBalance = closing;
-      }
-
-      await prisma.customer.update({
-        where: { cus_id: cusId },
-        data: { cus_balance: Number(runningBalance.toFixed(2)) }
-      });
-
-      console.log(`✅ Recalculated account ${account.cus_name} (ID: ${cusId}): updated ${balanceUpdateCount} entries. Final balance: ${runningBalance.toFixed(2)}`);
+    // If it is currently DEBIT, change to CREDIT
+    if (debit > 0 && credit === 0) {
+      newDebit = 0;
+      newCredit = debit;
+      newTrnxType = 'CREDIT';
+      newLedgerType = 'Payment';
+    } 
+    // If it is currently CREDIT, change to DEBIT
+    else if (credit > 0 && debit === 0) {
+      newDebit = credit;
+      newCredit = 0;
+      newTrnxType = 'DEBIT';
+      newLedgerType = 'Receiving';
+    }
+    // Fallback if both or none (unlikely but safe)
+    else {
+      newDebit = credit;
+      newCredit = debit;
+      newTrnxType = entry.trnx_type === 'DEBIT' ? 'CREDIT' : 'DEBIT';
+      newLedgerType = newTrnxType === 'DEBIT' ? 'Receiving' : 'Payment';
     }
 
-    console.log('\n=== SWAP AND RECALCULATION COMPLETED SUCCESSFULLY ===');
+    await safeQuery(isLive, async (tx) => {
+      return await tx.ledger.update({
+        where: { l_id: targetLId },
+        data: {
+          debit_amount: newDebit,
+          credit_amount: newCredit,
+          trnx_type: newTrnxType,
+          ledger_type: newLedgerType
+        }
+      });
+    });
 
-  } catch (error) {
-    console.error('Fatal database script error:', error);
-  } finally {
-    try { await prisma.$disconnect(); } catch (e) {}
+    console.log(`  ✅ Entry ${targetLId} swapped: [Debit: ${debit} -> ${newDebit}] [Credit: ${credit} -> ${newCredit}] [Type: ${entry.ledger_type} -> ${newLedgerType}]`);
+    modifiedCount++;
   }
+
+  return modifiedCount > 0;
+}
+
+async function recalculateCashAccount(isLive, label) {
+  console.log(`\nRecalculating balances for Cash Account (ID: 2551) in ${label}...`);
+  
+  const remainingEntries = await safeQuery(isLive, async (prisma) => {
+    return await prisma.ledger.findMany({
+      where: { cus_id: 2551 },
+      orderBy: [
+        { created_at: 'asc' },
+        { l_id: 'asc' }
+      ]
+    });
+  });
+
+  if (remainingEntries.length === 0) {
+    console.log('  No entries found for Cash Account.');
+    return;
+  }
+
+  console.log(`  Calculating balances for ${remainingEntries.length} entries in memory...`);
+
+  let runningBalance = parseFloat(remainingEntries[0].opening_balance || 0);
+  const whenOpening = [];
+  const whenClosing = [];
+  const idsToUpdate = [];
+
+  for (const entry of remainingEntries) {
+    const opening = runningBalance;
+    const debit = parseFloat(entry.debit_amount || 0);
+    const credit = parseFloat(entry.credit_amount || 0);
+
+    const change = debit - credit;
+    const closing = opening + change;
+
+    whenOpening.push(`WHEN ${entry.l_id} THEN ${Number(opening.toFixed(2))}`);
+    whenClosing.push(`WHEN ${entry.l_id} THEN ${Number(closing.toFixed(2))}`);
+    idsToUpdate.push(entry.l_id);
+
+    runningBalance = closing;
+  }
+
+  console.log('  Executing fast bulk SQL update...');
+  const query = `
+    UPDATE ledger
+    SET
+      opening_balance = CASE l_id
+        ${whenOpening.join('\n')}
+      END,
+      closing_balance = CASE l_id
+        ${whenClosing.join('\n')}
+      END
+    WHERE l_id IN (${idsToUpdate.join(',')})
+  `;
+
+  await safeQuery(isLive, async (prisma) => {
+    return await prisma.$executeRawUnsafe(query);
+  });
+
+  await safeQuery(isLive, async (prisma) => {
+    return await prisma.customer.update({
+      where: { cus_id: 2551 },
+      data: { cus_balance: Number(runningBalance.toFixed(2)) }
+    });
+  });
+
+  console.log(`  ✅ Cash Account balance recalculation complete. Final balance: ${runningBalance.toFixed(2)}`);
+}
+
+async function main() {
+  const targetLIds = [2502, 2428, 1960, 1891, 1868, 1865, 1862, 1859, 1853, 1850, 1847, 1838, 1841, 1830, 236];
+
+  // 1. Process Office DB
+  try {
+    const modified = await swapLedgerEntries(false, 'Office DB (72.60.76.68)', targetLIds);
+    if (modified) {
+      await recalculateCashAccount(false, 'Office DB');
+    }
+    console.log('✅ Completed Office DB processing successfully.');
+  } catch (error) {
+    console.error('❌ Failed processing Office DB:', error.message);
+  }
+
+  // 2. Process Live DB
+  try {
+    const modified = await swapLedgerEntries(true, 'Live DB (195.35.59.84)', targetLIds);
+    if (modified) {
+      await recalculateCashAccount(true, 'Live DB');
+    }
+    console.log('✅ Completed Live DB processing successfully.');
+  } catch (error) {
+    console.error('❌ Failed processing Live DB:', error.message);
+  }
+
+  try { await dbLocal.$disconnect(); } catch (e) {}
+  try { await dbLive.$disconnect(); } catch (e) {}
 }
 
 main();
