@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { calculateClosingBalance, createLedgerEntry } from '@/lib/ledger-helper';
 import { getNextId } from '@/lib/id-helper';
 
+export const dynamic = 'force-dynamic';
+
 // Helper for JSON errors
 function errorResponse(message, status = 400) {
   return NextResponse.json({ error: message }, { status });
