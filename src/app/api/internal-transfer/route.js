@@ -115,9 +115,16 @@ export async function POST(request) {
       const destCashPayment = isDestCash ? transferAmount : 0;
       const destBankPayment = isDestBank ? transferAmount : 0;
 
-      // Setup Date in Pakistan Standard Time (UTC+5)
-      const tzOffset = '+05:00';
-      const entryDate = date ? new Date(`${date}T12:00:00.000${tzOffset}`) : new Date();
+      // Setup Date in Pakistan Standard Time (UTC+5) preserving current time
+      const now = new Date();
+      let entryDate = now;
+      if (date) {
+        const [year, month, day] = date.split('-').map(Number);
+        entryDate = new Date(now);
+        entryDate.setFullYear(year);
+        entryDate.setMonth(month - 1);
+        entryDate.setDate(day);
+      }
 
       // Get next ledger ID for Source Account (Credit entry)
       const sourceLedgerId = await getNextId('ledger', 'l_id', tx);
