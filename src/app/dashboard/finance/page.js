@@ -94,6 +94,9 @@ const getLedgerEntryDisplayAmounts = (entry) => {
 
   if (isCashBank) {
     const type = (entry.ledger_type || '').toLowerCase();
+    if (type === 'transfer') {
+      return { debit: debitAmt, credit: creditAmt };
+    }
     const isDebitType = ['sale', 'receiving', 'order', 'purchase return', 'receipt'].includes(type);
     if (isDebitType) {
       return { debit: entryAmount, credit: 0 };
