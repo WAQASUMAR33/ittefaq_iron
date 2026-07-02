@@ -88,17 +88,32 @@ export async function POST(request) {
     const result = await prisma.$transaction(async (tx) => {
       // Fetch both accounts
       const sourceAccount = await tx.customer.findUnique({
-        where: { cus_id: srcId }
+        where: { cus_id: srcId },
+        include: { customer_category: true }
       });
       if (!sourceAccount) throw new Error('Source account not found');
 
       const destAccount = await tx.customer.findUnique({
-        where: { cus_id: destId }
+        where: { cus_id: destId },
+        include: { customer_category: true }
       });
       if (!destAccount) throw new Error('Destination account not found');
 
       const sourceOpening = parseFloat(sourceAccount.cus_balance || 0);
       const destOpening = parseFloat(destAccount.cus_balance || 0);
+
+      // Determine payment types
+      const isSrcBank = (sourceAccount.customer_category?.cus_cat_title || '').toLowerCase().includes('bank');
+      const isSrcCash = (sourceAccount.customer_category?.cus_cat_title || '').toLowerCase().includes('cash');
+
+      const isDestBank = (destAccount.customer_category?.cus_cat_title || '').toLowerCase().includes('bank');
+      const isDestCash = (destAccount.customer_category?.cus_cat_title || '').toLowerCase().includes('cash');
+
+      const sourceCashPayment = isSrcCash ? transferAmount : 0;
+      const sourceBankPayment = isSrcBank ? transferAmount : 0;
+
+      const destCashPayment = isDestCash ? transferAmount : 0;
+      const destBankPayment = isDestBank ? transferAmount : 0;
 
       // Setup Date in Pakistan Standard Time (UTC+5)
       const tzOffset = '+05:00';
@@ -118,6 +133,8 @@ export async function POST(request) {
         ledger_type: 'Transfer',
         details: sourceDetails,
         payments: transferAmount,
+        cash_payment: sourceCashPayment,
+        bank_payment: sourceBankPayment,
         updated_by: updated_by ? parseInt(updated_by) : null
       });
 
@@ -152,6 +169,8 @@ export async function POST(request) {
         ledger_type: 'Transfer',
         details: destDetails,
         payments: transferAmount,
+        cash_payment: destCashPayment,
+        bank_payment: destBankPayment,
         updated_by: updated_by ? parseInt(updated_by) : null
       });
 
