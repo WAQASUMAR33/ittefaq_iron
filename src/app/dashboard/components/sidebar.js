@@ -365,6 +365,7 @@ export default function Sidebar({
       { path: '/dashboard/expense-titles', id: 'expense-titles', category: 'financial' },
       { path: '/dashboard/expenses', id: 'expenses', category: 'financial' },
       { path: '/dashboard/journal', id: 'journal', category: 'financial' },
+      { path: '/dashboard/internal-transfer', id: 'internal-transfer', category: 'financial' },
       { path: '/dashboard/day-end', id: 'day-end', category: 'financial' },
       { path: '/dashboard/cargo', id: 'cargo', category: 'cargo-operations' },
       { path: '/dashboard/orders', id: 'orders', category: 'sales-operations' },
@@ -481,6 +482,8 @@ export default function Sidebar({
       router.push('/dashboard/expenses');
     } else if (itemId === 'journal') {
       router.push('/dashboard/journal');
+    } else if (itemId === 'internal-transfer') {
+      router.push('/dashboard/internal-transfer');
     } else if (itemId === 'day-end') {
       router.push('/dashboard/day-end');
     } else if (itemId === 'cargo') {
