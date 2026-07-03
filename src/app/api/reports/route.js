@@ -1442,47 +1442,50 @@ async function getItemSaleReport(startDate, endDate, proId) {
   // Sort by date ascending
   rows.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-  // Calculate CORRECT opening stock before this period.
-  // Strategy: sum ALL transactions that occurred BEFORE startDate.
-  // This avoids relying on pro_stock_qnty which may be inconsistent.
-  // openingStock = (all purchases < startDate) - (all purReturns < startDate)
-  //              - (all sales < startDate) + (all saleReturns < startDate)
-  const currentStock = parseFloat(product?.pro_stock_qnty || 0);
+  // Calculate CORRECT current stock and opening stock.
+  // Strategy: Get current stock from the sum of all store stocks,
+  // then calculate opening stock backwards from it using transaction details since startDate.
+  const storeStocks = await prisma.storeStock.findMany({
+    where: { pro_id: proId }
+  });
+  const currentStock = storeStocks.reduce((sum, ss) => sum + parseFloat(ss.stock_quantity || 0), 0);
+
   let openingStock = 0;
 
-  if (startDate) {
-    const beforeStart = new Date(`${startDate}T00:00:00.000+05:00`);
-    const [aggAllPur, aggPurRet, aggSale, aggSaleRet, returnLedgerBefore] = await Promise.all([
-      prisma.purchaseDetail.aggregate({
-        where: { pro_id: proId, purchase: { created_at: { lt: beforeStart } } },
-        _sum: { qnty: true }
-      }),
-      prisma.purchaseReturnDetail.aggregate({
-        where: { pro_id: proId, purchase_return: { return_date: { lt: beforeStart } } },
-        _sum: { return_quantity: true }
-      }),
-      prisma.saleDetail.aggregate({
-        where: { pro_id: proId, sale: { bill_type: 'BILL', created_at: { lt: beforeStart } } },
-        _sum: { qnty: true }
-      }),
-      prisma.saleReturnDetail.aggregate({
-        where: { pro_id: proId, sale_return: { created_at: { lt: beforeStart } } },
-        _sum: { qnty: true }
-      }),
-      // Purchase returns stored in purchases table before startDate
-      prisma.purchaseDetail.aggregate({
-        where: { pro_id: proId, pur_id: { in: [...returnPurIds] }, purchase: { created_at: { lt: beforeStart } } },
-        _sum: { qnty: true }
-      }),
-    ]);
-    const purRetFromPurTable = parseFloat(returnLedgerBefore._sum.qnty || 0);
-    const realPurchases = parseFloat(aggAllPur._sum.qnty || 0) - purRetFromPurTable;
-    openingStock = realPurchases
-      - parseFloat(aggPurRet._sum.return_quantity || 0)
-      - purRetFromPurTable
-      - parseFloat(aggSale._sum.qnty || 0)
-      + parseFloat(aggSaleRet._sum.qnty || 0);
-  }
+  const afterDateStart = new Date(startDate ? `${startDate}T00:00:00.000+05:00` : '1970-01-01T00:00:00.000+05:00');
+  const [aggAllPur, aggPurRet, aggSale, aggSaleRet, returnLedgerAfter] = await Promise.all([
+    prisma.purchaseDetail.aggregate({
+      where: { pro_id: proId, purchase: { created_at: { gte: afterDateStart } } },
+      _sum: { qnty: true }
+    }),
+    prisma.purchaseReturnDetail.aggregate({
+      where: { pro_id: proId, purchase_return: { return_date: { gte: afterDateStart } } },
+      _sum: { return_quantity: true }
+    }),
+    prisma.saleDetail.aggregate({
+      where: { pro_id: proId, sale: { bill_type: 'BILL', created_at: { gte: afterDateStart } } },
+      _sum: { qnty: true }
+    }),
+    prisma.saleReturnDetail.aggregate({
+      where: { pro_id: proId, sale_return: { created_at: { gte: afterDateStart } } },
+      _sum: { qnty: true }
+    }),
+    prisma.purchaseDetail.aggregate({
+      where: { pro_id: proId, pur_id: { in: returnPurIds.size > 0 ? [...returnPurIds] : [] }, purchase: { created_at: { gte: afterDateStart } } },
+      _sum: { qnty: true }
+    }),
+  ]);
+
+  const purRetFromPurTable = parseFloat(returnLedgerAfter._sum.qnty || 0);
+  const realPurchases = parseFloat(aggAllPur._sum.qnty || 0) - purRetFromPurTable;
+  
+  const netChange = realPurchases
+    - parseFloat(aggPurRet._sum.return_quantity || 0)
+    - purRetFromPurTable
+    - parseFloat(aggSale._sum.qnty || 0)
+    + parseFloat(aggSaleRet._sum.qnty || 0);
+    
+  openingStock = currentStock - netChange;
 
   let totalPurchases = 0, totalPurchaseReturns = 0, totalSales = 0, totalSaleReturns = 0;
   rows.forEach(r => {
