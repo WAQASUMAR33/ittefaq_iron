@@ -302,8 +302,8 @@ export async function POST(request) {
     const labourChargesAmount = parseFloat(labour_charges || 0);
     const shippingAmount = parseFloat(shipping_amount || 0);
 
-    // Grand Total = Product Total + Delivery Charges + Labour Charges - Discount
-    const grandTotal = computedTotal + labourChargesAmount + shippingAmount - discountAmount;
+    // Grand Total = Product Total - Delivery Charges - Labour Charges - Discount
+    const grandTotal = computedTotal - labourChargesAmount - shippingAmount - discountAmount;
     const refundAmount = parseFloat(payment || 0); // Amount being refunded to customer
     const cashRefund = parseFloat(cash_return || 0);
     const bankRefund = parseFloat(bank_return || 0);
@@ -450,7 +450,7 @@ export async function POST(request) {
             bill_no: saleReturn.return_id.toString(),
             trnx_type: 'CREDIT',
             ledger_type: 'Sale Return',
-            details: `Sale Return - Product: ${computedTotal}, Delivery: +${shippingAmount}, Labour: +${labourChargesAmount}, Discount: -${discountAmount}, Net: ${grandTotal}`,
+            details: `Sale Return - Product: ${computedTotal}, Delivery: -${shippingAmount}, Labour: -${labourChargesAmount}, Discount: -${discountAmount}, Net: ${grandTotal}`,
             payments: 0,
             updated_by
           }
@@ -622,17 +622,49 @@ export async function POST(request) {
           }
         });
 
-        // If loader is involved, update loader balance for shipping
+        // If loader is involved, update loader balance for shipping (decrement using Prisma safe operation)
         if (loader_id && shippingAmount > 0) {
-          const loader = await tx.loader.findUnique({
-            where: { loader_id }
+          await tx.loader.update({
+            where: { loader_id },
+            data: {
+              loader_balance: {
+                decrement: shippingAmount
+              }
+            }
+          });
+        }
+
+        // Re-adjust transporter customer account balance if original sale transport ledger entry exists
+        if (sale_id && shippingAmount > 0) {
+          const originalTransportLedgerEntry = await tx.ledger.findFirst({
+            where: {
+              bill_no: sale_id.toString(),
+              details: { contains: 'Transport' }
+            }
           });
 
-          if (loader) {
-            await tx.loader.update({
-              where: { loader_id },
+          if (originalTransportLedgerEntry) {
+            const transportCusId = originalTransportLedgerEntry.cus_id;
+            affectedCusIds.push(transportCusId);
+
+            const currentTransportBalance = await resolveOpeningBalance(tx, transportCusId, saleReturn.created_at);
+
+            // Create a DEBIT entry to reverse the original CREDIT transport charge
+            const l_id_trans = await getNextId('ledger', 'l_id', tx);
+            await tx.ledger.create({
               data: {
-                loader_balance: loader.loader_balance - shippingAmount
+                l_id: l_id_trans,
+                cus_id: transportCusId,
+                opening_balance: currentTransportBalance,
+                debit_amount: shippingAmount,
+                credit_amount: 0,
+                closing_balance: currentTransportBalance + shippingAmount,
+                bill_no: saleReturn.return_id.toString(),
+                trnx_type: 'DEBIT',
+                ledger_type: 'Sale Return',
+                details: `Transport Fare Deduction - Sale Return #${saleReturn.return_id} - Original Bill #${sale_id}`,
+                payments: 0,
+                updated_by
               }
             });
           }
