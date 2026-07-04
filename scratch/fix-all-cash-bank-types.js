@@ -1,12 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 
-let prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: "mysql://u889453186_parianwali:DildilPakistan786@786@parianwali@195.35.59.84:3306/u889453186_parianwali"
-    }
-  }
-});
+const prisma = new PrismaClient();
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -21,21 +15,7 @@ async function safeUpdate(l_id, data, retries = 5) {
     } catch (error) {
       console.warn(`⚠️ Warning: Attempt ${attempt}/${retries} failed for l_id ${l_id}. Error: ${error.message}`);
       if (attempt === retries) throw error;
-      if (error.message.includes('closed the connection') || error.message.includes('Can\'t reach database')) {
-        console.log('🔄 Re-connecting to production database...');
-        try { await prisma.$disconnect(); } catch (e) {}
-        await sleep(1000 * attempt);
-        prisma = new PrismaClient({
-          datasources: {
-            db: {
-              url: "mysql://u889453186_parianwali:DildilPakistan786@786@parianwali@195.35.59.84:3306/u889453186_parianwali"
-            }
-          }
-        });
-        await prisma.$connect();
-      } else {
-        await sleep(500);
-      }
+      await sleep(500);
     }
   }
 }
@@ -77,10 +57,13 @@ async function main() {
       for (const entry of entries) {
         const debit = parseFloat(entry.debit_amount || 0);
         const credit = parseFloat(entry.credit_amount || 0);
+        const detLower = (entry.details || '').toLowerCase();
 
         let targetLedgerType = entry.ledger_type;
 
-        if (debit > 0) {
+        if (detLower.includes('order') || detLower.includes('advance payment')) {
+          targetLedgerType = 'Order';
+        } else if (debit > 0) {
           targetLedgerType = 'Receiving';
         } else if (credit > 0) {
           targetLedgerType = 'Payment';

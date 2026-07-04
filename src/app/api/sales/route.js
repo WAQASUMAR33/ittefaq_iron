@@ -1380,7 +1380,8 @@ export async function POST(request) {
             payments: totalAdvance,
             cash_payment: cashAmount,
             bank_payment: bankAmount,
-            updated_by: validatedUpdatedBy
+            updated_by: validatedUpdatedBy,
+            ledger_type: 'Order'
           });
           console.log(`💳 ORDER advance: Credit=${orderAdvanceEntry.credit_amount}, Closing=${orderAdvanceEntry.closing_balance}, Desc="${orderAdvanceEntry.details}"`);
           ledgerEntries.push(orderAdvanceEntry);
@@ -1451,7 +1452,8 @@ export async function POST(request) {
               payments: Number(eff_bank.toFixed(2)),
               cash_payment: 0,
               bank_payment: Number(eff_bank.toFixed(2)),  // Mark as bank payment
-              updated_by: validatedUpdatedBy
+              updated_by: validatedUpdatedBy,
+              ledger_type: isOrder ? 'Order' : 'Sale'
             });
             console.log(`🏦 Bank Ledger Entry: Opening=${bankEntry.opening_balance}, Debit=${bankEntry.debit_amount}, Closing=${bankEntry.closing_balance}`);
             ledgerEntries.push(bankEntry);
@@ -1476,7 +1478,8 @@ export async function POST(request) {
             payments: Number(eff_cash.toFixed(2)),
             cash_payment: Number(eff_cash.toFixed(2)),  // Mark as cash payment
             bank_payment: 0,
-            updated_by: validatedUpdatedBy
+            updated_by: validatedUpdatedBy,
+            ledger_type: isOrder ? 'Order' : 'Sale'
           });
           console.log(`💵 Cash Ledger Entry: Opening=${cashEntry.opening_balance}, Debit=${cashEntry.debit_amount}, Closing=${cashEntry.closing_balance}`);
           ledgerEntries.push(cashEntry);
@@ -2209,7 +2212,8 @@ export async function PUT(request) {
             payments: advPaymentAmt,
             cash_payment: advCash,
             bank_payment: advBank,
-            updated_by: validatedUpdatedBy
+            updated_by: validatedUpdatedBy,
+            ledger_type: 'Order'
           });
           console.log(`   💳 Advance Credit: ${advPaymentAmt}, Closing=${orderAdvanceEntry.closing_balance}`);
           ledgerEntries.push(orderAdvanceEntry);
@@ -2254,7 +2258,8 @@ export async function PUT(request) {
                 payments: Number(advBank.toFixed(2)),
                 cash_payment: 0,
                 bank_payment: Number(advBank.toFixed(2)),
-                updated_by: validatedUpdatedBy
+                updated_by: validatedUpdatedBy,
+                ledger_type: 'Order'
               });
               console.log(`   🏦 Advance Bank Debit: ${advBank}, Closing=${bankEntry.closing_balance}`);
               ledgerEntries.push(bankEntry);
@@ -2275,7 +2280,8 @@ export async function PUT(request) {
               payments: Number(advCash.toFixed(2)),
               cash_payment: Number(advCash.toFixed(2)),
               bank_payment: 0,
-              updated_by: validatedUpdatedBy
+              updated_by: validatedUpdatedBy,
+              ledger_type: 'Order'
             });
             console.log(`   💵 Advance Cash Debit: ${advCash}, Closing=${cashEntry.closing_balance}`);
             ledgerEntries.push(cashEntry);
@@ -2314,7 +2320,8 @@ export async function PUT(request) {
             payments: totalPaymentForCustomer,
             cash_payment: cashAmount,
             bank_payment: bankAmount,
-            updated_by: validatedUpdatedBy
+            updated_by: validatedUpdatedBy,
+            ledger_type: isOrder ? 'Order' : 'Sale'
           });
           console.log(`   💳 Payment Credit: ${totalPaymentForCustomer}, Closing=${paymentEntry.closing_balance}`);
           ledgerEntries.push(paymentEntry);
@@ -2371,7 +2378,8 @@ export async function PUT(request) {
               payments: Number(eff_bank.toFixed(2)),
               cash_payment: 0,
               bank_payment: Number(eff_bank.toFixed(2)),
-              updated_by: validatedUpdatedBy
+              updated_by: validatedUpdatedBy,
+              ledger_type: isOrder ? 'Order' : 'Sale'
             });
             console.log(`   🏦 Bank Debit: ${eff_bank}, Closing=${bankEntry.closing_balance}`);
             ledgerEntries.push(bankEntry);
@@ -2393,7 +2401,8 @@ export async function PUT(request) {
             payments: Number(eff_cash.toFixed(2)),
             cash_payment: Number(eff_cash.toFixed(2)),
             bank_payment: 0,
-            updated_by: validatedUpdatedBy
+            updated_by: validatedUpdatedBy,
+            ledger_type: isOrder ? 'Order' : 'Sale'
           });
           console.log(`   💵 Cash Debit: ${eff_cash}, Closing=${cashEntry.closing_balance}`);
           ledgerEntries.push(cashEntry);

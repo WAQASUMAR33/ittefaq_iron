@@ -95,6 +95,8 @@ export function createLedgerEntry(config) {
       finalLedgerType = detLower.includes('order') ? 'Order' : 'Sale';
     } else if (detLower.includes('cargo') || detLower.includes('labour') || detLower.includes('delivery') || detLower.includes('fare')) {
       finalLedgerType = 'Purchase'; // transport/labour charges from purchase
+    } else if (detLower.includes('order') || detLower.includes('advance payment')) {
+      finalLedgerType = 'Order';
     }
   }
 
