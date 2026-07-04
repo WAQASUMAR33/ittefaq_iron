@@ -20,9 +20,9 @@ async function getSpecialAccounts() {
 
   allCategories.forEach(cat => {
     const lowerTitle = cat.cus_cat_title.toLowerCase();
-    if (lowerTitle.includes('cash') && lowerTitle.includes('account')) {
+    if (lowerTitle === 'cash' || (lowerTitle.includes('cash') && lowerTitle.includes('account'))) {
       categoryMap['Cash Account'] = cat.cus_cat_id;
-    } else if (lowerTitle.includes('bank') && lowerTitle.includes('account')) {
+    } else if (lowerTitle === 'bank' || (lowerTitle.includes('bank') && lowerTitle.includes('account'))) {
       categoryMap['Bank Account'] = cat.cus_cat_id;
     } else if (lowerTitle.includes('sundry') && lowerTitle.includes('creditor')) {
       categoryMap['Sundry Creditors'] = cat.cus_cat_id;
@@ -1393,30 +1393,47 @@ export async function POST(request) {
         let usedBankAccountId = null;  // Track which bank account is being used
 
         if (eff_bank > 0) {
-          let bankAccountToUse = specialAccounts.bank;
+          let bankAccountToUse = null;
 
-          // If a specific bank_title is provided, find that specific bank account
-          if (bank_title && bank_title.trim()) {
-            console.log(`🏦 BANK PAYMENT DETECTED with specific bank: ${bank_title}`);
+          // 1. Try to resolve by debit_account_id if provided
+          if (debit_account_id) {
+            const specificBank = await tx.customer.findUnique({
+              where: { cus_id: Number(debit_account_id) }
+            });
+            if (specificBank) {
+              bankAccountToUse = specificBank;
+              console.log(`🏦 Found bank by debit_account_id: ${specificBank.cus_name} (ID: ${specificBank.cus_id})`);
+            }
+          }
 
-            // Find the specific bank account by name (MySQL is case-insensitive by default)
+          // 2. Try to resolve by bank_title
+          if (!bankAccountToUse && bank_title && bank_title.trim()) {
+            console.log(`🏦 BANK PAYMENT DETECTED with specific bank title: ${bank_title}`);
+
+            // Find the specific bank account by name
             const specificBank = await tx.customer.findFirst({
               where: {
                 cus_name: {
                   contains: bank_title
                 },
-                cus_category: specialAccounts.bank?.cus_category
+                cus_category: specialAccounts?.bank?.cus_category
               }
             });
 
             if (specificBank) {
               bankAccountToUse = specificBank;
-              console.log(`🏦 Found specific bank: ${specificBank.cus_name} (ID: ${specificBank.cus_id})`);
+              console.log(`🏦 Found specific bank by title: ${specificBank.cus_name} (ID: ${specificBank.cus_id})`);
             } else {
               console.log(`⚠️ Bank "${bank_title}" not found, using generic Bank Account`);
             }
-          } else {
-            console.log(`🏦 BANK PAYMENT DETECTED (using generic bank account): ${eff_bank}`);
+          }
+
+          // 3. Fallback to generic bank account
+          if (!bankAccountToUse) {
+            bankAccountToUse = specialAccounts?.bank;
+            if (bankAccountToUse) {
+              console.log(`🏦 Using generic bank account: ${bankAccountToUse.cus_name} (ID: ${bankAccountToUse.cus_id})`);
+            }
           }
 
           if (bankAccountToUse) {
@@ -2199,18 +2216,29 @@ export async function PUT(request) {
           runningBalance = orderAdvanceEntry.closing_balance;
 
           // Bank debit for advance
-          if (advBank > 0 && specialAccounts) {
-            let bankAccountToUse = specialAccounts.bank;
-            if (bank_title && bank_title.trim() && bankAccountToUse) {
+          if (advBank > 0) {
+            let bankAccountToUse = null;
+            if (debit_account_id) {
+              const specificBank = await tx.customer.findUnique({
+                where: { cus_id: Number(debit_account_id) }
+              });
+              if (specificBank) {
+                bankAccountToUse = specificBank;
+              }
+            }
+            if (!bankAccountToUse && bank_title && bank_title.trim()) {
               const specificBank = await tx.customer.findFirst({
                 where: {
                   cus_name: { contains: bank_title },
-                  cus_category: bankAccountToUse.cus_category
+                  cus_category: specialAccounts?.bank?.cus_category
                 }
               });
               if (specificBank) {
                 bankAccountToUse = specificBank;
               }
+            }
+            if (!bankAccountToUse) {
+              bankAccountToUse = specialAccounts?.bank;
             }
 
             if (bankAccountToUse) {
@@ -2296,21 +2324,36 @@ export async function PUT(request) {
         // ── 4d. Bank Account DEBIT (bank payment received) ──
         let usedBankAccountId = null;
 
-        if (eff_bank > 0 && specialAccounts) {
-          let bankAccountToUse = specialAccounts.bank;
+        if (eff_bank > 0) {
+          let bankAccountToUse = null;
 
-          // If a specific bank_title is provided, find that specific bank account
+          // 1. Try to resolve by debit_account_id if provided
+          if (debit_account_id) {
+            const specificBank = await tx.customer.findUnique({
+              where: { cus_id: Number(debit_account_id) }
+            });
+            if (specificBank) {
+              bankAccountToUse = specificBank;
+            }
+          }
+
+          // 2. Try to resolve by bank_title
           const effectiveBankTitle = bank_title || existingSale.bank_title;
-          if (effectiveBankTitle && effectiveBankTitle.trim() && bankAccountToUse) {
+          if (!bankAccountToUse && effectiveBankTitle && effectiveBankTitle.trim()) {
             const specificBank = await tx.customer.findFirst({
               where: {
                 cus_name: { contains: effectiveBankTitle },
-                cus_category: bankAccountToUse.cus_category
+                cus_category: specialAccounts?.bank?.cus_category
               }
             });
             if (specificBank) {
               bankAccountToUse = specificBank;
             }
+          }
+
+          // 3. Fallback to generic bank account
+          if (!bankAccountToUse) {
+            bankAccountToUse = specialAccounts?.bank;
           }
 
           if (bankAccountToUse) {

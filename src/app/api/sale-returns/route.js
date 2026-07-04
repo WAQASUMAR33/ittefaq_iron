@@ -86,24 +86,28 @@ async function recalculateLedgerBalances(tx, cus_id) {
 async function getSpecialAccounts(tx) {
   // Find special accounts by category, not by exact name
   // This is more flexible and works regardless of the account's specific name
-  const categories = await tx.customerCategory.findMany({
-    where: {
-      cus_cat_title: {
-        in: ['Cash Account', 'Bank Account', 'Sundry Creditors', 'Sundry Debtors']
-      }
+  const allCategories = await tx.customerCategory.findMany();
+
+  const categoryMap = {};
+  allCategories.forEach(cat => {
+    const lowerTitle = cat.cus_cat_title.toLowerCase();
+    if (lowerTitle === 'cash' || (lowerTitle.includes('cash') && lowerTitle.includes('account'))) {
+      categoryMap['Cash Account'] = cat.cus_cat_id;
+    } else if (lowerTitle === 'bank' || (lowerTitle.includes('bank') && lowerTitle.includes('account'))) {
+      categoryMap['Bank Account'] = cat.cus_cat_id;
+    } else if (lowerTitle.includes('sundry') && lowerTitle.includes('creditor')) {
+      categoryMap['Sundry Creditors'] = cat.cus_cat_id;
+    } else if (lowerTitle.includes('sundry') && lowerTitle.includes('debtor')) {
+      categoryMap['Sundry Debtors'] = cat.cus_cat_id;
     }
   });
 
-  const categoryMap = {};
-  categories.forEach(cat => {
-    categoryMap[cat.cus_cat_title] = cat.cus_cat_id;
-  });
-
   // Now find accounts using these category IDs
+  const categoryIds = Object.values(categoryMap);
   const specialAccounts = await tx.customer.findMany({
     where: {
       cus_category: {
-        in: Object.values(categoryMap)
+        in: categoryIds
       }
     }
   });
