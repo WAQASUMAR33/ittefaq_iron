@@ -188,19 +188,17 @@ function SalesPageContent() {
           // Don't load products - start fresh with empty table
           setProductTableData([]);
 
-          // Set payment data - load advance payment if any
-          const alreadyPaid = parseFloat(fullQuotation.payment || 0);
-
+          // Set payment data - do NOT load advance payment (as it's a new bill and the order remains)
           // Set discount and notes
           setPaymentData(prev => ({
             ...prev,
-            advancePayment: alreadyPaid,
+            advancePayment: '',
             discount: 0,
-            notes: `Order #${quotationId} - Advance: ${alreadyPaid.toFixed(0)}. ${fullQuotation.reference || ''}`,
-            isLoadedOrder: true
+            notes: `Ref Order #${quotationId}. ${fullQuotation.reference || ''}`,
+            isLoadedOrder: false
           }));
 
-          showSnackbar(`Order loaded. Advance: ${alreadyPaid.toFixed(0)}. Add items to bill.`, 'info');
+          showSnackbar(`Order details loaded. Add items to bill.`, 'info');
         } catch (error) {
           console.error('Error loading quotation from URL:', error);
           showSnackbar('Failed to load quotation from URL', 'error');
@@ -1120,17 +1118,17 @@ function SalesPageContent() {
 
       setPaymentData(prev => ({
         ...prev,
-        advancePayment: alreadyPaid, // Set the already paid amount as advance payment
+        advancePayment: '', // Clear advance payment for new bill
         discount: parseFloat(fullOrder.discount || 0) || '', // Empty string if 0, so user knows they can edit
         labour: labourCharges > 0 ? labourCharges : '', // Only set if > 0, otherwise empty string
         deliveryCharges: parseFloat(fullOrder.shipping_amount || 0) || '', // Empty string if 0
-        notes: fullOrder.reference || `Order #${fullOrder.sale_id}`,
-        isLoadedOrder: true // Flag to indicate this is a loaded order
+        notes: fullOrder.reference ? `${fullOrder.reference} (Ref Order #${fullOrder.sale_id})` : `Ref Order #${fullOrder.sale_id}`,
+        isLoadedOrder: false // Flag to indicate if this is a loaded order
       }));
 
-      setLoadedOrderId(fullOrder.sale_id); // Remember which order is being converted
+      setLoadedOrderId(null); // Keep order untouched
       setLoadOrderDialogOpen(false);
-      showSnackbar(`Order loaded. Advance: ${alreadyPaid.toFixed(0)}. Add items to bill.`, 'info');
+      showSnackbar(`Order details loaded. Add items to bill.`, 'info');
 
     } catch (error) {
       console.error('Error loading order:', error);
@@ -2905,21 +2903,20 @@ function SalesPageContent() {
       }
 
       // 4. Set Payment Data (Notes, Discount, etc.)
-      const orderPayment = parseFloat(orderData.payment || 0);
       setPaymentData(prev => ({
         ...prev,
-        advancePayment: orderPayment,
+        advancePayment: '', // Clear advance payment for new bill
         discount: parseFloat(orderData.discount) || 0,
-        notes: `Converted from Order #${orderData.sale_id}. ${orderData.reference || ''}`,
+        notes: orderData.reference ? `${orderData.reference} (Ref Order #${orderData.sale_id})` : `Ref Order #${orderData.sale_id}`,
         deliveryCharges: parseFloat(orderData.shipping_amount) || 0,
         labour: parseFloat(orderData.labour_charges || orderData.labour || 0), // Load labour charges from order
-        isLoadedOrder: true, // Mark as loaded order
-        sourceOrderId: orderData.sale_id // Store original order ID
+        isLoadedOrder: false, // Mark as loaded order
+        sourceOrderId: null // Keep order untouched
       }));
 
-      setLoadedOrderId(orderData.sale_id);
+      setLoadedOrderId(null);
 
-      showSnackbar(`Order loaded successfully! Advance payment: ${orderPayment.toFixed(0)}`, 'success');
+      showSnackbar(`Order details loaded successfully!`, 'success');
       setOrderSearchTerm(''); // Clear search field
 
     } catch (error) {
