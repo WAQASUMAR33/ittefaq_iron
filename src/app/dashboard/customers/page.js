@@ -649,7 +649,7 @@ export default function CustomersPage() {
       th:first-child{text-align:center}
       .legend{display:flex;gap:16px;margin-top:12px;font-size:0.75rem}
       .dot{width:12px;height:12px;border-radius:50%;display:inline-block;margin-right:4px;vertical-align:middle}
-      @media print{@page{size:A4 landscape;margin:12mm}}
+      @media print{@page{size:A4 portrait;margin:12mm}}
     </style></head><body>
     <h1>Itefaq Iron &amp; Cement Store — Accounts List</h1>
     <p class="sub">Printed: ${now} &nbsp;|&nbsp; Total: ${list.length} accounts</p>
@@ -683,11 +683,11 @@ export default function CustomersPage() {
       const fullList = await fetchFullFilteredList();
       const { jsPDF } = await import('jspdf');
 
-      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const pageW = doc.internal.pageSize.getWidth();
       const pageH = doc.internal.pageSize.getHeight();
       const margin = 12;
-      const colWidths = [12, 65, 38, 45, 42, 36]; // # | Name | Phone | Category | Balance | Last Activity
+      const colWidths = [10, 50, 30, 35, 33, 28]; // # | Name | Phone | Category | Balance | Last Activity
       const rowH = 7;
       let y = margin;
 
