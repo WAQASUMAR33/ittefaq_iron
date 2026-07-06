@@ -1872,8 +1872,8 @@ export default function FinancePage() {
         <td style="padding:6px 8px;border:1px solid #d1d5db;font-size:11px">${date}</td>
         <td style="padding:6px 8px;border:1px solid #d1d5db;font-weight:600">${account}</td>
         <td style="padding:6px 8px;border:1px solid #d1d5db;font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis">${desc}${entry.bill_no ? '<br/><span style="color:#6b7280;font-size:10px">Bill: ' + bill + '</span>' : ''}</td>
-        <td style="padding:6px 8px;border:1px solid #d1d5db;text-align:right;color:#16a34a;font-weight:600">${credit > 0 ? fmtAmt(credit) : '-'}</td>
         <td style="padding:6px 8px;border:1px solid #d1d5db;text-align:right;color:#dc2626;font-weight:600">${debit > 0 ? fmtAmt(debit) : '-'}</td>
+        <td style="padding:6px 8px;border:1px solid #d1d5db;text-align:right;color:#16a34a;font-weight:600">${credit > 0 ? fmtAmt(credit) : '-'}</td>
         <td style="padding:6px 8px;border:1px solid #d1d5db;text-align:right;font-weight:700;color:#1d4ed8">${fmtAmt(bal)}</td>
       </tr>`;
     }).join('');
@@ -1928,8 +1928,8 @@ export default function FinancePage() {
       <th style="width:120px">Date & Time</th>
       <th style="width:140px">Account</th>
       <th>Description</th>
-      <th style="width:90px;text-align:right">Credit (PKR)</th>
       <th style="width:90px;text-align:right">Debit (PKR)</th>
+      <th style="width:90px;text-align:right">Credit (PKR)</th>
       <th style="width:100px;text-align:right">Balance (PKR)</th>
     </tr>
   </thead>
@@ -1937,8 +1937,8 @@ export default function FinancePage() {
     ${tableRows}
     <tr class="footer-row">
       <td colspan="4" style="text-align:center;font-size:13px">TOTAL SUMMARY</td>
-      <td class="credit-total" style="text-align:right">${fmtAmt(printTotalCredit)}</td>
       <td class="debit-total" style="text-align:right">${fmtAmt(printTotalDebit)}</td>
+      <td class="credit-total" style="text-align:right">${fmtAmt(printTotalCredit)}</td>
       <td class="balance-total" style="text-align:right">${fmtAmt(balance)}</td>
     </tr>
   </tbody>

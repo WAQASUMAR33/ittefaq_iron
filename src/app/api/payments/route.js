@@ -159,22 +159,25 @@ export async function POST(request) {
     const balanceMap = {};
     const categoryMap = {};
     const supplierAccountIds = new Set();
+    const bankCashCategoryIds = new Set();
     accountBalances.forEach(acc => {
       balanceMap[acc.cus_id] = parseFloat(acc.cus_balance || 0);
       categoryMap[acc.cus_id] = acc.cus_category;
       const catTitle = (acc.customer_category?.cus_cat_title || '').toLowerCase();
       if (catTitle.includes('supplier')) supplierAccountIds.add(acc.cus_id);
+      if (catTitle.includes('cash') || catTitle.includes('bank')) {
+        if (acc.cus_category) bankCashCategoryIds.add(acc.cus_category);
+      }
     });
 
     // Resolve main customer name
     const mainCustomer = accountBalances.find(acc => acc.cus_id === parseInt(account_id));
     const mainCustomerName = mainCustomer?.cus_name || '';
 
-    // Bank (23) and Cash (24) are asset accounts — same direction as customer/supplier now
+    // Bank and Cash are asset accounts — same direction as customer/supplier now
     // PAY (Pay Amount)    = money OUT → CREDIT → selected account balance decreases
     // RECEIVE (Receive Amount) = money IN → DEBIT → selected account balance increases
-    const BANK_CASH_CATEGORIES = [23, 24];
-    const mainAccountIsBankOrCash = BANK_CASH_CATEGORIES.includes(categoryMap[parseInt(account_id)]);
+    const mainAccountIsBankOrCash = bankCashCategoryIds.has(categoryMap[parseInt(account_id)]);
     const mainAccountIsSupplier = supplierAccountIds.has(parseInt(account_id));
 
     // Use transaction to ensure data consistency
@@ -316,7 +319,7 @@ export async function POST(request) {
 
       // Apply custom payment requirement
       if (payment_type === 'RECEIVE') {
-        const isMainBankOrCash = BANK_CASH_CATEGORIES.includes(categoryMap[parseInt(account_id)]);
+        const isMainBankOrCash = bankCashCategoryIds.has(categoryMap[parseInt(account_id)]);
         if (isMainBankOrCash) {
           // Cash/Bank account receives payment: debit column, balance increases
           mainAccountEntry.debit_amount = parseFloat(total_amount);
@@ -329,7 +332,7 @@ export async function POST(request) {
           mainAccountEntry.closing_balance = mainAccountEntry.opening_balance - parseFloat(total_amount);
         }
       } else if (payment_type === 'PAY') {
-        const isMainBankOrCash = BANK_CASH_CATEGORIES.includes(categoryMap[parseInt(account_id)]);
+        const isMainBankOrCash = bankCashCategoryIds.has(categoryMap[parseInt(account_id)]);
         if (isMainBankOrCash) {
           // Cash/Bank account paying out: credit column, balance decreases
           mainAccountEntry.debit_amount = 0;
