@@ -621,6 +621,7 @@ export default function CustomersPage() {
 
   const buildPrintHTML = (list) => {
     const now = new Date().toLocaleString();
+    const totalBalance = list.reduce((sum, c) => sum + parseFloat(c.cus_balance || 0), 0);
     const rows = list.map((c, i) => {
       const bg = getActivityRowBg(c) || '#fff';
       const bal = parseFloat(c.cus_balance);
@@ -658,6 +659,13 @@ export default function CustomersPage() {
         <th>#</th><th>Name</th><th>Phone</th><th>Category</th><th style="text-align:right">Balance (PKR)</th><th style="text-align:center">Last Activity</th>
       </tr></thead>
       <tbody>${rows}</tbody>
+      <tfoot>
+        <tr style="font-weight:bold;background:#f1f5f9;border-top:2px solid #1e3a5f">
+          <td colspan="4" style="padding:8px 8px;border:1px solid #e5e7eb;text-align:right">Total:</td>
+          <td style="padding:8px 8px;border:1px solid #e5e7eb;text-align:right;color:${totalBalance >= 0 ? '#16a34a' : '#dc2626'}">${totalBalance.toLocaleString()}</td>
+          <td style="border:1px solid #e5e7eb"></td>
+        </tr>
+      </tfoot>
     </table>
     <div class="legend">
       <span><span class="dot" style="background:#86efac"></span>≤ 1 Month</span>
@@ -1268,7 +1276,7 @@ export default function CustomersPage() {
         </Box>
  
         {/* Customers Table */}
-        <Card sx={{ height: 600, display: 'flex', flexDirection: 'column' }}>
+        <Card sx={{ minHeight: 600, height: 'auto', display: 'flex', flexDirection: 'column' }}>
           <Box sx={{ p: 3, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="h6" component="h3" sx={{ fontWeight: 600 }}>
               Accounts List
