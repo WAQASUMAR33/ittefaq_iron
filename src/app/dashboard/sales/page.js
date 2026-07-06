@@ -8807,15 +8807,29 @@ function SalesPageContent() {
             margin: 0;
           }
           
-          /* Hide dialog wrapper elements */
-          body.print-existing .MuiDialog-root,
-          body.print-existing .MuiDialog-container,
-          body.print-existing .MuiDialog-paper,
+          /* Hide dialog backdrop and header/actions */
           body.print-existing .MuiDialogTitle-root,
           body.print-existing .no-print,
           body.print-existing .no-print * {
             visibility: hidden !important;
             display: none !important;
+          }
+
+          /* Reset dialog wrapper layout for printing */
+          body.print-existing .MuiDialog-root,
+          body.print-existing .MuiDialog-container,
+          body.print-existing .MuiDialog-paper {
+            background: transparent !important;
+            box-shadow: none !important;
+            overflow: visible !important;
+            display: block !important;
+            visibility: visible !important;
+            position: static !important;
+            width: auto !important;
+            max-width: none !important;
+            height: auto !important;
+            margin: 0 !important;
+            padding: 0 !important;
           }
           
           /* Show dialog content */
