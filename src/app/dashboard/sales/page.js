@@ -3226,16 +3226,28 @@ function SalesPageContent() {
   const [currentBillData, setCurrentBillData] = useState(null);
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
 
-  // Handle print bill with mode (A4 or Thermal)
+  // Handle print bill with mode (A4 or Thermal or Existing)
   const handlePrintBill = (mode = 'A4', fromDialog = false) => {
     try {
-      const className = mode === 'THERMAL' ? 'print-thermal' : 'print-a4';
-      const isThermal = mode === 'THERMAL';
+      // Handle when mode is a click event object
+      const actualMode = typeof mode === 'string' ? mode : 'A4';
+      const className = actualMode === 'THERMAL' 
+        ? 'print-thermal' 
+        : (actualMode === 'EXISTING' ? 'print-existing' : 'print-a4');
+      const isThermal = actualMode === 'THERMAL';
 
       // Get the printable container
-      const printableContainer = mode === 'THERMAL'
-        ? document.getElementById('printable-invoice-thermal')
-        : document.getElementById('printable-invoice-a4');
+      let printableContainer = actualMode === 'EXISTING'
+        ? document.getElementById('printable-invoice')
+        : (actualMode === 'THERMAL'
+          ? document.getElementById('printable-invoice-thermal')
+          : document.getElementById('printable-invoice-a4'));
+
+      // Fallback in case container is not found
+      if (!printableContainer) {
+        printableContainer = document.getElementById('printable-invoice') || 
+                             document.getElementById('printable-invoice-a4');
+      }
 
       if (!printableContainer) {
         console.error('Printable container not found');
@@ -8734,7 +8746,7 @@ function SalesPageContent() {
               bgcolor: 'primary.main',
               '&:hover': { bgcolor: 'primary.dark' }
             }}
-            onClick={handlePrintBill}
+            onClick={() => handlePrintBill('EXISTING')}
           >
             Print Bill
           </Button>
@@ -8749,7 +8761,7 @@ function SalesPageContent() {
             margin: 0.5cm 1cm;
           }
           
-          body {
+          body.print-existing {
             print-color-adjust: exact;
             -webkit-print-color-adjust: exact;
             margin: 0;
@@ -8757,18 +8769,18 @@ function SalesPageContent() {
           }
           
           /* Hide everything by default */
-          body * {
+          body.print-existing * {
             visibility: hidden;
           }
           
           /* Show only the printable invoice */
-          #printable-invoice,
-          #printable-invoice * {
+          body.print-existing #printable-invoice,
+          body.print-existing #printable-invoice * {
             visibility: visible !important;
           }
           
           /* Position invoice at top */
-          #printable-invoice {
+          body.print-existing #printable-invoice {
             position: absolute;
             left: 0;
             top: 0;
@@ -8781,18 +8793,18 @@ function SalesPageContent() {
           }
           
           /* Hide dialog wrapper elements */
-          .MuiDialog-root,
-          .MuiDialog-container,
-          .MuiDialog-paper,
-          .MuiDialogTitle-root,
-          .no-print,
-          .no-print * {
+          body.print-existing .MuiDialog-root,
+          body.print-existing .MuiDialog-container,
+          body.print-existing .MuiDialog-paper,
+          body.print-existing .MuiDialogTitle-root,
+          body.print-existing .no-print,
+          body.print-existing .no-print * {
             visibility: hidden !important;
             display: none !important;
           }
           
           /* Show dialog content */
-          .MuiDialogContent-root {
+          body.print-existing .MuiDialogContent-root {
             visibility: visible !important;
             display: block !important;
             padding: 0 !important;
@@ -8804,59 +8816,59 @@ function SalesPageContent() {
           }
           
           /* Table styles for print */
-          table {
+          body.print-existing table {
             page-break-inside: auto;
             border-collapse: collapse;
             width: 100%;
             font-size: 12px;
           }
           
-          tr {
+          body.print-existing tr {
             page-break-inside: avoid;
             page-break-after: auto;
           }
           
-          thead {
+          body.print-existing thead {
             display: table-header-group;
           }
           
-          tbody {
+          body.print-existing tbody {
             display: table-row-group;
           }
           
           /* Ensure proper spacing */
-          .MuiBox-root {
+          body.print-existing .MuiBox-root {
             page-break-inside: avoid;
           }
           
           /* Remove shadows and rounded corners */
-          .MuiPaper-root {
+          body.print-existing .MuiPaper-root {
             box-shadow: none !important;
           }
           
           /* Typography adjustments for A4 */
-          .MuiTypography-root {
+          body.print-existing .MuiTypography-root {
             font-size: 12px !important;
           }
           
-          .MuiTypography-h4 {
+          body.print-existing .MuiTypography-h4 {
             font-size: 24px !important;
           }
           
-          .MuiTypography-h6 {
+          body.print-existing .MuiTypography-h6 {
             font-size: 16px !important;
           }
           
-          .MuiTypography-body2 {
+          body.print-existing .MuiTypography-body2 {
             font-size: 12px !important;
           }
           
           /* Grid and spacing */
-          .MuiGrid-container {
+          body.print-existing .MuiGrid-container {
             margin: 0 !important;
           }
           
-          .MuiGrid-item {
+          body.print-existing .MuiGrid-item {
             padding: 8px !important;
           }
         }
