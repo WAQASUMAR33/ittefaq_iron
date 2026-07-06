@@ -6880,6 +6880,14 @@ function SalesPageContent() {
             body.print-thermal * {
               visibility: hidden !important;
             }
+
+            /* Completely hide the dashboard layout to avoid blank pages from layout height */
+            body.print-a4 .dashboard-layout-root,
+            body.print-thermal .dashboard-layout-root {
+              display: none !important;
+              height: 0 !important;
+              overflow: hidden !important;
+            }
             
             /* Show printable content */
             body.print-a4 #printable-invoice-a4,
@@ -8771,6 +8779,13 @@ function SalesPageContent() {
           /* Hide everything by default */
           body.print-existing * {
             visibility: hidden;
+          }
+
+          /* Completely hide the dashboard layout to avoid blank pages from layout height */
+          body.print-existing .dashboard-layout-root {
+            display: none !important;
+            height: 0 !important;
+            overflow: hidden !important;
           }
           
           /* Show only the printable invoice */

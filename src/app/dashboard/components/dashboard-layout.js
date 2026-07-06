@@ -83,7 +83,7 @@ export default function DashboardLayout({ children }) {
         <CircularProgress size={80} />
       </Box>
     }>
-      <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
+      <Box className="dashboard-layout-root" sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
         {/* Sidebar — hidden when printing */}
         <Box sx={{ '@media print': { display: 'none !important' } }}>
           <Sidebar
