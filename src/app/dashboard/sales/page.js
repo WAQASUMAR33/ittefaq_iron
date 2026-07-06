@@ -1288,7 +1288,7 @@ function SalesPageContent() {
           // Return details from product table
           return_details: productTableData.map(item => ({
             pro_id: item.pro_id,
-            store_id: item.store_id || selectedSaleForReturnMain?.store_id || null,
+            store_id: item.storeid || formSelectedStore?.storeid || selectedSaleForReturnMain?.store_id || null,
             qnty: item.quantity, // Quantity to return
             unit_rate: item.rate.toString(),
             total_amount: item.amount.toString(),
@@ -2158,8 +2158,8 @@ function SalesPageContent() {
       // Fetch sales and sale returns data first and separately to ensure it's not affected by other API failures
       try {
         const [salesRes, returnsRes] = await Promise.all([
-          fetch('/api/sales'),
-          fetch('/api/sale-returns')
+          fetch('/api/sales', { cache: 'no-store' }),
+          fetch('/api/sale-returns', { cache: 'no-store' })
         ]);
         console.log('📡 Sales API response status:', salesRes.status, salesRes.statusText);
         console.log('📡 Sale Returns API response status:', returnsRes.status, returnsRes.statusText);
@@ -3392,7 +3392,8 @@ function SalesPageContent() {
         (sale.sale_details && sale.sale_details.some(detail =>
           detail.store?.storeid?.toString() === filterStore ||
           detail.store_id?.toString() === filterStore
-        ));
+        )) ||
+        (sale.is_return && (!sale.sale_details || sale.sale_details.length === 0 || sale.sale_details.every(detail => !detail.store_id)));
 
       // Payment type filter
       const matchesPaymentType = filterPaymentType === '' ||

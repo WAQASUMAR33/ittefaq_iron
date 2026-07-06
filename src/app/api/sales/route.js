@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getNextId } from '@/lib/id-helper';
+
+export const dynamic = 'force-dynamic';
 import { Prisma } from '@prisma/client';
 import { updateStoreStock, getStoreStock, checkStockAvailability } from '@/lib/storeStock';
 import { calculateClosingBalance, createLedgerEntry } from '@/lib/ledger-helper';

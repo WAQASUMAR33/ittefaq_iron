@@ -4,6 +4,8 @@ import { updateStoreStock } from '@/lib/storeStock';
 import { createLedgerEntry } from '@/lib/ledger-helper';
 import { getNextId } from '@/lib/id-helper';
 
+export const dynamic = 'force-dynamic';
+
 const prisma = new PrismaClient();
 
 // Chronologically recalculates all ledger entry opening/closing balances for a customer and updates their customer table balance.
