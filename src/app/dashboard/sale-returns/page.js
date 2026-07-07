@@ -288,7 +288,7 @@ export default function SaleReturnsPage() {
       setSaleReturns(data[0] || []);
       setSales(data[1] || []);
       setProducts(data[2] || []);
-      setStores(data[3] || []);
+      setStores(data[3]?.data || data[3] || []);
       setLoaders(data[4] || []);
       setCustomerTypes(data[5] || []);
       setCustomerCategories(data[6] || []);

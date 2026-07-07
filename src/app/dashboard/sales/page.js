@@ -2729,6 +2729,7 @@ function SalesPageContent() {
         reference: fullSale.reference || '',
         return_details: fullSale.sale_details ? fullSale.sale_details.map(detail => ({
           pro_id: detail.pro_id,
+          store_id: detail.store_id || fullSale.store_id || null,
           qnty: detail.qnty,
           unit: detail.unit,
           unit_rate: detail.unit_rate?.toString() || '0',
@@ -6881,14 +6882,6 @@ function SalesPageContent() {
             body.print-thermal * {
               visibility: hidden !important;
             }
-
-            /* Completely hide the dashboard layout to avoid blank pages from layout height */
-            body.print-a4 .dashboard-layout-root,
-            body.print-thermal .dashboard-layout-root {
-              display: none !important;
-              height: 0 !important;
-              overflow: hidden !important;
-            }
             
             /* Show printable content */
             body.print-a4 #printable-invoice-a4,
@@ -8782,13 +8775,6 @@ function SalesPageContent() {
             visibility: hidden;
           }
 
-          /* Completely hide the dashboard layout to avoid blank pages from layout height */
-          body.print-existing .dashboard-layout-root {
-            display: none !important;
-            height: 0 !important;
-            overflow: hidden !important;
-          }
-          
           /* Show only the printable invoice */
           body.print-existing #printable-invoice,
           body.print-existing #printable-invoice * {

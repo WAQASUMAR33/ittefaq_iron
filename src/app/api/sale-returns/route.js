@@ -402,6 +402,9 @@ export async function POST(request) {
           unit = detail.unit;
         }
 
+        const rawStoreId = detail.store_id || detail.storeid || sale?.store_id;
+        const targetStoreId = rawStoreId ? parseInt(rawStoreId) : null;
+
         return tx.saleReturnDetail.create({
           data: {
             return_id: saleReturn.return_id,
@@ -413,7 +416,7 @@ export async function POST(request) {
             discount: parseFloat(detail.discount || 0),
             net_total: parseFloat(detail.total_amount) - parseFloat(detail.discount || 0),
             cus_id,
-            store_id: detail.store_id || sale?.store_id || null,
+            store_id: targetStoreId && !isNaN(targetStoreId) ? targetStoreId : null,
             updated_by
           }
         });
@@ -425,11 +428,12 @@ export async function POST(request) {
       let affectedCusIds = [];
       if (!isQuotationReturn) {
         // Restore store stock quantities (skip for quotations)
-        // Use detail.store_id if available (for manual items), otherwise sale.store_id
+        // Use detail.store_id / storeid if available (for manual items), otherwise sale.store_id
         const storeStockRestorePromises = return_details.map(async detail => {
-          const targetStoreId = detail.store_id || sale?.store_id;
-          if (targetStoreId) {
-            await updateStoreStock(targetStoreId, detail.pro_id, parseInt(detail.qnty), 'increment', updated_by);
+          const rawStoreId = detail.store_id || detail.storeid || sale?.store_id;
+          const targetStoreId = rawStoreId ? parseInt(rawStoreId) : null;
+          if (targetStoreId && !isNaN(targetStoreId)) {
+            await updateStoreStock(targetStoreId, detail.pro_id, parseInt(detail.qnty), 'increment', updated_by, tx);
           }
         });
 
@@ -726,9 +730,10 @@ export async function DELETE(request) {
 
       // Reverse store stock quantities
       const storeStockReversePromises = existingReturn.return_details.map(async detail => {
-        const targetStoreId = detail.store_id || existingReturn.sale?.store_id;
-        if (targetStoreId) {
-          await updateStoreStock(targetStoreId, detail.pro_id, detail.qnty, 'decrement', 1);
+        const rawStoreId = detail.store_id || existingReturn.sale?.store_id;
+        const targetStoreId = rawStoreId ? parseInt(rawStoreId) : null;
+        if (targetStoreId && !isNaN(targetStoreId)) {
+          await updateStoreStock(targetStoreId, detail.pro_id, detail.qnty, 'decrement', 1, tx);
         }
       });
 
