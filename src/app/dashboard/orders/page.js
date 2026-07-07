@@ -4218,6 +4218,16 @@ function OrdersPageContent() {
             body.print-thermal * {
               visibility: hidden !important;
             }
+
+            /* Collapse layout container height to prevent blank page generation */
+            body.print-a4 .dashboard-layout-root,
+            body.print-thermal .dashboard-layout-root {
+              height: 0 !important;
+              max-height: 0 !important;
+              overflow: hidden !important;
+              padding: 0 !important;
+              margin: 0 !important;
+            }
             
             /* Show printable content */
             body.print-a4 #printable-invoice-a4,
