@@ -5458,6 +5458,17 @@ function PurchasesPageContent() {
         <style>{`
           @media print {
             body.print-a4-view *, body.print-thermal-view * { visibility: hidden !important; }
+            
+            /* Collapse layout container height to prevent blank page generation */
+            body.print-a4-view .dashboard-layout-root,
+            body.print-thermal-view .dashboard-layout-root {
+              height: 0 !important;
+              max-height: 0 !important;
+              overflow: hidden !important;
+              padding: 0 !important;
+              margin: 0 !important;
+            }
+
             body.print-a4-view #printable-invoice-a4-view, body.print-a4-view #printable-invoice-a4-view * { visibility: visible !important; }
             body.print-thermal-view #printable-invoice-thermal-view, body.print-thermal-view #printable-invoice-thermal-view * { visibility: visible !important; }
             body.print-a4-view #printable-invoice-a4-view { display: block !important; width: 100% !important; }
@@ -6300,6 +6311,17 @@ function PurchasesPageContent() {
         <style>{`
           @media print {
             body.print-a4 *, body.print-thermal * { visibility: hidden !important; }
+            
+            /* Collapse layout container height to prevent blank page generation */
+            body.print-a4 .dashboard-layout-root,
+            body.print-thermal .dashboard-layout-root {
+              height: 0 !important;
+              max-height: 0 !important;
+              overflow: hidden !important;
+              padding: 0 !important;
+              margin: 0 !important;
+            }
+
             body.print-a4 #printable-invoice-a4-purchase, body.print-a4 #printable-invoice-a4-purchase * { visibility: visible !important; }
             body.print-thermal #printable-invoice-thermal-purchase, body.print-thermal #printable-invoice-thermal-purchase * { visibility: visible !important; }
             body.print-a4 #printable-invoice-a4-purchase { display: block !important; width: 100% !important; }

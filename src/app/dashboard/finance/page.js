@@ -5321,6 +5321,17 @@ export default function FinancePage() {
       <style>{`
         @media print {
           body.print-a4 *, body.print-thermal * { visibility: hidden !important; }
+          
+          /* Collapse layout container height to prevent blank page generation */
+          body.print-a4 .dashboard-layout-root,
+          body.print-thermal .dashboard-layout-root {
+            height: 0 !important;
+            max-height: 0 !important;
+            overflow: hidden !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+
           body.print-a4 #printable-invoice-a4-finance, body.print-a4 #printable-invoice-a4-finance * { visibility: visible !important; }
           body.print-thermal #printable-invoice-thermal-finance, body.print-thermal #printable-invoice-thermal-finance * { visibility: visible !important; }
           body.print-a4 #printable-invoice-a4-finance { display: block !important; width: 100% !important; }
