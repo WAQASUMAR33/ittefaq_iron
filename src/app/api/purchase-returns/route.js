@@ -1,7 +1,75 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { createPayableLedgerEntry } from '@/lib/ledger-helper';
 import { getNextId } from '@/lib/id-helper';
+
+async function recalculateLedgerBalances(tx, cus_id) {
+  const customer = await tx.customer.findUnique({
+    where: { cus_id },
+    include: { customer_category: true }
+  });
+  if (!customer) return;
+
+  const entries = await tx.ledger.findMany({
+    where: { cus_id },
+    orderBy: [
+      { created_at: 'asc' },
+      { l_id: 'asc' }
+    ]
+  });
+
+  // Re-sort in JS
+  entries.sort((a, b) => {
+    const timeDiff = a.created_at.getTime() - b.created_at.getTime();
+    if (timeDiff !== 0) return timeDiff;
+    const billA = parseInt(a.bill_no) || 0;
+    const billB = parseInt(b.bill_no) || 0;
+    if (billA !== billB) return billA - billB;
+    return a.l_id - b.l_id;
+  });
+
+  let runningBalance = 0;
+  const updates = [];
+  if (entries.length > 0) {
+    runningBalance = parseFloat(entries[0].opening_balance || 0);
+    
+    for (const entry of entries) {
+      const opening = runningBalance;
+      const debit = parseFloat(entry.debit_amount || 0);
+      const credit = parseFloat(entry.credit_amount || 0);
+      
+      const closing = opening + debit - credit;
+
+      if (
+        Math.abs(parseFloat(entry.opening_balance) - opening) > 0.01 ||
+        Math.abs(parseFloat(entry.closing_balance) - closing) > 0.01
+      ) {
+        updates.push(
+          tx.ledger.update({
+            where: { l_id: entry.l_id },
+            data: {
+              opening_balance: Number(opening.toFixed(2)),
+              closing_balance: Number(closing.toFixed(2))
+            }
+          })
+        );
+      }
+      runningBalance = closing;
+    }
+  }
+
+  if (updates.length > 0) {
+    const client = typeof tx.$transaction === 'function' ? tx : prisma;
+    await client.$transaction(updates);
+  }
+
+  const clientCustomer = typeof tx.customer === 'object' ? tx.customer : prisma.customer;
+  await clientCustomer.update({
+    where: { cus_id },
+    data: {
+      cus_balance: Number(runningBalance.toFixed(2))
+    }
+  });
+}
 
 // GET - Fetch all purchase returns
 export async function GET(request) {
@@ -93,7 +161,10 @@ export async function POST(request) {
     const purchase = await prisma.purchase.findUnique({
       where: { pur_id: parseInt(purchase_id) },
       include: {
-        purchase_details: true
+        purchase_details: true,
+        customer: true,
+        debit_account: true,
+        credit_account: true
       }
     });
 
@@ -167,41 +238,179 @@ export async function POST(request) {
 
       // Get supplier's current balance
       const supplier = await tx.customer.findUnique({
-        where: { cus_id: purchase.cus_id },
-        select: { cus_balance: true, cus_name: true }
+        where: { cus_id: purchase.cus_id }
       });
+      if (!supplier) throw new Error('Supplier not found');
 
-      const currentBalance = parseFloat(supplier?.cus_balance || 0);
-      
-      // Payable supplier: purchase return = CREDIT (reduces amount we owe)
+      let supplierBalance = parseFloat(supplier.cus_balance || 0);
       const returnAmount = parseFloat(total_return_amount || 0);
-      const returnLedgerEntry = createPayableLedgerEntry({
-        cus_id: purchase.cus_id,
-        opening_balance: currentBalance,
-        debit_amount: 0,
-        credit_amount: returnAmount,
-        bill_no: `PR-${newPurchaseReturn.id}`,
-        trnx_type: 'PURCHASE_RETURN',
-        ledger_type: 'Purchase Return',
-        details: `Purchase Return #${newPurchaseReturn.id} - ${return_reason} - Goods returned to ${supplier?.cus_name || 'Supplier'}`,
-        payments: 0,
-        updated_by: null
-      });
 
-      await tx.customer.update({
-        where: { cus_id: purchase.cus_id },
-        data: { cus_balance: returnLedgerEntry.closing_balance }
-      });
+      // Track affected customer IDs for recalculation
+      const affectedCusIds = [purchase.cus_id];
 
+      // Entry 1: Main Return entry for Supplier (DEBIT)
       const l_id_pr = await getNextId('ledger', 'l_id', tx);
+      const supplierClosingAfterReturn = supplierBalance + returnAmount; // under receivable formula: + debit
+
       await tx.ledger.create({
         data: {
           l_id: l_id_pr,
-          ...returnLedgerEntry
+          cus_id: purchase.cus_id,
+          opening_balance: supplierBalance,
+          debit_amount: returnAmount,
+          credit_amount: 0,
+          closing_balance: supplierClosingAfterReturn,
+          bill_no: `PR-${newPurchaseReturn.id}`,
+          trnx_type: 'DEBIT',
+          ledger_type: 'Purchase Return',
+          details: `Purchase Return #${newPurchaseReturn.id} - ${return_reason} - Goods returned to ${supplier.cus_name}`,
+          payments: 0,
+          updated_by: null
         }
       });
 
-      return newPurchaseReturn;
+      supplierBalance = supplierClosingAfterReturn;
+
+      // Calculate cash and bank refund amounts based on original purchase payments
+      const maxCashRefund = parseFloat(purchase.cash_payment || 0);
+      const maxBankRefund = parseFloat(purchase.bank_payment || 0);
+
+      let cashRefund = 0;
+      let bankRefund = 0;
+
+      if (maxCashRefund > 0 && purchase.debit_account_id) {
+        cashRefund = Math.min(returnAmount, maxCashRefund);
+      }
+      if (returnAmount - cashRefund > 0 && maxBankRefund > 0 && purchase.credit_account_id) {
+        bankRefund = Math.min(returnAmount - cashRefund, maxBankRefund);
+      }
+
+      // Entry 2: CASH Refund entries
+      if (cashRefund > 0 && purchase.debit_account_id) {
+        affectedCusIds.push(purchase.debit_account_id);
+        const cashAccount = await tx.customer.findUnique({
+          where: { cus_id: purchase.debit_account_id }
+        });
+        if (cashAccount) {
+          const cashClosing = parseFloat(cashAccount.cus_balance || 0) + cashRefund; // Cash account debited (receives money)
+          
+          // Entry 2a: Cash Account Ledger Entry
+          const l_id_cash = await getNextId('ledger', 'l_id', tx);
+          await tx.ledger.create({
+            data: {
+              l_id: l_id_cash,
+              cus_id: purchase.debit_account_id,
+              opening_balance: parseFloat(cashAccount.cus_balance || 0),
+              debit_amount: cashRefund,
+              credit_amount: 0,
+              closing_balance: cashClosing,
+              bill_no: `PR-${newPurchaseReturn.id}`,
+              trnx_type: 'DEBIT',
+              ledger_type: 'Purchase Return',
+              details: `Refund Received (CASH) - Purchase Return #${newPurchaseReturn.id} - Amount: ${cashRefund}`,
+              payments: cashRefund,
+              cash_payment: cashRefund,
+              updated_by: null
+            }
+          });
+
+          await tx.customer.update({
+            where: { cus_id: purchase.debit_account_id },
+            data: { cus_balance: cashClosing }
+          });
+
+          // Entry 2b: Supplier Account Payment/Refund Entry (CREDIT)
+          const supplierClosingAfterCash = supplierBalance - cashRefund; // under receivable formula: - credit
+          const l_id_sup_cash = await getNextId('ledger', 'l_id', tx);
+          await tx.ledger.create({
+            data: {
+              l_id: l_id_sup_cash,
+              cus_id: purchase.cus_id,
+              opening_balance: supplierBalance,
+              debit_amount: 0,
+              credit_amount: cashRefund,
+              closing_balance: supplierClosingAfterCash,
+              bill_no: `PR-${newPurchaseReturn.id}`,
+              trnx_type: 'CREDIT',
+              ledger_type: 'Purchase Return',
+              details: `CASH Refund Received: ${cashRefund} for Purchase Return #${newPurchaseReturn.id}`,
+              payments: 0,
+              updated_by: null
+            }
+          });
+
+          supplierBalance = supplierClosingAfterCash;
+        }
+      }
+
+      // Entry 3: BANK Refund entries
+      if (bankRefund > 0 && purchase.credit_account_id) {
+        affectedCusIds.push(purchase.credit_account_id);
+        const bankAccount = await tx.customer.findUnique({
+          where: { cus_id: purchase.credit_account_id }
+        });
+        if (bankAccount) {
+          const bankClosing = parseFloat(bankAccount.cus_balance || 0) + bankRefund; // Bank account debited (receives money)
+
+          // Entry 3a: Bank Account Ledger Entry
+          const l_id_bank = await getNextId('ledger', 'l_id', tx);
+          await tx.ledger.create({
+            data: {
+              l_id: l_id_bank,
+              cus_id: purchase.credit_account_id,
+              opening_balance: parseFloat(bankAccount.cus_balance || 0),
+              debit_amount: bankRefund,
+              credit_amount: 0,
+              closing_balance: bankClosing,
+              bill_no: `PR-${newPurchaseReturn.id}`,
+              trnx_type: 'DEBIT',
+              ledger_type: 'Purchase Return',
+              details: `Refund Received (BANK) - Purchase Return #${newPurchaseReturn.id} - Amount: ${bankRefund}`,
+              payments: bankRefund,
+              bank_payment: bankRefund,
+              updated_by: null
+            }
+          });
+
+          await tx.customer.update({
+            where: { cus_id: purchase.credit_account_id },
+            data: { cus_balance: bankClosing }
+          });
+
+          // Entry 3b: Supplier Account Payment/Refund Entry (CREDIT)
+          const supplierClosingAfterBank = supplierBalance - bankRefund; // under receivable formula: - credit
+          const l_id_sup_bank = await getNextId('ledger', 'l_id', tx);
+          await tx.ledger.create({
+            data: {
+              l_id: l_id_sup_bank,
+              cus_id: purchase.cus_id,
+              opening_balance: supplierBalance,
+              debit_amount: 0,
+              credit_amount: bankRefund,
+              closing_balance: supplierClosingAfterBank,
+              bill_no: `PR-${newPurchaseReturn.id}`,
+              trnx_type: 'CREDIT',
+              ledger_type: 'Purchase Return',
+              details: `BANK Refund Received: ${bankRefund} for Purchase Return #${newPurchaseReturn.id}`,
+              payments: 0,
+              updated_by: null
+            }
+          });
+
+          supplierBalance = supplierClosingAfterBank;
+        }
+      }
+
+      // Update supplier's final balance
+      await tx.customer.update({
+        where: { cus_id: purchase.cus_id },
+        data: { cus_balance: supplierBalance }
+      });
+
+      return {
+        newPurchaseReturn,
+        affectedCusIds
+      };
       },
       {
         timeout: 30000, // 30 seconds
@@ -209,8 +418,13 @@ export async function POST(request) {
       }
     );
 
-    console.log('Purchase return created successfully:', result);
-    return NextResponse.json(result, { status: 201 });
+    // Recalculate balances chronologically for all affected accounts (outside transaction)
+    for (const cid of result.affectedCusIds) {
+      await recalculateLedgerBalances(prisma, cid);
+    }
+
+    console.log('Purchase return created successfully:', result.newPurchaseReturn);
+    return NextResponse.json(result.newPurchaseReturn, { status: 201 });
 
   } catch (error) {
     console.error('Error creating purchase return:', error);
@@ -246,7 +460,12 @@ export async function PUT(request) {
       where: { id: parseInt(id) },
       include: {
         return_details: true,
-        purchase: true
+        purchase: {
+          include: {
+            debit_account: true,
+            credit_account: true
+          }
+        }
       }
     });
 
@@ -278,20 +497,37 @@ export async function PUT(request) {
         }
       }
 
-      // Reverse old balance change (restore payable before re-applying updated return)
-      const supplierBeforeReverse = await tx.customer.findUnique({
-        where: { cus_id: purchase.cus_id },
-        select: { cus_balance: true, cus_name: true }
+      // Fetch all old ledger entries for this return to calculate and reverse their effects
+      const oldLedgerEntries = await tx.ledger.findMany({
+        where: { bill_no: `PR-${id}` }
       });
-      const balanceBeforeReverse = parseFloat(supplierBeforeReverse?.cus_balance || 0);
-      const oldReturnAmount = parseFloat(existingReturn.total_return_amount || 0);
-      // Reverse old return: old posting was credit oldReturnAmount
-      const balanceAfterReverse = balanceBeforeReverse + oldReturnAmount;
 
-      await tx.customer.update({
-        where: { cus_id: purchase.cus_id },
-        data: { cus_balance: balanceAfterReverse }
+      // Reverse old entries on the customer table balances
+      for (const entry of oldLedgerEntries) {
+        const acc = await tx.customer.findUnique({
+          where: { cus_id: entry.cus_id }
+        });
+        if (acc) {
+          const effect = parseFloat(entry.debit_amount || 0) - parseFloat(entry.credit_amount || 0);
+          await tx.customer.update({
+            where: { cus_id: entry.cus_id },
+            data: {
+              cus_balance: parseFloat(acc.cus_balance || 0) - effect
+            }
+          });
+        }
+      }
+
+      // Re-read supplier's reverted balance
+      const supplierReverted = await tx.customer.findUnique({
+        where: { cus_id: purchase.cus_id }
       });
+      if (!supplierReverted) throw new Error('Supplier not found');
+      let supplierBalance = parseFloat(supplierReverted.cus_balance || 0);
+
+      // Track all affected customer IDs (old + new)
+      const oldAffectedCusIds = oldLedgerEntries.map(e => e.cus_id);
+      const affectedCusIds = [purchase.cus_id, ...oldAffectedCusIds];
 
       // Delete old return details
       await tx.purchaseReturnDetail.deleteMany({
@@ -349,35 +585,175 @@ export async function PUT(request) {
         }
       }
 
-      const newReturnAmount = parseFloat(total_return_amount || 0);
+      const returnAmount = parseFloat(total_return_amount || 0);
 
-      const updatedReturnLedger = createPayableLedgerEntry({
-        cus_id: purchase.cus_id,
-        opening_balance: balanceAfterReverse,
-        debit_amount: 0,
-        credit_amount: newReturnAmount,
-        bill_no: `PR-${id}`,
-        trnx_type: 'PURCHASE_RETURN',
-        ledger_type: 'Purchase Return',
-        details: `Purchase Return #${id} (Updated) - ${return_reason} - Goods returned to ${supplierBeforeReverse?.cus_name || 'Supplier'}`,
-        payments: 0,
-        updated_by: null
-      });
+      // Entry 1: Main Return entry for Supplier (DEBIT)
+      const l_id_pr = await getNextId('ledger', 'l_id', tx);
+      const supplierClosingAfterReturn = supplierBalance + returnAmount; // under receivable formula: + debit
 
-      await tx.customer.update({
-        where: { cus_id: purchase.cus_id },
-        data: { cus_balance: updatedReturnLedger.closing_balance }
-      });
-
-      const l_id_pr_put = await getNextId('ledger', 'l_id', tx);
       await tx.ledger.create({
         data: {
-          l_id: l_id_pr_put,
-          ...updatedReturnLedger
+          l_id: l_id_pr,
+          cus_id: purchase.cus_id,
+          opening_balance: supplierBalance,
+          debit_amount: returnAmount,
+          credit_amount: 0,
+          closing_balance: supplierClosingAfterReturn,
+          bill_no: `PR-${id}`,
+          trnx_type: 'DEBIT',
+          ledger_type: 'Purchase Return',
+          details: `Purchase Return #${id} (Updated) - ${return_reason} - Goods returned to ${supplierReverted.cus_name}`,
+          payments: 0,
+          updated_by: null
         }
       });
 
-      return updatedReturn;
+      supplierBalance = supplierClosingAfterReturn;
+
+      // Calculate cash and bank refund amounts based on original purchase payments
+      const maxCashRefund = parseFloat(purchase.cash_payment || 0);
+      const maxBankRefund = parseFloat(purchase.bank_payment || 0);
+
+      let cashRefund = 0;
+      let bankRefund = 0;
+
+      if (maxCashRefund > 0 && purchase.debit_account_id) {
+        cashRefund = Math.min(returnAmount, maxCashRefund);
+      }
+      if (returnAmount - cashRefund > 0 && maxBankRefund > 0 && purchase.credit_account_id) {
+        bankRefund = Math.min(returnAmount - cashRefund, maxBankRefund);
+      }
+
+      // Entry 2: CASH Refund entries
+      if (cashRefund > 0 && purchase.debit_account_id) {
+        if (!affectedCusIds.includes(purchase.debit_account_id)) {
+          affectedCusIds.push(purchase.debit_account_id);
+        }
+        const cashAccount = await tx.customer.findUnique({
+          where: { cus_id: purchase.debit_account_id }
+        });
+        if (cashAccount) {
+          const cashClosing = parseFloat(cashAccount.cus_balance || 0) + cashRefund; // Cash account debited (receives money)
+          
+          // Entry 2a: Cash Account Ledger Entry
+          const l_id_cash = await getNextId('ledger', 'l_id', tx);
+          await tx.ledger.create({
+            data: {
+              l_id: l_id_cash,
+              cus_id: purchase.debit_account_id,
+              opening_balance: parseFloat(cashAccount.cus_balance || 0),
+              debit_amount: cashRefund,
+              credit_amount: 0,
+              closing_balance: cashClosing,
+              bill_no: `PR-${id}`,
+              trnx_type: 'DEBIT',
+              ledger_type: 'Purchase Return',
+              details: `Refund Received (CASH) - Purchase Return #${id} - Amount: ${cashRefund}`,
+              payments: cashRefund,
+              cash_payment: cashRefund,
+              updated_by: null
+            }
+          });
+
+          await tx.customer.update({
+            where: { cus_id: purchase.debit_account_id },
+            data: { cus_balance: cashClosing }
+          });
+
+          // Entry 2b: Supplier Account Payment/Refund Entry (CREDIT)
+          const supplierClosingAfterCash = supplierBalance - cashRefund; // under receivable formula: - credit
+          const l_id_sup_cash = await getNextId('ledger', 'l_id', tx);
+          await tx.ledger.create({
+            data: {
+              l_id: l_id_sup_cash,
+              cus_id: purchase.cus_id,
+              opening_balance: supplierBalance,
+              debit_amount: 0,
+              credit_amount: cashRefund,
+              closing_balance: supplierClosingAfterCash,
+              bill_no: `PR-${id}`,
+              trnx_type: 'CREDIT',
+              ledger_type: 'Purchase Return',
+              details: `CASH Refund Received: ${cashRefund} for Purchase Return #${id}`,
+              payments: 0,
+              updated_by: null
+            }
+          });
+
+          supplierBalance = supplierClosingAfterCash;
+        }
+      }
+
+      // Entry 3: BANK Refund entries
+      if (bankRefund > 0 && purchase.credit_account_id) {
+        if (!affectedCusIds.includes(purchase.credit_account_id)) {
+          affectedCusIds.push(purchase.credit_account_id);
+        }
+        const bankAccount = await tx.customer.findUnique({
+          where: { cus_id: purchase.credit_account_id }
+        });
+        if (bankAccount) {
+          const bankClosing = parseFloat(bankAccount.cus_balance || 0) + bankRefund; // Bank account debited (receives money)
+
+          // Entry 3a: Bank Account Ledger Entry
+          const l_id_bank = await getNextId('ledger', 'l_id', tx);
+          await tx.ledger.create({
+            data: {
+              l_id: l_id_bank,
+              cus_id: purchase.credit_account_id,
+              opening_balance: parseFloat(bankAccount.cus_balance || 0),
+              debit_amount: bankRefund,
+              credit_amount: 0,
+              closing_balance: bankClosing,
+              bill_no: `PR-${id}`,
+              trnx_type: 'DEBIT',
+              ledger_type: 'Purchase Return',
+              details: `Refund Received (BANK) - Purchase Return #${id} - Amount: ${bankRefund}`,
+              payments: bankRefund,
+              bank_payment: bankRefund,
+              updated_by: null
+            }
+          });
+
+          await tx.customer.update({
+            where: { cus_id: purchase.credit_account_id },
+            data: { cus_balance: bankClosing }
+          });
+
+          // Entry 3b: Supplier Account Payment/Refund Entry (CREDIT)
+          const supplierClosingAfterBank = supplierBalance - bankRefund; // under receivable formula: - credit
+          const l_id_sup_bank = await getNextId('ledger', 'l_id', tx);
+          await tx.ledger.create({
+            data: {
+              l_id: l_id_sup_bank,
+              cus_id: purchase.cus_id,
+              opening_balance: supplierBalance,
+              debit_amount: 0,
+              credit_amount: bankRefund,
+              closing_balance: supplierClosingAfterBank,
+              bill_no: `PR-${id}`,
+              trnx_type: 'CREDIT',
+              ledger_type: 'Purchase Return',
+              details: `BANK Refund Received: ${bankRefund} for Purchase Return #${id}`,
+              payments: 0,
+              updated_by: null
+            }
+          });
+
+          supplierBalance = supplierClosingAfterBank;
+        }
+      }
+
+      // Update supplier's final balance
+      await tx.customer.update({
+        where: { cus_id: purchase.cus_id },
+        data: { cus_balance: supplierBalance }
+      });
+
+      return {
+        updatedReturn,
+        affectedCusIds
+      };
       },
       {
         timeout: 30000, // 30 seconds
@@ -385,8 +761,14 @@ export async function PUT(request) {
       }
     );
 
-    console.log('Purchase return updated successfully:', result);
-    return NextResponse.json(result);
+    // Recalculate balances chronologically for all affected accounts (outside transaction)
+    const uniqueAffectedCusIds = [...new Set(result.affectedCusIds)];
+    for (const cid of uniqueAffectedCusIds) {
+      await recalculateLedgerBalances(prisma, cid);
+    }
+
+    console.log('Purchase return updated successfully:', result.updatedReturn);
+    return NextResponse.json(result.updatedReturn);
 
   } catch (error) {
     console.error('Error updating purchase return:', error);
@@ -443,40 +825,32 @@ export async function DELETE(request) {
         }
       }
 
-      // Revert supplier balance — debit back what was credited on return
-      const supplier = await tx.customer.findUnique({
-        where: { cus_id: purchase.cus_id },
-        select: { cus_balance: true, cus_name: true }
+      // Fetch all old ledger entries for this return to calculate and reverse their effects
+      const oldLedgerEntries = await tx.ledger.findMany({
+        where: { bill_no: `PR-${id}` }
       });
 
-      const currentBalance = parseFloat(supplier?.cus_balance || 0);
-      const returnAmount = parseFloat(existingReturn.total_return_amount || 0);
-
-      const reversalEntry = createPayableLedgerEntry({
-        cus_id: purchase.cus_id,
-        opening_balance: currentBalance,
-        debit_amount: returnAmount,
-        credit_amount: 0,
-        bill_no: `PR-${id}-DELETED`,
-        trnx_type: 'PURCHASE_RETURN',
-        ledger_type: 'Purchase Return',
-        details: `Purchase Return #${id} CANCELLED/DELETED - Reversal entry for ${supplier?.cus_name || 'Supplier'}`,
-        payments: 0,
-        updated_by: null
-      });
-
-      await tx.customer.update({
-        where: { cus_id: purchase.cus_id },
-        data: { cus_balance: reversalEntry.closing_balance }
-      });
-
-      const l_id_pr_rev = await getNextId('ledger', 'l_id', tx);
-      await tx.ledger.create({
-        data: {
-          l_id: l_id_pr_rev,
-          ...reversalEntry
+      // Reverse old entries on the customer table balances
+      for (const entry of oldLedgerEntries) {
+        const acc = await tx.customer.findUnique({
+          where: { cus_id: entry.cus_id }
+        });
+        if (acc) {
+          const effect = parseFloat(entry.debit_amount || 0) - parseFloat(entry.credit_amount || 0);
+          await tx.customer.update({
+            where: { cus_id: entry.cus_id },
+            data: {
+              cus_balance: parseFloat(acc.cus_balance || 0) - effect
+            }
+          });
         }
-      });
+      }
+
+      // Track all affected customer IDs
+      const affectedCusIds = oldLedgerEntries.map(e => e.cus_id);
+      if (!affectedCusIds.includes(purchase.cus_id)) {
+        affectedCusIds.push(purchase.cus_id);
+      }
 
       // Delete return details
       await tx.purchaseReturnDetail.deleteMany({
@@ -493,7 +867,10 @@ export async function DELETE(request) {
         where: { id: parseInt(id) }
       });
 
-      return deletedReturn;
+      return {
+        deletedReturn,
+        affectedCusIds
+      };
       },
       {
         timeout: 30000, // 30 seconds
@@ -501,7 +878,13 @@ export async function DELETE(request) {
       }
     );
 
-    console.log('Purchase return deleted successfully:', result);
+    // Recalculate balances chronologically for all affected accounts (outside transaction)
+    const uniqueAffectedCusIds = [...new Set(result.affectedCusIds)];
+    for (const cid of uniqueAffectedCusIds) {
+      await recalculateLedgerBalances(prisma, cid);
+    }
+
+    console.log('Purchase return deleted successfully:', result.deletedReturn);
     return NextResponse.json({ message: 'Purchase return deleted successfully' });
 
   } catch (error) {
