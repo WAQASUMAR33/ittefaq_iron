@@ -544,11 +544,8 @@ export default function FinancePage() {
       const cashA = parseFloat(p.cash_amount || 0);
       const bankA = parseFloat(p.bank_amount || 0);
       
-      // In the database: 
-      // 'PAY' payment_type is used when we receive a payment (RECEIVE)
-      // 'RECEIVE' payment_type is used when we pay a payment (PAY)
-      // So we invert it to get the correct visual type.
-      const type = p.payment_type === 'RECEIVE' ? 'PAY' : 'RECEIVE';
+      // Correct visual voucher type matching the database payment_type ('RECEIVE' or 'PAY')
+      const type = p.payment_type;
       const acc = p.account;
 
       // Populate previousBalance and remainingBalance from the ledger entry
