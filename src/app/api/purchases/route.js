@@ -987,10 +987,12 @@ export async function POST(request) {
         const labourAccount = await tx.customer.findFirst({
           where: {
             OR: [
-              { cus_name: { contains: 'Labour' } },
-              { cus_name: { contains: 'labour' } },
-              { customer_category: { cus_cat_title: { contains: 'Labour' } } },
-              { customer_type: { cus_type_title: { contains: 'Labour' } } }
+              { cus_name: 'Labour' },
+              { cus_name: 'Labour Account' },
+              {
+                customer_category: { cus_cat_title: 'Labour' },
+                customer_type: { cus_type_title: 'labour' }
+              }
             ]
           },
           select: { cus_id: true, cus_name: true }
@@ -1525,10 +1527,12 @@ export async function PUT(request) {
         const labourAccountPUT = await tx.customer.findFirst({
           where: {
             OR: [
-              { cus_name: { contains: 'Labour' } },
-              { cus_name: { contains: 'labour' } },
-              { customer_category: { cus_cat_title: { contains: 'Labour' } } },
-              { customer_type: { cus_type_title: { contains: 'Labour' } } }
+              { cus_name: 'Labour' },
+              { cus_name: 'Labour Account' },
+              {
+                customer_category: { cus_cat_title: 'Labour' },
+                customer_type: { cus_type_title: 'labour' }
+              }
             ]
           },
           select: { cus_id: true, cus_name: true }
@@ -1563,9 +1567,12 @@ export async function PUT(request) {
         const incityLabourAccount = await tx.customer.findFirst({
           where: {
             OR: [
-              { cus_name: { contains: 'labour' } },
-              { customer_category: { cus_cat_title: { contains: 'labour' } } },
-              { customer_type: { cus_type_title: { contains: 'labour' } } }
+              { cus_name: 'Labour' },
+              { cus_name: 'Labour Account' },
+              {
+                customer_category: { cus_cat_title: 'Labour' },
+                customer_type: { cus_type_title: 'labour' }
+              }
             ]
           },
           select: { cus_id: true, cus_name: true }
