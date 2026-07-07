@@ -218,6 +218,64 @@ const getSupplierBalanceAfterBill = (bill) => {
   return Number((prev - getInvoiceRemainingDue(bill)).toFixed(2));
 };
 
+const numberToUrduWords = (amount) => {
+  const num = Math.round(parseFloat(amount));
+  if (isNaN(num) || num <= 0) return '';
+
+  const urduNumbers = [
+    '', 'ایک', 'دو', 'تین', 'چار', 'پانچ', 'چھ', 'سات', 'آٹھ', 'نو', 'دس',
+    'گیارہ', 'بارہ', 'تیرہ', 'چودہ', 'پندرہ', 'سولہ', 'سترہ', 'اٹھارہ', 'انیس', 'بیس',
+    'اکیس', 'بائیس', 'تیئیس', 'چوبیس', 'پچیس', 'چھبیس', 'ستائیس', 'اٹھائیس', 'انتیس', 'تیس',
+    'اکتیس', 'بتیس', 'تینتیس', 'چونتیس', 'پینتیس', 'چھتیس', 'سینتیس', 'اٹھتیس', 'انتالیس', 'چالیس',
+    'اکتالیس', 'بیالیس', 'تینتالیس', 'چوالیس', 'پینتالیس', 'چھیالیس', 'سینتالیس', 'اٹھتالیس', 'انچاس', 'پچاس',
+    'اکیاون', 'باون', 'تریپن', 'چون', 'پچپن', 'چھپن', 'ستاون', 'اٹھاون', 'انسٹھ', 'ساٹھ',
+    'اکسٹھ', 'باسٹھ', 'تریسٹھ', 'چونسٹھ', 'پینسٹھ', 'چھیاسٹھ', 'سڑسٹھ', 'اٹھسٹھ', 'انہتر', 'ستر',
+    'اکہتر', 'بہتر', 'تہتر', 'چوہتر', 'پچہتر', 'چھیہتر', 'ستتر', 'اٹھہتر', 'انیاسی', 'اسی',
+    'اکیاسی', 'بیاسی', 'تیاسی', 'چوراسی', 'پچاسی', 'چھیاسی', 'ستاسی', 'اٹھاسی', 'نواسی', 'نوے',
+    'اکیانوے', 'بانوے', 'ترانوے', 'چورانوے', 'پچانوے', 'چھیانوے', 'ستانوے', 'اٹھانوے', 'ننانوے'
+  ];
+
+  const convert = (n) => {
+    if (n < 100) return urduNumbers[n];
+    
+    let parts = [];
+    
+    // Crore (1,00,00,000)
+    if (n >= 10000000) {
+      parts.push(convert(Math.floor(n / 10000000)) + ' کروڑ');
+      n %= 10000000;
+    }
+    
+    // Lakh (1,00,000)
+    if (n >= 100000) {
+      parts.push(convert(Math.floor(n / 100000)) + ' لاکھ');
+      n %= 100000;
+    }
+    
+    // Thousand (1,000)
+    if (n >= 1000) {
+      parts.push(convert(Math.floor(n / 1000)) + ' ہزار');
+      n %= 1000;
+    }
+    
+    // Hundred (100)
+    if (n >= 100) {
+      parts.push(urduNumbers[Math.floor(n / 100)] + ' سو');
+      n %= 100;
+    }
+    
+    // Remaining below 100
+    if (n > 0) {
+      parts.push(urduNumbers[n]);
+    }
+    
+    return parts.filter(Boolean).join(' ');
+  };
+
+  const words = convert(num);
+  return words ? words + ' روپے فقط' : '';
+};
+
 const numberToWords = (amount) => {
   const num = parseFloat(amount);
   if (isNaN(num) || num <= 0) return '';
@@ -4055,47 +4113,55 @@ export default function FinancePage() {
               />
             </Box>
 
-            {/* Discount */}
-            <Box>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
-                Discount
-              </Typography>
-              <TextField
-                fullWidth
-                placeholder="0.00"
-                type="number"
-                value={receivePaymentData.discount}
-                onChange={(e) => setReceivePaymentData((prev) => {
-                  const updated = { ...prev, discount: e.target.value };
-                  const accName = customers.find((c) => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || '';
-                  updated.description = buildFinancePaymentDescription(
-                    'RECEIVE',
-                    accName,
-                    updated.cash_amount,
-                    updated.bank_amount,
-                    updated.bank_account,
-                    bankAccounts,
-                    updated.discount
-                  );
-                  return updated;
-                })}
-                InputProps={{
-                  startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
-                }}
-              />
-            </Box>
-
-            {/* Amount in Words */}
-            {receiveTotalPreview > 0 && (
-              <Box sx={{ p: 2, bgcolor: '#f0fdf4', borderRadius: 2, border: '1px solid #bbf7d0' }}>
-                <Typography variant="caption" sx={{ color: '#166534', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                  Total Amount in Words
+            {/* Discount and Amount in Words Row */}
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-end' }}>
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
+                  Discount
                 </Typography>
-                <Typography variant="body1" sx={{ fontWeight: 800, color: '#16a34a', mt: 0.5 }}>
-                  {numberToWords(receiveTotalPreview)}
-                </Typography>
+                <TextField
+                  fullWidth
+                  placeholder="0.00"
+                  type="number"
+                  value={receivePaymentData.discount}
+                  onChange={(e) => setReceivePaymentData((prev) => {
+                    const updated = { ...prev, discount: e.target.value };
+                    const accName = customers.find((c) => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || '';
+                    updated.description = buildFinancePaymentDescription(
+                      'RECEIVE',
+                      accName,
+                      updated.cash_amount,
+                      updated.bank_amount,
+                      updated.bank_account,
+                      bankAccounts,
+                      updated.discount
+                    );
+                    return updated;
+                  })}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
+                  }}
+                />
               </Box>
-            )}
+              <Box sx={{ flex: 1, minHeight: '56px', display: 'flex', alignItems: 'stretch' }}>
+                {receiveTotalPreview > 0 ? (
+                  <Box sx={{ p: 1.5, bgcolor: '#f0fdf4', borderRadius: 2, border: '1px solid #bbf7d0', width: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <Typography variant="caption" sx={{ color: '#166534', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.7rem' }}>
+                      Total Amount in Words (اردو میں رقم)
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 800, color: '#16a34a', mt: 0.2, fontSize: '1rem' }}>
+                      {numberToUrduWords(receiveTotalPreview)}
+                    </Typography>
+                  </Box>
+                ) : (
+                  <Box sx={{ p: 1.5, bgcolor: '#f8fafc', borderRadius: 2, border: '1px dashed #cbd5e1', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Typography variant="caption" sx={{ color: '#94a3b8' }}>
+                      Enter amount to see words
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+            </Box>
 
             <Divider sx={{ borderStyle: 'dotted', my: 1 }} />
 
@@ -4289,47 +4355,55 @@ export default function FinancePage() {
               />
             </Box>
 
-            {/* Discount */}
-            <Box>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
-                Discount
-              </Typography>
-              <TextField
-                fullWidth
-                placeholder="0.00"
-                type="number"
-                value={payPaymentData.discount}
-                onChange={(e) => setPayPaymentData((prev) => {
-                  const updated = { ...prev, discount: e.target.value };
-                  const accName = customers.find((c) => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || '';
-                  updated.description = buildFinancePaymentDescription(
-                    'PAY',
-                    accName,
-                    updated.cash_amount,
-                    updated.bank_amount,
-                    updated.bank_account,
-                    bankAccounts,
-                    updated.discount
-                  );
-                  return updated;
-                })}
-                InputProps={{
-                  startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
-                }}
-              />
-            </Box>
-
-            {/* Amount in Words */}
-            {payTotalPreview > 0 && (
-              <Box sx={{ p: 2, bgcolor: '#fef2f2', borderRadius: 2, border: '1px solid #fecaca' }}>
-                <Typography variant="caption" sx={{ color: '#991b1b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                  Total Amount in Words
+            {/* Discount and Amount in Words Row */}
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-end' }}>
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
+                  Discount
                 </Typography>
-                <Typography variant="body1" sx={{ fontWeight: 800, color: '#dc2626', mt: 0.5 }}>
-                  {numberToWords(payTotalPreview)}
-                </Typography>
+                <TextField
+                  fullWidth
+                  placeholder="0.00"
+                  type="number"
+                  value={payPaymentData.discount}
+                  onChange={(e) => setPayPaymentData((prev) => {
+                    const updated = { ...prev, discount: e.target.value };
+                    const accName = customers.find((c) => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || '';
+                    updated.description = buildFinancePaymentDescription(
+                      'PAY',
+                      accName,
+                      updated.cash_amount,
+                      updated.bank_amount,
+                      updated.bank_account,
+                      bankAccounts,
+                      updated.discount
+                    );
+                    return updated;
+                  })}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
+                  }}
+                />
               </Box>
-            )}
+              <Box sx={{ flex: 1, minHeight: '56px', display: 'flex', alignItems: 'stretch' }}>
+                {payTotalPreview > 0 ? (
+                  <Box sx={{ p: 1.5, bgcolor: '#fef2f2', borderRadius: 2, border: '1px solid #fecaca', width: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <Typography variant="caption" sx={{ color: '#991b1b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.7rem' }}>
+                      Total Amount in Words (اردو میں رقم)
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 800, color: '#dc2626', mt: 0.2, fontSize: '1rem' }}>
+                      {numberToUrduWords(payTotalPreview)}
+                    </Typography>
+                  </Box>
+                ) : (
+                  <Box sx={{ p: 1.5, bgcolor: '#f8fafc', borderRadius: 2, border: '1px dashed #cbd5e1', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Typography variant="caption" sx={{ color: '#94a3b8' }}>
+                      Enter amount to see words
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+            </Box>
 
             <Divider sx={{ borderStyle: 'dotted', my: 1 }} />
 
