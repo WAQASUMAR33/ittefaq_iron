@@ -81,6 +81,8 @@ export function createLedgerEntry(config) {
       finalLedgerType = 'Order';
     } else if (detLower.includes('sale return') || detLower.includes('refund paid out')) {
       finalLedgerType = 'Sale Return';
+    } else if (detLower.includes('purchase return')) {
+      finalLedgerType = 'Purchase Return';
     } else if (bStr.startsWith('PAY-')) {
       finalLedgerType = detLower.includes('payment received') || detLower.includes('receive') ? 'Receiving' : 'Payment';
     } else if (bStr.startsWith('JRN-')) {
