@@ -238,7 +238,7 @@ export default function StoreStockPage() {
 
   const openEditStockDialog = (stockItem) => {
     setEditingStockItem(stockItem);
-    setEditStockQuantity(String(parseFloat(stockItem?.stock_quantity || 0)));
+    setEditStockQuantity('0');
     setEditStockDialog(true);
   };
 
@@ -256,9 +256,20 @@ export default function StoreStockPage() {
   const handleUpdateStock = async () => {
     if (!editingStockItem) return;
 
-    const newQty = parseFloat(editStockQuantity);
-    if (Number.isNaN(newQty) || newQty < 0) {
-      showSnackbar('Please enter a valid stock quantity', 'error');
+    const adjQty = parseFloat(editStockQuantity);
+    if (Number.isNaN(adjQty)) {
+      showSnackbar('Please enter a valid stock adjustment quantity', 'error');
+      return;
+    }
+
+    if (adjQty === 0) {
+      showSnackbar('Adjustment quantity cannot be zero', 'error');
+      return;
+    }
+
+    const currentQty = parseFloat(editingStockItem?.stock_quantity || 0);
+    if (currentQty + adjQty < 0) {
+      showSnackbar('Post-adjustment stock quantity cannot be negative', 'error');
       return;
     }
 
@@ -275,14 +286,14 @@ export default function StoreStockPage() {
         body: JSON.stringify({
           store_id: editingStockItem.store_id || editingStockItem.store?.storeid,
           product_id: editingStockItem.pro_id || editingStockItem.product?.pro_id,
-          quantity: newQty,
-          operation: 'set',
+          quantity: adjQty,
+          operation: 'adjust',
           updated_by: getCurrentUserId()
         }),
       });
 
       if (response.ok) {
-        showSnackbar('Stock updated successfully', 'success');
+        showSnackbar('Stock adjusted successfully', 'success');
         setEditStockDialog(false);
         setEditingStockItem(null);
         setEditStockQuantity('');
@@ -294,11 +305,11 @@ export default function StoreStockPage() {
         }
       } else {
         const error = await response.json();
-        showSnackbar(error.error || 'Error updating stock', 'error');
+        showSnackbar(error.error || 'Error adjusting stock', 'error');
       }
     } catch (error) {
-      console.error('Error updating stock:', error);
-      showSnackbar('Error updating stock', 'error');
+      console.error('Error adjusting stock:', error);
+      showSnackbar('Error adjusting stock', 'error');
     } finally {
       setUpdatingStock(false);
     }
@@ -1105,12 +1116,24 @@ export default function StoreStockPage() {
                 disabled
               />
               <TextField
-                label="New Stock Quantity"
+                label="Existing Stock"
+                value={parseFloat(editingStockItem?.stock_quantity || 0)}
+                fullWidth
+                disabled
+              />
+              <TextField
+                label="Stock to Add / Subtract (e.g. 5 or -5)"
                 type="number"
                 fullWidth
                 value={editStockQuantity}
                 onChange={(e) => setEditStockQuantity(e.target.value)}
-                inputProps={{ min: 0, step: '0.01' }}
+                inputProps={{ step: '0.01' }}
+              />
+              <TextField
+                label="Post Quantity to Update"
+                value={parseFloat(editingStockItem?.stock_quantity || 0) + (parseFloat(editStockQuantity) || 0)}
+                fullWidth
+                disabled
               />
             </Stack>
           </DialogContent>

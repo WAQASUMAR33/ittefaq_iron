@@ -52,6 +52,7 @@ model Users {
   subscriptions       Subscription[]
   vehicles            Vehicle[]
   payments            Payment[]
+  stock_adjustments   StockAdjustment[]
 
   @@map("users")
 }
@@ -230,6 +231,7 @@ model Product {
   sale_return_details     SaleReturnDetail[]
   stock_transfer_details  StockTransferDetail[]
   store_stocks            StoreStock[]
+  stock_adjustments       StockAdjustment[]
 
   @@index([cat_id], map: "products_cat_id_fkey")
   @@index([sub_cat_id], map: "products_sub_cat_id_fkey")
@@ -773,6 +775,7 @@ model Store {
   stock_transfers_to   StockTransfer[] @relation("StockTransferTo")
   store_stocks         StoreStock[]
   sale_return_details  SaleReturnDetail[]
+  stock_adjustments    StockAdjustment[]
 
   @@map("stores")
 }
@@ -795,6 +798,26 @@ model StoreStock {
   @@index([pro_id], map: "store_stocks_pro_id_fkey")
   @@index([updated_by], map: "store_stocks_updated_by_fkey")
   @@map("store_stocks")
+}
+
+model StockAdjustment {
+  adjustment_id   Int      @id @default(autoincrement())
+  store_id        Int
+  pro_id          Int
+  quantity        Decimal  @db.Decimal(18, 2)
+  pre_quantity    Decimal  @db.Decimal(18, 2)
+  post_quantity   Decimal  @db.Decimal(18, 2)
+  created_at      DateTime @default(now())
+  updated_by      Int?
+  reference       String?
+  product         Product  @relation(fields: [pro_id], references: [pro_id])
+  store           Store    @relation(fields: [store_id], references: [storeid])
+  updated_by_user Users?   @relation(fields: [updated_by], references: [user_id])
+
+  @@index([pro_id], map: "stock_adjustments_pro_id_fkey")
+  @@index([store_id], map: "stock_adjustments_store_id_fkey")
+  @@index([updated_by], map: "stock_adjustments_updated_by_fkey")
+  @@map("stock_adjustments")
 }
 
 model Package {

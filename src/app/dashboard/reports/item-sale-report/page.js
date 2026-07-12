@@ -117,19 +117,20 @@ export default function ItemSaleReport() {
   }, [products, searchText]);
 
   const totals = useMemo(() => {
-    let purchase = 0, purchaseReturn = 0, sale = 0, saleReturn = 0, amount = 0;
+    let purchase = 0, purchaseReturn = 0, sale = 0, saleReturn = 0, adjustment = 0, amount = 0;
     details.forEach(r => {
       purchase += r.purchaseQty || 0;
       purchaseReturn += r.purchaseReturnQty || 0;
       sale += r.saleQty || 0;
       saleReturn += r.saleReturnQty || 0;
+      adjustment += r.adjustmentQty || 0;
       amount += r.amount || 0;
     });
-    return { purchase, purchaseReturn, sale, saleReturn, amount };
+    return { purchase, purchaseReturn, sale, saleReturn, adjustment, amount };
   }, [details]);
 
-  const typeColors = { PURCHASE: '#1a5276', PURCHASE_RETURN: '#922b21', SALE: '#1e8449', SALE_RETURN: '#784212' };
-  const typeLabel = { PURCHASE: 'Purchase', PURCHASE_RETURN: 'Pur. Return', SALE: 'Sale', SALE_RETURN: 'Sale Return' };
+  const typeColors = { PURCHASE: '#1a5276', PURCHASE_RETURN: '#922b21', SALE: '#1e8449', SALE_RETURN: '#784212', ADJUSTMENT: '#8e44ad' };
+  const typeLabel = { PURCHASE: 'Purchase', PURCHASE_RETURN: 'Pur. Return', SALE: 'Sale', SALE_RETURN: 'Sale Return', ADJUSTMENT: 'Adjustment' };
 
   const thStyle = (align = 'center') => ({
     border: '1px solid #888', padding: '6px 8px', textAlign: align,
@@ -276,6 +277,7 @@ export default function ItemSaleReport() {
                       <th style={thStyle('right')}>Pur. Return</th>
                       <th style={thStyle('right')}>Sale</th>
                       <th style={thStyle('right')}>Sale Return</th>
+                      <th style={thStyle('right')}>Adjustment</th>
                       <th style={thStyle('right')}>Updated Stock</th>
                       <th style={thStyle('right')}>Amount</th>
                       <th style={thStyle('center')}>Type</th>
@@ -292,6 +294,7 @@ export default function ItemSaleReport() {
                       <td style={tdStyle('right')}>-</td>
                       <td style={tdStyle('right')}>-</td>
                       <td style={tdStyle('right')}>-</td>
+                      <td style={tdStyle('right')}>-</td>
                       <td style={tdStyle('right', { fontWeight: 700 })}>{fmtQty(openingStock)}</td>
                       <td style={tdStyle('right')}>-</td>
                       <td style={tdStyle('center')}>-</td>
@@ -299,7 +302,7 @@ export default function ItemSaleReport() {
 
                     {details.length === 0 ? (
                       <tr>
-                        <td colSpan={11} style={{ padding: 20, textAlign: 'center', color: '#999', border: '1px solid #ddd', fontSize: 14 }}>
+                        <td colSpan={12} style={{ padding: 20, textAlign: 'center', color: '#999', border: '1px solid #ddd', fontSize: 14 }}>
                           No transactions in selected date range
                         </td>
                       </tr>
@@ -345,6 +348,12 @@ export default function ItemSaleReport() {
                           <td style={tdStyle('right', { color: row.saleReturnQty > 0 ? '#784212' : '#aaa', fontWeight: row.saleReturnQty > 0 ? 600 : 400 })}>
                             {row.saleReturnQty > 0 ? fmtQty(row.saleReturnQty) : '-'}
                           </td>
+                          <td style={tdStyle('right', {
+                            color: row.adjustmentQty > 0 ? '#1e8449' : row.adjustmentQty < 0 ? '#d32f2f' : '#aaa',
+                            fontWeight: row.adjustmentQty !== 0 ? 600 : 400
+                          })}>
+                            {row.adjustmentQty !== 0 ? (row.adjustmentQty > 0 ? `+${fmtQty(row.adjustmentQty)}` : fmtQty(row.adjustmentQty)) : '-'}
+                          </td>
                           <td style={tdStyle('right', { fontWeight: 700 })}>{fmtQty(row.updatedStock)}</td>
                           <td style={tdStyle('right')}>{fmtAmt(row.amount)}</td>
                           <td style={tdStyle('center', { color: typeColors[row.type] || '#333', fontWeight: 600, fontSize: 11 })}>
@@ -363,6 +372,7 @@ export default function ItemSaleReport() {
                         <td style={{ border: '1px solid #555', padding: '6px 8px', textAlign: 'right' }}>{fmtQty(totals.purchaseReturn)}</td>
                         <td style={{ border: '1px solid #555', padding: '6px 8px', textAlign: 'right' }}>{fmtQty(totals.sale)}</td>
                         <td style={{ border: '1px solid #555', padding: '6px 8px', textAlign: 'right' }}>{fmtQty(totals.saleReturn)}</td>
+                        <td style={{ border: '1px solid #555', padding: '6px 8px', textAlign: 'right' }}>{totals.adjustment !== 0 ? (totals.adjustment > 0 ? `+${fmtQty(totals.adjustment)}` : fmtQty(totals.adjustment)) : '-'}</td>
                         <td style={{ border: '1px solid #555', padding: '6px 8px' }}></td>
                         <td style={{ border: '1px solid #555', padding: '6px 8px', textAlign: 'right' }}>{fmtAmt(totals.amount)}</td>
                         <td style={{ border: '1px solid #555', padding: '6px 8px' }}></td>

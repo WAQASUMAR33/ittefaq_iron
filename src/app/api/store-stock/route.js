@@ -175,13 +175,79 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const updatedStock = await updateStoreStock(
-      parseInt(store_id), 
-      parseInt(product_id), 
-      parseInt(quantity), 
-      operation, 
-      updated_by
-    );
+    let updatedStock;
+    if (operation === 'adjust') {
+      const storeIdInt = parseInt(store_id);
+      const productIdInt = parseInt(product_id);
+      const adjQty = parseFloat(quantity);
+
+      // Perform transaction to ensure atomic update and logging
+      updatedStock = await prisma.$transaction(async (tx) => {
+        // Find existing store stock
+        let storeStock = await tx.storeStock.findUnique({
+          where: {
+            store_id_pro_id: {
+              store_id: storeIdInt,
+              pro_id: productIdInt
+            }
+          }
+        });
+
+        const preQty = storeStock ? parseFloat(storeStock.stock_quantity) : 0;
+        const postQty = preQty + adjQty;
+
+        let res;
+        if (storeStock) {
+          res = await tx.storeStock.update({
+            where: {
+              store_id_pro_id: {
+                store_id: storeIdInt,
+                pro_id: productIdInt
+              }
+            },
+            data: {
+              stock_quantity: postQty,
+              updated_by: updated_by || null,
+              updated_at: new Date()
+            }
+          });
+        } else {
+          res = await tx.storeStock.create({
+            data: {
+              store_id: storeIdInt,
+              pro_id: productIdInt,
+              stock_quantity: postQty,
+              min_stock: 0,
+              max_stock: 1000,
+              updated_by: updated_by || null
+            }
+          });
+        }
+
+        // Create stock adjustment log
+        await tx.stockAdjustment.create({
+          data: {
+            store_id: storeIdInt,
+            pro_id: productIdInt,
+            quantity: adjQty,
+            pre_quantity: preQty,
+            post_quantity: postQty,
+            updated_by: updated_by || null,
+            reference: 'Manual Adjustment'
+          }
+        });
+
+        return res;
+      });
+    } else {
+      updatedStock = await updateStoreStock(
+        parseInt(store_id), 
+        parseInt(product_id), 
+        parseInt(quantity), 
+        operation, 
+        updated_by
+      );
+    }
 
     return NextResponse.json({
       success: true,
@@ -190,7 +256,7 @@ export async function POST(request) {
     });
   } catch (error) {
     console.error('Error updating store stock:', error);
-    return NextResponse.json({ error: 'Failed to update store stock' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update store stock', details: error.message }, { status: 500 });
   }
 }
 

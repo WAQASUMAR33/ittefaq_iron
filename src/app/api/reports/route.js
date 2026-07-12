@@ -1304,9 +1304,9 @@ async function getItemSaleReport(startDate, endDate, proId) {
   });
   const returnPurIds = new Set(returnLedgerEntries.map(e => parseInt(e.bill_no)).filter(n => !isNaN(n)));
 
-  // Fetch all 4 transaction types in parallel
+  // Fetch all 5 transaction types in parallel (including Stock Adjustments)
   // bill_type enum values: BILL (confirmed sale), ORDER (order/sale)
-  const [allPurchaseDetails, purchaseReturns, sales, saleReturns] = await Promise.all([
+  const [allPurchaseDetails, purchaseReturns, sales, saleReturns, stockAdjustments] = await Promise.all([
     // All purchase details for this product in date range
     prisma.purchaseDetail.findMany({
       where: {
@@ -1342,6 +1342,17 @@ async function getItemSaleReport(startDate, endDate, proId) {
       },
       include: { sale_return: { include: { customer: true } } }
     }),
+    // Stock Adjustments
+    prisma.stockAdjustment.findMany({
+      where: {
+        pro_id: proId,
+        ...(dateFilter ? { created_at: dateFilter } : {})
+      },
+      include: {
+        store: true,
+        updated_by_user: true
+      }
+    })
   ]);
 
   // Split purchase details into regular purchases vs returns-stored-as-purchases
@@ -1363,6 +1374,7 @@ async function getItemSaleReport(startDate, endDate, proId) {
       saleQty: 0,
       orderQty: 0,
       saleReturnQty: 0,
+      adjustmentQty: 0,
       amount: parseFloat(d.net_total || 0),
     });
   });
@@ -1380,6 +1392,7 @@ async function getItemSaleReport(startDate, endDate, proId) {
       saleQty: 0,
       orderQty: 0,
       saleReturnQty: 0,
+      adjustmentQty: 0,
       amount: parseFloat(d.return_amount || 0),
     });
   });
@@ -1398,6 +1411,7 @@ async function getItemSaleReport(startDate, endDate, proId) {
       saleQty: 0,
       orderQty: 0,
       saleReturnQty: 0,
+      adjustmentQty: 0,
       amount: parseFloat(d.net_total || 0),
     });
   });
@@ -1418,6 +1432,7 @@ async function getItemSaleReport(startDate, endDate, proId) {
       saleQty: isBill ? q : 0,
       orderQty: isBill ? 0 : q,
       saleReturnQty: 0,
+      adjustmentQty: 0,
       amount: parseFloat(d.net_total || 0),
     });
   });
@@ -1435,7 +1450,26 @@ async function getItemSaleReport(startDate, endDate, proId) {
       saleQty: 0,
       orderQty: 0,
       saleReturnQty: parseFloat(d.qnty || 0),
+      adjustmentQty: 0,
       amount: parseFloat(d.net_total || 0),
+    });
+  });
+
+  // Stock Adjustments
+  stockAdjustments.forEach(d => {
+    rows.push({
+      date: d.created_at,
+      type: 'ADJUSTMENT',
+      refId: d.adjustment_id,
+      accountTitle: `Stock Adjustment - ${d.store?.store_name || 'Store'}`,
+      billNo: `ADJ-${d.adjustment_id}`,
+      purchaseQty: 0,
+      purchaseReturnQty: 0,
+      saleQty: 0,
+      orderQty: 0,
+      saleReturnQty: 0,
+      adjustmentQty: parseFloat(d.quantity || 0),
+      amount: 0,
     });
   });
 
@@ -1453,7 +1487,7 @@ async function getItemSaleReport(startDate, endDate, proId) {
   let openingStock = 0;
 
   const afterDateStart = new Date(startDate ? `${startDate}T00:00:00.000+05:00` : '1970-01-01T00:00:00.000+05:00');
-  const [aggAllPur, aggPurRet, aggSale, aggSaleRet, returnLedgerAfter] = await Promise.all([
+  const [aggAllPur, aggPurRet, aggSale, aggSaleRet, returnLedgerAfter, aggAdjustment] = await Promise.all([
     prisma.purchaseDetail.aggregate({
       where: { pro_id: proId, purchase: { created_at: { gte: afterDateStart } } },
       _sum: { qnty: true }
@@ -1474,25 +1508,32 @@ async function getItemSaleReport(startDate, endDate, proId) {
       where: { pro_id: proId, pur_id: { in: returnPurIds.size > 0 ? [...returnPurIds] : [] }, purchase: { created_at: { gte: afterDateStart } } },
       _sum: { qnty: true }
     }),
+    prisma.stockAdjustment.aggregate({
+      where: { pro_id: proId, created_at: { gte: afterDateStart } },
+      _sum: { quantity: true }
+    }),
   ]);
 
   const purRetFromPurTable = parseFloat(returnLedgerAfter._sum.qnty || 0);
   const realPurchases = parseFloat(aggAllPur._sum.qnty || 0) - purRetFromPurTable;
+  const adjustmentTotal = parseFloat(aggAdjustment._sum.quantity || 0);
   
   const netChange = realPurchases
     - parseFloat(aggPurRet._sum.return_quantity || 0)
     - purRetFromPurTable
     - parseFloat(aggSale._sum.qnty || 0)
-    + parseFloat(aggSaleRet._sum.qnty || 0);
+    + parseFloat(aggSaleRet._sum.qnty || 0)
+    + adjustmentTotal;
     
   openingStock = currentStock - netChange;
 
-  let totalPurchases = 0, totalPurchaseReturns = 0, totalSales = 0, totalSaleReturns = 0;
+  let totalPurchases = 0, totalPurchaseReturns = 0, totalSales = 0, totalSaleReturns = 0, totalAdjustments = 0;
   rows.forEach(r => {
     totalPurchases += r.purchaseQty;
     totalPurchaseReturns += r.purchaseReturnQty;
     totalSales += r.saleQty;
     totalSaleReturns += r.saleReturnQty;
+    totalAdjustments += r.adjustmentQty || 0;
   });
 
   // Attach preStock and updatedStock to each row
@@ -1500,7 +1541,7 @@ async function getItemSaleReport(startDate, endDate, proId) {
   const finalRows = rows.map(r => {
     const preStock = running;
     const outSale = r.saleQty || 0;
-    running = running + r.purchaseQty - r.purchaseReturnQty - outSale + r.saleReturnQty;
+    running = running + r.purchaseQty - r.purchaseReturnQty - outSale + r.saleReturnQty + (r.adjustmentQty || 0);
     return { ...r, preStock, updatedStock: running };
   });
 
@@ -1514,5 +1555,6 @@ async function getItemSaleReport(startDate, endDate, proId) {
     totalPurchaseReturns,
     totalSales,
     totalSaleReturns,
+    totalAdjustments,
   });
 }
