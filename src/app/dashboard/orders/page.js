@@ -1037,6 +1037,7 @@ function OrdersPageContent() {
         bill_type: billType || 'BILL',
         reference: paymentData.notes || null,
         is_loaded_order: paymentData.isLoadedOrder || false, // Flag for converted orders
+        advance_payment: (billType === 'ORDER' || billType === 'ORDER_TRASH') ? totalCashReceived : 0, // Save advance payment for orders
         sale_details: productTableData.map(product => ({
           pro_id: product.pro_id,
           vehicle_no: null,
@@ -1073,7 +1074,7 @@ function OrdersPageContent() {
 
       if (response.ok) {
         const result = await response.json();
-        const successMessage = editSaleId ? 'Order updated/converted successfully!' : 'Bill saved successfully!';
+        const successMessage = editSaleId ? 'Order updated successfully!' : 'Order saved successfully!';
         showSnackbar(successMessage, 'success');
 
         // Clear edit mode
@@ -2265,8 +2266,9 @@ function OrdersPageContent() {
 
       // 1. Set Customer
       setFormSelectedCustomer(saleData.customer);
+      let matchingType = null;
       if (saleData.customer && customerTypes.length > 0) {
-        const matchingType = customerTypes.find(t => t.cus_type_id === saleData.customer.cus_type);
+        matchingType = customerTypes.find(t => t.cus_type_id === saleData.customer.cus_type);
         setSelectedCustomerType(matchingType || null);
       }
 
@@ -2311,15 +2313,48 @@ function OrdersPageContent() {
       // So transport options might be lost on edit. I will skip transport population for now or accept it's a limitation.
       setTransportOptions([]);
 
-      // 6. Set Conversion Mode
-      // User wants to convert Order -> Sale
-      setBillType('BILL');
+      // 6. Set Edit Mode
+      // Preserve the original bill_type (e.g. ORDER) so we edit the order instead of converting it
+      setBillType(saleData.bill_type || 'ORDER');
       setEditSaleId(saleData.sale_id);
+
+      // Initialize screen stack with edit data
+      const editInitialState = {
+        formSelectedCustomer: saleData.customer,
+        selectedCustomerType: matchingType,
+        formSelectedStore: store,
+        productTableData: tableData,
+        paymentData: {
+          cash: parseFloat(saleData.cash_payment || 0),
+          bank: parseFloat(saleData.bank_payment || 0),
+          bankAccountId: saleData.debit_account_id || '',
+          totalCashReceived: parseFloat(saleData.payment || 0),
+          discount: parseFloat(saleData.discount || 0),
+          labour: 0,
+          deliveryCharges: parseFloat(saleData.shipping_amount || 0),
+          notes: saleData.reference || ''
+        },
+        billType: saleData.bill_type || 'ORDER',
+        formSelectedProduct: null,
+        productFormData: {
+          quantity: '',
+          rate: '',
+          amount: 0,
+          stock: 0
+        },
+        newTransport: { amount: 0, accountId: '' },
+        transportAccounts: [],
+        transportOptions: [],
+        timestamp: new Date().toLocaleTimeString(),
+        customerName: saleData.customer?.cus_name || 'Edit Order'
+      };
+      setScreenStack([editInitialState]);
+      setCurrentScreenIndex(0);
 
       // 7. Switch View
       setCurrentView('create');
 
-      showSnackbar('Order loaded for conversion/editing', 'success');
+      showSnackbar('Order loaded for editing', 'success');
 
     } catch (e) {
       console.error('Error editing sale:', e);
@@ -2327,6 +2362,74 @@ function OrdersPageContent() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleNewOrder = () => {
+    // Reset all form states for a clean new order
+    setEditSaleId(null);
+    setFormSelectedCustomer(null);
+    setSelectedCustomerType(null);
+    setFormSelectedStore(stores.length > 0 ? stores[0] : null);
+    setProductTableData([]);
+    setPaymentData({
+      cash: '',
+      bank: '',
+      bankAccountId: '',
+      totalCashReceived: 0,
+      discount: '',
+      labour: '',
+      deliveryCharges: '',
+      notes: ''
+    });
+    setProductFormData({
+      quantity: '',
+      rate: '',
+      amount: 0,
+      stock: 0
+    });
+    setFormSelectedProduct(null);
+    setTransportOptions([]);
+    setNewTransport({ amount: 0, accountId: '' });
+    setBillType('ORDER');
+    
+    // Re-initialize screen stack for new order
+    const initialState = {
+      formSelectedCustomer: null,
+      formSelectedStore: stores.length > 0 ? stores[0] : null,
+      productTableData: [],
+      paymentData: {
+        cash: '',
+        bank: '',
+        bankAccountId: '',
+        totalCashReceived: 0,
+        discount: '',
+        labour: '',
+        deliveryCharges: '',
+        notes: ''
+      },
+      billType: 'ORDER',
+      formSelectedProduct: null,
+      productFormData: {
+        quantity: '',
+        rate: '',
+        amount: 0,
+        stock: 0
+      },
+      newTransport: { amount: 0, accountId: '' },
+      transportAccounts: [],
+      transportOptions: [],
+      timestamp: new Date().toLocaleTimeString(),
+      customerName: 'New Order'
+    };
+    setScreenStack([initialState]);
+    setCurrentScreenIndex(0);
+    
+    setCurrentView('create');
+  };
+
+  const handleBackToList = () => {
+    setEditSaleId(null);
+    setCurrentView('list');
   };
 
   const handleDelete = async (sale) => {
@@ -2450,7 +2553,7 @@ function OrdersPageContent() {
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <IconButton
-                onClick={() => setCurrentView('list')}
+                onClick={handleBackToList}
                 color="primary"
                 sx={{
                   bgcolor: 'primary.main',
@@ -2467,10 +2570,10 @@ function OrdersPageContent() {
               </IconButton>
               <Box>
                 <Typography variant="h5" component="h1" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
-                  Create New Order
+                  {editSaleId ? `Edit Order #${editSaleId}` : 'Create New Order'}
                 </Typography>
                 <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                  Select products and create order
+                  {editSaleId ? 'Modify products and order details' : 'Select products and create order'}
                 </Typography>
               </Box>
             </Box>
@@ -3571,7 +3674,7 @@ function OrdersPageContent() {
                     borderRadius: 2,
                     '&:hover': { bgcolor: '#c82333' }
                   }}
-                  onClick={() => setCurrentView('list')}
+                  onClick={handleBackToList}
                 >
                   Cancel
                 </Button>
@@ -3605,7 +3708,7 @@ function OrdersPageContent() {
                       Saving...
                     </>
                   ) : (
-                    'Save'
+                    editSaleId ? 'Update Order' : 'Save Order'
                   )}
                 </Button>
               </Box>
@@ -4289,7 +4392,7 @@ function OrdersPageContent() {
             <Button
               variant="contained"
               startIcon={<AddIcon />}
-              onClick={() => setCurrentView('create')}
+              onClick={handleNewOrder}
               size="large"
               sx={{
                 background: 'linear-gradient(45deg, #FFC107 30%, #FF8F00 90%)',
