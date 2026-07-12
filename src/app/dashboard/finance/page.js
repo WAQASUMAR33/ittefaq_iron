@@ -364,7 +364,7 @@ export default function FinancePage() {
   const [selectedCustomer, setSelectedCustomer] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(''); // This will be customer category ID
   const [selectedSubCategory, setSelectedSubCategory] = useState(''); // This will be customer type ID
-  const [sortBy, setSortBy] = useState('created_at');
+  const [sortBy, setSortBy] = useState('l_id');
   const [sortOrder, setSortOrder] = useState('desc');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -1987,8 +1987,8 @@ export default function FinancePage() {
     setSelectedCustomer('');
     setSelectedCategory('');
     setSelectedSubCategory('');
-    setSortBy('created_at');
-    setSortOrder('asc');
+    setSortBy('l_id');
+    setSortOrder('desc');
     setStartDate('');
     setEndDate('');
     setSelectedLedgerType('');

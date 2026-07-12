@@ -158,7 +158,7 @@ export async function GET(request) {
           }
         }
       },
-      orderBy: { created_at: 'desc' }
+      orderBy: { l_id: 'desc' }
     };
 
     if (limit) {
