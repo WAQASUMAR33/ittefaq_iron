@@ -144,6 +144,7 @@ const ROUTE_MAP = {
   'settings': '/dashboard/settings',
   'import': '/dashboard/import',
   'internal-transfer': '/dashboard/internal-transfer',
+  'adjustment-management': '/dashboard/adjustment-management',
 };
 
 // Reverse lookup: path → { itemId, category }
@@ -208,6 +209,7 @@ export default function Sidebar({
     { id: 'expenses', name: 'Expense Management', icon: AttachMoneyIcon, category: 'financial', parent: 'Finance' },
     { id: 'journal', name: 'Journal Entries', icon: MenuBookIcon, category: 'financial', parent: 'Finance' },
     { id: 'internal-transfer', name: 'Internal Transfer', icon: SwapHorizIcon, category: 'financial', parent: 'Finance' },
+    { id: 'adjustment-management', name: 'Adjustment Account', icon: SwapHorizIcon, category: 'financial', parent: 'Finance' },
     { id: 'day-end', name: 'Day End / Day Close', icon: CalendarIcon, category: 'financial', parent: 'Finance' },
 
     { id: 'orders', name: 'Order List', icon: ListAltIcon, category: 'sales-operations', parent: 'Sales' },
