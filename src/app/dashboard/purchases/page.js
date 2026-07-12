@@ -3083,7 +3083,7 @@ function PurchasesPageContent() {
           )}
 
           {/* Main Form */}
-          <Card key={`${currentScreenIndex}-${screenStack[currentScreenIndex]?.timestamp || ''}`} sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <Card key={currentScreenIndex} sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
             <Box component="form" onSubmit={handleSubmit} sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
               {/* Purchase Type Selection Section */}
               <Box sx={{ p: 3, borderBottom: 1, borderColor: 'divider', bgcolor: '#f8fafc' }}>
