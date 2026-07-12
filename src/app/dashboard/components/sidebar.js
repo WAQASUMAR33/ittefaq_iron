@@ -274,6 +274,7 @@ export default function Sidebar({
       'journal': 'finance',
       'day-end': 'finance',
       'internal-transfer': 'finance',
+      'adjustment-management': 'finance',
       'ledger': 'finance',
       'cash-report': 'finance',
       'bank-report': 'finance',
@@ -368,6 +369,7 @@ export default function Sidebar({
       { path: '/dashboard/expenses', id: 'expenses', category: 'financial' },
       { path: '/dashboard/journal', id: 'journal', category: 'financial' },
       { path: '/dashboard/internal-transfer', id: 'internal-transfer', category: 'financial' },
+      { path: '/dashboard/adjustment-management', id: 'adjustment-management', category: 'financial' },
       { path: '/dashboard/day-end', id: 'day-end', category: 'financial' },
       { path: '/dashboard/cargo', id: 'cargo', category: 'cargo-operations' },
       { path: '/dashboard/orders', id: 'orders', category: 'sales-operations' },
@@ -486,6 +488,8 @@ export default function Sidebar({
       router.push('/dashboard/journal');
     } else if (itemId === 'internal-transfer') {
       router.push('/dashboard/internal-transfer');
+    } else if (itemId === 'adjustment-management') {
+      router.push('/dashboard/adjustment-management');
     } else if (itemId === 'day-end') {
       router.push('/dashboard/day-end');
     } else if (itemId === 'cargo') {
