@@ -102,7 +102,7 @@ export async function POST(request) {
 
       // Generate ledger IDs
       const cashLedgerId = await getNextId('ledger', 'l_id', tx);
-      const adjLedgerId = await getNextId('ledger', 'l_id', tx);
+      const adjLedgerId = cashLedgerId + 1;
 
       let cashDetails = '';
       let adjDetails = '';
