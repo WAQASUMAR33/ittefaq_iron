@@ -1492,6 +1492,11 @@ function PurchasesPageContent() {
       return;
     }
 
+    if (parseFloat(formData.out_delivery_amount || 0) > 0 && (!selectedCargoAccounts || selectedCargoAccounts.length === 0)) {
+      alert('select the cargo account first');
+      return;
+    }
+
     const hasCash = parseFloat(formData.cash_payment || 0) > 0;
     const hasBank = parseFloat(formData.bank_payment || 0) > 0;
     // Match sales: confirm when cash/bank is used, and always for purchase returns
