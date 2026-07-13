@@ -1720,7 +1720,7 @@ export default function FinancePage() {
       doc.text(`Date: ${today}   |   Entries: ${finalLedgerEntries.length}   |   Opening Balance: PKR ${fmtAmt(pdfOpeningBalance)}   |   Balance: PKR ${fmtAmt(balance)}`, 40, 98);
       doc.line(40, 104, 800, 104);
 
-      const rows = finalLedgerEntries.map((entry, i) => {
+      const rows = chronologicalEntries.map((entry, i) => {
         const date = entry.created_at
           ? new Date(entry.created_at).toLocaleDateString('en-GB') + ' ' + new Date(entry.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
           : '—';
@@ -1738,11 +1738,11 @@ export default function FinancePage() {
         return [entry.l_id, date, trnxType, ledgerType, account, desc, bill, credit, debit, bal];
       });
 
-      const totalDebit = finalLedgerEntries.reduce((s, e) => {
+      const totalDebit = chronologicalEntries.reduce((s, e) => {
         const { debit } = getLedgerEntryDisplayAmounts(e);
         return s + debit;
       }, 0);
-      const totalCredit = finalLedgerEntries.reduce((s, e) => {
+      const totalCredit = chronologicalEntries.reduce((s, e) => {
         const { credit } = getLedgerEntryDisplayAmounts(e);
         return s + credit;
       }, 0);
@@ -2021,15 +2021,15 @@ export default function FinancePage() {
       return;
     }
 
-    const customer = selectedCustomer ? customers.find(c => Number(c.cus_id) === Number(selectedCustomer)) : null;
-    const custName = customer?.cus_name || 'All Accounts';
-    const balance = dateFilteredEntries.length > 0 ? parseFloat(dateFilteredEntries[dateFilteredEntries.length - 1].closing_balance || 0) : 0;
-
     const chronologicalPrintEntries = [...dateFilteredEntries].sort(compareChronologically);
     const printOpeningBalance = chronologicalPrintEntries.length > 0 ? parseFloat(chronologicalPrintEntries[0].opening_balance || 0) : 0;
+    const balance = chronologicalPrintEntries.length > 0 ? parseFloat(chronologicalPrintEntries[chronologicalPrintEntries.length - 1].closing_balance || 0) : 0;
+
+    const customer = selectedCustomer ? customers.find(c => Number(c.cus_id) === Number(selectedCustomer)) : null;
+    const custName = customer?.cus_name || 'All Accounts';
 
     // Calculate totals for filtered entries
-    const filteredNonMemo = dateFilteredEntries.filter(e => !isOrderCustomerMemoLedgerEntry(e));
+    const filteredNonMemo = chronologicalPrintEntries.filter(e => !isOrderCustomerMemoLedgerEntry(e));
     const printTotalDebit = filteredNonMemo.reduce((s, e) => {
       const { debit } = getLedgerEntryDisplayAmounts(e);
       return s + debit;
@@ -2043,7 +2043,7 @@ export default function FinancePage() {
     const toFormatted = new Date(printToDate).toLocaleDateString('en-GB');
 
     // Build table rows
-    const tableRows = dateFilteredEntries.map((entry, i) => {
+    const tableRows = chronologicalPrintEntries.map((entry, i) => {
       const date = entry.created_at
         ? new Date(entry.created_at).toLocaleDateString('en-GB') + ' ' + new Date(entry.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
         : '—';

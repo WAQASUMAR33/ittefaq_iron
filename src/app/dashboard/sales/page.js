@@ -3374,7 +3374,8 @@ function SalesPageContent() {
         getBillDisplayNo(sale).toLowerCase().includes(searchTerm.toLowerCase()) ||
         (sale.sale_details && sale.sale_details.some(d =>
           (d.product?.pro_title || d.product_name || '').toLowerCase().includes(searchTerm.toLowerCase())
-        ));
+        )) ||
+        sale.total_amount?.toString().includes(searchTerm);
 
       const matchesItem = filterItem === '' ||
         (sale.sale_details && sale.sale_details.some(d =>
@@ -3444,12 +3445,37 @@ function SalesPageContent() {
       return result;
     });
 
-    console.log('🔍 Filtered sales count:', filtered.length, 'out of', sales.length);
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let aValue, bValue;
+
+      switch (sortBy) {
+        case 'customer':
+          aValue = a.customer?.cus_name || '';
+          bValue = b.customer?.cus_name || '';
+          break;
+        case 'total_amount':
+          aValue = parseFloat(a.total_amount || 0);
+          bValue = parseFloat(b.total_amount || 0);
+          break;
+        default:
+          aValue = a.created_at ? new Date(a.created_at).getTime() : 0;
+          bValue = b.created_at ? new Date(b.created_at).getTime() : 0;
+      }
+
+      const modifier = sortOrder === 'asc' ? 1 : -1;
+
+      if (aValue < bValue) return -1 * modifier;
+      if (aValue > bValue) return 1 * modifier;
+      return 0;
+    });
+
+    console.log('🔍 Filtered and sorted sales count:', filtered.length, 'out of', sales.length);
     if (filtered.length > 0) {
       console.log('🔍 First filtered sale:', filtered[0]);
     }
     return filtered;
-  }, [sales, searchTerm, filterItem, filterCustomer, filterBillType, filterStore, filterPaymentType, filterMinAmount, filterMaxAmount, filterBalanceStatus, dateFrom, dateTo]);
+  }, [sales, searchTerm, filterItem, filterCustomer, filterBillType, filterStore, filterPaymentType, filterMinAmount, filterMaxAmount, filterBalanceStatus, dateFrom, dateTo, sortBy, sortOrder]);
 
   console.log('🔍 Filtered sales count:', filteredSales.length);
   console.log('🔍 Sales state:', sales);
@@ -3675,6 +3701,15 @@ function SalesPageContent() {
     setSearchTerm('');
     setFilterItem('');
     setSelectedCustomer(null);
+    setFilterCustomer('');
+    setFilterBillType('');
+    setFilterStore('');
+    setFilterPaymentType('');
+    setFilterMinAmount('');
+    setFilterMaxAmount('');
+    setFilterBalanceStatus('');
+    setDateFrom('');
+    setDateTo('');
     setSortBy('created_at');
     setSortOrder('desc');
   };
@@ -5850,7 +5885,7 @@ function SalesPageContent() {
                       </TableHead>
                       <TableBody>
                         {currentBillData.sale_details && currentBillData.sale_details.length > 0 ? (
-                          currentBillData.sale_details.map((detail, index) => (
+                          currentBillData.sale_details.slice().reverse().map((detail, index) => (
                             <TableRow key={detail.sale_detail_id || index}>
                               <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }}>{index + 1}</TableCell>
                               <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }}>{detail.product?.pro_title || 'N/A'}</TableCell>
@@ -5995,7 +6030,7 @@ function SalesPageContent() {
                 </Box>
                 <Box sx={{ borderTop: '1px dashed #000', borderBottom: '1px dashed #000', py: 1 }}>
                   {currentBillData.sale_details && currentBillData.sale_details.length > 0 ? (
-                    currentBillData.sale_details.map((d, i) => (
+                    currentBillData.sale_details.slice().reverse().map((d, i) => (
                       <Box key={d.sale_detail_id || i} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                         <Box sx={{ pr: 1, flex: 1 }}>
                           <Typography sx={{ fontSize: '10px' }}>{d.product?.pro_title || 'Item'}</Typography>
@@ -6315,7 +6350,7 @@ function SalesPageContent() {
                       </TableHead>
                       <TableBody>
                         {currentBillData.sale_details && currentBillData.sale_details.length > 0 ? (
-                          currentBillData.sale_details.map((detail, index) => (
+                          currentBillData.sale_details.slice().reverse().map((detail, index) => (
                             <TableRow key={detail.sale_detail_id || index}>
                               <TableCell sx={{ px: 1, border: '1px solid #ddd' }}>{index + 1}</TableCell>
                               <TableCell sx={{ px: 1, border: '1px solid #ddd' }}>{detail.product?.pro_title || 'N/A'}</TableCell>
@@ -7324,7 +7359,7 @@ function SalesPageContent() {
                     <TextField
                       fullWidth
                       label="Search Sales"
-                      placeholder="ID, Customer, or Reference..."
+                      placeholder="ID, Customer, Reference, or Amount..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       onFocus={(e) => e.target.select()}
@@ -8566,7 +8601,7 @@ function SalesPageContent() {
                     </TableHead>
                     <TableBody>
                       {selectedBill.sale_details && selectedBill.sale_details.length > 0 ? (
-                        selectedBill.sale_details.map((detail, index) => (
+                        selectedBill.sale_details.slice().reverse().map((detail, index) => (
                           <TableRow key={detail.sale_detail_id || index}>
                             <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }}>{index + 1}</TableCell>
                             <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }}>{detail.product?.pro_title || detail.product?.pro_name || detail.product?.prod_name || 'N/A'}</TableCell>
