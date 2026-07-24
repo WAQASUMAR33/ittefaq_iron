@@ -2007,20 +2007,30 @@ export default function FinancePage() {
     setSelectedLedgerType('');
   };
 
-  // Print Ledger between two dates
+  // Print Ledger between two dates (Always Ascending Chronological Order)
   const handlePrintLedger = () => {
-    if (!printFromDate || !printToDate) {
-      alert('Please select both From and To dates');
-      return;
+    let fromStr = printFromDate;
+    let toStr = printToDate;
+
+    if (!fromStr || !toStr) {
+      if (finalLedgerEntries.length > 0) {
+        const sortedAsc = [...finalLedgerEntries].sort(compareChronologically);
+        fromStr = fromStr || new Date(sortedAsc[0].created_at).toISOString().split('T')[0];
+        toStr = toStr || new Date(sortedAsc[sortedAsc.length - 1].created_at).toISOString().split('T')[0];
+      } else {
+        alert('Please select both From and To dates');
+        return;
+      }
     }
-    if (new Date(printFromDate) > new Date(printToDate)) {
+
+    if (new Date(fromStr) > new Date(toStr)) {
       alert('From date cannot be after To date');
       return;
     }
 
-    const from = new Date(printFromDate);
+    const from = new Date(fromStr);
     from.setHours(0, 0, 0, 0);
-    const to = new Date(printToDate);
+    const to = new Date(toStr);
     to.setHours(23, 59, 59, 999);
 
     // Filter entries by date range (from the currently visible/filtered entries)
@@ -2034,6 +2044,7 @@ export default function FinancePage() {
       return;
     }
 
+    // ALWAYS sort in ascending chronological order for printing
     const chronologicalPrintEntries = [...dateFilteredEntries].sort(compareChronologically);
     const printOpeningBalance = chronologicalPrintEntries.length > 0 ? parseFloat(chronologicalPrintEntries[0].opening_balance || 0) : 0;
     const balance = chronologicalPrintEntries.length > 0 ? parseFloat(chronologicalPrintEntries[chronologicalPrintEntries.length - 1].closing_balance || 0) : 0;
@@ -2052,8 +2063,8 @@ export default function FinancePage() {
       return s + credit;
     }, 0);
 
-    const fromFormatted = new Date(printFromDate).toLocaleDateString('en-GB');
-    const toFormatted = new Date(printToDate).toLocaleDateString('en-GB');
+    const fromFormatted = new Date(fromStr).toLocaleDateString('en-GB');
+    const toFormatted = new Date(toStr).toLocaleDateString('en-GB');
 
     // Build table rows
     const tableRows = chronologicalPrintEntries.map((entry, i) => {
