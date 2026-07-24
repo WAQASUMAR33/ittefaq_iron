@@ -130,17 +130,27 @@ export default function ProfitReport() {
   const byProduct = useMemo(() => {
     const map = {};
     filteredSales.forEach(s => {
+      const billDiscount = parseFloat(s.discount || 0);
+      const billNetTotal = (s.sale_details || []).reduce((sum, d) => sum + parseFloat(d.net_total || d.total_amount || 0), 0);
+
       (s.sale_details || []).forEach(d => {
-        const pid  = d.product?.pro_id || 0;
-        const name = d.product?.pro_name || 'Unknown';
-        const cat  = d.product?.category?.cat_name || '-';
-        if (!map[pid]) map[pid] = { pid, name, cat, qty: 0, totalSale: 0, totalCost: 0, profit: 0 };
-        const cost = parseFloat(d.product?.pro_cost_price || 0) * (d.qnty || 0);
-        const sale = parseFloat(d.net_total || 0);
-        map[pid].qty      += d.qnty || 0;
+        const pid = d.product?.pro_id || d.pro_id || 0;
+        const name = d.product?.pro_title || d.product?.pro_name || (pid ? `Product #${pid}` : 'Unlisted Item');
+        const cat = d.product?.category?.cat_name || d.product?.sub_category?.sub_cat_name || '-';
+        if (!map[pid]) map[pid] = { pid, name, cat, qty: 0, totalSale: 0, totalCost: 0, totalDiscount: 0, profit: 0 };
+
+        const qnty = parseFloat(d.qnty || 0);
+        const costPrice = parseFloat(d.product?.pro_cost_price || d.product?.pro_crate || d.product?.pro_baser_price || 0);
+        const cost = costPrice * qnty;
+        const sale = parseFloat(d.net_total || d.total_amount || 0);
+        const allocatedBillDiscount = billNetTotal > 0 ? (sale / billNetTotal) * billDiscount : 0;
+        const itemProfit = (sale - allocatedBillDiscount) - cost;
+
+        map[pid].qty += qnty;
         map[pid].totalSale += sale;
         map[pid].totalCost += cost;
-        map[pid].profit    += sale - cost;
+        map[pid].totalDiscount += allocatedBillDiscount;
+        map[pid].profit += itemProfit;
       });
     });
     return Object.values(map)
@@ -152,17 +162,27 @@ export default function ProfitReport() {
   const byCategory = useMemo(() => {
     const map = {};
     filteredSales.forEach(s => {
+      const billDiscount = parseFloat(s.discount || 0);
+      const billNetTotal = (s.sale_details || []).reduce((sum, d) => sum + parseFloat(d.net_total || d.total_amount || 0), 0);
+
       (s.sale_details || []).forEach(d => {
-        const cid  = d.product?.category?.cat_id || 0;
-        const name = d.product?.category?.cat_name || 'Uncategorized';
-        if (!map[cid]) map[cid] = { cid, name, qty: 0, products: new Set(), totalSale: 0, totalCost: 0, profit: 0 };
-        const cost = parseFloat(d.product?.pro_cost_price || 0) * (d.qnty || 0);
-        const sale = parseFloat(d.net_total || 0);
-        map[cid].qty       += d.qnty || 0;
-        if (d.product?.pro_id) map[cid].products.add(d.product.pro_id);
-        map[cid].totalSale  += sale;
-        map[cid].totalCost  += cost;
-        map[cid].profit     += sale - cost;
+        const cid = d.product?.category?.cat_id || d.product?.cat_id || 0;
+        const name = d.product?.category?.cat_name || d.product?.sub_category?.sub_cat_name || 'Uncategorized';
+        if (!map[cid]) map[cid] = { cid, name, qty: 0, products: new Set(), totalSale: 0, totalCost: 0, totalDiscount: 0, profit: 0 };
+
+        const qnty = parseFloat(d.qnty || 0);
+        const costPrice = parseFloat(d.product?.pro_cost_price || d.product?.pro_crate || d.product?.pro_baser_price || 0);
+        const cost = costPrice * qnty;
+        const sale = parseFloat(d.net_total || d.total_amount || 0);
+        const allocatedBillDiscount = billNetTotal > 0 ? (sale / billNetTotal) * billDiscount : 0;
+        const itemProfit = (sale - allocatedBillDiscount) - cost;
+
+        map[cid].qty += qnty;
+        if (d.product?.pro_id || d.pro_id) map[cid].products.add(d.product?.pro_id || d.pro_id);
+        map[cid].totalSale += sale;
+        map[cid].totalCost += cost;
+        map[cid].totalDiscount += allocatedBillDiscount;
+        map[cid].profit += itemProfit;
       });
     });
     return Object.values(map)
@@ -511,11 +531,15 @@ export default function ProfitReport() {
                       <tfoot>
                         <tr className="bg-slate-800 text-white font-bold">
                           <td colSpan="3" className="px-3 py-3 text-right text-xs uppercase tracking-wider border-r border-slate-600">Total</td>
-                          <td className={`${tdRCls.replace('border-slate-200','border-slate-600')}`}>{byProduct.reduce((a,r)=>a+r.qty,0).toLocaleString()}</td>
-                          <td className={tdRCls.replace('border-slate-200','border-slate-600')}>{fmt(summary.totalSales)}</td>
-                          <td className={tdRCls.replace('border-slate-200','border-slate-600')}>{fmt(summary.totalCost)}</td>
-                          <td className={tdRCls.replace('border-slate-200','border-slate-600')}>{fmt(summary.grossProfit)}</td>
-                          <td className="px-3 py-3 text-right tabular-nums">{summary.profitMargin.toFixed(1)}%</td>
+                          <td className={`${tdRCls.replace('border-slate-200','border-slate-600')}`}>{filteredByProduct.reduce((a,r)=>a+r.qty,0).toLocaleString()}</td>
+                          <td className={tdRCls.replace('border-slate-200','border-slate-600')}>{fmt(filteredByProduct.reduce((a,r)=>a+r.totalSale,0))}</td>
+                          <td className={tdRCls.replace('border-slate-200','border-slate-600')}>{fmt(filteredByProduct.reduce((a,r)=>a+r.totalCost,0))}</td>
+                          <td className={tdRCls.replace('border-slate-200','border-slate-600')}>{fmt(filteredByProduct.reduce((a,r)=>a+r.profit,0))}</td>
+                          <td className="px-3 py-3 text-right tabular-nums">
+                            {filteredByProduct.reduce((a,r)=>a+r.totalSale,0) > 0
+                              ? ((filteredByProduct.reduce((a,r)=>a+r.profit,0) / filteredByProduct.reduce((a,r)=>a+r.totalSale,0)) * 100).toFixed(1)
+                              : '0.0'}%
+                          </td>
                         </tr>
                       </tfoot>
                     </table>
@@ -566,11 +590,15 @@ export default function ProfitReport() {
                       <tfoot>
                         <tr className="bg-slate-800 text-white font-bold">
                           <td colSpan="3" className="px-3 py-3 text-right text-xs uppercase tracking-wider border-r border-slate-600">Total</td>
-                          <td className={`${tdRCls.replace('border-slate-200','border-slate-600')}`}>{byCategory.reduce((a,r)=>a+r.qty,0).toLocaleString()}</td>
-                          <td className={tdRCls.replace('border-slate-200','border-slate-600')}>{fmt(summary.totalSales)}</td>
-                          <td className={tdRCls.replace('border-slate-200','border-slate-600')}>{fmt(summary.totalCost)}</td>
-                          <td className={tdRCls.replace('border-slate-200','border-slate-600')}>{fmt(summary.grossProfit)}</td>
-                          <td className={tdRCls.replace('border-slate-200','border-slate-600')}>{summary.profitMargin.toFixed(1)}%</td>
+                          <td className={`${tdRCls.replace('border-slate-200','border-slate-600')}`}>{filteredByCategory.reduce((a,r)=>a+r.qty,0).toLocaleString()}</td>
+                          <td className={tdRCls.replace('border-slate-200','border-slate-600')}>{fmt(filteredByCategory.reduce((a,r)=>a+r.totalSale,0))}</td>
+                          <td className={tdRCls.replace('border-slate-200','border-slate-600')}>{fmt(filteredByCategory.reduce((a,r)=>a+r.totalCost,0))}</td>
+                          <td className={tdRCls.replace('border-slate-200','border-slate-600')}>{fmt(filteredByCategory.reduce((a,r)=>a+r.profit,0))}</td>
+                          <td className={tdRCls.replace('border-slate-200','border-slate-600')}>
+                            {filteredByCategory.reduce((a,r)=>a+r.totalSale,0) > 0
+                              ? ((filteredByCategory.reduce((a,r)=>a+r.profit,0) / filteredByCategory.reduce((a,r)=>a+r.totalSale,0)) * 100).toFixed(1)
+                              : '0.0'}%
+                          </td>
                           <td className="px-3 py-3 text-right tabular-nums">100%</td>
                         </tr>
                       </tfoot>

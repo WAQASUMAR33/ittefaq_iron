@@ -996,7 +996,8 @@ async function getProfitReport(startDate, endDate) {
         include: {
           product: {
             include: {
-              category: true
+              category: true,
+              sub_category: true
             }
           }
         }
@@ -1013,13 +1014,14 @@ async function getProfitReport(startDate, endDate) {
     let totalSale = 0;
 
     sale.sale_details.forEach(detail => {
-      const costPrice = parseFloat(detail.product?.pro_cost_price || 0);
-      const saleAmount = parseFloat(detail.net_total);
-      totalCost += costPrice * detail.qnty;
+      const qnty = parseFloat(detail.qnty || 0);
+      const costPrice = parseFloat(detail.product?.pro_cost_price || detail.product?.pro_crate || detail.product?.pro_baser_price || 0);
+      const saleAmount = parseFloat(detail.net_total || detail.total_amount || 0);
+      totalCost += costPrice * qnty;
       totalSale += saleAmount;
     });
 
-    const profit = totalSale - totalCost - parseFloat(sale.discount);
+    const profit = totalSale - totalCost - parseFloat(sale.discount || 0);
     const profitMargin = totalSale > 0 ? (profit / totalSale * 100) : 0;
 
     return {
