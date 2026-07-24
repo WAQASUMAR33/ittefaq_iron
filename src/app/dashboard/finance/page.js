@@ -3097,14 +3097,14 @@ export default function FinancePage() {
                             sx={{
                               bgcolor: rowBgColor,
                               '&:hover': {
-                                bgcolor: isPositive ? '#bbf7d0' : '#fecaca',
+                                bgcolor: isPositive ? '#bbf7d0 !important' : '#fecaca !important',
                                 cursor: 'pointer',
                                 '& .edit-icon': {
                                   opacity: 1
                                 }
                               },
-                              borderLeft: `4px solid ${entryTypeColor}`,
-                              transition: 'all 0.2s'
+                              borderLeft: `5px solid ${entryTypeColor}`,
+                              transition: 'all 0.15s ease-in-out'
                             }}
                             onDoubleClick={() => handleEdit(entry)}
                           >
@@ -3114,8 +3114,7 @@ export default function FinancePage() {
                                 borderRight: 1,
                                 borderColor: 'divider',
                                 textAlign: 'center',
-                                fontWeight: 700,
-                                bgcolor: rowBgColor
+                                fontWeight: 700
                               }}
                             >
                               {entry.l_id}
@@ -3150,8 +3149,7 @@ export default function FinancePage() {
                                 borderRight: 1,
                                 borderColor: 'divider',
                                 fontFamily: 'monospace',
-                                fontWeight: 600,
-                                bgcolor: rowBgColor
+                                fontWeight: 600
                               }}
                             >
                               <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -3164,7 +3162,6 @@ export default function FinancePage() {
                               sx={{
                                 borderRight: 1,
                                 borderColor: 'divider',
-                                bgcolor: rowBgColor,
                                 fontWeight: 600
                               }}
                             >
@@ -3184,8 +3181,7 @@ export default function FinancePage() {
                               sx={{
                                 borderRight: 1,
                                 borderColor: 'divider',
-                                maxWidth: 250,
-                                bgcolor: rowBgColor
+                                maxWidth: 250
                               }}
                             >
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -3219,7 +3215,6 @@ export default function FinancePage() {
                                  borderRight: 1,
                                  borderColor: 'divider',
                                  textAlign: 'right',
-                                 bgcolor: rowBgColor,
                                  fontWeight: 700,
                                  position: 'relative'
                                }}
@@ -3249,7 +3244,6 @@ export default function FinancePage() {
                                  borderRight: 1,
                                  borderColor: 'divider',
                                  textAlign: 'right',
-                                 bgcolor: rowBgColor,
                                  fontWeight: 700,
                                  position: 'relative'
                                }}
@@ -3277,7 +3271,6 @@ export default function FinancePage() {
                              <TableCell
                                sx={{
                                  textAlign: 'right',
-                                 bgcolor: rowBgColor,
                                  position: 'relative'
                                }}
                              >
@@ -3302,7 +3295,6 @@ export default function FinancePage() {
                             {/* Ledger Type */}
                             <TableCell
                               sx={{
-                                bgcolor: rowBgColor,
                                 fontWeight: 700,
                                 color: '#1f2937'
                               }}

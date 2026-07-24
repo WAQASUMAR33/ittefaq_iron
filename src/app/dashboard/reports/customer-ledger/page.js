@@ -322,12 +322,12 @@ export default function CustomerLedgerReport() {
                         const isCredit = parseFloat(entry.credit_amount || 0) > 0;
                         const isDebit = parseFloat(entry.debit_amount || 0) > 0 && !isCredit;
                         const rowBg = isCredit
-                          ? 'bg-green-50 hover:bg-green-100 print:bg-green-50'
+                          ? 'bg-green-50/80 ledger-row-hover-credit print:bg-green-50'
                           : isDebit
-                            ? 'bg-red-50 hover:bg-red-100 print:bg-red-50'
-                            : 'hover:bg-gray-50 print:hover:bg-white';
+                            ? 'bg-red-50/80 ledger-row-hover-debit print:bg-red-50'
+                            : 'ledger-row-hover print:hover:bg-white';
                         return (
-                        <tr key={entry.l_id} className={rowBg}>
+                        <tr key={entry.l_id} className={`${rowBg} cursor-pointer`}>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {new Date(entry.created_at).toLocaleDateString()}
                           </td>

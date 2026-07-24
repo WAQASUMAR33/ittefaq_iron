@@ -264,3 +264,36 @@ input[type="number"]::placeholder,
 .MuiSelect-nativeInput {
   opacity: 0 !important;
 }
+
+/* Ledger Table Hover Highlights */
+.ledger-row-hover {
+  transition: background-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out !important;
+}
+.ledger-row-hover:hover {
+  background-color: #e0f2fe !important; /* Soft sky blue highlight */
+  box-shadow: inset 4px 0 0 #0284c7 !important; /* Accent bar on left */
+}
+
+.ledger-row-hover-credit {
+  transition: background-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out !important;
+}
+.ledger-row-hover-credit:hover {
+  background-color: #dcfce7 !important; /* Soft green highlight */
+  box-shadow: inset 4px 0 0 #16a34a !important; /* Green accent bar on left */
+}
+
+.ledger-row-hover-debit {
+  transition: background-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out !important;
+}
+.ledger-row-hover-debit:hover {
+  background-color: #fee2e2 !important; /* Soft red highlight */
+  box-shadow: inset 4px 0 0 #dc2626 !important; /* Red accent bar on left */
+}
+
+@media print {
+  .ledger-row-hover:hover,
+  .ledger-row-hover-credit:hover,
+  .ledger-row-hover-debit:hover {
+    box-shadow: none !important;
+  }
+}

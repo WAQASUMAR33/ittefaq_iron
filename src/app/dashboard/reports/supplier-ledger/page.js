@@ -307,12 +307,12 @@ export default function SupplierLedgerReport() {
                         const isCredit = parseFloat(entry.credit_amount || 0) > 0;
                         const isDebit = parseFloat(entry.debit_amount || 0) > 0 && !isCredit;
                         const rowBg = isCredit
-                          ? 'border-b border-green-200 bg-green-50 hover:bg-green-100 print:bg-green-50'
+                          ? 'border-b border-green-200 bg-green-50/80 ledger-row-hover-credit print:bg-green-50'
                           : isDebit
-                            ? 'border-b border-red-200 bg-red-50 hover:bg-red-100 print:bg-red-50'
-                            : 'border-b border-gray-200 hover:bg-gray-50';
+                            ? 'border-b border-red-200 bg-red-50/80 ledger-row-hover-debit print:bg-red-50'
+                            : 'border-b border-gray-200 ledger-row-hover';
                         return (
-                        <tr key={index} className={rowBg}>
+                        <tr key={index} className={`${rowBg} cursor-pointer`}>
                           <td className="px-6 py-3 text-gray-700">{new Date(entry.created_at).toLocaleDateString()}</td>
                           <td className="px-6 py-3">
                             <span className={`px-3 py-1 rounded-full text-xs font-semibold ${

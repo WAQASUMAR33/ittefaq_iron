@@ -9294,8 +9294,27 @@ function SalesPageContent() {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {ledgerData.ledgerEntries.map((entry, idx) => (
-                      <TableRow key={idx} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                    {ledgerData.ledgerEntries.map((entry, idx) => {
+                      const isCredit = parseFloat(entry.credit_amount || 0) > 0;
+                      const isDebit = parseFloat(entry.debit_amount || 0) > 0 && !isCredit;
+                      const hoverBg = isCredit ? '#dcfce7 !important' : isDebit ? '#fee2e2 !important' : '#e0f2fe !important';
+                      const accentColor = isCredit ? '#16a34a !important' : isDebit ? '#dc2626 !important' : '#0284c7 !important';
+                      const baseBg = isCredit ? '#f0fdf4' : isDebit ? '#fef2f2' : 'inherit';
+                      return (
+                      <TableRow
+                        key={idx}
+                        hover
+                        sx={{
+                          bgcolor: baseBg,
+                          '&:last-child td, &:last-child th': { border: 0 },
+                          transition: 'background-color 0.15s ease, box-shadow 0.15s ease',
+                          cursor: 'pointer',
+                          '&:hover': {
+                            backgroundColor: hoverBg,
+                            boxShadow: `inset 4px 0 0 ${accentColor}`
+                          }
+                        }}
+                      >
                         <TableCell>{new Date(entry.created_at).toLocaleDateString()}</TableCell>
                         <TableCell>
                           <Chip
@@ -9320,7 +9339,8 @@ function SalesPageContent() {
                         </TableCell>
                         <TableCell align="right" sx={{ fontWeight: 'bold' }}>{entry.closing_balance.toFixed(0)}</TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </TableContainer>
