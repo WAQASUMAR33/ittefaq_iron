@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { ArrowLeft, Download, Printer, Search, Banknote, TrendingUp, TrendingDown } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
-import { Autocomplete, TextField, InputAdornment } from '@mui/material';
+import { Autocomplete, TextField } from '@mui/material';
 
 const fmtAmt = (val) => {
   const n = parseFloat(val || 0);
@@ -13,7 +13,6 @@ const fmtAmt = (val) => {
 };
 
 // Map ledger amounts to correct debit/credit columns based on trnx_type
-// This matches the logic used in the finance ledger page
 const getLedgerEntryDisplayAmounts = (entry) => {
   const debitAmt = parseFloat(entry.debit_amount || 0);
   const creditAmt = parseFloat(entry.credit_amount || 0);
@@ -53,8 +52,9 @@ export default function CashReport() {
   const [stores, setStores] = useState([]);
   const [selectedStore, setSelectedStore] = useState('');
   const [selectedPaymentType, setSelectedPaymentType] = useState('');
+  const [sortOrder, setSortOrder] = useState('desc'); // Screen default: descending
 
-// Auto-fetch report when dates are set
+  // Auto-fetch report when dates are set
   useEffect(() => {
     if (startDate && endDate) {
       fetchReport();
@@ -108,7 +108,7 @@ export default function CashReport() {
       const data = await response.json();
       if (response.ok) {
         let filteredData = { ...data };
-        // Sort ledger entries chronologically (by created_at and l_id) to ensure correct opening balance b/f and running balance
+        // Sort ledger entries chronologically (ascending) for core running balance & totals calculation
         if (filteredData.ledgerEntries && Array.isArray(filteredData.ledgerEntries)) {
           filteredData.ledgerEntries = [...filteredData.ledgerEntries].sort((a, b) => {
             const timeA = new Date(a.created_at).getTime();
@@ -189,14 +189,15 @@ export default function CashReport() {
     a.click();
   };
 
-  const netCashFlow =
-    (parseFloat(reportData?.summary?.totalLedgerDebit || 0) -
-      parseFloat(reportData?.summary?.totalLedgerCredit || 0));
-
   const openingBalance = reportData?.ledgerEntries?.[0] ? parseFloat(reportData.ledgerEntries[0].opening_balance || 0) : 0;
   const closingBalance = reportData?.ledgerEntries?.length > 0
     ? parseFloat(reportData.ledgerEntries[reportData.ledgerEntries.length - 1].closing_balance || 0)
     : openingBalance;
+
+  // Screen entries order (default descending: newest on top)
+  const screenEntries = reportData?.ledgerEntries
+    ? (sortOrder === 'desc' ? [...reportData.ledgerEntries].reverse() : reportData.ledgerEntries)
+    : [];
 
   return (
     <DashboardLayout>
@@ -244,7 +245,7 @@ export default function CashReport() {
               <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
                 className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" />
             </div>
-            <div className="flex-1 min-w-[200px] max-w-[250px]">
+            <div className="flex-1 min-w-[180px] max-w-[220px]">
               <label className="block text-xs font-semibold text-slate-600 mb-1 caps">CATEGORY</label>
               <Autocomplete
                 size="small"
@@ -268,7 +269,7 @@ export default function CashReport() {
                 )}
               />
             </div>
-            <div className="flex-1 min-w-[200px] max-w-[250px]">
+            <div className="flex-1 min-w-[180px] max-w-[220px]">
               <label className="block text-xs font-semibold text-slate-600 mb-1 caps">ACCOUNT</label>
               <Autocomplete
                 size="small"
@@ -293,7 +294,7 @@ export default function CashReport() {
                 )}
               />
             </div>
-            <div className="flex-1 min-w-[140px] max-w-[180px]">
+            <div className="flex-1 min-w-[140px] max-w-[160px]">
               <label className="block text-xs font-semibold text-slate-600 mb-1">STORE</label>
               <select value={selectedStore} onChange={(e) => setSelectedStore(e.target.value)}
                 className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
@@ -301,18 +302,25 @@ export default function CashReport() {
                 {(stores || []).map((store) => (<option key={store.storeid} value={store.storeid}>{store.store_name}</option>))}
               </select>
             </div>
-            <div className="flex-1 min-w-[140px] max-w-[180px]">
+            <div className="flex-1 min-w-[140px] max-w-[160px]">
               <label className="block text-xs font-semibold text-slate-600 mb-1">PAYMENT TYPE</label>
               <select value={selectedPaymentType} onChange={(e) => setSelectedPaymentType(e.target.value)}
                 className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
                 <option value="">All Types</option>
                 <option value="CASH">Cash Only</option>
                 <option value="BANK">Bank Only</option>
-                <option value="SPLIT">Split Payments</option>
+              </select>
+            </div>
+            <div className="flex-1 min-w-[150px] max-w-[170px]">
+              <label className="block text-xs font-semibold text-slate-600 mb-1">SORT (SCREEN)</label>
+              <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)}
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-semibold">
+                <option value="desc">Descending (Newest First)</option>
+                <option value="asc">Ascending (Oldest First)</option>
               </select>
             </div>
             <button onClick={fetchReport} disabled={loading}
-              className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white rounded-lg text-sm font-semibold transition-colors min-w-[140px]">
+              className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white rounded-lg text-sm font-semibold transition-colors min-w-[130px]">
               {loading ? 'Generating...' : 'Generate Report'}
             </button>
           </div>
@@ -385,90 +393,159 @@ export default function CashReport() {
                 </table>
               </div>
 
-              {/* Main Ledger Table */}
-              <div className="bg-white border border-slate-300 rounded-lg overflow-hidden print:border-black print:rounded-none">
-                <div className="bg-slate-100 px-4 py-2 border-b border-slate-300 print:bg-white print:border-black">
+              {/* 1. SCREEN LEDGER TABLE (Supports Descending / Ascending) */}
+              <div className="bg-white border border-slate-300 rounded-lg overflow-hidden print:hidden">
+                <div className="bg-slate-100 px-4 py-2 border-b border-slate-300 flex items-center justify-between">
                   <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Cash Ledger Transactions</h3>
+                  <span className="text-xs font-medium text-slate-500">
+                    Sort: <span className="font-bold text-slate-700">{sortOrder === 'desc' ? 'Descending (Newest First)' : 'Ascending (Oldest First)'}</span>
+                  </span>
                 </div>
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-slate-800 text-white print:bg-gray-200 print:text-black">
-                      <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black w-12">S.No</th>
-                      <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black w-24">Date</th>
-                      <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Account Title</th>
-                      <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Description</th>
-                      <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black">Bill</th>
-                      <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black w-28">Debit (Dr)</th>
-                      <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 print:border-black w-28">Credit (Cr)</th>
+                    <tr className="bg-slate-800 text-white">
+                      <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 w-12">S.No</th>
+                      <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 w-24">Date</th>
+                      <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600">Account Title</th>
+                      <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600">Description</th>
+                      <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600">Bill</th>
+                      <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 w-28">Debit (Dr)</th>
+                      <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 w-28">Credit (Cr)</th>
                       <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider w-28">Balance</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200 print:divide-black">
-                    {/* Opening Balance Row */}
-                    {reportData.ledgerEntries.length > 0 && (() => {
-                      const ob = parseFloat(reportData.ledgerEntries[0].opening_balance || 0);
-                      return (
-                        <tr className="bg-slate-100 print:bg-gray-100 font-semibold">
-                          <td className="px-3 py-2.5 text-slate-500 border-r border-slate-200 print:border-black text-xs">—</td>
-                          <td className="px-3 py-2.5 text-slate-700 border-r border-slate-200 print:border-black whitespace-nowrap text-xs">{formatDate(startDate)}</td>
-                          <td className="px-3 py-2.5 text-slate-700 border-r border-slate-200 print:border-black" colSpan={3}>
-                            <span className="text-xs font-bold uppercase tracking-wide text-slate-600">Balance b/f (Opening Balance)</span>
-                          </td>
-                          <td className="px-3 py-2.5 text-right border-r border-slate-200 print:border-black text-slate-400">—</td>
-                          <td className="px-3 py-2.5 text-right border-r border-slate-200 print:border-black text-slate-400">—</td>
-                          <td className={`px-3 py-2.5 text-right font-bold tabular-nums ${ob >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
-                            {formatCurrency(ob)}
-                          </td>
-                        </tr>
-                      );
-                    })()}
-                    {reportData.ledgerEntries.map((entry, index) => {
+                  <tbody className="divide-y divide-slate-200">
+                    {/* Opening Balance Row at top for Ascending */}
+                    {sortOrder === 'asc' && reportData.ledgerEntries.length > 0 && (
+                      <tr className="bg-slate-100 font-semibold">
+                        <td className="px-3 py-2.5 text-slate-500 border-r border-slate-200 text-xs">—</td>
+                        <td className="px-3 py-2.5 text-slate-700 border-r border-slate-200 whitespace-nowrap text-xs">{formatDate(startDate)}</td>
+                        <td className="px-3 py-2.5 text-slate-700 border-r border-slate-200" colSpan={3}>
+                          <span className="text-xs font-bold uppercase tracking-wide text-slate-600">Balance b/f (Opening Balance)</span>
+                        </td>
+                        <td className="px-3 py-2.5 text-right border-r border-slate-200 text-slate-400">—</td>
+                        <td className="px-3 py-2.5 text-right border-r border-slate-200 text-slate-400">—</td>
+                        <td className={`px-3 py-2.5 text-right font-bold tabular-nums ${openingBalance >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                          {formatCurrency(openingBalance)}
+                        </td>
+                      </tr>
+                    )}
+
+                    {screenEntries.map((entry, index) => {
                       const displayAmts = getLedgerEntryDisplayAmounts(entry);
                       const balance = parseFloat(entry.closing_balance || 0);
+                      const sno = sortOrder === 'desc' ? reportData.ledgerEntries.length - index : index + 1;
                       return (
-                        <tr key={entry.l_id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} ledger-row-hover cursor-pointer print:bg-white`}>
-                          <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200 print:border-black">{index + 1}</td>
-                          <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200 print:border-black whitespace-nowrap">{formatDate(entry.created_at)}</td>
-                          <td className="px-3 py-2.5 text-slate-900 font-medium border-r border-slate-200 print:border-black">{entry.customer?.cus_name || '-'}</td>
-                          <td className="px-3 py-2.5 text-slate-600 border-r border-slate-200 print:border-black">{entry.details || '-'}</td>
-                          {(() => {
-                            const firstIndex = reportData.ledgerEntries.findIndex(e => e.bill_no === entry.bill_no && ((e.cus_id || e.customer?.cus_id) === (entry.cus_id || entry.customer?.cus_id)));
-                            const isFirstBill = entry.bill_no && firstIndex === index;
-                            return (
-                              <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200 print:border-black">
-                                {entry.bill_no ? (
-                                  isFirstBill ? (
-                                    <div>
-                                      Bill: {entry.bill_no}{' '}
-                                      {((entry.trnx_type === 'PURCHASE' && displayAmts.debit > 0) || (/incity \(own\) - (labour|delivery)/i).test(entry.details || '')) ? (
-                                        <div className="text-xs text-blue-600 font-bold">— {fmtAmt(displayAmts.debit)}</div>
-                                      ) : ''}
-                                    </div>
-                                  ) : ''
-                                ) : '-'}
-                              </td>
-                            );
-                          })()}
-                          <td className="px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums">
-                            {displayAmts.debit > 0 ? <span className="text-green-600 print:text-black">{formatCurrency(displayAmts.debit)}</span> : '-'}
+                        <tr key={entry.l_id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} ledger-row-hover cursor-pointer`}>
+                          <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200">{sno}</td>
+                          <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200 whitespace-nowrap">{formatDate(entry.created_at)}</td>
+                          <td className="px-3 py-2.5 text-slate-900 font-medium border-r border-slate-200">{entry.customer?.cus_name || '-'}</td>
+                          <td className="px-3 py-2.5 text-slate-600 border-r border-slate-200">{entry.details || '-'}</td>
+                          <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200">
+                            {entry.bill_no ? `Bill: ${entry.bill_no}` : '-'}
                           </td>
-                          <td className="px-3 py-2.5 text-right border-r border-slate-200 print:border-black tabular-nums">
-                            {displayAmts.credit > 0 ? <span className="text-red-600 print:text-black">{formatCurrency(displayAmts.credit)}</span> : '-'}
+                          <td className="px-3 py-2.5 text-right border-r border-slate-200 tabular-nums">
+                            {displayAmts.debit > 0 ? <span className="text-green-600">{formatCurrency(displayAmts.debit)}</span> : '-'}
+                          </td>
+                          <td className="px-3 py-2.5 text-right border-r border-slate-200 tabular-nums">
+                            {displayAmts.credit > 0 ? <span className="text-red-600">{formatCurrency(displayAmts.credit)}</span> : '-'}
                           </td>
                           <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${balance >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatCurrency(balance)}</td>
                         </tr>
                       );
                     })}
+
+                    {/* Opening Balance Row at bottom for Descending */}
+                    {sortOrder === 'desc' && reportData.ledgerEntries.length > 0 && (
+                      <tr className="bg-slate-100 font-semibold">
+                        <td className="px-3 py-2.5 text-slate-500 border-r border-slate-200 text-xs">—</td>
+                        <td className="px-3 py-2.5 text-slate-700 border-r border-slate-200 whitespace-nowrap text-xs">{formatDate(startDate)}</td>
+                        <td className="px-3 py-2.5 text-slate-700 border-r border-slate-200" colSpan={3}>
+                          <span className="text-xs font-bold uppercase tracking-wide text-slate-600">Balance b/f (Opening Balance)</span>
+                        </td>
+                        <td className="px-3 py-2.5 text-right border-r border-slate-200 text-slate-400">—</td>
+                        <td className="px-3 py-2.5 text-right border-r border-slate-200 text-slate-400">—</td>
+                        <td className={`px-3 py-2.5 text-right font-bold tabular-nums ${openingBalance >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                          {formatCurrency(openingBalance)}
+                        </td>
+                      </tr>
+                    )}
+
                     {reportData.ledgerEntries.length === 0 && (
                       <tr><td colSpan="8" className="px-6 py-12 text-center text-slate-500">No cash transactions found for the selected period</td></tr>
                     )}
                   </tbody>
                   <tfoot>
-                    <tr className="bg-slate-800 text-white font-bold print:bg-gray-200 print:text-black">
-                      <td colSpan="5" className="px-3 py-3 text-right uppercase text-xs tracking-wider border-r border-slate-600 print:border-black">Grand Total</td>
-                      <td className="px-3 py-3 text-right border-r border-slate-600 print:border-black tabular-nums">{formatCurrency(reportData.summary.totalLedgerDebit)}</td>
-                      <td className="px-3 py-3 text-right border-r border-slate-600 print:border-black tabular-nums">{formatCurrency(reportData.summary.totalLedgerCredit)}</td>
-                      <td className="px-3 py-3 text-right tabular-nums print:text-black">{formatCurrency(closingBalance)}</td>
+                    <tr className="bg-slate-800 text-white font-bold">
+                      <td colSpan="5" className="px-3 py-3 text-right uppercase text-xs tracking-wider border-r border-slate-600">Grand Total</td>
+                      <td className="px-3 py-3 text-right border-r border-slate-600 tabular-nums">{formatCurrency(reportData.summary.totalLedgerDebit)}</td>
+                      <td className="px-3 py-3 text-right border-r border-slate-600 tabular-nums">{formatCurrency(reportData.summary.totalLedgerCredit)}</td>
+                      <td className="px-3 py-3 text-right tabular-nums">{formatCurrency(closingBalance)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* 2. PRINT LEDGER TABLE (ALWAYS ASCENDING CHRONOLOGICAL ORDER) */}
+              <div className="hidden print:block bg-white border border-black">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-200 text-black">
+                      <th className="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider border-r border-black w-12">S.No</th>
+                      <th className="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider border-r border-black w-24">Date</th>
+                      <th className="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider border-r border-black">Account Title</th>
+                      <th className="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider border-r border-black">Description</th>
+                      <th className="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider border-r border-black">Bill</th>
+                      <th className="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider border-r border-black w-28">Debit (Dr)</th>
+                      <th className="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider border-r border-black w-28">Credit (Cr)</th>
+                      <th className="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider w-28">Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-black">
+                    {/* Opening Balance Row at Top for Print */}
+                    {reportData.ledgerEntries.length > 0 && (
+                      <tr className="bg-gray-100 font-semibold">
+                        <td className="px-3 py-2 text-gray-700 border-r border-black text-xs">—</td>
+                        <td className="px-3 py-2 text-gray-700 border-r border-black whitespace-nowrap text-xs">{formatDate(startDate)}</td>
+                        <td className="px-3 py-2 text-gray-700 border-r border-black" colSpan={3}>
+                          <span className="text-xs font-bold uppercase tracking-wide">Balance b/f (Opening Balance)</span>
+                        </td>
+                        <td className="px-3 py-2 text-right border-r border-black text-gray-500">—</td>
+                        <td className="px-3 py-2 text-right border-r border-black text-gray-500">—</td>
+                        <td className="px-3 py-2 text-right font-bold tabular-nums">
+                          {formatCurrency(openingBalance)}
+                        </td>
+                      </tr>
+                    )}
+
+                    {/* Always Ascending Chronological List for Print */}
+                    {reportData.ledgerEntries.map((entry, index) => {
+                      const displayAmts = getLedgerEntryDisplayAmounts(entry);
+                      const balance = parseFloat(entry.closing_balance || 0);
+                      return (
+                        <tr key={entry.l_id} className="bg-white">
+                          <td className="px-3 py-2 text-black border-r border-black">{index + 1}</td>
+                          <td className="px-3 py-2 text-black border-r border-black whitespace-nowrap">{formatDate(entry.created_at)}</td>
+                          <td className="px-3 py-2 text-black font-medium border-r border-black">{entry.customer?.cus_name || '-'}</td>
+                          <td className="px-3 py-2 text-black border-r border-black">{entry.details || '-'}</td>
+                          <td className="px-3 py-2 text-black border-r border-black">{entry.bill_no ? `Bill: ${entry.bill_no}` : '-'}</td>
+                          <td className="px-3 py-2 text-right border-r border-black tabular-nums">{displayAmts.debit > 0 ? formatCurrency(displayAmts.debit) : '-'}</td>
+                          <td className="px-3 py-2 text-right border-r border-black tabular-nums">{displayAmts.credit > 0 ? formatCurrency(displayAmts.credit) : '-'}</td>
+                          <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatCurrency(balance)}</td>
+                        </tr>
+                      );
+                    })}
+
+                    {reportData.ledgerEntries.length === 0 && (
+                      <tr><td colSpan="8" className="px-6 py-12 text-center text-slate-500">No cash transactions found for the selected period</td></tr>
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-gray-200 text-black font-bold">
+                      <td colSpan="5" className="px-3 py-2 text-right uppercase text-xs tracking-wider border-r border-black">Grand Total</td>
+                      <td className="px-3 py-2 text-right border-r border-black tabular-nums">{formatCurrency(reportData.summary.totalLedgerDebit)}</td>
+                      <td className="px-3 py-2 text-right border-r border-black tabular-nums">{formatCurrency(reportData.summary.totalLedgerCredit)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(closingBalance)}</td>
                     </tr>
                   </tfoot>
                 </table>
