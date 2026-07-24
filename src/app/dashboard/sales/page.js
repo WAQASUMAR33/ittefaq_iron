@@ -1579,6 +1579,18 @@ function SalesPageContent() {
           }
         }
 
+        // If this bill was loaded from a held bill / draft, delete the draft so it is removed from held bills
+        if (currentDraftId) {
+          try {
+            await fetch(`/api/draft-sales?id=${currentDraftId}`, { method: 'DELETE' });
+            console.log(`✅ Held bill / draft ${currentDraftId} deleted after sale completion`);
+            setCurrentDraftId(null);
+            if (typeof fetchDrafts === 'function') fetchDrafts();
+          } catch (e) {
+            console.error('Failed to delete held bill after sale completion:', e);
+          }
+        }
+
         // Store bill data for printing
         const billDataForPrint = {
           sale_id: result.sale_id,
