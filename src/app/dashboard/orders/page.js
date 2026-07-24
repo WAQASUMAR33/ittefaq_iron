@@ -1644,7 +1644,7 @@ function OrdersPageContent() {
         debit_account_id: fullSale.credit_account_id || '',
         credit_account_id: fullSale.debit_account_id || '',
         loader_id: fullSale.loader_id || '',
-        shipping_amount: fullSale.shipping_amount?.toString() || '0',
+        shipping_amount: '0',
         bill_type: fullSale.bill_type || 'BILL',
         reason: '',
         reference: fullSale.reference || '',

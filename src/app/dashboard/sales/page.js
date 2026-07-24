@@ -994,6 +994,9 @@ function SalesPageContent() {
     const transportTotal = calculateTransportTotal();
     const totalDelivery = deliveryCharges + transportTotal;
     const discount = parseFloat(paymentData.discount) || 0;
+    if (billType === 'SALE_RETURN') {
+      return Number((productTotal - labour - totalDelivery - discount).toFixed(0));
+    }
     return Number((productTotal + labour + totalDelivery - discount).toFixed(0));
   };
 
@@ -2724,7 +2727,7 @@ function SalesPageContent() {
         debit_account_id: fullSale.credit_account_id || '',
         credit_account_id: fullSale.debit_account_id || '',
         loader_id: fullSale.loader_id || '',
-        shipping_amount: fullSale.shipping_amount?.toString() || '0',
+        shipping_amount: '0',
         bill_type: fullSale.bill_type || 'BILL',
         reason: '',
         reference: fullSale.reference || '',
@@ -2788,7 +2791,9 @@ function SalesPageContent() {
   const calculateReturnNetTotal = () => {
     const totalAmount = calculateReturnTotal();
     const discount = parseFloat(returnFormData.discount || 0);
-    return totalAmount - discount;
+    const shipping = parseFloat(returnFormData.shipping_amount || 0);
+    const labour = parseFloat(returnFormData.labour_charges || 0);
+    return totalAmount - shipping - labour - discount;
   };
 
   // Handle return form input changes
@@ -3011,7 +3016,7 @@ function SalesPageContent() {
         debit_account_id: fullSale.credit_account_id || '',
         credit_account_id: fullSale.debit_account_id || '',
         loader_id: fullSale.loader_id || '',
-        shipping_amount: fullSale.shipping_amount?.toString() || '0',
+        shipping_amount: '0',
         bill_type: fullSale.bill_type || 'BILL',
         reason: '',
         reference: fullSale.reference || '',
@@ -3028,7 +3033,7 @@ function SalesPageContent() {
       // Calculate labour value
       const labourValue = parseFloat(fullSale.labour_charges || fullSale.labour || 0);
       const discountValue = parseFloat(fullSale.discount || 0);
-      const deliveryValue = parseFloat(fullSale.shipping_amount || 0);
+      const deliveryValue = 0; // Delivery charges from original sale are NOT returned
       const advanceValue = parseFloat(fullSale.payment || 0);
 
       console.log('💾 PAYMENT DATA BEING SET:');
@@ -3044,7 +3049,7 @@ function SalesPageContent() {
           advancePayment: advanceValue,
           discount: 0,
           labour: 0,
-          deliveryCharges: deliveryValue,
+          deliveryCharges: 0,
           notes: `Return from Sale #${fullSale.sale_id}. Original Amount: ${fullSale.total_amount}`,
           isLoadedOrder: false
         };
