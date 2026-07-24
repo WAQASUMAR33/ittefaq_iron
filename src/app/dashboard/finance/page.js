@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Fragment, useMemo } from 'react';
+import { useState, useEffect, Fragment, useMemo, useRef } from 'react';
 import {
   Plus,
   Edit,
@@ -364,12 +364,25 @@ export default function FinancePage() {
   const [selectedCustomer, setSelectedCustomer] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(''); // This will be customer category ID
   const [selectedSubCategory, setSelectedSubCategory] = useState(''); // This will be customer type ID
-  const [sortBy, setSortBy] = useState('l_id');
-  const [sortOrder, setSortOrder] = useState('desc');
+  const [sortBy, setSortBy] = useState('created_at');
+  const [sortOrder, setSortOrder] = useState('asc');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedLedgerType, setSelectedLedgerType] = useState('');
   const [staticDataLoaded, setStaticDataLoaded] = useState(false);
+  const tableEndRef = useRef(null);
+
+  // Auto-scroll to the end of the ledger when entries are loaded or updated
+  useEffect(() => {
+    if (!loading && ledgerEntries.length > 0) {
+      const timer = setTimeout(() => {
+        if (tableEndRef.current) {
+          tableEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, ledgerEntries.length, selectedCustomer]);
 
   // Customer dropdown filter states
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
@@ -1987,8 +2000,8 @@ export default function FinancePage() {
     setSelectedCustomer('');
     setSelectedCategory('');
     setSelectedSubCategory('');
-    setSortBy('l_id');
-    setSortOrder('desc');
+    setSortBy('created_at');
+    setSortOrder('asc');
     setStartDate('');
     setEndDate('');
     setSelectedLedgerType('');
@@ -3355,6 +3368,7 @@ export default function FinancePage() {
                   <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
                     Showing {finalLedgerEntries.length} of {ledgerEntries.length} entries • Double-click any entry to edit
                   </Typography>
+                  <div ref={tableEndRef} />
                 </Box>
               </Box>
             )}
