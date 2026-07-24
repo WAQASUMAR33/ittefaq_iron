@@ -199,6 +199,7 @@ function SalesPageContent() {
             isLoadedOrder: false
           }));
 
+          setLoadedOrderId(parseInt(quotationId));
           showSnackbar(`Order details loaded. Add items to bill.`, 'info');
         } catch (error) {
           console.error('Error loading quotation from URL:', error);
@@ -1565,17 +1566,18 @@ function SalesPageContent() {
         const result = await response.json();
         showSnackbar('Bill saved successfully!', 'success');
 
-        // If this bill was converted from an order, mark the order as DISPATCHED
+        // If this bill was converted from an order, move the order to ORDER_TRASH
         if (loadedOrderId) {
           try {
             await fetch('/api/sales', {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id: loadedOrderId, bill_type: 'DISPATCHED' })
+              body: JSON.stringify({ id: loadedOrderId, bill_type: 'ORDER_TRASH' })
             });
+            console.log(`✅ Order ${loadedOrderId} moved to ORDER_TRASH after conversion to bill`);
             setLoadedOrderId(null);
           } catch (e) {
-            console.error('Failed to update order status to DISPATCHED:', e);
+            console.error('Failed to update order status to ORDER_TRASH:', e);
           }
         }
 
