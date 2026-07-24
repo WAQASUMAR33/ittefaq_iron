@@ -213,6 +213,51 @@ function SalesPageContent() {
     }
   }, [searchParams, customers, stores, currentView]);
 
+  // Handle loading draft from URL (draftId)
+  const loadedDraftIdRef = useRef(null);
+
+  useEffect(() => {
+    const draftId = searchParams?.get('draftId');
+
+    if (draftId &&
+      draftId !== loadedDraftIdRef.current &&
+      customers.length > 0 &&
+      stores.length > 0 &&
+      currentView === 'create') {
+
+      const loadDraftFromUrl = async () => {
+        try {
+          setLoading(true);
+          loadedDraftIdRef.current = draftId;
+
+          const response = await fetch(`/api/draft-sales?id=${draftId}`);
+          if (!response.ok) throw new Error('Failed to load draft');
+
+          const fullDraft = await response.json();
+          const formState = JSON.parse(fullDraft.form_state_json);
+
+          if (formState.customer) setFormSelectedCustomer(formState.customer);
+          if (formState.store) setFormSelectedStore(formState.store);
+          if (formState.products) setProductTableData(formState.products);
+          if (formState.paymentData) setPaymentData(formState.paymentData);
+          if (formState.billType) setBillType(formState.billType);
+          if (formState.transportOptions) setTransportOptions(formState.transportOptions);
+
+          setCurrentDraftId(parseInt(draftId));
+          showSnackbar(`✅ Draft ${fullDraft.draft_code} loaded into POS`, 'success');
+        } catch (error) {
+          console.error('Error loading draft from URL:', error);
+          showSnackbar('Failed to load draft from URL', 'error');
+          loadedDraftIdRef.current = null;
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      loadDraftFromUrl();
+    }
+  }, [searchParams, customers, stores, currentView]);
+
   // Sale return state
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const [selectedSaleForReturn, setSelectedSaleForReturn] = useState(null);
