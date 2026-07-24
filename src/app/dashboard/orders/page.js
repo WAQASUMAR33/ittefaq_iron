@@ -1888,13 +1888,25 @@ function OrdersPageContent() {
   // Handle print bill with mode (A4 or Thermal)
   const handlePrintBill = (mode = 'A4', fromDialog = false) => {
     try {
-      const className = mode === 'THERMAL' ? 'print-thermal' : 'print-a4';
-      const isThermal = mode === 'THERMAL';
+      // Handle when mode is a click event object
+      const actualMode = typeof mode === 'string' ? mode : 'EXISTING';
+      const className = actualMode === 'THERMAL' 
+        ? 'print-thermal' 
+        : (actualMode === 'EXISTING' ? 'print-existing' : 'print-a4');
+      const isThermal = actualMode === 'THERMAL';
 
       // Get the printable container
-      const printableContainer = mode === 'THERMAL'
-        ? document.getElementById('printable-invoice-thermal')
-        : document.getElementById('printable-invoice-a4');
+      let printableContainer = actualMode === 'EXISTING'
+        ? document.getElementById('printable-invoice')
+        : (actualMode === 'THERMAL'
+          ? document.getElementById('printable-invoice-thermal')
+          : document.getElementById('printable-invoice-a4'));
+
+      // Fallback in case container is not found
+      if (!printableContainer) {
+        printableContainer = document.getElementById('printable-invoice') || 
+                             document.getElementById('printable-invoice-a4');
+      }
 
       if (!printableContainer) {
         console.error('Printable container not found');
@@ -1910,7 +1922,6 @@ function OrdersPageContent() {
       }
 
       // Move container to visible position temporarily for print
-      const originalParent = printableContainer.parentElement;
       const originalStyles = {
         position: printableContainer.style.position,
         left: printableContainer.style.left,
@@ -1976,6 +1987,7 @@ function OrdersPageContent() {
           // Remove body class
           document.body.classList.remove('print-thermal');
           document.body.classList.remove('print-a4');
+          document.body.classList.remove('print-existing');
 
           // Remove dynamic style
           if (styleElement && isThermal) {
@@ -2480,17 +2492,7 @@ function OrdersPageContent() {
   };
 
   const handleQuickPrint = async (sale) => {
-    try {
-      const response = await fetch(`/api/sales?id=${sale.sale_id}`);
-      if (!response.ok) throw new Error('Failed to fetch sale details');
-      const saleData = await response.json();
-      setCurrentBillData(saleData);
-      setTimeout(() => handlePrintBill('A4'), 100);
-    } catch (error) {
-      console.error('Error fetching sale details:', error);
-      setCurrentBillData(sale);
-      setTimeout(() => handlePrintBill('A4'), 100);
-    }
+    await handleViewBill(sale);
   };
 
   // Helper function to get sort label
@@ -4886,7 +4888,7 @@ function OrdersPageContent() {
                               variant="outlined"
                             />
                           </TableCell>
-                          <TableCell>{new Date(sale.created_at).toLocaleDateString()}</TableCell>
+                          <TableCell>{new Date(sale.created_at).toLocaleDateString('en-GB')}</TableCell>
                           <TableCell align="center">
                             <Stack direction="row" spacing={1} justifyContent="center">
                               <Tooltip title="View Details">
@@ -4896,14 +4898,6 @@ function OrdersPageContent() {
                                   onClick={() => handleViewBill(sale)}
                                 >
                                   <VisibilityIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                              <Tooltip title="View Receipt">
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handleViewReceipt(sale)}
-                                >
-                                  <ReceiptIcon fontSize="small" />
                                 </IconButton>
                               </Tooltip>
                               <Tooltip title="Print Bill">
@@ -5819,7 +5813,7 @@ function OrdersPageContent() {
               bgcolor: 'primary.main',
               '&:hover': { bgcolor: 'primary.dark' }
             }}
-            onClick={handlePrintBill}
+            onClick={() => handlePrintBill('EXISTING')}
           >
             Print Bill
           </Button>
@@ -5848,7 +5842,7 @@ function OrdersPageContent() {
             margin: 0.5cm 1cm;
           }
           
-          body {
+          body, body.print-existing {
             print-color-adjust: exact;
             -webkit-print-color-adjust: exact;
             margin: 0;
@@ -5856,13 +5850,15 @@ function OrdersPageContent() {
           }
           
           /* Hide everything by default */
-          body * {
+          body *, body.print-existing * {
             visibility: hidden;
           }
           
           /* Show only the printable invoice */
           #printable-invoice,
-          #printable-invoice * {
+          #printable-invoice *,
+          body.print-existing #printable-invoice,
+          body.print-existing #printable-invoice * {
             visibility: visible !important;
           }
           
@@ -6007,7 +6003,7 @@ function OrdersPageContent() {
                     <Typography variant="body2"><strong>Total Amount:</strong> {fmtAmt(selectedSaleForReturn.total_amount)}</Typography>
                   </Grid>
                   <Grid item xs={6}>
-                    <Typography variant="body2"><strong>Date:</strong> {new Date(selectedSaleForReturn.created_at).toLocaleDateString()}</Typography>
+                    <Typography variant="body2"><strong>Date:</strong> {new Date(selectedSaleForReturn.created_at).toLocaleDateString('en-GB')}</Typography>
                   </Grid>
                   <Grid item xs={6}>
                     <Typography variant="body2"><strong>Bill Type:</strong> {selectedSaleForReturn.bill_type || 'BILL'}</Typography>

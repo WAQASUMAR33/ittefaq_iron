@@ -80,7 +80,7 @@ const getLocalDateString = (dateInput) => {
   if (!dateInput) return '';
   const d = new Date(dateInput);
   if (isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
+  return d.toLocaleDateString('en-GB', { timeZone: 'Asia/Karachi' });
 };
 
 const getLedgerEntryDisplayAmounts = (entry) => {
@@ -1053,7 +1053,7 @@ export default function FinancePage() {
     // Date range filter
     let matchesDate = true;
     if (startDate || endDate) {
-      const entryDateStr = getLocalDateString(entry.created_at);
+      const entryDateStr = new Date(entry.created_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
       if (startDate) matchesDate = matchesDate && entryDateStr >= startDate;
       if (endDate) matchesDate = matchesDate && entryDateStr <= endDate;
     }

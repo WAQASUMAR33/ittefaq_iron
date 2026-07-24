@@ -2855,7 +2855,7 @@ function PurchasesPageContent() {
                           {/* Created */}
                           <div className="col-span-1 flex items-center">
                             <div className="text-sm text-gray-900">
-                              {new Date(purchase.created_at).toLocaleDateString()}
+                              {new Date(purchase.created_at).toLocaleDateString('en-GB')}
                             </div>
                           </div>
 
@@ -3378,7 +3378,7 @@ function PurchasesPageContent() {
                                       {option.invoice_number || 'N/A'}
                                     </Typography>
                                     <Typography variant="caption" color="text.secondary">
-                                      {Number(option.total_amount)} • {new Date(option.created_at).toLocaleDateString()}
+                                      {Number(option.total_amount)} • {new Date(option.created_at).toLocaleDateString('en-GB')}
                                     </Typography>
                                   </Box>
                                 </Box>

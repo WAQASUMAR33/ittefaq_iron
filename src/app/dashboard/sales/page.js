@@ -6726,7 +6726,7 @@ function SalesPageContent() {
                       <TableRow key={sale.sale_id} hover>
                         <TableCell>{getBillDisplayNo(sale)}</TableCell>
                         <TableCell>{sale.customer?.cus_name || 'N/A'}</TableCell>
-                        <TableCell>{new Date(sale.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell>{new Date(sale.created_at).toLocaleDateString('en-GB')}</TableCell>
                         <TableCell align="right">{parseFloat(sale.total_amount || 0).toFixed(0)}</TableCell>
                         <TableCell align="center">
                           <Button
@@ -7722,7 +7722,7 @@ function SalesPageContent() {
                               variant="outlined"
                             />
                           </TableCell>
-                          <TableCell>{new Date(sale.created_at).toLocaleDateString()}</TableCell>
+                          <TableCell>{new Date(sale.created_at).toLocaleDateString('en-GB')}</TableCell>
                           <TableCell align="center">
                             <IconButton
                               size="small"
@@ -7890,7 +7890,7 @@ function SalesPageContent() {
                     <TableRow key={sale.sale_id} hover>
                       <TableCell>{sale.sale_id}</TableCell>
                       <TableCell>{sale.customer?.cus_name || 'N/A'}</TableCell>
-                      <TableCell>{new Date(sale.created_at).toLocaleDateString()}</TableCell>
+                      <TableCell>{new Date(sale.created_at).toLocaleDateString('en-GB')}</TableCell>
                       <TableCell align="right">{parseFloat(sale.total_amount || 0).toFixed(0)}</TableCell>
                       <TableCell align="center">
                         <Button
@@ -9013,7 +9013,7 @@ function SalesPageContent() {
                     <Typography variant="body2"><strong>Total Amount:</strong> {parseFloat(selectedSaleForReturn.total_amount || 0).toFixed(0)}</Typography>
                   </Grid>
                   <Grid item xs={6}>
-                    <Typography variant="body2"><strong>Date:</strong> {new Date(selectedSaleForReturn.created_at).toLocaleDateString()}</Typography>
+                    <Typography variant="body2"><strong>Date:</strong> {new Date(selectedSaleForReturn.created_at).toLocaleDateString('en-GB')}</Typography>
                   </Grid>
                   <Grid item xs={6}>
                     <Typography variant="body2"><strong>Bill Type:</strong> {selectedSaleForReturn.bill_type || 'BILL'}</Typography>
@@ -9338,7 +9338,7 @@ function SalesPageContent() {
                           }
                         }}
                       >
-                        <TableCell>{new Date(entry.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell>{new Date(entry.created_at).toLocaleDateString('en-GB')}</TableCell>
                         <TableCell>
                           <Chip
                             label={entry.trnx_type}

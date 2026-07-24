@@ -626,7 +626,7 @@ export default function CustomersPage() {
       const bg = getActivityRowBg(c) || '#fff';
       const bal = parseFloat(c.cus_balance);
       const balColor = bal > 0 ? '#16a34a' : bal < 0 ? '#dc2626' : '#374151';
-      const lastAct = c.updated_at ? new Date(c.updated_at).toLocaleDateString() : new Date(c.created_at).toLocaleDateString();
+      const lastAct = c.updated_at ? new Date(c.updated_at).toLocaleDateString('en-GB') : new Date(c.created_at).toLocaleDateString('en-GB');
       const cat = c.customer_category?.cus_cat_title || c.cus_category || '';
       return `<tr style="background:${bg}">
         <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center">${i + 1}</td>
@@ -711,7 +711,7 @@ export default function CustomersPage() {
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(100, 116, 139);
-      doc.text(`Date: ${new Date().toLocaleDateString()}   |   Total: ${fullList.length} accounts`, margin, y);
+      doc.text(`Date: ${new Date().toLocaleDateString('en-GB')}   |   Total: ${fullList.length} accounts`, margin, y);
       y += 6;
 
       // Table header
@@ -743,8 +743,8 @@ export default function CustomersPage() {
         const bal = parseFloat(c.cus_balance || 0);
         const bg = getActivityRowBg(c);
         const lastAct = c.updated_at
-          ? new Date(c.updated_at).toLocaleDateString()
-          : new Date(c.created_at).toLocaleDateString();
+          ? new Date(c.updated_at).toLocaleDateString('en-GB')
+          : new Date(c.created_at).toLocaleDateString('en-GB');
         const cat = c.customer_category?.cus_cat_title || c.cus_category || '';
 
         // Row background

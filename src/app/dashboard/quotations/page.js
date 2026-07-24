@@ -1459,7 +1459,7 @@ function QuotationsPageContent() {
             <TableBody>
               {filteredSales.map((sale) => (
                 <TableRow key={sale.sale_id} hover>
-                  <TableCell>{new Date(sale.created_at).toLocaleDateString()}</TableCell>
+                  <TableCell>{new Date(sale.created_at).toLocaleDateString('en-GB')}</TableCell>
                   <TableCell>{sale.sale_id}</TableCell>
                   <TableCell>{sale.customer?.cus_name}</TableCell>
                   <TableCell align="right">{fmtAmt(sale.total_amount)}</TableCell>
@@ -1582,7 +1582,7 @@ function QuotationsPageContent() {
               </Typography>
               <Grid container spacing={2} sx={{ mt: 2 }}>
                 <Grid item xs={6}>
-                  <Typography variant="body2"><strong>Date:</strong> {new Date(currentBillData.created_at).toLocaleDateString()}</Typography>
+                  <Typography variant="body2"><strong>Date:</strong> {new Date(currentBillData.created_at).toLocaleDateString('en-GB')}</Typography>
                   <Typography variant="body2"><strong>Customer:</strong> {currentBillData.customer?.cus_name}</Typography>
                 </Grid>
                 <Grid item xs={6} sx={{ textAlign: 'right' }}>
