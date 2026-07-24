@@ -107,6 +107,7 @@ function SalesPageContent() {
   const [filterPaymentType, setFilterPaymentType] = useState('');
   const [filterMinAmount, setFilterMinAmount] = useState('');
   const [filterMaxAmount, setFilterMaxAmount] = useState('');
+  const [filterAmount, setFilterAmount] = useState('');
   const [filterBalanceStatus, setFilterBalanceStatus] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -3347,7 +3348,7 @@ function SalesPageContent() {
   const filteredSales = useMemo(() => {
     console.log('🔍 Starting filter with sales count:', sales.length);
     console.log('🔍 Sales is array?', Array.isArray(sales));
-    console.log('🔍 Filter criteria:', { searchTerm, filterCustomer, filterBillType, filterStore, filterPaymentType, filterMinAmount, filterMaxAmount, filterBalanceStatus, dateFrom, dateTo });
+    console.log('🔍 Filter criteria:', { searchTerm, filterCustomer, filterBillType, filterStore, filterPaymentType, filterAmount, filterMinAmount, filterMaxAmount, filterBalanceStatus, dateFrom, dateTo });
 
     // Check if sales array has data
     if (!Array.isArray(sales) || sales.length === 0) {
@@ -3401,8 +3402,10 @@ function SalesPageContent() {
       const matchesPaymentType = filterPaymentType === '' ||
         sale.payment_type === filterPaymentType;
 
-      // Amount range filters
+      // Amount range & exact amount filters
       const totalAmount = parseFloat(sale.total_amount || 0);
+      const matchesAmount = filterAmount === '' ||
+        (!isNaN(parseFloat(filterAmount)) && Math.abs(totalAmount - parseFloat(filterAmount)) < 0.01);
       const matchesMinAmount = filterMinAmount === '' ||
         totalAmount >= parseFloat(filterMinAmount);
       const matchesMaxAmount = filterMaxAmount === '' ||
@@ -3422,7 +3425,7 @@ function SalesPageContent() {
         (dateTo && sale.created_at && new Date(sale.created_at) <= new Date(dateTo));
 
       const result = matchesSearch && matchesCustomer && matchesBillType && matchesStore &&
-        matchesPaymentType && matchesMinAmount && matchesMaxAmount &&
+        matchesPaymentType && matchesAmount && matchesMinAmount && matchesMaxAmount &&
         matchesBalanceStatus && matchesDateFrom && matchesDateTo && matchesItem;
 
       if (!result) {
@@ -3475,7 +3478,7 @@ function SalesPageContent() {
       console.log('🔍 First filtered sale:', filtered[0]);
     }
     return filtered;
-  }, [sales, searchTerm, filterItem, filterCustomer, filterBillType, filterStore, filterPaymentType, filterMinAmount, filterMaxAmount, filterBalanceStatus, dateFrom, dateTo, sortBy, sortOrder]);
+  }, [sales, searchTerm, filterItem, filterCustomer, filterBillType, filterStore, filterPaymentType, filterAmount, filterMinAmount, filterMaxAmount, filterBalanceStatus, dateFrom, dateTo, sortBy, sortOrder]);
 
   console.log('🔍 Filtered sales count:', filteredSales.length);
   console.log('🔍 Sales state:', sales);
@@ -3705,6 +3708,7 @@ function SalesPageContent() {
     setFilterBillType('');
     setFilterStore('');
     setFilterPaymentType('');
+    setFilterAmount('');
     setFilterMinAmount('');
     setFilterMaxAmount('');
     setFilterBalanceStatus('');
@@ -7481,6 +7485,20 @@ function SalesPageContent() {
                       value={dateTo}
                       onChange={(e) => setDateTo(e.target.value)}
                       InputLabelProps={{ shrink: true }}
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
+                    />
+                  </Box>
+
+                  {/* Amount Filter */}
+                  <Box>
+                    <TextField
+                      fullWidth
+                      label="Amount"
+                      type="number"
+                      placeholder="e.g. 5000"
+                      value={filterAmount}
+                      onChange={(e) => setFilterAmount(e.target.value)}
+                      onFocus={(e) => e.target.select()}
                       sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
                     />
                   </Box>
