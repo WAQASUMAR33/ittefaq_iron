@@ -720,6 +720,30 @@ export async function POST(request) {
           await updateStoreStock(detailStoreId, detailsData[index].pro_id, detailsData[index].qnty, stockOperation, updated_by, tx);
         });
         await Promise.all(storeStockUpdatePromises);
+
+        // Update product table sale rate (pro_sale_price), cost rate (pro_cost_price), and purchase rate (pro_crate)
+        const productUpdatePromises = purchase_details.map(async (detail) => {
+          const proId = safeParseInt(detail.pro_id, 0);
+          const saleRate = safeParseFloat(detail.unit_rate || detail.sale_rate || detail.pro_sale_price || detail.rate, 0);
+          const costRate = safeParseFloat(detail.cost_rate || detail.original_cost_rate, 0);
+          const purchaseRate = safeParseFloat(detail.crate || detail.prate, 0);
+
+          if (proId > 0) {
+            const updateData = {};
+            if (saleRate > 0) updateData.pro_sale_price = Number(saleRate.toFixed(2));
+            if (costRate > 0) updateData.pro_cost_price = Number(costRate.toFixed(2));
+            if (purchaseRate > 0) updateData.pro_crate = Number(purchaseRate.toFixed(2));
+
+            if (Object.keys(updateData).length > 0) {
+              await tx.product.update({
+                where: { pro_id: proId },
+                data: updateData
+              });
+              console.log(`🏷️ Updated product ${proId} rates in DB:`, updateData);
+            }
+          }
+        });
+        await Promise.all(productUpdatePromises);
       }
 
       // All entries use RECEIVABLE formula: closing = opening + debit - credit
@@ -1335,6 +1359,30 @@ export async function PUT(request) {
           await updateStoreStock(detailStoreId, detailsData[index].pro_id, detailsData[index].qnty, 'increment', updated_by, tx);
         });
         await Promise.all(storeStockUpdatePromises);
+
+        // Update product table sale rate (pro_sale_price), cost rate (pro_cost_price), and purchase rate (pro_crate)
+        const productUpdatePromises = purchase_details.map(async (detail) => {
+          const proId = safeParseInt(detail.pro_id, 0);
+          const saleRate = safeParseFloat(detail.unit_rate || detail.sale_rate || detail.pro_sale_price || detail.rate, 0);
+          const costRate = safeParseFloat(detail.cost_rate || detail.original_cost_rate, 0);
+          const purchaseRate = safeParseFloat(detail.crate || detail.prate, 0);
+
+          if (proId > 0) {
+            const updateData = {};
+            if (saleRate > 0) updateData.pro_sale_price = Number(saleRate.toFixed(2));
+            if (costRate > 0) updateData.pro_cost_price = Number(costRate.toFixed(2));
+            if (purchaseRate > 0) updateData.pro_crate = Number(purchaseRate.toFixed(2));
+
+            if (Object.keys(updateData).length > 0) {
+              await tx.product.update({
+                where: { pro_id: proId },
+                data: updateData
+              });
+              console.log(`🏷️ Updated product ${proId} rates in DB:`, updateData);
+            }
+          }
+        });
+        await Promise.all(productUpdatePromises);
       }
 
       // Create comprehensive ledger entries

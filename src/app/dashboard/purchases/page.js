@@ -1654,38 +1654,38 @@ function PurchasesPageContent() {
         };
         setCurrentBillData(billDataForPrint);
 
-        // Persist any edited cost_rate values to product records (only when purchase is successfully saved)
+        // Persist any edited sale_rate (pro_sale_price) and cost_rate (pro_cost_price) values to product records
         try {
-          const costUpdates = {};
-          formData.purchase_details.forEach(detail => {
-            const existingProduct = products.find(p => p.pro_id === detail.pro_id);
-            const newCost = parseFloat(detail.cost_rate ?? detail.original_cost_rate ?? existingProduct?.pro_cost_price ?? 0);
-            const existingCost = parseFloat(existingProduct?.pro_cost_price ?? 0);
-            if (!Number.isNaN(newCost) && newCost !== existingCost) {
-              costUpdates[detail.pro_id] = newCost;
-            }
-          });
+          const updatePromises = formData.purchase_details.map(async (detail) => {
+            const pid = parseInt(detail.pro_id, 10);
+            const existingProduct = products.find(p => p.pro_id === pid);
+            const newSaleRate = parseFloat(detail.unit_rate || detail.rate || 0);
+            const newCostRate = parseFloat(detail.cost_rate ?? detail.original_cost_rate ?? existingProduct?.pro_cost_price ?? 0);
 
-          const updatePromises = Object.keys(costUpdates).map(async (pid) => {
-            const val = costUpdates[pid];
-            try {
-              const resp = await fetch('/api/products', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: parseInt(pid, 10), pro_cost_price: val })
-              });
-              if (resp.ok) {
-                const updated = await resp.json();
-                setProducts(prev => prev.map(p => p.pro_id === updated.pro_id ? updated : p));
+            const payload = { id: pid };
+            if (!Number.isNaN(newSaleRate) && newSaleRate > 0) payload.pro_sale_price = newSaleRate;
+            if (!Number.isNaN(newCostRate) && newCostRate > 0) payload.pro_cost_price = newCostRate;
+
+            if (Object.keys(payload).length > 1) {
+              try {
+                const resp = await fetch('/api/products', {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(payload)
+                });
+                if (resp.ok) {
+                  const updated = await resp.json();
+                  setProducts(prev => prev.map(p => p.pro_id === updated.pro_id ? updated : p));
+                }
+              } catch (err) {
+                console.warn('Failed to persist product price update for', pid, err);
               }
-            } catch (err) {
-              console.warn('Failed to persist product cost update for', pid, err);
             }
           });
 
           await Promise.all(updatePromises);
         } catch (err) {
-          console.warn('Error persisting cost_rate updates after purchase save', err);
+          console.warn('Error persisting product price updates after purchase save', err);
         }
 
         // Open receipt dialog
