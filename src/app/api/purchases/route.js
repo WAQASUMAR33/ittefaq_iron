@@ -1055,7 +1055,7 @@ export async function POST(request) {
         let incityCashAccountId = effectiveCashAccountId;
         if (!incityCashAccountId) {
           const cashCat = await tx.customerCategory.findFirst({
-            where: { cus_cat_title: { contains: 'Cash', mode: 'insensitive' } }
+            where: { cus_cat_title: { contains: 'Cash' } }
           });
           if (cashCat) {
             const acc = await tx.customer.findFirst({ where: { cus_category: cashCat.cus_cat_id }, select: { cus_id: true } });
