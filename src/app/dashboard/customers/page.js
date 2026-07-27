@@ -94,8 +94,8 @@ export default function CustomersPage() {
   const [totalReceivables, setTotalReceivables] = useState(0);
   const [totalPayables, setTotalPayables] = useState(0);
   const [netBalance, setNetBalance] = useState(0);
-  const [sortBy, setSortBy] = useState('created_at');
-  const [sortOrder, setSortOrder] = useState('desc');
+  const [sortBy, setSortBy] = useState('cus_name');
+  const [sortOrder, setSortOrder] = useState('asc');
 
   const [showCustomerForm, setShowCustomerForm] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
@@ -289,7 +289,7 @@ export default function CustomersPage() {
       setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
       setSortBy(field);
-      setSortOrder('desc');
+      setSortOrder('asc');
     }
     setPage(1);
   };
@@ -575,8 +575,8 @@ export default function CustomersPage() {
     setCategoryFilter('all');
     setBalanceFilter('all');
     setActivityFilter('all');
-    setSortBy('created_at');
-    setSortOrder('desc');
+    setSortBy('cus_name');
+    setSortOrder('asc');
   };
 
   const getTypeColor = (typeId) => {
@@ -621,8 +621,11 @@ export default function CustomersPage() {
 
   const buildPrintHTML = (list) => {
     const now = new Date().toLocaleString();
-    const totalBalance = list.reduce((sum, c) => sum + parseFloat(c.cus_balance || 0), 0);
-    const rows = list.map((c, i) => {
+    const sortedList = [...list].sort((a, b) => 
+      (a.cus_name || '').localeCompare(b.cus_name || '', undefined, { sensitivity: 'base' })
+    );
+    const totalBalance = sortedList.reduce((sum, c) => sum + parseFloat(c.cus_balance || 0), 0);
+    const rows = sortedList.map((c, i) => {
       const bg = getActivityRowBg(c) || '#fff';
       const bal = parseFloat(c.cus_balance);
       const balColor = bal > 0 ? '#16a34a' : bal < 0 ? '#dc2626' : '#374151';

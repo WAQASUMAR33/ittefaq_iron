@@ -54,7 +54,7 @@ import {
   EventNote as EventNoteIcon,
   Payments as PaymentsIcon,
 } from '@mui/icons-material';
-import { isAdminRole as isAdminRoleName, getStaffRoleName, SALESMAN_ALLOWED_MENU_IDS } from '@/lib/staff-access';
+import { isAdminRole as isAdminRoleName, getStaffRoleName, getRoleDefaultModules, SALESMAN_ALLOWED_MENU_IDS } from '@/lib/staff-access';
 
 const COLLAPSED_WIDTH = 64;
 const EXPANDED_WIDTH = 280;
@@ -264,59 +264,74 @@ export default function Sidebar({
     if (item.category === 'reports' || item.parent === 'Reports') return 'reports';
 
     const categoryToModuleMap = {
-      'customercategory': 'accounts',
-      'customers': 'accounts',
+      'subscriptions': 'customers',
+      'customercategory': 'customers',
+      'customers': 'customers',
+
       'categories': 'products',
       'sub-categories': 'products',
       'products': 'products',
+
       'expense-titles': 'finance',
       'expenses': 'finance',
       'journal': 'finance',
-      'day-end': 'finance',
       'internal-transfer': 'finance',
       'adjustment-management': 'finance',
       'ledger': 'finance',
-      'cash-report': 'finance',
-      'bank-report': 'finance',
+
+      'day-end': 'cash_bank_day_end',
+      'cash-report': 'cash_bank_day_end',
+      'bank-report': 'cash_bank_day_end',
+
       'orders': 'sales',
       'sales': 'sales',
       'hold-bills': 'sales',
-      'sale-returns': 'sales',
-      'loaders': 'sales',
-      'quotations': 'sales',
       'sales-analytics': 'sales',
       'new-sale': 'sales',
+
+      'sale-returns': 'sale_returns',
+      'loaders': 'sale_returns',
+      'quotations': 'sale_returns',
+
       'new-purchase': 'purchases',
       'purchases': 'purchases',
       'purchase-list': 'purchases',
       'purchase-returns': 'purchases',
       'vehicles': 'purchases',
       'purchase-details': 'purchases',
+
       'cargo': 'cargo',
+
       'employees': 'hr',
       'attendance': 'hr',
       'payroll': 'hr',
-      'usermanagement': 'system',
-      'stores': 'system',
-      'store-stock': 'system',
-      'stock-transfer': 'system',
-      'settings': 'system',
+
+      'stores': 'store_management',
+      'store-stock': 'store_stock',
+      'stock-transfer': 'stock_transfer',
+
+      'usermanagement': 'user_management',
+      'settings': 'biometrics',
+      'import': 'import',
     };
 
     if (categoryToModuleMap[item.id]) return categoryToModuleMap[item.id];
 
     const categoryMapping = {
-      'customer-management': 'accounts',
+      'customer-management': 'customers',
       'product-management': 'products',
       'financial': 'finance',
       'sales-operations': 'sales',
       'purchase-operations': 'purchases',
       'cargo-operations': 'cargo',
       'hr-management': 'hr',
-      'system': 'system',
+      'system': 'biometrics',
     };
     return categoryMapping[item.category];
   };
+
+  const roleName = getStaffRoleName(user);
+  const isAdmin = isAdminRoleName(roleName);
 
   let allowed = [];
   try {
@@ -329,18 +344,29 @@ export default function Sidebar({
     console.error('Failed to parse allowed_modules:', e);
   }
 
-  const roleName = getStaffRoleName(user);
-  const isAdmin = isAdminRoleName(roleName);
+  // Fallback to role defaults if allowed_modules is not set or empty
+  if (!Array.isArray(allowed) || allowed.length === 0) {
+    allowed = getRoleDefaultModules(roleName);
+  }
 
   const visibleMenuItems = menuItems.filter((item) => {
     if (item.adminOnly && !isAdmin) return false;
     if (roleName === 'SUPER_ADMIN') return true;
 
-    if (Array.isArray(allowed) && allowed.length > 0) {
-      const requiredModule = getRequiredModule(item);
-      if (requiredModule) {
-        return allowed.includes(requiredModule);
-      }
+    const requiredModule = getRequiredModule(item);
+    if (requiredModule && Array.isArray(allowed)) {
+      if (allowed.includes(requiredModule)) return true;
+      // Backward compatibility checks for legacy permission arrays
+      if (requiredModule === 'user_management' && (allowed.includes('system') || allowed.includes('system_settings'))) return true;
+      if (requiredModule === 'store_management' && (allowed.includes('system') || allowed.includes('stores_stock'))) return true;
+      if (requiredModule === 'store_stock' && (allowed.includes('system') || allowed.includes('stores_stock'))) return true;
+      if (requiredModule === 'stock_transfer' && (allowed.includes('system') || allowed.includes('stores_stock'))) return true;
+      if (requiredModule === 'biometrics' && (allowed.includes('system') || allowed.includes('system_settings'))) return true;
+      if (requiredModule === 'import' && (allowed.includes('system') || allowed.includes('system_settings'))) return true;
+      if (requiredModule === 'customers' && allowed.includes('accounts')) return true;
+      if (requiredModule === 'sale_returns' && allowed.includes('sales')) return true;
+      if (requiredModule === 'cash_bank_day_end' && (allowed.includes('finance') || allowed.includes('reports') || allowed.includes('cash_day_end'))) return true;
+      return false;
     }
 
     if (isAdmin) return true;

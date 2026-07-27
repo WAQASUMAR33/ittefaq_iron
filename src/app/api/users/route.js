@@ -79,9 +79,13 @@ export async function POST(request) {
     if (!password || password.trim() === '') {
       return errorResponse('Password is required');
     }
-    if (!role || !['SUPER_ADMIN', 'ADMIN', 'SALESMAN'].includes(role)) {
-      return errorResponse('Valid role is required (SUPER_ADMIN, ADMIN, SALESMAN)');
+    const VALID_ROLES = ['SUPER_ADMIN', 'ADMIN', 'SALESMAN', 'MANAGER', 'ACCOUNTANT', 'STOCK_MANAGER'];
+    if (!role || !VALID_ROLES.includes(role)) {
+      return errorResponse(`Valid role is required (${VALID_ROLES.join(', ')})`);
     }
+
+    // Sanitize role to fit Prisma UserRole enum (SUPER_ADMIN, ADMIN, SALESMAN)
+    const dbRole = ['SUPER_ADMIN', 'ADMIN', 'SALESMAN'].includes(role) ? role : (role === 'SALESMAN' ? 'SALESMAN' : 'ADMIN');
 
     // Email format validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -109,7 +113,7 @@ export async function POST(request) {
         full_name: full_name.trim(),
         email: email.trim(),
         password: password, // In production, this should be hashed
-        role: role,
+        role: dbRole,
         status: status || 'ACTIVE',
         is_verified: is_verified || false,
         allowed_modules: allowed_modules ? (typeof allowed_modules === 'string' ? allowed_modules : JSON.stringify(allowed_modules)) : null,
@@ -164,9 +168,12 @@ export async function PUT(request) {
     if (!email || email.trim() === '') {
       return errorResponse('Email is required');
     }
-    if (!role || !['SUPER_ADMIN', 'ADMIN', 'SALESMAN'].includes(role)) {
-      return errorResponse('Valid role is required (SUPER_ADMIN, ADMIN, SALESMAN)');
+    const VALID_ROLES = ['SUPER_ADMIN', 'ADMIN', 'SALESMAN', 'MANAGER', 'ACCOUNTANT', 'STOCK_MANAGER'];
+    if (!role || !VALID_ROLES.includes(role)) {
+      return errorResponse(`Valid role is required (${VALID_ROLES.join(', ')})`);
     }
+
+    const dbRole = ['SUPER_ADMIN', 'ADMIN', 'SALESMAN'].includes(role) ? role : (role === 'SALESMAN' ? 'SALESMAN' : 'ADMIN');
 
     // Email format validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -195,7 +202,7 @@ export async function PUT(request) {
     const updateData = {
       full_name: full_name.trim(),
       email: email.trim(),
-      role: role,
+      role: dbRole,
       status: status || 'ACTIVE',
       is_verified: is_verified || false,
       allowed_modules: allowed_modules ? (typeof allowed_modules === 'string' ? allowed_modules : JSON.stringify(allowed_modules)) : null,
