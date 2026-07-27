@@ -166,7 +166,7 @@ export default function PurchaseReport() {
       const styleId = 'dynamic-print-style-report';
       let styleEl = document.getElementById(styleId);
       if (!styleEl) { styleEl = document.createElement('style'); styleEl.id = styleId; document.head.appendChild(styleEl); }
-      styleEl.textContent = isThermal ? `@media print { @page { size: 80mm auto; margin: 5mm; } }` : `@media print { @page { size: A4; margin: 0.5cm 1cm; } }`;
+      styleEl.textContent = isThermal ? `@media print { @page { size: 80mm portrait; margin: 0; } }` : `@media print { @page { size: A4; margin: 0.5cm 1cm; } }`;
       document.body.classList.add(className);
       setTimeout(() => {
         window.print();
@@ -474,7 +474,17 @@ export default function PurchaseReport() {
           body.print-a4 #printable-invoice-a4-report, body.print-a4 #printable-invoice-a4-report * { visibility: visible !important; }
           body.print-thermal #printable-invoice-thermal-report, body.print-thermal #printable-invoice-thermal-report * { visibility: visible !important; }
           body.print-a4 #printable-invoice-a4-report { display: block !important; width: 100% !important; }
-          body.print-thermal #printable-invoice-thermal-report { display: block !important; width: 80mm !important; }
+          body.print-thermal #printable-invoice-thermal-report {
+            display: block !important;
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 80mm !important;
+            max-width: 80mm !important;
+            margin: 0 !important;
+            padding: 4mm !important;
+            box-sizing: border-box !important;
+          }
         }
       `}</style>
 

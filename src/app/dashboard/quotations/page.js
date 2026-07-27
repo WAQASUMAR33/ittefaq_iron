@@ -861,7 +861,7 @@ function QuotationsPageContent() {
         return;
       }
 
-      if (fromDialog) {
+      if (fromDialog && !isThermal) {
         const receiptPreview = document.getElementById('receipt-preview');
         if (receiptPreview && printableContainer) {
           printableContainer.innerHTML = receiptPreview.innerHTML;
@@ -897,8 +897,8 @@ function QuotationsPageContent() {
         styleElement.textContent = `
           @media print {
             @page {
-              size: 80mm auto;
-              margin: 5mm;
+              size: 80mm portrait;
+              margin: 0;
             }
           }
         `;
@@ -1637,7 +1637,170 @@ function QuotationsPageContent() {
 
       {/* Hidden Print Containers */}
       <div id="printable-invoice-a4" style={{ display: 'none' }}></div>
-      <div id="printable-invoice-thermal" style={{ display: 'none' }}></div>
+      {(() => {
+        const activeBillData = currentBillData || selectedBill;
+        if (!activeBillData) return <div id="printable-invoice-thermal" style={{ display: 'none' }}></div>;
+
+        const totalAmount = parseFloat(activeBillData.total_amount || 0);
+        const discountAmount = parseFloat(activeBillData.discount || 0);
+        const shippingAmount = parseFloat(activeBillData.shipping_amount || 0);
+        const labourAmount = parseFloat(activeBillData.labour_charges || activeBillData.labour || 0);
+        const subtotalAmount = totalAmount - labourAmount - shippingAmount + discountAmount;
+
+        return (
+          <Box
+            id="printable-invoice-thermal"
+            sx={{
+              width: '78mm',
+              maxWidth: '78mm',
+              bgcolor: '#ffffff',
+              color: '#000000',
+              mx: 'auto',
+              p: '2mm',
+              fontFamily: 'monospace, Arial, sans-serif',
+              boxSizing: 'border-box',
+              display: 'none',
+            }}
+          >
+            {/* Header */}
+            <Box sx={{ textAlign: 'center', pb: 1, borderBottom: '2px solid #000' }}>
+              <Typography sx={{ fontSize: '15px', fontWeight: '900', fontFamily: 'Arial, sans-serif', direction: 'rtl', color: '#000' }}>
+                اتفاق آئرن اینڈ سیمنٹ سٹور
+              </Typography>
+              <Typography sx={{ fontSize: '11px', direction: 'rtl', mt: 0.25, color: '#000' }}>
+                گجرات سرگودھا روڈ، پاہڑیانوالی
+              </Typography>
+              <Typography sx={{ fontSize: '11px', fontWeight: 'bold', mt: 0.25, color: '#000' }}>
+                Ph: 0346-7560306, 0300-7560306
+              </Typography>
+              <Typography
+                sx={{
+                  mt: 0.75,
+                  px: 1,
+                  py: 0.25,
+                  bgcolor: '#000',
+                  color: '#fff',
+                  fontSize: '11px',
+                  fontWeight: 'bold',
+                  letterSpacing: '1px',
+                  display: 'inline-block',
+                }}
+              >
+                QUOTATION RECEIPT
+              </Typography>
+            </Box>
+
+            {/* Meta */}
+            <Box sx={{ py: 0.75, fontSize: '11px', borderBottom: '1px dashed #000', color: '#000' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Quot #: <strong>{activeBillData.sale_id}</strong></span>
+                <span>Date: <strong>{new Date(activeBillData.created_at).toLocaleDateString('en-GB')}</strong></span>
+              </Box>
+              <Box sx={{ mt: 0.25 }}>
+                <span>Cust: <strong>{activeBillData.customer?.cus_name || 'N/A'}</strong></span>
+              </Box>
+            </Box>
+
+            {/* Items Header */}
+            <Box sx={{ borderBottom: '1px solid #000', py: 0.5, my: 0.5, fontWeight: 'bold', fontSize: '11px', color: '#000' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Typography sx={{ fontSize: '11px', fontWeight: 'bold', flex: 1, color: '#000' }}>Item Description</Typography>
+                <Typography sx={{ fontSize: '11px', fontWeight: 'bold', width: '35px', textAlign: 'center', color: '#000' }}>Qty</Typography>
+                <Typography sx={{ fontSize: '11px', fontWeight: 'bold', width: '50px', textAlign: 'right', color: '#000' }}>Rate</Typography>
+                <Typography sx={{ fontSize: '11px', fontWeight: 'bold', width: '55px', textAlign: 'right', color: '#000' }}>Total</Typography>
+              </Box>
+            </Box>
+
+            {/* Items List */}
+            <Box sx={{ borderBottom: '1px dashed #000', pb: 0.75, mb: 0.75 }}>
+              {activeBillData.sale_details && activeBillData.sale_details.length > 0 ? (
+                activeBillData.sale_details.map((d, i) => (
+                  <Box key={i} sx={{ mb: 0.75 }}>
+                    <Typography sx={{ fontSize: '11px', fontWeight: 'bold', color: '#000', wordBreak: 'break-word' }}>
+                      {d.product?.pro_title || 'Item'}
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', color: '#000' }}>
+                      <Box sx={{ flex: 1 }} />
+                      <Typography sx={{ fontSize: '11px', width: '35px', textAlign: 'center', color: '#000' }}>
+                        {fmtAmt(d.qnty)}
+                      </Typography>
+                      <Typography sx={{ fontSize: '11px', width: '50px', textAlign: 'right', color: '#000' }}>
+                        {fmtAmt(d.unit_rate)}
+                      </Typography>
+                      <Typography sx={{ fontSize: '11px', fontWeight: 'bold', width: '55px', textAlign: 'right', color: '#000' }}>
+                        {fmtAmt(d.total_amount)}
+                      </Typography>
+                    </Box>
+                  </Box>
+                ))
+              ) : (
+                <Typography sx={{ fontSize: '11px', textAlign: 'center', py: 0.5, color: '#000' }}>No items</Typography>
+              )}
+            </Box>
+
+            {/* Financial Summary */}
+            <Box sx={{ fontSize: '11px', lineHeight: 1.4, color: '#000' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography sx={{ fontSize: '11px', color: '#000' }}>Subtotal</Typography>
+                <Typography sx={{ fontSize: '11px', color: '#000' }}>{fmtAmt(subtotalAmount)}</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography sx={{ fontSize: '11px', color: '#000' }}>Discount</Typography>
+                <Typography sx={{ fontSize: '11px', color: '#000' }}>
+                  {discountAmount > 0 ? `-${fmtAmt(discountAmount)}` : '0'}
+                </Typography>
+              </Box>
+              <Box
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontWeight: '900',
+                  fontSize: '12px',
+                  borderTop: '2px solid #000',
+                  borderBottom: '2px solid #000',
+                  py: 0.25,
+                  my: 0.5,
+                }}
+              >
+                <Typography sx={{ fontSize: '12px', fontWeight: '900', color: '#000' }}>GRAND TOTAL</Typography>
+                <Typography sx={{ fontSize: '12px', fontWeight: '900', color: '#000' }}>{fmtAmt(totalAmount)}</Typography>
+              </Box>
+            </Box>
+
+            {/* Footer */}
+            <Box sx={{ textAlign: 'center', borderTop: '1px solid #000', mt: 1, pt: 0.75 }}>
+              <Typography sx={{ fontSize: '11px', fontWeight: 'bold', direction: 'rtl', color: '#000' }}>
+                شکریہ! دوبارہ تشریف لائیےگا
+              </Typography>
+              <Typography sx={{ fontSize: '10px', color: '#333', mt: 0.25 }}>
+                Thank you for your business!
+              </Typography>
+            </Box>
+          </Box>
+        );
+      })()}
+
+      <style jsx global>{`
+        @media print {
+          body.print-thermal #printable-invoice-thermal,
+          body.print-thermal #printable-invoice-thermal * {
+            visibility: visible !important;
+          }
+          body.print-thermal #printable-invoice-thermal {
+            display: block !important;
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 80mm !important;
+            max-width: 80mm !important;
+            margin: 0 !important;
+            padding: 4mm !important;
+            box-sizing: border-box !important;
+            z-index: 9999 !important;
+            background: white !important;
+          }
+        }
+      `}</style>
     </>
   );
 }

@@ -819,33 +819,27 @@ export default function FinancePage() {
         ? document.getElementById('printable-invoice-thermal-finance')
         : document.getElementById('printable-invoice-a4-finance');
       if (!printableContainer) return;
-      const preview = document.getElementById('purchase-invoice-ledger');
-      if (preview) printableContainer.innerHTML = preview.innerHTML;
-      printableContainer.style.position = 'fixed';
-      printableContainer.style.left = '0';
-      printableContainer.style.top = '0';
-      printableContainer.style.display = 'block';
-      printableContainer.style.zIndex = '9999';
-      printableContainer.style.backgroundColor = 'white';
+
+      if (!isThermal) {
+        const preview = document.getElementById('purchase-invoice-ledger');
+        if (preview) printableContainer.innerHTML = preview.innerHTML;
+      }
+
       const styleId = 'dynamic-print-style-finance';
       let styleEl = document.getElementById(styleId);
       if (!styleEl) { styleEl = document.createElement('style'); styleEl.id = styleId; document.head.appendChild(styleEl); }
-      styleEl.textContent = isThermal ? `@media print { @page { size: 80mm auto; margin: 5mm; } }` : `@media print { @page { size: A4; margin: 0.5cm 1cm; } }`;
+      styleEl.textContent = isThermal
+        ? `@media print { @page { size: 80mm portrait !important; margin: 0 !important; } body { margin: 0 !important; padding: 0 !important; } }`
+        : `@media print { @page { size: A4 portrait !important; margin: 0.5cm 1cm !important; } }`;
       document.body.classList.add(className);
       setTimeout(() => {
         window.print();
         setTimeout(() => {
-          printableContainer.style.position = '';
-          printableContainer.style.left = '';
-          printableContainer.style.top = '';
-          printableContainer.style.display = 'none';
-          printableContainer.style.zIndex = '';
-          printableContainer.style.backgroundColor = '';
           document.body.classList.remove('print-thermal');
           document.body.classList.remove('print-a4');
           if (styleEl) styleEl.remove();
-        }, 100);
-      }, 100);
+        }, 150);
+      }, 150);
     } catch (e) {
       console.error('Print error (finance):', e);
       window.print();
@@ -860,33 +854,27 @@ export default function FinancePage() {
         ? document.getElementById('printable-invoice-thermal-finance')
         : document.getElementById('printable-invoice-a4-finance');
       if (!printableContainer) return;
-      const preview = document.getElementById('purchase-return-invoice-ledger');
-      if (preview) printableContainer.innerHTML = preview.innerHTML;
-      printableContainer.style.position = 'fixed';
-      printableContainer.style.left = '0';
-      printableContainer.style.top = '0';
-      printableContainer.style.display = 'block';
-      printableContainer.style.zIndex = '9999';
-      printableContainer.style.backgroundColor = 'white';
+
+      if (!isThermal) {
+        const preview = document.getElementById('purchase-return-invoice-ledger');
+        if (preview) printableContainer.innerHTML = preview.innerHTML;
+      }
+
       const styleId = 'dynamic-print-style-finance';
       let styleEl = document.getElementById(styleId);
       if (!styleEl) { styleEl = document.createElement('style'); styleEl.id = styleId; document.head.appendChild(styleEl); }
-      styleEl.textContent = isThermal ? `@media print { @page { size: 80mm auto; margin: 5mm; } }` : `@media print { @page { size: A4; margin: 0.5cm 1cm; } }`;
+      styleEl.textContent = isThermal
+        ? `@media print { @page { size: 80mm portrait !important; margin: 0 !important; } body { margin: 0 !important; padding: 0 !important; } }`
+        : `@media print { @page { size: A4 portrait !important; margin: 0.5cm 1cm !important; } }`;
       document.body.classList.add(className);
       setTimeout(() => {
         window.print();
         setTimeout(() => {
-          printableContainer.style.position = '';
-          printableContainer.style.left = '';
-          printableContainer.style.top = '';
-          printableContainer.style.display = 'none';
-          printableContainer.style.zIndex = '';
-          printableContainer.style.backgroundColor = '';
           document.body.classList.remove('print-thermal');
           document.body.classList.remove('print-a4');
           if (styleEl) styleEl.remove();
-        }, 100);
-      }, 100);
+        }, 150);
+      }, 150);
     } catch (e) {
       console.error('Print error (finance):', e);
       window.print();
@@ -946,33 +934,27 @@ export default function FinancePage() {
         ? document.getElementById('printable-invoice-thermal-finance')
         : document.getElementById('printable-invoice-a4-finance');
       if (!printableContainer) return;
-      const preview = document.getElementById(elementId);
-      if (preview) printableContainer.innerHTML = preview.innerHTML;
-      printableContainer.style.position = 'fixed';
-      printableContainer.style.left = '0';
-      printableContainer.style.top = '0';
-      printableContainer.style.display = 'block';
-      printableContainer.style.zIndex = '9999';
-      printableContainer.style.backgroundColor = 'white';
+
+      if (!isThermal) {
+        const preview = document.getElementById(elementId);
+        if (preview) printableContainer.innerHTML = preview.innerHTML;
+      }
+
       const styleId = 'dynamic-print-style-finance';
       let styleEl = document.getElementById(styleId);
       if (!styleEl) { styleEl = document.createElement('style'); styleEl.id = styleId; document.head.appendChild(styleEl); }
-      styleEl.textContent = isThermal ? `@media print { @page { size: 80mm auto; margin: 5mm; } }` : `@media print { @page { size: A4; margin: 0.5cm 1cm; } }`;
+      styleEl.textContent = isThermal
+        ? `@media print { @page { size: 80mm portrait !important; margin: 0 !important; } body { margin: 0 !important; padding: 0 !important; } }`
+        : `@media print { @page { size: A4 portrait !important; margin: 0.5cm 1cm !important; } }`;
       document.body.classList.add(className);
       setTimeout(() => {
         window.print();
         setTimeout(() => {
-          printableContainer.style.position = '';
-          printableContainer.style.left = '';
-          printableContainer.style.top = '';
-          printableContainer.style.display = 'none';
-          printableContainer.style.zIndex = '';
-          printableContainer.style.backgroundColor = '';
           document.body.classList.remove('print-thermal');
           document.body.classList.remove('print-a4');
           if (styleEl) styleEl.remove();
-        }, 100);
-      }, 100);
+        }, 150);
+      }, 150);
     } catch (e) {
       console.error('Print error (finance):', e);
       window.print();
@@ -6253,7 +6235,203 @@ export default function FinancePage() {
       </Dialog>
 
       <Box id="printable-invoice-a4-finance" sx={{ width: '100%', bgcolor: 'white', display: 'none' }} />
-      <Box id="printable-invoice-thermal-finance" sx={{ width: '80mm', bgcolor: 'white', display: 'none', mx: 'auto', p: 1 }} />
+      
+      {/* Thermal Printable Container - Finance (80mm) */}
+      {(() => {
+        const activeSaleData = viewingSale;
+        const activePurchaseData = viewingPurchase;
+        const activeReturnData = viewingPurchaseReturn;
+
+        const activeBillData = activeSaleData || activePurchaseData || activeReturnData;
+        if (!activeBillData) return <div id="printable-invoice-thermal-finance" style={{ display: 'none' }}></div>;
+
+        const isPurchase = !!activePurchaseData;
+        const isPurchaseReturn = !!activeReturnData;
+        const title = isPurchaseReturn ? 'PURCHASE RETURN' : isPurchase ? 'PURCHASE RECEIPT' : (activeBillData?.is_return ? 'SALE RETURN' : 'SALE RECEIPT');
+
+        const items = activeBillData.sale_details || activeBillData.purchase_details || activeBillData.return_details || [];
+        const totalAmount = parseFloat(activeBillData.total_amount || activeBillData.display_net_total || activeBillData.net_total || 0);
+        const discountAmount = parseFloat(activeBillData.discount || 0);
+        const shippingAmount = parseFloat(activeBillData.shipping_amount || activeBillData.cargo_amount || 0);
+        const labourAmount = parseFloat(activeBillData.labour_charges || activeBillData.labour || 0);
+        const subtotalAmount = totalAmount - labourAmount - shippingAmount + discountAmount;
+        const paidAmount = parseFloat(activeBillData.payment || activeBillData.paid_amount || 0);
+        const balanceAmount = totalAmount - paidAmount;
+        const customerObj = activeBillData.customer || activeBillData.purchase?.customer;
+
+        return (
+          <Box
+            id="printable-invoice-thermal-finance"
+            sx={{
+              width: '78mm',
+              maxWidth: '78mm',
+              bgcolor: '#ffffff',
+              color: '#000000',
+              mx: 'auto',
+              p: '2mm',
+              fontFamily: 'monospace, Arial, sans-serif',
+              boxSizing: 'border-box',
+              display: 'none',
+            }}
+          >
+            {/* Header */}
+            <Box sx={{ textAlign: 'center', pb: 1, borderBottom: '2px solid #000' }}>
+              <Typography sx={{ fontSize: '15px', fontWeight: '900', fontFamily: 'Arial, sans-serif', direction: 'rtl', color: '#000' }}>
+                اتفاق آئرن اینڈ سیمنٹ سٹور
+              </Typography>
+              <Typography sx={{ fontSize: '11px', direction: 'rtl', mt: 0.25, color: '#000' }}>
+                گجرات سرگودھا روڈ، پاہڑیانوالی
+              </Typography>
+              <Typography sx={{ fontSize: '11px', fontWeight: 'bold', mt: 0.25, color: '#000' }}>
+                Ph: 0346-7560306, 0300-7560306
+              </Typography>
+              <Typography
+                sx={{
+                  mt: 0.75,
+                  px: 1,
+                  py: 0.25,
+                  bgcolor: '#000',
+                  color: '#fff',
+                  fontSize: '11px',
+                  fontWeight: 'bold',
+                  letterSpacing: '1px',
+                  display: 'inline-block',
+                }}
+              >
+                {title}
+              </Typography>
+            </Box>
+
+            {/* Meta */}
+            <Box sx={{ py: 0.75, fontSize: '11px', borderBottom: '1px dashed #000', color: '#000' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Inv #: <strong>{getBillDisplayNo(activeBillData) || `#${activeBillData.id || activeBillData.sale_id || ''}`}</strong></span>
+                <span>Date: <strong>{new Date(activeBillData.created_at || Date.now()).toLocaleDateString('en-GB')}</strong></span>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.25 }}>
+                <span>Time: <strong>{new Date(activeBillData.created_at || Date.now()).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong></span>
+                <span>Type: <strong>{activeBillData.bill_type || (isPurchase ? 'PURCHASE' : 'FINANCE')}</strong></span>
+              </Box>
+              <Box sx={{ mt: 0.25 }}>
+                <span>Party: <strong>{customerObj?.cus_name || 'N/A'}</strong></span>
+              </Box>
+              {customerObj?.cus_phone_no && (
+                <Box sx={{ mt: 0.25 }}>
+                  <span>Phone: <strong>{customerObj.cus_phone_no}</strong></span>
+                </Box>
+              )}
+            </Box>
+
+            {/* Items Header */}
+            <Box sx={{ borderBottom: '1px solid #000', py: 0.5, my: 0.5, fontWeight: 'bold', fontSize: '11px', color: '#000' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Typography sx={{ fontSize: '11px', fontWeight: 'bold', flex: 1, color: '#000' }}>Item Description</Typography>
+                <Typography sx={{ fontSize: '11px', fontWeight: 'bold', width: '35px', textAlign: 'center', color: '#000' }}>Qty</Typography>
+                <Typography sx={{ fontSize: '11px', fontWeight: 'bold', width: '50px', textAlign: 'right', color: '#000' }}>Rate</Typography>
+                <Typography sx={{ fontSize: '11px', fontWeight: 'bold', width: '55px', textAlign: 'right', color: '#000' }}>Total</Typography>
+              </Box>
+            </Box>
+
+            {/* Items List */}
+            <Box sx={{ borderBottom: '1px dashed #000', pb: 0.75, mb: 0.75 }}>
+              {items && items.length > 0 ? (
+                items.slice().reverse().map((d, i) => (
+                  <Box key={d.sale_detail_id || d.purchase_detail_id || i} sx={{ mb: 0.75 }}>
+                    <Typography sx={{ fontSize: '11px', fontWeight: 'bold', color: '#000', wordBreak: 'break-word' }}>
+                      {d.product?.pro_title || 'Item'}
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', color: '#000' }}>
+                      <Box sx={{ flex: 1 }} />
+                      <Typography sx={{ fontSize: '11px', width: '35px', textAlign: 'center', color: '#000' }}>
+                        {fmtAmt(d.qnty)}
+                      </Typography>
+                      <Typography sx={{ fontSize: '11px', width: '50px', textAlign: 'right', color: '#000' }}>
+                        {fmtAmt(d.unit_rate || d.rate)}
+                      </Typography>
+                      <Typography sx={{ fontSize: '11px', fontWeight: 'bold', width: '55px', textAlign: 'right', color: '#000' }}>
+                        {fmtAmt(d.total_amount || (d.qnty * (d.unit_rate || d.rate)))}
+                      </Typography>
+                    </Box>
+                  </Box>
+                ))
+              ) : (
+                <Typography sx={{ fontSize: '11px', textAlign: 'center', py: 0.5, color: '#000' }}>No items</Typography>
+              )}
+            </Box>
+
+            {/* Financial Summary */}
+            <Box sx={{ fontSize: '11px', lineHeight: 1.4, color: '#000' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography sx={{ fontSize: '11px', color: '#000' }}>Subtotal</Typography>
+                <Typography sx={{ fontSize: '11px', color: '#000' }}>{fmtAmt(subtotalAmount)}</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography sx={{ fontSize: '11px', color: '#000' }}>Discount</Typography>
+                <Typography sx={{ fontSize: '11px', color: '#000' }}>
+                  {discountAmount > 0 ? `-${fmtAmt(discountAmount)}` : '0'}
+                </Typography>
+              </Box>
+              {shippingAmount > 0 && (
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography sx={{ fontSize: '11px', color: '#000' }}>Shipping / Delivery</Typography>
+                  <Typography sx={{ fontSize: '11px', color: '#000' }}>+{fmtAmt(shippingAmount)}</Typography>
+                </Box>
+              )}
+              {labourAmount > 0 && (
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography sx={{ fontSize: '11px', color: '#000' }}>Labour Charges</Typography>
+                  <Typography sx={{ fontSize: '11px', color: '#000' }}>+{fmtAmt(labourAmount)}</Typography>
+                </Box>
+              )}
+              <Box
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontWeight: '900',
+                  fontSize: '12px',
+                  borderTop: '2px solid #000',
+                  borderBottom: '2px solid #000',
+                  py: 0.25,
+                  my: 0.5,
+                }}
+              >
+                <Typography sx={{ fontSize: '12px', fontWeight: '900', color: '#000' }}>GRAND TOTAL</Typography>
+                <Typography sx={{ fontSize: '12px', fontWeight: '900', color: '#000' }}>{fmtAmt(totalAmount)}</Typography>
+              </Box>
+
+              {/* Payments */}
+              {parseFloat(activeBillData.cash_payment || 0) > 0 && (
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography sx={{ fontSize: '11px', color: '#000' }}>Cash Paid</Typography>
+                  <Typography sx={{ fontSize: '11px', color: '#000' }}>{fmtAmt(activeBillData.cash_payment)}</Typography>
+                </Box>
+              )}
+              {parseFloat(activeBillData.bank_payment || 0) > 0 && (
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography sx={{ fontSize: '11px', color: '#000' }}>Bank ({activeBillData.bank_title || 'Bank'})</Typography>
+                  <Typography sx={{ fontSize: '11px', color: '#000' }}>{fmtAmt(activeBillData.bank_payment)}</Typography>
+                </Box>
+              )}
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', mt: 0.5, pt: 0.5, borderTop: '1px dashed #000' }}>
+                <Typography sx={{ fontSize: '11px', fontWeight: 'bold', color: '#000' }}>Remaining Balance</Typography>
+                <Typography sx={{ fontSize: '11px', fontWeight: 'bold', color: '#000' }}>
+                  {fmtAmt(balanceAmount)}
+                </Typography>
+              </Box>
+            </Box>
+
+            {/* Footer */}
+            <Box sx={{ textAlign: 'center', borderTop: '1px solid #000', mt: 1, pt: 0.75 }}>
+              <Typography sx={{ fontSize: '11px', fontWeight: 'bold', direction: 'rtl', color: '#000' }}>
+                شکریہ! دوبارہ تشریف لائیےگا
+              </Typography>
+              <Typography sx={{ fontSize: '10px', color: '#333', mt: 0.25 }}>
+                Thank you for your business!
+              </Typography>
+            </Box>
+          </Box>
+        );
+      })()}
 
       <style>{`
         @media print {
@@ -6272,7 +6450,19 @@ export default function FinancePage() {
           body.print-a4 #printable-invoice-a4-finance, body.print-a4 #printable-invoice-a4-finance * { visibility: visible !important; }
           body.print-thermal #printable-invoice-thermal-finance, body.print-thermal #printable-invoice-thermal-finance * { visibility: visible !important; }
           body.print-a4 #printable-invoice-a4-finance { display: block !important; width: 100% !important; }
-          body.print-thermal #printable-invoice-thermal-finance { display: block !important; width: 80mm !important; }
+          body.print-thermal #printable-invoice-thermal-finance {
+            display: block !important;
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 78mm !important;
+            max-width: 78mm !important;
+            margin: 0 auto !important;
+            padding: 2mm !important;
+            box-sizing: border-box !important;
+            z-index: 99999 !important;
+            background: white !important;
+          }
         }
       `}</style>
 

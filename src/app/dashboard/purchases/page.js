@@ -366,8 +366,8 @@ function PurchasesPageContent() {
         return;
       }
 
-      // If printing from dialog, copy receipt preview content
-      if (fromDialog) {
+      // If printing from dialog for A4, copy receipt preview content (do NOT overwrite thermal template)
+      if (fromDialog && !isThermal) {
         const receiptPreview = document.getElementById('receipt-preview');
         if (receiptPreview && printableContainer) {
           printableContainer.innerHTML = receiptPreview.innerHTML;
@@ -400,7 +400,7 @@ function PurchasesPageContent() {
           styleElement.id = styleId;
           document.head.appendChild(styleElement);
         }
-        styleElement.textContent = `@media print { @page { size: 80mm auto; margin: 5mm; } }`;
+        styleElement.textContent = `@media print { @page { size: 80mm portrait; margin: 0; } }`;
       } else if (styleElement) {
         styleElement.textContent = `@media print { @page { size: A4; margin: 0.5cm 1cm; } }`;
       }
@@ -1992,7 +1992,7 @@ function PurchasesPageContent() {
       const styleId = 'dynamic-print-style-view';
       let styleEl = document.getElementById(styleId);
       if (!styleEl) { styleEl = document.createElement('style'); styleEl.id = styleId; document.head.appendChild(styleEl); }
-      styleEl.textContent = isThermal ? `@media print { @page { size: 80mm auto; margin: 5mm; } }` : `@media print { @page { size: A4; margin: 0.5cm 1cm; } }`;
+      styleEl.textContent = isThermal ? `@media print { @page { size: 80mm portrait; margin: 0; } }` : `@media print { @page { size: A4; margin: 0.5cm 1cm; } }`;
       document.body.classList.add(className);
       setTimeout(() => {
         window.print();
@@ -5477,7 +5477,17 @@ function PurchasesPageContent() {
             body.print-a4-view #printable-invoice-a4-view, body.print-a4-view #printable-invoice-a4-view * { visibility: visible !important; }
             body.print-thermal-view #printable-invoice-thermal-view, body.print-thermal-view #printable-invoice-thermal-view * { visibility: visible !important; }
             body.print-a4-view #printable-invoice-a4-view { display: block !important; width: 100% !important; }
-            body.print-thermal-view #printable-invoice-thermal-view { display: block !important; width: 80mm !important; }
+            body.print-thermal-view #printable-invoice-thermal-view {
+              display: block !important;
+              position: absolute !important;
+              left: 0 !important;
+              top: 0 !important;
+              width: 80mm !important;
+              max-width: 80mm !important;
+              margin: 0 !important;
+              padding: 4mm !important;
+              box-sizing: border-box !important;
+            }
           }
         `}</style>
 
@@ -6330,7 +6340,17 @@ function PurchasesPageContent() {
             body.print-a4 #printable-invoice-a4-purchase, body.print-a4 #printable-invoice-a4-purchase * { visibility: visible !important; }
             body.print-thermal #printable-invoice-thermal-purchase, body.print-thermal #printable-invoice-thermal-purchase * { visibility: visible !important; }
             body.print-a4 #printable-invoice-a4-purchase { display: block !important; width: 100% !important; }
-            body.print-thermal #printable-invoice-thermal-purchase { display: block !important; width: 80mm !important; }
+            body.print-thermal #printable-invoice-thermal-purchase {
+              display: block !important;
+              position: absolute !important;
+              left: 0 !important;
+              top: 0 !important;
+              width: 80mm !important;
+              max-width: 80mm !important;
+              margin: 0 !important;
+              padding: 4mm !important;
+              box-sizing: border-box !important;
+            }
           }
         `}</style>
 

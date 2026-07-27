@@ -3295,12 +3295,17 @@ function SalesPageContent() {
   // Handle print bill with mode (A4 or Thermal or Existing)
   const handlePrintBill = (mode = 'A4', fromDialog = false) => {
     try {
-      // Handle when mode is a click event object
       const actualMode = typeof mode === 'string' ? mode : 'A4';
       const className = actualMode === 'THERMAL' 
         ? 'print-thermal' 
         : (actualMode === 'EXISTING' ? 'print-existing' : 'print-a4');
       const isThermal = actualMode === 'THERMAL';
+
+      // Ensure active bill is set for printing
+      const activeBill = currentBillData || selectedBill;
+      if (activeBill) {
+        setCurrentBillData(activeBill);
+      }
 
       // Get the printable container
       let printableContainer = actualMode === 'EXISTING'
@@ -3311,8 +3316,9 @@ function SalesPageContent() {
 
       // Fallback in case container is not found
       if (!printableContainer) {
-        printableContainer = document.getElementById('printable-invoice') || 
-                             document.getElementById('printable-invoice-a4');
+        printableContainer = isThermal
+          ? document.getElementById('printable-invoice-thermal')
+          : (document.getElementById('printable-invoice') || document.getElementById('printable-invoice-a4'));
       }
 
       if (!printableContainer) {
@@ -3320,57 +3326,42 @@ function SalesPageContent() {
         return;
       }
 
-      // If printing from dialog, copy receipt preview content
-      if (fromDialog) {
+      // If printing from dialog for A4, copy receipt preview content (do NOT overwrite thermal template)
+      if (fromDialog && !isThermal) {
         const receiptPreview = document.getElementById('receipt-preview');
         if (receiptPreview && printableContainer) {
           printableContainer.innerHTML = receiptPreview.innerHTML;
         }
       }
 
-      // Move container to visible position temporarily for print
-      const originalParent = printableContainer.parentElement;
-      const originalStyles = {
-        position: printableContainer.style.position,
-        left: printableContainer.style.left,
-        top: printableContainer.style.top,
-        visibility: printableContainer.style.visibility,
-        display: printableContainer.style.display
-      };
-
-      // Make container visible and position it for print
-      printableContainer.style.position = 'fixed';
-      printableContainer.style.left = '0';
-      printableContainer.style.top = '0';
-      printableContainer.style.visibility = 'visible';
-      printableContainer.style.display = 'block';
-      printableContainer.style.zIndex = '9999';
-      printableContainer.style.backgroundColor = 'white';
-
       // Add dynamic style for thermal page size
       let styleId = 'dynamic-print-style';
       let styleElement = document.getElementById(styleId);
+      if (!styleElement) {
+        styleElement = document.createElement('style');
+        styleElement.id = styleId;
+        document.head.appendChild(styleElement);
+      }
 
       if (isThermal) {
-        if (!styleElement) {
-          styleElement = document.createElement('style');
-          styleElement.id = styleId;
-          document.head.appendChild(styleElement);
-        }
         styleElement.textContent = `
           @media print {
             @page {
-              size: 80mm auto;
-              margin: 5mm;
+              size: 80mm portrait !important;
+              margin: 0 !important;
+            }
+            body {
+              margin: 0 !important;
+              padding: 0 !important;
             }
           }
         `;
-      } else if (styleElement) {
+      } else {
         styleElement.textContent = `
           @media print {
             @page {
-              size: A4;
-              margin: 0.5cm 1cm;
+              size: A4 portrait !important;
+              margin: 0.5cm 1cm !important;
             }
           }
         `;
@@ -3379,29 +3370,18 @@ function SalesPageContent() {
       // Add body class for print styling
       document.body.classList.add(className);
 
-      // Small delay to ensure DOM is ready
       setTimeout(() => {
         window.print();
         setTimeout(() => {
-          // Restore original styles
-          printableContainer.style.position = originalStyles.position;
-          printableContainer.style.left = originalStyles.left;
-          printableContainer.style.top = originalStyles.top;
-          printableContainer.style.visibility = originalStyles.visibility;
-          printableContainer.style.display = originalStyles.display;
-          printableContainer.style.zIndex = '';
-          printableContainer.style.backgroundColor = '';
-
-          // Remove body class
           document.body.classList.remove('print-thermal');
           document.body.classList.remove('print-a4');
+          document.body.classList.remove('print-existing');
 
-          // Remove dynamic style
-          if (styleElement && isThermal) {
+          if (styleElement) {
             styleElement.remove();
           }
-        }, 100);
-      }, 100);
+        }, 150);
+      }, 150);
     } catch (e) {
       console.error('Print error:', e);
       window.print();
@@ -6075,87 +6055,7 @@ function SalesPageContent() {
                 </Box>
               </Box>
 
-              {/* Thermal Printable Container */}
-              <Box id="printable-invoice-thermal" sx={{ width: '80mm', bgcolor: 'white', mx: 'auto', p: 1 }}>
-                <Box sx={{ textAlign: 'center', pb: 1, borderBottom: '1px solid #000' }}>
-                  <Typography sx={{ fontSize: '12px', fontWeight: 'bold' }}>اتفاق آئرن اینڈ سیمنٹ سٹور</Typography>
-                  <Typography sx={{ fontSize: '10px' }}>گجرات سرگودھا روڈ، پاہڑیانوالی</Typography>
-                  <Typography sx={{ fontSize: '10px' }}>Ph: 0346-7560306, 0300-7560306</Typography>
-                  <Typography sx={{ mt: 0.5, fontSize: '11px', fontWeight: 'bold' }}>{currentBillData?.is_return ? 'SALE RETURN RECEIPT' : 'SALE RECEIPT'}</Typography>
-                </Box>
-                <Box sx={{ py: 1 }}>
-                  <Typography sx={{ fontSize: '10px' }}>Inv#: {getBillDisplayNo(currentBillData)}</Typography>
-                  <Typography sx={{ fontSize: '10px' }}>
-                    {currentBillData?.is_return ? `Return ID: ${currentBillData.return_id}` : `Sale ID: ${currentBillData.sale_id}`}
-                  </Typography>
-                  {currentBillData?.is_return && currentBillData.sale_id && (
-                    <Typography sx={{ fontSize: '10px' }}>Sale ID: {currentBillData.sale_id}</Typography>
-                  )}
-                  <Typography sx={{ fontSize: '10px' }}>Type: {currentBillData.bill_type || 'BILL'}</Typography>
-                  <Typography sx={{ fontSize: '10px' }}>Date: {new Date(currentBillData.created_at).toLocaleDateString('en-GB')}</Typography>
-                  <Typography sx={{ fontSize: '10px' }}>Time: {new Date(currentBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</Typography>
-                  <Typography sx={{ fontSize: '10px' }}>Cust: {currentBillData.customer?.cus_name || 'N/A'}</Typography>
-                </Box>
-                <Box sx={{ borderTop: '1px dashed #000', borderBottom: '1px dashed #000', py: 1 }}>
-                  {currentBillData.sale_details && currentBillData.sale_details.length > 0 ? (
-                    currentBillData.sale_details.slice().reverse().map((d, i) => (
-                      <Box key={d.sale_detail_id || i} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                        <Box sx={{ pr: 1, flex: 1 }}>
-                          <Typography sx={{ fontSize: '10px' }}>{d.product?.pro_title || 'Item'}</Typography>
-                          <Typography sx={{ fontSize: '9px', color: 'text.secondary' }}>Qty: {fmtRateQty(d.qnty)} x {fmtRateQty(d.unit_rate)}</Typography>
-                        </Box>
-                        <Typography sx={{ fontSize: '10px', minWidth: '35mm', textAlign: 'right' }}>{fmtAmt(d.total_amount)}</Typography>
-                      </Box>
-                    ))
-                  ) : (
-                    <Typography sx={{ fontSize: '10px', textAlign: 'center' }}>No items</Typography>
-                  )}
-                </Box>
-                <Box sx={{ pt: 1 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <Typography sx={{ fontSize: '10px' }}>Subtotal</Typography>
-                    <Typography sx={{ fontSize: '10px' }}>{fmtAmt(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.labour_charges || currentBillData.labour || 0) - parseFloat(currentBillData.shipping_amount || 0) + parseFloat(currentBillData.discount || 0))}</Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <Typography sx={{ fontSize: '10px' }}>Discount</Typography>
-                    <Typography sx={{ fontSize: '10px' }}>{fmtAmt(currentBillData.discount)}</Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <Typography sx={{ fontSize: '10px' }}>Shipping</Typography>
-                    <Typography sx={{ fontSize: '10px' }}>{fmtAmt(currentBillData.shipping_amount)}</Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', borderTop: '1px dashed #000', mt: 0.5, pt: 0.5 }}>
-                    <Typography sx={{ fontSize: '11px' }}>Grand Total</Typography>
-                    <Typography sx={{ fontSize: '11px' }}>
-                      {fmtAmt(currentBillData.total_amount)}
-                    </Typography>
-                  </Box>
-                  {/* Cash Payment */}
-                  {parseFloat(currentBillData.cash_payment || 0) > 0 && (
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography sx={{ fontSize: '10px' }}>Cash Payment</Typography>
-                      <Typography sx={{ fontSize: '10px' }}>{fmtAmt(currentBillData.cash_payment)}</Typography>
-                    </Box>
-                  )}
-                  {/* Bank Payment */}
-                  {parseFloat(currentBillData.bank_payment || 0) > 0 && (
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography sx={{ fontSize: '10px' }}>Bank Payment ({currentBillData.bank_title || 'Bank'})</Typography>
-                      <Typography sx={{ fontSize: '10px' }}>{fmtAmt(currentBillData.bank_payment)}</Typography>
-                    </Box>
-                  )}
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <Typography sx={{ fontSize: '10px' }}>Balance</Typography>
-                    <Typography sx={{ fontSize: '10px' }}>
-                      {fmtAmt(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0))}
-                    </Typography>
-                  </Box>
-                </Box>
-                <Box sx={{ textAlign: 'center', borderTop: '1px solid #000', mt: 1, pt: 1 }}>
-                  <Typography sx={{ fontSize: '9px' }}>Thank you for your business!</Typography>
-                </Box>
               </Box>
-            </Box>
           )
         }
 
@@ -7018,14 +6918,16 @@ function SalesPageContent() {
             }
             
             body.print-thermal #printable-invoice-thermal {
-              position: fixed !important;
-              left: 50% !important;
+              display: block !important;
+              position: absolute !important;
+              left: 0 !important;
               top: 0 !important;
-              transform: translateX(-50%) !important;
-              width: 80mm !important;
-              max-width: 80mm !important;
-              margin: 0 !important;
-              z-index: 9999 !important;
+              width: 78mm !important;
+              max-width: 78mm !important;
+              margin: 0 auto !important;
+              padding: 2mm !important;
+              box-sizing: border-box !important;
+              z-index: 99999 !important;
               background: white !important;
             }
           }
@@ -8871,13 +8773,28 @@ function SalesPageContent() {
             variant="contained"
             startIcon={<PrintIcon />}
             sx={{
-              minWidth: 150,
+              minWidth: 140,
               bgcolor: 'primary.main',
               '&:hover': { bgcolor: 'primary.dark' }
             }}
             onClick={() => handlePrintBill('EXISTING')}
           >
-            Print Bill
+            Print A4
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<PrintIcon />}
+            sx={{
+              minWidth: 140,
+              bgcolor: '#fd7e14',
+              '&:hover': { bgcolor: '#e8690b' }
+            }}
+            onClick={() => {
+              if (selectedBill) setCurrentBillData(selectedBill);
+              handlePrintBill('THERMAL');
+            }}
+          >
+            Print Thermal
           </Button>
         </DialogActions>
       </Dialog>
@@ -8885,12 +8802,11 @@ function SalesPageContent() {
       {/* Print Styles */}
       <style jsx global>{`
         @media print {
-          @page {
-            size: A4;
-            margin: 0.5cm 1cm;
-          }
-          
           body.print-existing {
+            @page {
+              size: A4;
+              margin: 0.5cm 1cm;
+            }
             print-color-adjust: exact;
             -webkit-print-color-adjust: exact;
             margin: 0;
@@ -10051,8 +9967,199 @@ function SalesPageContent() {
             Yes, Save Anyway
           </Button>
         </DialogActions>
-      </Dialog>
+      {/* Thermal Printable Container - Redesigned 80mm Receipt */}
+      {(() => {
+        const activeBillData = currentBillData || selectedBill;
+        if (!activeBillData) return <div id="printable-invoice-thermal" style={{ display: 'none' }}></div>;
 
+        const totalAmount = parseFloat(activeBillData.total_amount || 0);
+        const discountAmount = parseFloat(activeBillData.discount || 0);
+        const shippingAmount = parseFloat(activeBillData.shipping_amount || 0);
+        const labourAmount = parseFloat(activeBillData.labour_charges || activeBillData.labour || 0);
+        const subtotalAmount = totalAmount - labourAmount - shippingAmount + discountAmount;
+        const paidAmount = parseFloat(activeBillData.payment || 0);
+        const balanceAmount = totalAmount - paidAmount;
+
+        return (
+          <Box
+            id="printable-invoice-thermal"
+            sx={{
+              width: '78mm',
+              maxWidth: '78mm',
+              bgcolor: '#ffffff',
+              color: '#000000',
+              mx: 'auto',
+              p: '2mm',
+              fontFamily: 'monospace, Arial, sans-serif',
+              boxSizing: 'border-box',
+              display: 'none',
+            }}
+          >
+            {/* Header */}
+            <Box sx={{ textAlign: 'center', pb: 1, borderBottom: '2px solid #000' }}>
+              <Typography sx={{ fontSize: '15px', fontWeight: '900', fontFamily: 'Arial, sans-serif', direction: 'rtl', color: '#000' }}>
+                اتفاق آئرن اینڈ سیمنٹ سٹور
+              </Typography>
+              <Typography sx={{ fontSize: '11px', direction: 'rtl', mt: 0.25, color: '#000' }}>
+                گجرات سرگودھا روڈ، پاہڑیانوالی
+              </Typography>
+              <Typography sx={{ fontSize: '11px', fontWeight: 'bold', mt: 0.25, color: '#000' }}>
+                Ph: 0346-7560306, 0300-7560306
+              </Typography>
+              <Typography
+                sx={{
+                  mt: 0.75,
+                  px: 1,
+                  py: 0.25,
+                  bgcolor: '#000',
+                  color: '#fff',
+                  fontSize: '11px',
+                  fontWeight: 'bold',
+                  letterSpacing: '1px',
+                  display: 'inline-block',
+                }}
+              >
+                {activeBillData?.is_return ? 'SALE RETURN RECEIPT' : 'SALE RECEIPT'}
+              </Typography>
+            </Box>
+
+            {/* Meta */}
+            <Box sx={{ py: 0.75, fontSize: '11px', borderBottom: '1px dashed #000', color: '#000' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Inv #: <strong>{getBillDisplayNo(activeBillData)}</strong></span>
+                <span>Date: <strong>{new Date(activeBillData.created_at).toLocaleDateString('en-GB')}</strong></span>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.25 }}>
+                <span>Time: <strong>{new Date(activeBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong></span>
+                <span>Type: <strong>{activeBillData.bill_type || 'BILL'}</strong></span>
+              </Box>
+              <Box sx={{ mt: 0.25 }}>
+                <span>Cust: <strong>{activeBillData.customer?.cus_name || 'Cash Customer'}</strong></span>
+              </Box>
+              {activeBillData.customer?.cus_phone_no && (
+                <Box sx={{ mt: 0.25 }}>
+                  <span>Phone: <strong>{activeBillData.customer.cus_phone_no}</strong></span>
+                </Box>
+              )}
+            </Box>
+
+            {/* Items Header */}
+            <Box sx={{ borderBottom: '1px solid #000', py: 0.5, my: 0.5, fontWeight: 'bold', fontSize: '11px', color: '#000' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Typography sx={{ fontSize: '11px', fontWeight: 'bold', flex: 1, color: '#000' }}>Item Description</Typography>
+                <Typography sx={{ fontSize: '11px', fontWeight: 'bold', width: '35px', textAlign: 'center', color: '#000' }}>Qty</Typography>
+                <Typography sx={{ fontSize: '11px', fontWeight: 'bold', width: '50px', textAlign: 'right', color: '#000' }}>Rate</Typography>
+                <Typography sx={{ fontSize: '11px', fontWeight: 'bold', width: '55px', textAlign: 'right', color: '#000' }}>Total</Typography>
+              </Box>
+            </Box>
+
+            {/* Items List */}
+            <Box sx={{ borderBottom: '1px dashed #000', pb: 0.75, mb: 0.75 }}>
+              {activeBillData.sale_details && activeBillData.sale_details.length > 0 ? (
+                activeBillData.sale_details.slice().reverse().map((d, i) => (
+                  <Box key={d.sale_detail_id || i} sx={{ mb: 0.75 }}>
+                    <Typography sx={{ fontSize: '11px', fontWeight: 'bold', color: '#000', wordBreak: 'break-word' }}>
+                      {d.product?.pro_title || 'Item'}
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', color: '#000' }}>
+                      <Box sx={{ flex: 1 }} />
+                      <Typography sx={{ fontSize: '11px', width: '35px', textAlign: 'center', color: '#000' }}>
+                        {fmtRateQty(d.qnty)}
+                      </Typography>
+                      <Typography sx={{ fontSize: '11px', width: '50px', textAlign: 'right', color: '#000' }}>
+                        {fmtRateQty(d.unit_rate)}
+                      </Typography>
+                      <Typography sx={{ fontSize: '11px', fontWeight: 'bold', width: '55px', textAlign: 'right', color: '#000' }}>
+                        {fmtAmt(d.total_amount)}
+                      </Typography>
+                    </Box>
+                  </Box>
+                ))
+              ) : (
+                <Typography sx={{ fontSize: '11px', textAlign: 'center', py: 0.5, color: '#000' }}>No items</Typography>
+              )}
+            </Box>
+
+            {/* Financial Summary */}
+            <Box sx={{ fontSize: '11px', lineHeight: 1.4, color: '#000' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography sx={{ fontSize: '11px', color: '#000' }}>Subtotal</Typography>
+                <Typography sx={{ fontSize: '11px', color: '#000' }}>{fmtAmt(subtotalAmount)}</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography sx={{ fontSize: '11px', color: '#000' }}>Discount</Typography>
+                <Typography sx={{ fontSize: '11px', color: '#000' }}>
+                  {discountAmount > 0 ? `-${fmtAmt(discountAmount)}` : '0'}
+                </Typography>
+              </Box>
+              {shippingAmount > 0 && (
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography sx={{ fontSize: '11px', color: '#000' }}>Shipping / Delivery</Typography>
+                  <Typography sx={{ fontSize: '11px', color: '#000' }}>+{fmtAmt(shippingAmount)}</Typography>
+                </Box>
+              )}
+              {labourAmount > 0 && (
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography sx={{ fontSize: '11px', color: '#000' }}>Labour Charges</Typography>
+                  <Typography sx={{ fontSize: '11px', color: '#000' }}>+{fmtAmt(labourAmount)}</Typography>
+                </Box>
+              )}
+              <Box
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontWeight: '900',
+                  fontSize: '12px',
+                  borderTop: '2px solid #000',
+                  borderBottom: '2px solid #000',
+                  py: 0.25,
+                  my: 0.5,
+                }}
+              >
+                <Typography sx={{ fontSize: '12px', fontWeight: '900', color: '#000' }}>GRAND TOTAL</Typography>
+                <Typography sx={{ fontSize: '12px', fontWeight: '900', color: '#000' }}>{fmtAmt(totalAmount)}</Typography>
+              </Box>
+
+              {/* Payments */}
+              {parseFloat(activeBillData.cash_payment || 0) > 0 && (
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography sx={{ fontSize: '11px', color: '#000' }}>Cash Paid</Typography>
+                  <Typography sx={{ fontSize: '11px', color: '#000' }}>{fmtAmt(activeBillData.cash_payment)}</Typography>
+                </Box>
+              )}
+              {parseFloat(activeBillData.bank_payment || 0) > 0 && (
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography sx={{ fontSize: '11px', color: '#000' }}>Bank ({activeBillData.bank_title || 'Bank'})</Typography>
+                  <Typography sx={{ fontSize: '11px', color: '#000' }}>{fmtAmt(activeBillData.bank_payment)}</Typography>
+                </Box>
+              )}
+              {activeBillData.previous_balance !== undefined && parseFloat(activeBillData.previous_balance || 0) !== 0 && (
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography sx={{ fontSize: '11px', color: '#000' }}>Prev Balance</Typography>
+                  <Typography sx={{ fontSize: '11px', color: '#000' }}>{fmtAmt(activeBillData.previous_balance)}</Typography>
+                </Box>
+              )}
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', mt: 0.5, pt: 0.5, borderTop: '1px dashed #000' }}>
+                <Typography sx={{ fontSize: '11px', fontWeight: 'bold', color: '#000' }}>Remaining Balance</Typography>
+                <Typography sx={{ fontSize: '11px', fontWeight: 'bold', color: '#000' }}>
+                  {fmtAmt(balanceAmount)}
+                </Typography>
+              </Box>
+            </Box>
+
+            {/* Footer */}
+            <Box sx={{ textAlign: 'center', borderTop: '1px solid #000', mt: 1, pt: 0.75 }}>
+              <Typography sx={{ fontSize: '11px', fontWeight: 'bold', direction: 'rtl', color: '#000' }}>
+                شکریہ! دوبارہ تشریف لائیےگا
+              </Typography>
+              <Typography sx={{ fontSize: '10px', color: '#333', mt: 0.25 }}>
+                Thank you for your business!
+              </Typography>
+            </Box>
+          </Box>
+        );
+      })()}
+      </Dialog>
     </>
   );
 }
