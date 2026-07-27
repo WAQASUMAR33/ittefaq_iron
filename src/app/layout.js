@@ -5,6 +5,7 @@ import { AppRouterCacheProvider } from "@mui/material-nextjs/v16-appRouter";
 import ChunkErrorRecovery from "./components/chunk-error-recovery";
 
 export const metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://ittefaqironandcementstore.cloud"),
   title: "Ittefaq Iron and Cement Store",
   description: "Ittefaq Iron and Cement Store - Point of Sale System",
 };
