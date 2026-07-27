@@ -574,7 +574,7 @@ export default function CashReport() {
 
       <style jsx global>{`
         @media print {
-          @page { size: A4 landscape; margin: 8mm; }
+          @page { size: A4 portrait; margin: 8mm; }
           .no-print { display: none !important; }
           body { font-size: 10px !important; background: white !important; margin: 0 !important; padding: 0 !important; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }

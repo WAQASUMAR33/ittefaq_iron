@@ -1897,6 +1897,7 @@ function OrdersPageContent() {
       const activeBill = targetBill || currentBillData || selectedBill;
       if (activeBill) {
         setCurrentBillData(activeBill);
+        setSelectedBill(activeBill);
       }
 
       // Get the printable container
@@ -5790,8 +5791,22 @@ function OrdersPageContent() {
           body.print-thermal .MuiDialog-root,
           body.print-thermal .no-print,
           body.print-a4 .dashboard-layout-root,
+          body.print-a4 .MuiContainer-root,
+          body.print-a4 .MuiStack-root,
+          body.print-a4 .MuiCard-root,
+          body.print-a4 .MuiPaper-root,
+          body.print-a4 .MuiTableContainer-root,
+          body.print-a4 .MuiTable-root,
+          body.print-a4 .MuiDialog-root,
           body.print-a4 .no-print,
           body.print-existing .dashboard-layout-root,
+          body.print-existing .MuiContainer-root,
+          body.print-existing .MuiStack-root,
+          body.print-existing .MuiCard-root,
+          body.print-existing .MuiPaper-root,
+          body.print-existing .MuiTableContainer-root,
+          body.print-existing .MuiTable-root,
+          body.print-existing .MuiDialog-root,
           body.print-existing .no-print {
             height: 0 !important;
             max-height: 0 !important;
@@ -5825,121 +5840,37 @@ function OrdersPageContent() {
             color: #000000 !important;
           }
 
-          body.print-existing {
-            @page {
-              size: A4;
-              margin: 0.5cm 1cm;
-            }
-            print-color-adjust: exact;
-            -webkit-print-color-adjust: exact;
-            margin: 0;
-            padding: 0;
-          }
-          
-          /* Hide everything by default */
-          body *, body.print-existing * {
-            visibility: hidden;
-          }
-          
-          /* Show only the printable invoice */
-          #printable-invoice,
-          #printable-invoice *,
+          /* A4 / Existing Order Print Styling */
           body.print-existing #printable-invoice,
-          body.print-existing #printable-invoice * {
+          body.print-existing #printable-invoice *,
+          body.print-a4 #printable-invoice,
+          body.print-a4 #printable-invoice * {
             visibility: visible !important;
-          }
-          
-          /* Position invoice at top */
-          #printable-invoice {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 21cm;
-            min-height: 29.7cm;
-            max-width: 21cm;
-            background: white;
-            padding: 0;
-            margin: 0;
-          }
-          
-          /* Hide dialog wrapper elements */
-          .MuiDialog-root,
-          .MuiDialog-container,
-          .MuiDialog-paper,
-          .MuiDialogTitle-root,
-          .no-print,
-          .no-print * {
-            visibility: hidden !important;
-            display: none !important;
-          }
-          
-          /* Show dialog content */
-          .MuiDialogContent-root {
-            visibility: visible !important;
-            display: block !important;
-            padding: 0 !important;
-            overflow: visible !important;
             height: auto !important;
             max-height: none !important;
-            width: 21cm !important;
-            max-width: 21cm !important;
+            overflow: visible !important;
           }
-          
-          /* Table styles for print */
-          table {
-            page-break-inside: auto;
-            border-collapse: collapse;
-            width: 100%;
-            font-size: 12px;
-          }
-          
-          tr {
-            page-break-inside: avoid;
-            page-break-after: auto;
-          }
-          
-          thead {
-            display: table-header-group;
-          }
-          
-          tbody {
-            display: table-row-group;
-          }
-          
-          /* Ensure proper spacing */
-          .MuiBox-root {
-            page-break-inside: avoid;
-          }
-          
-          /* Remove shadows and rounded corners */
-          .MuiPaper-root {
-            box-shadow: none !important;
-          }
-          
-          /* Typography adjustments for A4 */
-          .MuiTypography-root {
-            font-size: 12px !important;
-          }
-          
-          .MuiTypography-h4 {
-            font-size: 24px !important;
-          }
-          
-          .MuiTypography-h6 {
-            font-size: 16px !important;
-          }
-          
-          .MuiTypography-body2 {
-            font-size: 12px !important;
-          }
-          
-          /* Grid and spacing */
-          .MuiGrid-container {
+
+          body.print-existing #printable-invoice,
+          body.print-a4 #printable-invoice {
+            display: block !important;
+            position: fixed !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 210mm !important;
+            max-width: 210mm !important;
             margin: 0 !important;
+            padding: 5mm !important;
+            box-sizing: border-box !important;
+            z-index: 999999 !important;
+            background: #ffffff !important;
+            color: #000000 !important;
           }
-          
-          .MuiGrid-item {
-            padding: 8px !important;
+
+          .no-print,
+          .no-print * {
+            display: none !important;
+            visibility: hidden !important;
           }
         }
       `}</style>
@@ -6580,6 +6511,205 @@ function OrdersPageContent() {
               <Typography sx={{ fontSize: '10px', color: '#333', mt: 0.25 }}>
                 Thank you for your business!
               </Typography>
+            </Box>
+          </Box>
+        );
+      })()}
+
+      {/* Root Level A4 Printable Container */}
+      {(() => {
+        const activeBillData = currentBillData || selectedBill;
+        if (!activeBillData) return <Box id="printable-invoice" sx={{ display: 'none' }}></Box>;
+
+        return (
+          <Box
+            id="printable-invoice"
+            sx={{
+              width: '210mm',
+              maxWidth: '210mm',
+              bgcolor: '#ffffff',
+              color: '#000000',
+              mx: 'auto',
+              p: 3,
+              display: 'none',
+              boxSizing: 'border-box',
+            }}
+          >
+            {/* Company Header */}
+            <Box sx={{ textAlign: 'center', py: 2, borderBottom: '2px solid #000' }}>
+              <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 0.5, fontFamily: 'Arial, sans-serif', fontSize: '1.75rem', direction: 'rtl', color: '#000' }}>
+                اتفاق آئرن اینڈ سیمنٹ سٹور
+              </Typography>
+              <Typography variant="body2" sx={{ mb: 0.5, fontSize: '0.875rem', direction: 'rtl', color: '#000' }}>
+                گجرات سرگودھا روڈ، پاہڑیانوالی
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 0.5 }}>
+                <PhoneIcon sx={{ color: '#25D366', fontSize: '1rem' }} />
+                <Typography variant="body2" sx={{ color: '#000' }}>
+                  Ph:- 0346-7560306, 0300-7560306
+                </Typography>
+              </Box>
+              <Typography variant="h6" sx={{ fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, mt: 1, color: '#000' }}>
+                ORDER RECEIPT
+              </Typography>
+            </Box>
+
+            {/* Customer and Invoice Details */}
+            <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between' }}>
+              <Box sx={{ flex: '0 0 50%' }}>
+                <Typography variant="body2" sx={{ mb: 0.5, color: '#000' }}>
+                  <strong>Customer Name:</strong> {activeBillData.customer?.cus_name || 'Cash Customer'}
+                </Typography>
+                <Typography variant="body2" sx={{ mb: 0.5, color: '#000' }}>
+                  <strong>Phone No:</strong> {activeBillData.customer?.cus_phone_no || 'N/A'}
+                </Typography>
+                {activeBillData.customer?.cus_address && (
+                  <Typography variant="body2" sx={{ color: '#000' }}>
+                    <strong>Address:</strong> {activeBillData.customer.cus_address}
+                  </Typography>
+                )}
+              </Box>
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right', flex: '0 0 50%' }}>
+                <Typography variant="body2" sx={{ mb: 0.5, color: '#000' }}>
+                  <strong>Invoice No:</strong> <strong>{getBillDisplayNo(activeBillData)}</strong>
+                </Typography>
+                <Typography variant="body2" sx={{ mb: 0.5, color: '#000' }}>
+                  <strong>Time:</strong> <strong>{new Date(activeBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
+                </Typography>
+                <Typography variant="body2" sx={{ mb: 0.5, color: '#000' }}>
+                  <strong>Date:</strong> <strong>{new Date(activeBillData.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#000' }}>
+                  <strong>Bill Type:</strong> <strong>{activeBillData.bill_type || 'ORDER'}</strong>
+                </Typography>
+              </Box>
+            </Box>
+
+            {/* Product Details Table */}
+            <Box sx={{ px: 2, py: 1.5 }}>
+              <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, border: '1px solid #000' }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: '#d0d0d0' }}>
+                      <TableCell sx={{ fontWeight: 'bold', color: '#000', py: 1, px: 1 }}>S#</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: '#000', py: 1, px: 1 }}>Product Name</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: '#000', py: 1, px: 1 }} align="center">Qty</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: '#000', py: 1, px: 1 }} align="right">Rate</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: '#000', py: 1, px: 1 }} align="right">Amount</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {activeBillData.sale_details && activeBillData.sale_details.length > 0 ? (
+                      activeBillData.sale_details.map((detail, index) => (
+                        <TableRow key={detail.sale_detail_id || index}>
+                          <TableCell sx={{ px: 1, color: '#000' }}>{index + 1}</TableCell>
+                          <TableCell sx={{ px: 1, color: '#000', fontWeight: 'medium' }}>{detail.product?.pro_title || detail.product?.pro_name || 'N/A'}</TableCell>
+                          <TableCell sx={{ px: 1, color: '#000' }} align="center">{fmtAmt(detail.qnty || 0)}</TableCell>
+                          <TableCell sx={{ px: 1, color: '#000' }} align="right">{fmtAmt(detail.unit_rate)}</TableCell>
+                          <TableCell sx={{ px: 1, color: '#000', fontWeight: 'bold' }} align="right">{fmtAmt(detail.total_amount)}</TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={5} align="center" sx={{ py: 3, color: '#000' }}>
+                          No items found
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+
+              {/* Payment Summary */}
+              <Box sx={{ mt: 2, width: '100%', display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                {/* Left Side - Customer Balance */}
+                <Box sx={{ flex: '0 0 48%' }}>
+                  <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%' }}>
+                    <Table size="small">
+                      <TableBody>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>سابقہ بقایا</TableCell>
+                          <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>
+                            {fmtAmt(activeBillData.customer?.cus_balance)}
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>موجوده بقايا</TableCell>
+                          <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>
+                            {fmtAmt(parseFloat(activeBillData.total_amount || 0) - parseFloat(activeBillData.payment || 0))}
+                          </TableCell>
+                        </TableRow>
+                        <TableRow sx={{ bgcolor: '#e0e0e0' }}>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>كل بقايا</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>
+                            {fmtAmt(parseFloat(activeBillData.customer?.cus_balance || 0) + parseFloat(activeBillData.total_amount || 0) - parseFloat(activeBillData.payment || 0))}
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Box>
+
+                {/* Right Side - Payment Summary */}
+                <Box sx={{ flex: '0 0 48%', display: 'flex', justifyContent: 'flex-end' }}>
+                  <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%' }}>
+                    <Table size="small">
+                      <TableBody>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>رقم بل</TableCell>
+                          <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>
+                            {fmtAmt((activeBillData.sale_details || []).reduce((sum, d) => sum + parseFloat(d.total_amount || 0), 0))}
+                          </TableCell>
+                        </TableRow>
+                        {parseFloat(activeBillData.labour || 0) > 0 && (
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>مزدوری</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>
+                              {fmtAmt(activeBillData.labour)}
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        {parseFloat(activeBillData.shipping_amount || 0) > 0 && (
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>کرایہ</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>
+                              {fmtAmt(activeBillData.shipping_amount)}
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        <TableRow sx={{ bgcolor: '#e0e0e0' }}>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>كل رقم</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>
+                            {fmtAmt(activeBillData.total_amount)}
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>نقد كيش</TableCell>
+                          <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>
+                            {fmtAmt(activeBillData.cash_payment || (activeBillData.payment_type === 'CASH' ? activeBillData.payment : 0))}
+                          </TableCell>
+                        </TableRow>
+                        {parseFloat(activeBillData.bank_payment || 0) > 0 && (
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>
+                              {activeBillData.bank_title || 'بینک'}
+                            </TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>
+                              {fmtAmt(activeBillData.bank_payment)}
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        <TableRow sx={{ bgcolor: '#e0e0e0' }}>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>بقايا رقم</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>
+                            {fmtAmt(parseFloat(activeBillData.total_amount || 0) - parseFloat(activeBillData.payment || 0))}
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Box>
+              </Box>
             </Box>
           </Box>
         );
