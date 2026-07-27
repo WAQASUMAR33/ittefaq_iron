@@ -365,24 +365,12 @@ export default function FinancePage() {
   const [selectedCategory, setSelectedCategory] = useState(''); // This will be customer category ID
   const [selectedSubCategory, setSelectedSubCategory] = useState(''); // This will be customer type ID
   const [sortBy, setSortBy] = useState('created_at');
-  const [sortOrder, setSortOrder] = useState('asc');
+  const [sortOrder, setSortOrder] = useState('desc');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedLedgerType, setSelectedLedgerType] = useState('');
   const [staticDataLoaded, setStaticDataLoaded] = useState(false);
   const tableEndRef = useRef(null);
-
-  // Auto-scroll to the end of the ledger when entries are loaded or updated
-  useEffect(() => {
-    if (!loading && ledgerEntries.length > 0) {
-      const timer = setTimeout(() => {
-        if (tableEndRef.current) {
-          tableEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
-        }
-      }, 300);
-      return () => clearTimeout(timer);
-    }
-  }, [loading, ledgerEntries.length, selectedCustomer]);
 
   // Customer dropdown filter states
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
@@ -1983,7 +1971,7 @@ export default function FinancePage() {
     setSelectedCategory('');
     setSelectedSubCategory('');
     setSortBy('created_at');
-    setSortOrder('asc');
+    setSortOrder('desc');
     setStartDate('');
     setEndDate('');
     setSelectedLedgerType('');
