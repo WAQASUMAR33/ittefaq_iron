@@ -403,6 +403,7 @@ export async function GET(request) {
 
         const saleWithBillNumber = { 
           ...sale, 
+          notes: sale.notes || sale.reference || null,
           bill_number: bnRow?.bill_number ?? null,
           transport_details: transportDetails
         };
@@ -510,6 +511,7 @@ export async function GET(request) {
 
           const result = {
             ...sale[0],
+            notes: sale[0].notes || sale[0].reference || null,
             customer: sale[0].customer_cus_name ? {
               cus_id: Number(sale[0].customer_cus_id),
               cus_name: sale[0].customer_cus_name,
@@ -592,7 +594,11 @@ export async function GET(request) {
         // Merge bill_number from raw query (not yet in Prisma schema until regenerated)
         const billNumbers = await prisma.$queryRaw`SELECT sale_id, bill_number FROM sales`;
         const bnMap = Object.fromEntries(billNumbers.map(r => [r.sale_id, r.bill_number]));
-        const salesWithBillNumber = sales.map(s => ({ ...s, bill_number: bnMap[s.sale_id] ?? null }));
+        const salesWithBillNumber = sales.map(s => ({
+          ...s,
+          notes: s.notes || s.reference || null,
+          bill_number: bnMap[s.sale_id] ?? null
+        }));
 
         console.log('✅ Sales fetched via Prisma:', sales.length);
         return NextResponse.json(salesWithBillNumber);
@@ -814,6 +820,7 @@ export async function GET(request) {
                 shipping_amount: Number(sale.shipping_amount) || 0,
                 bill_type: sale.bill_type,
                 reference: sale.reference,
+                notes: sale.notes || sale.reference || null,
                 created_at: sale.created_at,
                 updated_at: sale.updated_at,
                 cus_id: sale.cus_id ? Number(sale.cus_id) : null,

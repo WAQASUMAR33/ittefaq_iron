@@ -491,7 +491,7 @@ export default function SalesByDateReport() {
             </div>
           </div>
 
-          <div style="margin-top:30px;font-size:12px;color:#666">Notes: ${sale.notes || ''}</div>
+          <div style="margin-top:30px;font-size:12px;color:#666">Notes: ${sale.notes || sale.reference || ''}</div>
           </div>
         </body>
       </html>`;
@@ -709,7 +709,7 @@ export default function SalesByDateReport() {
                       <Paper variant="outlined" sx={{ p: 2 }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, alignItems: 'flex-start' }}>
                           <Box sx={{ flex: 1 }}>
-                            <Typography variant="body2"><strong>Notes:</strong> {selectedSale.notes || ''}</Typography>
+                            <Typography variant="body2"><strong>Notes:</strong> {selectedSale.notes || selectedSale.reference || ''}</Typography>
                           </Box>
 
                           <Box sx={{ width: 360 }}>

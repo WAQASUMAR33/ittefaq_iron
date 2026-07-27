@@ -2694,8 +2694,10 @@ function SalesPageContent() {
       const saleData = await response.json();
       
       // Ensure mapped return fields align on details view
+      const notesVal = saleData.notes || saleData.reference || sale.notes || sale.reference || '';
       const formattedData = isReturn ? {
         ...saleData,
+        notes: notesVal,
         is_return: true,
         bill_type: 'SALE_RETURN',
         sale_id: `SR-${saleData.return_id}`,
@@ -2708,7 +2710,10 @@ function SalesPageContent() {
           unit_rate: Number(d.unit_rate || 0),
           total_amount: Number(d.total_amount || d.return_amount || 0)
         }))
-      } : saleData;
+      } : {
+        ...saleData,
+        notes: notesVal
+      };
 
       console.log('💰 Fresh data with payments:', formattedData);
 
@@ -2717,7 +2722,10 @@ function SalesPageContent() {
     } catch (error) {
       console.error('Error fetching bill details:', error);
       // Fallback to using the data from the list if API call fails
-      setSelectedBill(sale);
+      setSelectedBill({
+        ...sale,
+        notes: sale.notes || sale.reference || ''
+      });
       setViewBillDialog(true);
     }
   };
@@ -2736,8 +2744,10 @@ function SalesPageContent() {
       const saleData = await response.json();
       
       // Ensure mapped return fields align on details view
+      const notesVal = saleData.notes || saleData.reference || sale.notes || sale.reference || '';
       const formattedData = isReturn ? {
         ...saleData,
+        notes: notesVal,
         is_return: true,
         bill_type: 'SALE_RETURN',
         sale_id: `SR-${saleData.return_id}`,
@@ -2750,7 +2760,10 @@ function SalesPageContent() {
           unit_rate: Number(d.unit_rate || 0),
           total_amount: Number(d.total_amount || d.return_amount || 0)
         }))
-      } : saleData;
+      } : {
+        ...saleData,
+        notes: notesVal
+      };
 
       console.log('💰 Fresh data with payments:', formattedData);
 
@@ -2759,7 +2772,10 @@ function SalesPageContent() {
     } catch (error) {
       console.error('Error fetching receipt details:', error);
       // Fallback to using the data from the list if API call fails
-      setSelectedBill(sale);
+      setSelectedBill({
+        ...sale,
+        notes: sale.notes || sale.reference || ''
+      });
       setViewBillDialog(true);
     }
   };
@@ -5980,10 +5996,10 @@ function SalesPageContent() {
                           </TableBody>
                         </Table>
                       </TableContainer>
-                      {currentBillData.notes && (
+                      {(currentBillData.notes || currentBillData.reference) && (
                         <Box sx={{ mt: 1 }}>
                           <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
-                            <strong>Notes:</strong> {currentBillData.notes}
+                            <strong>Notes:</strong> {currentBillData.notes || currentBillData.reference}
                           </Typography>
                         </Box>
                       )}
@@ -6420,10 +6436,10 @@ function SalesPageContent() {
                           </TableBody>
                         </Table>
                       </TableContainer>
-                      {currentBillData.notes && (
+                      {(currentBillData.notes || currentBillData.reference) && (
                         <Box sx={{ mt: 1 }}>
                           <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
-                            <strong>تبصرے:</strong> {currentBillData.notes}
+                            <strong>تبصرے:</strong> {currentBillData.notes || currentBillData.reference}
                           </Typography>
                         </Box>
                       )}
@@ -8581,11 +8597,13 @@ function SalesPageContent() {
                     })()}
 
                     {/* Notes Section */}
-                    <Box sx={{ mt: 1 }}>
-                      <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
-                        <strong>Notes:</strong> {selectedBill.notes || ''}
-                      </Typography>
-                    </Box>
+                    {(selectedBill.notes || selectedBill.reference) && (
+                      <Box sx={{ mt: 1 }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
+                          <strong>Notes:</strong> {selectedBill.notes || selectedBill.reference}
+                        </Typography>
+                      </Box>
+                    )}
                   </Box>
 
                   {/* Right Side - Payment Summary */}

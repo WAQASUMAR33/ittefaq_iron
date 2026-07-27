@@ -334,7 +334,7 @@ export default function SaleReport() {
             </div>
           </div>
 
-          <div style="margin-top:30px;font-size:12px;color:#666">Notes: ${sale.notes || ''}</div>
+          <div style="margin-top:30px;font-size:12px;color:#666">Notes: ${sale.notes || sale.reference || ''}</div>
           </div>
         </body>
       </html>`;
