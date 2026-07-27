@@ -152,7 +152,11 @@ export default function CashReport() {
             return sum + credit;
           }, 0),
           totalCashSales: filteredData.cashSales.reduce((sum, s) => sum + parseFloat(s.payment || 0), 0),
-          totalCashPurchases: filteredData.cashPurchases.reduce((sum, p) => sum + parseFloat(p.payment || 0), 0),
+          totalCashPurchases: filteredData.cashPurchases.reduce((sum, p) => {
+            const cashSupplier = parseFloat(p.cash_payment || (p.payment_type === 'CASH' ? p.payment : 0) || 0);
+            const incity = parseFloat(p.incity_charges_total || 0) || (parseFloat(p.incity_own_labour || 0) + parseFloat(p.incity_own_delivery || 0));
+            return sum + cashSupplier + incity;
+          }, 0),
         };
         setReportData(filteredData);
       }

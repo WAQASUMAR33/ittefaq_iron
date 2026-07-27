@@ -579,9 +579,15 @@ async function getCashReport(startDate, endDate) {
     }
   });
 
-  // Get cash purchases
+  // Get cash purchases (including purchases with cash payments or incity charges)
   const purchasesWhere = {
-    payment_type: 'CASH'
+    OR: [
+      { payment_type: 'CASH' },
+      { cash_payment: { gt: 0 } },
+      { incity_charges_total: { gt: 0 } },
+      { incity_own_labour: { gt: 0 } },
+      { incity_own_delivery: { gt: 0 } }
+    ]
   };
 
   if (startDate && endDate) {
@@ -630,16 +636,25 @@ async function getCashReport(startDate, endDate) {
   };
   const ledgerEntriesForSummary = ledgerEntries.filter((l) => !isCashBankMemo(l));
 
+  // Helper to calculate total cash spent on a purchase (supplier cash payment + incity charges)
+  const getPurchaseCashOutflow = (p) => {
+    const cashSupplier = parseFloat(p.cash_payment || (p.payment_type === 'CASH' ? p.payment : 0) || 0);
+    const incity = parseFloat(p.incity_charges_total || 0) || (parseFloat(p.incity_own_labour || 0) + parseFloat(p.incity_own_delivery || 0));
+    return cashSupplier + incity;
+  };
+
+  const totalCashPurchases = cashPurchases.reduce((sum, p) => sum + getPurchaseCashOutflow(p), 0);
+
   // Cash account (asset): debit = money IN, credit = money OUT
   const summary = {
     totalLedgerEntries: ledgerEntriesForSummary.length,
-    totalLedgerDebit: ledgerEntriesForSummary.reduce((sum, l) => sum + parseFloat(l.debit_amount), 0),
-    totalLedgerCredit: ledgerEntriesForSummary.reduce((sum, l) => sum + parseFloat(l.credit_amount), 0),
-    totalCashSales: cashSales.reduce((sum, s) => sum + parseFloat(s.payment), 0),
-    totalCashPurchases: cashPurchases.reduce((sum, p) => sum + parseFloat(p.payment), 0),
-    totalExpenses: expenses.reduce((sum, e) => sum + parseFloat(e.exp_amount), 0),
-    cashIn: ledgerEntriesForSummary.reduce((sum, l) => sum + parseFloat(l.debit_amount), 0) + cashSales.reduce((sum, s) => sum + parseFloat(s.payment), 0),
-    cashOut: ledgerEntriesForSummary.reduce((sum, l) => sum + parseFloat(l.credit_amount), 0) + cashPurchases.reduce((sum, p) => sum + parseFloat(p.payment), 0) + expenses.reduce((sum, e) => sum + parseFloat(e.exp_amount), 0)
+    totalLedgerDebit: ledgerEntriesForSummary.reduce((sum, l) => sum + parseFloat(l.debit_amount || 0), 0),
+    totalLedgerCredit: ledgerEntriesForSummary.reduce((sum, l) => sum + parseFloat(l.credit_amount || 0), 0),
+    totalCashSales: cashSales.reduce((sum, s) => sum + parseFloat(s.payment || 0), 0),
+    totalCashPurchases: totalCashPurchases,
+    totalExpenses: expenses.reduce((sum, e) => sum + parseFloat(e.exp_amount || 0), 0),
+    cashIn: ledgerEntriesForSummary.reduce((sum, l) => sum + parseFloat(l.debit_amount || 0), 0) + cashSales.reduce((sum, s) => sum + parseFloat(s.payment || 0), 0),
+    cashOut: ledgerEntriesForSummary.reduce((sum, l) => sum + parseFloat(l.credit_amount || 0), 0) + totalCashPurchases + expenses.reduce((sum, e) => sum + parseFloat(e.exp_amount || 0), 0)
   };
 
   return NextResponse.json({

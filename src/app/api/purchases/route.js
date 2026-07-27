@@ -1051,9 +1051,20 @@ export async function POST(request) {
       const incityTotal = safeParseFloat(incity_own_labour || 0) + safeParseFloat(incity_own_delivery || 0);
 
       if (incityTotal > 0) {
-        // Reuse the already-resolved cash account (never the supplier ID)
-        const incityCashAccount = effectiveCashAccountId
-          ? await tx.customer.findUnique({ where: { cus_id: effectiveCashAccountId }, select: { cus_id: true, cus_name: true } })
+        // Reuse the already-resolved cash account or resolve default cash account
+        let incityCashAccountId = effectiveCashAccountId;
+        if (!incityCashAccountId) {
+          const cashCat = await tx.customerCategory.findFirst({
+            where: { cus_cat_title: { contains: 'Cash', mode: 'insensitive' } }
+          });
+          if (cashCat) {
+            const acc = await tx.customer.findFirst({ where: { cus_category: cashCat.cus_cat_id }, select: { cus_id: true } });
+            incityCashAccountId = acc?.cus_id || null;
+          }
+        }
+
+        const incityCashAccount = incityCashAccountId
+          ? await tx.customer.findUnique({ where: { cus_id: incityCashAccountId }, select: { cus_id: true, cus_name: true } })
           : null;
 
         if (incityCashAccount) {
