@@ -5263,9 +5263,9 @@ export default function FinancePage() {
                           <TableRow key={detail.return_detail_id || index}>
                             <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }}>{index + 1}</TableCell>
                             <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }}>{detail.product?.pro_title || detail.product?.pro_name || detail.product?.prod_name || 'N/A'}</TableCell>
-                            <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }} align="right">{fmtAmt(detail.return_quantity || 0)}</TableCell>
-                            <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }} align="right">{fmtAmt(detail.unit_rate)}</TableCell>
-                            <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }} align="right">{fmtAmt(detail.return_amount)}</TableCell>
+                            <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }} align="right">{fmtAmt(detail.qnty || detail.return_quantity || detail.qty_returned || 0)}</TableCell>
+                            <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }} align="right">{fmtAmt(detail.unit_rate || detail.crate || 0)}</TableCell>
+                            <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }} align="right">{fmtAmt(detail.total_amount || detail.return_amount || 0)}</TableCell>
                           </TableRow>
                         ))
                       ) : (
@@ -5561,9 +5561,9 @@ export default function FinancePage() {
                           <TableRow key={detail.return_detail_id || index}>
                             <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }}>{index + 1}</TableCell>
                             <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }}>{detail.product?.pro_title || detail.product?.pro_name || detail.product?.prod_name || 'N/A'}</TableCell>
-                            <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }} align="right">{fmtAmt(detail.qty_returned || 0)}</TableCell>
-                            <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }} align="right">{fmtAmt(detail.sale_price)}</TableCell>
-                            <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }} align="right">{fmtAmt(detail.total_amount)}</TableCell>
+                            <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }} align="right">{fmtAmt(detail.qnty || detail.qty_returned || detail.return_quantity || detail.quantity || 0)}</TableCell>
+                            <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }} align="right">{fmtAmt(detail.unit_rate || detail.sale_price || detail.rate || 0)}</TableCell>
+                            <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }} align="right">{fmtAmt(detail.total_amount || detail.return_amount || detail.amount || 0)}</TableCell>
                           </TableRow>
                         ))
                       ) : (
@@ -5607,10 +5607,10 @@ export default function FinancePage() {
                     </TableContainer>
 
                     {/* Notes Section */}
-                    {viewingSaleReturn.notes && (
+                    {(viewingSaleReturn.notes || viewingSaleReturn.reference) && (
                       <Box sx={{ mt: 1 }}>
                         <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
-                          <strong>Notes:</strong> {viewingSaleReturn.notes}
+                          <strong>Notes:</strong> {viewingSaleReturn.notes || viewingSaleReturn.reference}
                         </Typography>
                       </Box>
                     )}
