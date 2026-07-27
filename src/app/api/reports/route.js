@@ -626,6 +626,73 @@ async function getCashReport(startDate, endDate) {
     }
   });
 
+  // Default Cash Account for synthetic/missing incity cash entries
+  const defaultCashAccount = await prisma.customer.findFirst({
+    where: {
+      customer_category: { cus_cat_title: { contains: 'cash' } }
+    },
+    select: {
+      cus_id: true,
+      cus_name: true,
+      cus_phone_no: true,
+      customer_category: true
+    }
+  });
+
+  const finalLedgerEntries = [...ledgerEntries];
+
+  // Ensure every purchase with incity charges has an incity cash ledger entry in finalLedgerEntries
+  for (const p of cashPurchases) {
+    const incityTotal = parseFloat(p.incity_charges_total || 0) || (parseFloat(p.incity_own_labour || 0) + parseFloat(p.incity_own_delivery || 0));
+    if (incityTotal > 0) {
+      const purIdStr = String(p.pur_id);
+      const existingIncityEntry = finalLedgerEntries.find(
+        (e) => String(e.bill_no) === purIdStr && (e.details || '').toLowerCase().includes('incity')
+      );
+      if (!existingIncityEntry) {
+        const supplierName = p.customer?.cus_name || 'Supplier';
+        finalLedgerEntries.push({
+          l_id: `incity-${p.pur_id}`,
+          cus_id: defaultCashAccount?.cus_id || p.cus_id,
+          created_at: p.created_at,
+          debit_amount: 0,
+          credit_amount: incityTotal,
+          opening_balance: 0,
+          closing_balance: 0,
+          bill_no: purIdStr,
+          trnx_type: 'CREDIT',
+          details: `Incity Charges Payment - Purchase #${p.pur_id} (${supplierName})`,
+          customer: defaultCashAccount || {
+            cus_id: p.cus_id,
+            cus_name: 'Cash Account',
+            customer_category: { cus_cat_title: 'Cash Account' }
+          }
+        });
+      }
+    }
+  }
+
+  // Sort finalLedgerEntries chronologically
+  finalLedgerEntries.sort((a, b) => {
+    const timeA = new Date(a.created_at).getTime();
+    const timeB = new Date(b.created_at).getTime();
+    if (timeA !== timeB) return timeA - timeB;
+    return String(a.l_id).localeCompare(String(b.l_id));
+  });
+
+  // Re-calculate running balances for finalLedgerEntries
+  if (finalLedgerEntries.length > 0) {
+    let runningBal = parseFloat(finalLedgerEntries[0].opening_balance || 0);
+    for (let i = 0; i < finalLedgerEntries.length; i++) {
+      const e = finalLedgerEntries[i];
+      const debit = parseFloat(e.debit_amount || 0);
+      const credit = parseFloat(e.credit_amount || 0);
+      e.opening_balance = runningBal;
+      runningBal = runningBal + debit - credit;
+      e.closing_balance = runningBal;
+    }
+  }
+
   // Exclude ORDER customer memo lines (equal D/C, no receivable) — not real cash movement for the cash book
   const isCashBankMemo = (l) => {
     const det = l.details || '';
@@ -634,7 +701,7 @@ async function getCashReport(startDate, endDate) {
     const c = parseFloat(l.credit_amount || 0);
     return d > 0 && c > 0 && Math.abs(d - c) < 0.02;
   };
-  const ledgerEntriesForSummary = ledgerEntries.filter((l) => !isCashBankMemo(l));
+  const ledgerEntriesForSummary = finalLedgerEntries.filter((l) => !isCashBankMemo(l));
 
   // Helper to calculate total cash spent on a purchase (supplier cash payment + incity charges)
   const getPurchaseCashOutflow = (p) => {
@@ -658,7 +725,7 @@ async function getCashReport(startDate, endDate) {
   };
 
   return NextResponse.json({
-    ledgerEntries,
+    ledgerEntries: finalLedgerEntries,
     cashSales,
     cashPurchases,
     expenses,
