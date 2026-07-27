@@ -3293,7 +3293,7 @@ function SalesPageContent() {
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
 
   // Handle print bill with mode (A4 or Thermal or Existing)
-  const handlePrintBill = (mode = 'A4', fromDialog = false) => {
+  const handlePrintBill = (mode = 'A4', fromDialog = false, targetBill = null) => {
     try {
       const actualMode = typeof mode === 'string' ? mode : 'A4';
       const className = actualMode === 'THERMAL' 
@@ -3302,7 +3302,7 @@ function SalesPageContent() {
       const isThermal = actualMode === 'THERMAL';
 
       // Ensure active bill is set for printing
-      const activeBill = currentBillData || selectedBill;
+      const activeBill = targetBill || currentBillData || selectedBill;
       if (activeBill) {
         setCurrentBillData(activeBill);
       }
@@ -6863,76 +6863,7 @@ function SalesPageContent() {
             )}
           </DialogActions>
         </Dialog>
-
-        {/* Print Styles for Create View */}
-        <style jsx global>{`
-          @media print {
-            /* Hide UI chrome when printing */
-            .no-print, 
-            .MuiDialog-root,
-            .MuiDialog-container,
-            .MuiDialog-paper,
-            .MuiDialogTitle-root,
-            .MuiDialogActions-root { 
-              display: none !important; 
-            }
-            header, nav, footer { 
-              display: none !important; 
-            }
-            
-            /* Hide everything by default when printing */
-            body.print-a4 *,
-            body.print-thermal * {
-              visibility: hidden !important;
-            }
-            
-            /* Collapse layout container height to prevent blank page generation */
-            body.print-a4 .dashboard-layout-root,
-            body.print-thermal .dashboard-layout-root {
-              height: 0 !important;
-              max-height: 0 !important;
-              overflow: hidden !important;
-              padding: 0 !important;
-              margin: 0 !important;
-            }
-            
-            /* Show printable content */
-            body.print-a4 #printable-invoice-a4,
-            body.print-a4 #printable-invoice-a4 *,
-            body.print-thermal #printable-invoice-thermal,
-            body.print-thermal #printable-invoice-thermal * {
-              visibility: visible !important;
-            }
-            
-            /* Position and style printable containers */
-            body.print-a4 #printable-invoice-a4 {
-              position: fixed !important;
-              left: 0 !important;
-              top: 0 !important;
-              width: 100% !important;
-              max-width: 100% !important;
-              margin: 0 !important;
-              padding: 0 !important;
-              z-index: 9999 !important;
-              background: white !important;
-            }
-            
-            body.print-thermal #printable-invoice-thermal {
-              display: block !important;
-              position: absolute !important;
-              left: 0 !important;
-              top: 0 !important;
-              width: 78mm !important;
-              max-width: 78mm !important;
-              margin: 0 auto !important;
-              padding: 2mm !important;
-              box-sizing: border-box !important;
-              z-index: 99999 !important;
-              background: white !important;
-            }
-          }
-        `}</style>
-      </Container >
+      </Container>
     </DashboardLayout >
   );
 
@@ -7236,7 +7167,7 @@ function SalesPageContent() {
                       width: 52,
                       height: 52,
                       boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                      border: `1.5px solid ${stat.color}20`
+                      border: '1.5px solid rgba(0, 0, 0, 0.1)'
                     }}>
                       {stat.icon}
                     </Avatar>
@@ -7715,12 +7646,22 @@ function SalesPageContent() {
                             </IconButton>
                             <IconButton
                               size="small"
-                              color="secondary"
+                              sx={{ color: '#fd7e14' }}
                               onClick={() => {
-                                // TODO: Implement print functionality
-                                console.log('Print sale:', sale.sale_id);
+                                handlePrintBill('THERMAL', false, sale);
                               }}
-                              title="Print Bill"
+                              title="Print Thermal Receipt"
+                            >
+                              <PrintIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              color="primary"
+                              onClick={() => {
+                                setSelectedBill(sale);
+                                setReceiptDialogOpen(true);
+                              }}
+                              title="Print A4 Bill"
                             >
                               <PrintIcon fontSize="small" />
                             </IconButton>
@@ -8777,7 +8718,7 @@ function SalesPageContent() {
               bgcolor: 'primary.main',
               '&:hover': { bgcolor: 'primary.dark' }
             }}
-            onClick={() => handlePrintBill('EXISTING')}
+            onClick={() => handlePrintBill('EXISTING', true, selectedBill)}
           >
             Print A4
           </Button>
@@ -8790,8 +8731,7 @@ function SalesPageContent() {
               '&:hover': { bgcolor: '#e8690b' }
             }}
             onClick={() => {
-              if (selectedBill) setCurrentBillData(selectedBill);
-              handlePrintBill('THERMAL');
+              handlePrintBill('THERMAL', true, selectedBill);
             }}
           >
             Print Thermal
@@ -8802,6 +8742,78 @@ function SalesPageContent() {
       {/* Print Styles */}
       <style jsx global>{`
         @media print {
+          body.print-thermal *,
+          body.print-a4 *,
+          body.print-existing * {
+            visibility: hidden !important;
+          }
+
+          /* Collapse height of all layout wrappers and background components when printing */
+          body.print-thermal .dashboard-layout-root,
+          body.print-thermal .MuiContainer-root,
+          body.print-thermal .MuiStack-root,
+          body.print-thermal .MuiCard-root,
+          body.print-thermal .MuiPaper-root,
+          body.print-thermal .MuiTableContainer-root,
+          body.print-thermal .MuiTable-root,
+          body.print-thermal .MuiDialog-root,
+          body.print-thermal .no-print,
+          body.print-a4 .dashboard-layout-root,
+          body.print-a4 .no-print,
+          body.print-existing .dashboard-layout-root,
+          body.print-existing .no-print {
+            height: 0 !important;
+            max-height: 0 !important;
+            overflow: hidden !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+          }
+
+          /* Thermal Print Styling */
+          body.print-thermal #printable-invoice-thermal,
+          body.print-thermal #printable-invoice-thermal * {
+            visibility: visible !important;
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+          }
+
+          body.print-thermal #printable-invoice-thermal {
+            display: block !important;
+            position: fixed !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 78mm !important;
+            max-width: 78mm !important;
+            margin: 0 !important;
+            padding: 2mm !important;
+            box-sizing: border-box !important;
+            z-index: 999999 !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+          }
+
+          /* A4 Print Styling */
+          body.print-a4 #printable-invoice-a4,
+          body.print-a4 #printable-invoice-a4 * {
+            visibility: visible !important;
+            height: auto !important;
+          }
+
+          body.print-a4 #printable-invoice-a4 {
+            display: block !important;
+            position: fixed !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            z-index: 999999 !important;
+            background: white !important;
+          }
+
           body.print-existing {
             @page {
               size: A4;
@@ -9967,10 +9979,12 @@ function SalesPageContent() {
             Yes, Save Anyway
           </Button>
         </DialogActions>
+      </Dialog>
+
       {/* Thermal Printable Container - Redesigned 80mm Receipt */}
       {(() => {
         const activeBillData = currentBillData || selectedBill;
-        if (!activeBillData) return <div id="printable-invoice-thermal" style={{ display: 'none' }}></div>;
+        if (!activeBillData) return <Box id="printable-invoice-thermal" sx={{ display: 'none' }}></Box>;
 
         const totalAmount = parseFloat(activeBillData.total_amount || 0);
         const discountAmount = parseFloat(activeBillData.discount || 0);
@@ -10159,7 +10173,6 @@ function SalesPageContent() {
           </Box>
         );
       })()}
-      </Dialog>
     </>
   );
 }

@@ -1885,10 +1885,8 @@ function OrdersPageContent() {
   const [currentBillData, setCurrentBillData] = useState(null);
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
 
-  // Handle print bill with mode (A4 or Thermal)
-  const handlePrintBill = (mode = 'A4', fromDialog = false) => {
+  const handlePrintBill = (mode = 'EXISTING', fromDialog = false, targetBill = null) => {
     try {
-      // Handle when mode is a click event object
       const actualMode = typeof mode === 'string' ? mode : 'EXISTING';
       const className = actualMode === 'THERMAL' 
         ? 'print-thermal' 
@@ -1896,8 +1894,8 @@ function OrdersPageContent() {
       const isThermal = actualMode === 'THERMAL';
 
       // Ensure active bill is set for printing
-      const activeBill = currentBillData || selectedBill;
-      if (activeBill && (!currentBillData || currentBillData.sale_id !== activeBill.sale_id)) {
+      const activeBill = targetBill || currentBillData || selectedBill;
+      if (activeBill) {
         setCurrentBillData(activeBill);
       }
 
@@ -1910,8 +1908,9 @@ function OrdersPageContent() {
 
       // Fallback in case container is not found
       if (!printableContainer) {
-        printableContainer = document.getElementById('printable-invoice') || 
-                             document.getElementById('printable-invoice-a4');
+        printableContainer = isThermal
+          ? document.getElementById('printable-invoice-thermal')
+          : (document.getElementById('printable-invoice') || document.getElementById('printable-invoice-a4'));
       }
 
       if (!printableContainer) {
@@ -5774,6 +5773,58 @@ function OrdersPageContent() {
       {/* Print Styles */}
       <style jsx global>{`
         @media print {
+          body.print-thermal *,
+          body.print-a4 *,
+          body.print-existing * {
+            visibility: hidden !important;
+          }
+
+          /* Collapse height of all layout wrappers and background components when printing */
+          body.print-thermal .dashboard-layout-root,
+          body.print-thermal .MuiContainer-root,
+          body.print-thermal .MuiStack-root,
+          body.print-thermal .MuiCard-root,
+          body.print-thermal .MuiPaper-root,
+          body.print-thermal .MuiTableContainer-root,
+          body.print-thermal .MuiTable-root,
+          body.print-thermal .MuiDialog-root,
+          body.print-thermal .no-print,
+          body.print-a4 .dashboard-layout-root,
+          body.print-a4 .no-print,
+          body.print-existing .dashboard-layout-root,
+          body.print-existing .no-print {
+            height: 0 !important;
+            max-height: 0 !important;
+            overflow: hidden !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+          }
+
+          /* Thermal Print Styling */
+          body.print-thermal #printable-invoice-thermal,
+          body.print-thermal #printable-invoice-thermal * {
+            visibility: visible !important;
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+          }
+
+          body.print-thermal #printable-invoice-thermal {
+            display: block !important;
+            position: fixed !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 78mm !important;
+            max-width: 78mm !important;
+            margin: 0 !important;
+            padding: 2mm !important;
+            box-sizing: border-box !important;
+            z-index: 999999 !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+          }
+
           body.print-existing {
             @page {
               size: A4;
@@ -6361,7 +6412,7 @@ function OrdersPageContent() {
       {/* Thermal Printable Container - Redesigned 80mm Receipt */}
       {(() => {
         const activeBillData = currentBillData || selectedBill;
-        if (!activeBillData) return <div id="printable-invoice-thermal" style={{ display: 'none' }}></div>;
+        if (!activeBillData) return <Box id="printable-invoice-thermal" sx={{ display: 'none' }}></Box>;
 
         const totalAmount = parseFloat(activeBillData.total_amount || 0);
         const discountAmount = parseFloat(activeBillData.discount || 0);
