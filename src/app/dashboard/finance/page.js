@@ -4235,11 +4235,8 @@ export default function FinancePage() {
               </Box>
               <Box sx={{ flex: 1, minHeight: '56px', display: 'flex', alignItems: 'stretch' }}>
                 {receiveTotalPreview > 0 ? (
-                  <Box sx={{ p: 1.5, bgcolor: '#f0fdf4', borderRadius: 2, border: '1px solid #bbf7d0', width: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                    <Typography variant="caption" sx={{ color: '#166534', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.7rem' }}>
-                      Total Amount in Words (اردو میں رقم)
-                    </Typography>
-                    <Typography variant="body1" sx={{ fontWeight: 800, color: '#16a34a', mt: 0.2, fontSize: '1rem' }}>
+                  <Box sx={{ p: 1.5, bgcolor: '#f0fdf4', borderRadius: 2, border: '1px solid #bbf7d0', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Typography variant="body1" sx={{ fontWeight: 800, color: '#16a34a', fontSize: '1rem', textAlign: 'center' }}>
                       {numberToUrduWords(receiveTotalPreview)}
                     </Typography>
                   </Box>
@@ -4476,11 +4473,8 @@ export default function FinancePage() {
               </Box>
               <Box sx={{ flex: 1, minHeight: '56px', display: 'flex', alignItems: 'stretch' }}>
                 {payTotalPreview > 0 ? (
-                  <Box sx={{ p: 1.5, bgcolor: '#fef2f2', borderRadius: 2, border: '1px solid #fecaca', width: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                    <Typography variant="caption" sx={{ color: '#991b1b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.7rem' }}>
-                      Total Amount in Words (اردو میں رقم)
-                    </Typography>
-                    <Typography variant="body1" sx={{ fontWeight: 800, color: '#dc2626', mt: 0.2, fontSize: '1rem' }}>
+                  <Box sx={{ p: 1.5, bgcolor: '#fef2f2', borderRadius: 2, border: '1px solid #fecaca', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Typography variant="body1" sx={{ fontWeight: 800, color: '#dc2626', fontSize: '1rem', textAlign: 'center' }}>
                       {numberToUrduWords(payTotalPreview)}
                     </Typography>
                   </Box>
