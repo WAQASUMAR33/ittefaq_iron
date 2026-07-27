@@ -3088,14 +3088,45 @@ export default function FinancePage() {
                         const isRowCashBank = rowCategoryTitle.includes('cash') || rowCategoryTitle.includes('bank');
                         const isRowSupplier = rowCategoryTitle.includes('supplier') || rowCategoryTitle.includes('labour') || rowCategoryTitle.includes('transport') || rowCategoryTitle.includes('delivery');
 
-                        let isPositive = isDebit;
+                        const ledgerTypeLower = (entry.ledger_type || '').toLowerCase();
+                        const detailsLower = (entry.details || '').toLowerCase();
+                        const trnxTypeLower = (entry.trnx_type || '').toLowerCase();
+                        const billTypeLower = (entry.bill_type || '').toLowerCase();
+
+                        const isReceiving = ledgerTypeLower === 'receiving' || 
+                                            ledgerTypeLower === 'receipt' || 
+                                            trnxTypeLower === 'receiving' || 
+                                            trnxTypeLower === 'receipt' || 
+                                            billTypeLower === 'finance_in' || 
+                                            detailsLower.includes('receiving') || 
+                                            detailsLower.includes('cash receipt') || 
+                                            detailsLower.includes('received');
+
+                        const isPayment = ledgerTypeLower === 'payment' || 
+                                          ledgerTypeLower === 'pay' || 
+                                          trnxTypeLower === 'payment' || 
+                                          trnxTypeLower === 'pay' || 
+                                          billTypeLower === 'finance_out' || 
+                                          detailsLower.includes('payment') || 
+                                          detailsLower.includes('cash payment') || 
+                                          detailsLower.includes('paid to');
+
+                        let isPositive;
+                        if (isReceiving) {
+                          isPositive = true; // Receiving entries are GREEN
+                        } else if (isPayment) {
+                          isPositive = false; // Payment entries are RED
+                        } else {
+                          // Default fallback: Credit entries represent incoming/receiving (GREEN), Debit entries represent outgoing/payment (RED)
+                          isPositive = isCredit || !isDebit;
+                        }
 
                         const rowBgColor = isPositive ? '#dcfce7' : '#fee2e2';
                         const entryTypeColor = isPositive ? '#16a34a' : '#dc2626';
 
-                        // Column text colors (Debit on left, Credit on right)
-                        const debitColor = '#16a34a';
-                        const creditColor = '#dc2626';
+                        // Column text colors match entry type color (Green for receiving, Red for payment)
+                        const debitColor = entryTypeColor;
+                        const creditColor = entryTypeColor;
 
                         return (
                           <TableRow
@@ -4181,37 +4212,57 @@ export default function FinancePage() {
               />
             </Box>
 
-            {/* Bank Account Section */}
-            <Box>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
-                Bank Account
-              </Typography>
-              <FormControl fullWidth>
-                <Select
-                  value={receivePaymentData.bank_account}
-                  onChange={(e) => setReceivePaymentData((prev) => {
-                    const updated = { ...prev, bank_account: e.target.value };
-                    const accName = customers.find((c) => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || '';
-                    updated.description = buildFinancePaymentDescription(
-                      'RECEIVE',
-                      accName,
-                      updated.cash_amount,
-                      updated.bank_amount,
-                      updated.bank_account,
-                      bankAccounts,
-                      updated.discount
-                    );
-                    return updated;
-                  })}
-                  displayEmpty
-                  sx={{ bgcolor: '#f8fafc' }}
-                >
-                  <MenuItem value="">Select Bank Account</MenuItem>
-                  {bankAccounts.map(account => (
-                    <MenuItem key={account.cus_id} value={account.cus_id}>{account.cus_name}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+            {/* Bank Account and Amount in Words Row */}
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-end' }}>
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
+                  Bank Account
+                </Typography>
+                <FormControl fullWidth>
+                  <Select
+                    value={receivePaymentData.bank_account}
+                    onChange={(e) => setReceivePaymentData((prev) => {
+                      const updated = { ...prev, bank_account: e.target.value };
+                      const accName = customers.find((c) => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || '';
+                      updated.description = buildFinancePaymentDescription(
+                        'RECEIVE',
+                        accName,
+                        updated.cash_amount,
+                        updated.bank_amount,
+                        updated.bank_account,
+                        bankAccounts,
+                        updated.discount
+                      );
+                      return updated;
+                    })}
+                    displayEmpty
+                    sx={{ bgcolor: '#f8fafc' }}
+                  >
+                    <MenuItem value="">Select Bank Account</MenuItem>
+                    {bankAccounts.map(account => (
+                      <MenuItem key={account.cus_id} value={account.cus_id}>{account.cus_name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Box>
+              <Box sx={{ flex: 1, minHeight: '56px', display: 'flex', alignItems: 'stretch' }}>
+                {receiveTotalPreview > 0 ? (
+                  <Box sx={{ p: 1.5, bgcolor: '#f0fdf4', borderRadius: 2, border: '1px solid #bbf7d0', width: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <Typography variant="caption" sx={{ color: '#166534', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.7rem' }}>
+                      Total Amount in Words (اردو میں رقم)
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 800, color: '#16a34a', mt: 0.2, fontSize: '1rem' }}>
+                      {numberToUrduWords(receiveTotalPreview)}
+                    </Typography>
+                  </Box>
+                ) : (
+                  <Box sx={{ p: 1.5, bgcolor: '#f8fafc', borderRadius: 2, border: '1px dashed #cbd5e1', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Typography variant="caption" sx={{ color: '#94a3b8' }}>
+                      Enter amount to see words
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
             </Box>
 
             <Box>
@@ -4244,54 +4295,33 @@ export default function FinancePage() {
               />
             </Box>
 
-            {/* Discount and Amount in Words Row */}
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-end' }}>
-              <Box sx={{ flex: 1 }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
-                  Discount
-                </Typography>
-                <TextField
-                  fullWidth
-                  placeholder="0.00"
-                  type="number"
-                  value={receivePaymentData.discount}
-                  onChange={(e) => setReceivePaymentData((prev) => {
-                    const updated = { ...prev, discount: e.target.value };
-                    const accName = customers.find((c) => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || '';
-                    updated.description = buildFinancePaymentDescription(
-                      'RECEIVE',
-                      accName,
-                      updated.cash_amount,
-                      updated.bank_amount,
-                      updated.bank_account,
-                      bankAccounts,
-                      updated.discount
-                    );
-                    return updated;
-                  })}
-                  InputProps={{
-                    startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
-                  }}
-                />
-              </Box>
-              <Box sx={{ flex: 1, minHeight: '56px', display: 'flex', alignItems: 'stretch' }}>
-                {receiveTotalPreview > 0 ? (
-                  <Box sx={{ p: 1.5, bgcolor: '#f0fdf4', borderRadius: 2, border: '1px solid #bbf7d0', width: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                    <Typography variant="caption" sx={{ color: '#166534', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.7rem' }}>
-                      Total Amount in Words (اردو میں رقم)
-                    </Typography>
-                    <Typography variant="body1" sx={{ fontWeight: 800, color: '#16a34a', mt: 0.2, fontSize: '1rem' }}>
-                      {numberToUrduWords(receiveTotalPreview)}
-                    </Typography>
-                  </Box>
-                ) : (
-                  <Box sx={{ p: 1.5, bgcolor: '#f8fafc', borderRadius: 2, border: '1px dashed #cbd5e1', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Typography variant="caption" sx={{ color: '#94a3b8' }}>
-                      Enter amount to see words
-                    </Typography>
-                  </Box>
-                )}
-              </Box>
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
+                Discount
+              </Typography>
+              <TextField
+                fullWidth
+                placeholder="0.00"
+                type="number"
+                value={receivePaymentData.discount}
+                onChange={(e) => setReceivePaymentData((prev) => {
+                  const updated = { ...prev, discount: e.target.value };
+                  const accName = customers.find((c) => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || '';
+                  updated.description = buildFinancePaymentDescription(
+                    'RECEIVE',
+                    accName,
+                    updated.cash_amount,
+                    updated.bank_amount,
+                    updated.bank_account,
+                    bankAccounts,
+                    updated.discount
+                  );
+                  return updated;
+                })}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
+                }}
+              />
             </Box>
 
             <Divider sx={{ borderStyle: 'dotted', my: 1 }} />
@@ -4423,37 +4453,57 @@ export default function FinancePage() {
               />
             </Box>
 
-            {/* Bank Account Section */}
-            <Box>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
-                Bank Account
-              </Typography>
-              <FormControl fullWidth>
-                <Select
-                  value={payPaymentData.bank_account}
-                  onChange={(e) => setPayPaymentData((prev) => {
-                    const updated = { ...prev, bank_account: e.target.value };
-                    const accName = customers.find((c) => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || '';
-                    updated.description = buildFinancePaymentDescription(
-                      'PAY',
-                      accName,
-                      updated.cash_amount,
-                      updated.bank_amount,
-                      updated.bank_account,
-                      bankAccounts,
-                      updated.discount
-                    );
-                    return updated;
-                  })}
-                  displayEmpty
-                  sx={{ bgcolor: '#f8fafc' }}
-                >
-                  <MenuItem value="">Select Bank Account</MenuItem>
-                  {bankAccounts.map(account => (
-                    <MenuItem key={account.cus_id} value={account.cus_id}>{account.cus_name}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+            {/* Bank Account and Amount in Words Row */}
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-end' }}>
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
+                  Bank Account
+                </Typography>
+                <FormControl fullWidth>
+                  <Select
+                    value={payPaymentData.bank_account}
+                    onChange={(e) => setPayPaymentData((prev) => {
+                      const updated = { ...prev, bank_account: e.target.value };
+                      const accName = customers.find((c) => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || '';
+                      updated.description = buildFinancePaymentDescription(
+                        'PAY',
+                        accName,
+                        updated.cash_amount,
+                        updated.bank_amount,
+                        updated.bank_account,
+                        bankAccounts,
+                        updated.discount
+                      );
+                      return updated;
+                    })}
+                    displayEmpty
+                    sx={{ bgcolor: '#f8fafc' }}
+                  >
+                    <MenuItem value="">Select Bank Account</MenuItem>
+                    {bankAccounts.map(account => (
+                      <MenuItem key={account.cus_id} value={account.cus_id}>{account.cus_name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Box>
+              <Box sx={{ flex: 1, minHeight: '56px', display: 'flex', alignItems: 'stretch' }}>
+                {payTotalPreview > 0 ? (
+                  <Box sx={{ p: 1.5, bgcolor: '#fef2f2', borderRadius: 2, border: '1px solid #fecaca', width: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <Typography variant="caption" sx={{ color: '#991b1b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.7rem' }}>
+                      Total Amount in Words (اردو میں رقم)
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 800, color: '#dc2626', mt: 0.2, fontSize: '1rem' }}>
+                      {numberToUrduWords(payTotalPreview)}
+                    </Typography>
+                  </Box>
+                ) : (
+                  <Box sx={{ p: 1.5, bgcolor: '#f8fafc', borderRadius: 2, border: '1px dashed #cbd5e1', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Typography variant="caption" sx={{ color: '#94a3b8' }}>
+                      Enter amount to see words
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
             </Box>
 
             <Box>
@@ -4486,54 +4536,33 @@ export default function FinancePage() {
               />
             </Box>
 
-            {/* Discount and Amount in Words Row */}
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-end' }}>
-              <Box sx={{ flex: 1 }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
-                  Discount
-                </Typography>
-                <TextField
-                  fullWidth
-                  placeholder="0.00"
-                  type="number"
-                  value={payPaymentData.discount}
-                  onChange={(e) => setPayPaymentData((prev) => {
-                    const updated = { ...prev, discount: e.target.value };
-                    const accName = customers.find((c) => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || '';
-                    updated.description = buildFinancePaymentDescription(
-                      'PAY',
-                      accName,
-                      updated.cash_amount,
-                      updated.bank_amount,
-                      updated.bank_account,
-                      bankAccounts,
-                      updated.discount
-                    );
-                    return updated;
-                  })}
-                  InputProps={{
-                    startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
-                  }}
-                />
-              </Box>
-              <Box sx={{ flex: 1, minHeight: '56px', display: 'flex', alignItems: 'stretch' }}>
-                {payTotalPreview > 0 ? (
-                  <Box sx={{ p: 1.5, bgcolor: '#fef2f2', borderRadius: 2, border: '1px solid #fecaca', width: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                    <Typography variant="caption" sx={{ color: '#991b1b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.7rem' }}>
-                      Total Amount in Words (اردو میں رقم)
-                    </Typography>
-                    <Typography variant="body1" sx={{ fontWeight: 800, color: '#dc2626', mt: 0.2, fontSize: '1rem' }}>
-                      {numberToUrduWords(payTotalPreview)}
-                    </Typography>
-                  </Box>
-                ) : (
-                  <Box sx={{ p: 1.5, bgcolor: '#f8fafc', borderRadius: 2, border: '1px dashed #cbd5e1', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Typography variant="caption" sx={{ color: '#94a3b8' }}>
-                      Enter amount to see words
-                    </Typography>
-                  </Box>
-                )}
-              </Box>
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
+                Discount
+              </Typography>
+              <TextField
+                fullWidth
+                placeholder="0.00"
+                type="number"
+                value={payPaymentData.discount}
+                onChange={(e) => setPayPaymentData((prev) => {
+                  const updated = { ...prev, discount: e.target.value };
+                  const accName = customers.find((c) => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || '';
+                  updated.description = buildFinancePaymentDescription(
+                    'PAY',
+                    accName,
+                    updated.cash_amount,
+                    updated.bank_amount,
+                    updated.bank_account,
+                    bankAccounts,
+                    updated.discount
+                  );
+                  return updated;
+                })}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
+                }}
+              />
             </Box>
 
             <Divider sx={{ borderStyle: 'dotted', my: 1 }} />

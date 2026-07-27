@@ -1971,8 +1971,8 @@ function OrdersPageContent() {
         styleElement.textContent = `
           @media print {
             @page {
-              size: A4 portrait !important;
-              margin: 0.5cm 1cm !important;
+              size: A5 portrait !important;
+              margin: 0.3cm !important;
             }
           }
         `;
@@ -3662,7 +3662,7 @@ function OrdersPageContent() {
                   onClick={() => handlePrintBill('A4')}
                   disabled={!currentBillData}
                 >
-                  Print A4
+                  Print A5
                 </Button>
                 <Button
                   variant="contained"
@@ -3730,8 +3730,8 @@ function OrdersPageContent() {
 
         {/* Printable Bill Content - Hidden but accessible for printing */}
         {currentBillData && (
-          <Box sx={{ position: 'absolute', left: '-9999px', top: '-9999px', width: '21cm', overflow: 'hidden' }}>
-            {/* A4 Printable Container */}
+          <Box sx={{ position: 'absolute', left: '-9999px', top: '-9999px', width: '14.8cm', overflow: 'hidden' }}>
+            {/* A5 Printable Container */}
             <Box id="printable-invoice-a4" sx={{ width: '100%', bgcolor: 'white' }}>
               {/* Company Header */}
               <Box sx={{ textAlign: 'center', py: 3, borderBottom: '2px solid #000' }}>
@@ -4207,7 +4207,7 @@ function OrdersPageContent() {
               }}
               onClick={() => handlePrintBill('A4', true)}
             >
-              Print A4
+              Print A5
             </Button>
             <Button
               variant="contained"
@@ -5450,11 +5450,11 @@ function OrdersPageContent() {
           sx: {
             borderRadius: 2,
             boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-            width: '210mm', // A4 width
-            maxWidth: '210mm',
+            width: '148mm', // A5 width
+            maxWidth: '148mm',
             '@media print': {
-              width: '210mm',
-              maxWidth: '210mm',
+              width: '148mm',
+              maxWidth: '148mm',
               margin: '0 auto'
             }
           }
@@ -5857,9 +5857,9 @@ function OrdersPageContent() {
             position: fixed !important;
             left: 0 !important;
             top: 0 !important;
-            width: 210mm !important;
-            max-width: 210mm !important;
-            margin: 0 !important;
+            width: 148mm !important;
+            max-width: 148mm !important;
+            margin: 0 auto !important;
             padding: 5mm !important;
             box-sizing: border-box !important;
             z-index: 999999 !important;
@@ -6525,8 +6525,8 @@ function OrdersPageContent() {
           <Box
             id="printable-invoice"
             sx={{
-              width: '210mm',
-              maxWidth: '210mm',
+              width: '148mm',
+              maxWidth: '148mm',
               bgcolor: '#ffffff',
               color: '#000000',
               mx: 'auto',
