@@ -130,7 +130,8 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
     }
   }
 
-  async function submitFingerprint() {
+  async function submitFingerprint(sampleOverride) {
+    const sample = sampleOverride || lastSample;
     const user = getCurrentUser();
     if (!user) {
       setFpError('Session expired.');
@@ -140,7 +141,7 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
       setFpError('No fingerprint enrolled for this user. Ask an admin to enroll in Settings.');
       return;
     }
-    if (!lastSample?.template) {
+    if (!sample?.template) {
       setFpError('Scan your fingerprint first (wait for a fresh capture).');
       return;
     }
@@ -153,7 +154,7 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: user.user_id,
-          template: lastSample.template,
+          template: sample.template,
           format: 'PngImage',
         }),
       });
@@ -161,7 +162,7 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
       if (data.valid) {
         onSuccess();
       } else {
-        setFpError(data.error || 'Fingerprint not recognized.');
+        setFpError(data.error || 'Fingerprint not recognized. Please scan again.');
       }
     } catch {
       setFpError('Network error. Try again.');
@@ -361,17 +362,23 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
             <p style={{ margin: '0 0 10px', fontSize: 12, color: '#64748b', lineHeight: 1.4 }}>
               Requires the HID <strong>DigitalPersona Lite Client / Agent</strong> on this machine (it exposes{' '}
               <code style={{ fontSize: 11 }}>ws://127.0.0.1:9001</code>
-              ) and a supported USB reader. If you see a connection error, use <strong>PIN</strong> instead or start
-              the &quot;DigitalPersona Agent&quot; service in Windows.
+              ) and a supported USB reader.
             </p>
             <FingerprintScanner
               format={SampleFormat.PngImage}
               autoStart
+              disabled={fpLoading}
               onSample={(s) => {
+                if (fpLoading) return;
                 setLastSample(s);
                 setFpError('');
+                submitFingerprint(s);
               }}
-              hint={lastSample ? 'Latest capture received — press verify.' : 'Place finger when prompted.'}
+              hint={
+                fpLoading
+                  ? '🔄 Matching fingerprint automatically...'
+                  : 'Place your finger on the reader to auto-verify.'
+              }
             />
           </div>
         )}
@@ -399,9 +406,10 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
               border: '1px solid #fecaca',
               borderRadius: '10px',
               padding: '10px 14px',
-              marginBottom: '12px',
+              marginTop: '12px',
               fontSize: '0.82rem',
               color: '#dc2626',
+              textAlign: 'center',
             }}
           >
             ⚠️ {fpError}
@@ -426,26 +434,6 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
         >
           {pinLoading ? 'Verifying...' : '🔓 Confirm with PIN'}
         </button>
-        )}
-
-        {authMode === 'fp' && showFingerprint && (
-          <button
-            onClick={submitFingerprint}
-            disabled={fpLoading || !lastSample}
-            style={{
-              width: '100%',
-              padding: '12px',
-              background: fpLoading || !lastSample ? '#93c5fd' : 'linear-gradient(135deg, #1d4ed8, #1e40af)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '10px',
-              fontWeight: '800',
-              fontSize: '0.875rem',
-              cursor: fpLoading || !lastSample ? 'not-allowed' : 'pointer',
-            }}
-          >
-            {fpLoading ? 'Verifying...' : '✅ Verify fingerprint'}
-          </button>
         )}
       </div>
     </div>
