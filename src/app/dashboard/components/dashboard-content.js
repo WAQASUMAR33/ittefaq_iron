@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-
   DollarSign,
   ShoppingCart,
   Users,
@@ -24,13 +23,33 @@ import {
   BookOpen,
   Clock,
   Calendar,
-  Filter
+  Filter,
+  CreditCard,
+  Banknote,
+  PieChart,
+  BarChart3
 } from 'lucide-react';
 
 const fmtAmt = (val) => {
   const n = parseFloat(val || 0);
   if (n % 1 === 0) return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+const formatMonthLabel = (mStr) => {
+  if (!mStr) return '';
+  const parts = mStr.split('-');
+  if (parts.length < 2) return mStr;
+  const mIndex = parseInt(parts[1], 10) - 1;
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${monthNames[mIndex] || parts[1]} '${parts[0].slice(2)}`;
+};
+
+const fmtK = v => {
+  const abs = Math.abs(v);
+  if (abs >= 1000000) return `${(v / 1000000).toFixed(1)}M`;
+  if (abs >= 1000) return `${(v / 1000).toFixed(0)}K`;
+  return v.toFixed(0);
 };
 
 export default function DashboardContent({ activeTab }) {
@@ -46,6 +65,11 @@ export default function DashboardContent({ activeTab }) {
   const [supCatFilter, setSupCatFilter] = useState('');
   const [allCategories, setAllCategories] = useState([]);
   const [balanceLoading, setBalanceLoading] = useState(false);
+
+  // New Monthly Analytics State (Credit, Debit, Profit, Sale + Date Filter)
+  const [monthlyAnalyticsFilters, setMonthlyAnalyticsFilters] = useState({ fromDate: '', toDate: '' });
+  const [monthlyAnalyticsData, setMonthlyAnalyticsData] = useState(null);
+  const [monthlyAnalyticsLoading, setMonthlyAnalyticsLoading] = useState(false);
 
   // Fetch dashboard analytics
   useEffect(() => {
@@ -71,26 +95,42 @@ export default function DashboardContent({ activeTab }) {
     fetchAnalytics();
   }, [activeTab]);
 
+  // Fetch monthly analytics (Credit, Debit, Profit, Sale) with date filter
+  useEffect(() => {
+    if (activeTab !== 'dashboard') return;
+    const fetchMonthlyAnalytics = async () => {
+      setMonthlyAnalyticsLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (monthlyAnalyticsFilters.fromDate) params.set('fromDate', monthlyAnalyticsFilters.fromDate);
+        if (monthlyAnalyticsFilters.toDate) params.set('toDate', monthlyAnalyticsFilters.toDate);
+        const res = await fetch(`/api/dashboard/monthly-analytics?${params}`);
+        const json = await res.json();
+        if (json?.success) {
+          setMonthlyAnalyticsData(json.data);
+        }
+      } catch (err) {
+        console.error('Error fetching monthly analytics graphs:', err);
+      } finally {
+        setMonthlyAnalyticsLoading(false);
+      }
+    };
+    fetchMonthlyAnalytics();
+  }, [activeTab, monthlyAnalyticsFilters]);
+
   // Fetch recent activities and charts data
   useEffect(() => {
     const fetchRecentData = async () => {
       try {
-        // Fetch all sales to calculate last 7 days
         const salesRes = await fetch('/api/sales?limit=100');
         const salesDataRaw = salesRes.ok ? await salesRes.json() : [];
         const salesList = Array.isArray(salesDataRaw) ? salesDataRaw : (salesDataRaw.data || []);
 
-        // Fetch recent purchases
         const purchasesRes = await fetch('/api/purchases?limit=5');
         const purchasesData = purchasesRes.ok ? await purchasesRes.json() : [];
 
-        // Fetch recent orders (from sales with ORDER bill type)
-        const ordersData = salesList.filter(s => s.bill_type === 'ORDER').slice(0, 5);
-
-        // Build recent activities from combined data
         const activities = [];
         
-        // Add sales (most recent)
         salesList.slice(0, 3).forEach(sale => {
           activities.push({
             id: `sale-${sale.sale_id}`,
@@ -102,7 +142,6 @@ export default function DashboardContent({ activeTab }) {
           });
         });
 
-        // Add purchases
         const purchases = Array.isArray(purchasesData) ? purchasesData : (purchasesData.data || []);
         purchases.slice(0, 2).forEach(purchase => {
           activities.push({
@@ -117,7 +156,6 @@ export default function DashboardContent({ activeTab }) {
 
         setRecentActivityData(activities);
 
-        // Build 7-day sales chart data (previous 6 days + current day)
         const today = new Date();
         const last7Days = [];
         for (let i = 6; i >= 0; i--) {
@@ -131,7 +169,6 @@ export default function DashboardContent({ activeTab }) {
           });
         }
 
-        // Group sales by day — split bills vs orders
         const daySlots = last7Days.map(d => ({ ...d, billAmt:0, orderAmt:0, total:0, totalCount:0, orderCount:0 }));
         salesList.forEach(sale => {
           const sd = new Date(sale.created_at);
@@ -162,7 +199,6 @@ export default function DashboardContent({ activeTab }) {
     if (activeTab === 'dashboard') {
       fetchRecentData();
       
-      // Auto-refresh the data every 60 seconds
       const interval = setInterval(() => {
         fetchRecentData();
       }, 60000);
@@ -171,7 +207,6 @@ export default function DashboardContent({ activeTab }) {
     }
   }, [activeTab]);
 
-  // Load category list once (for filter dropdowns)
   useEffect(() => {
     if (activeTab !== 'dashboard') return;
     fetch('/api/customer-category')
@@ -180,7 +215,6 @@ export default function DashboardContent({ activeTab }) {
       .catch(() => {});
   }, [activeTab]);
 
-  // Fetch customer & supplier balance data — re-runs whenever filters change
   useEffect(() => {
     if (activeTab !== 'dashboard') return;
     const fetchBalances = async () => {
@@ -203,7 +237,6 @@ export default function DashboardContent({ activeTab }) {
     fetchBalances();
   }, [activeTab, balanceFilters, cusCatFilter, supCatFilter]);
 
-  // Fetch monthly profit data
   useEffect(() => {
     if (activeTab !== 'dashboard') return;
     fetch('/api/dashboard/profit')
@@ -212,7 +245,6 @@ export default function DashboardContent({ activeTab }) {
       .catch(err => console.error('Profit fetch error:', err));
   }, [activeTab]);
 
-  // Handle navigation to separate pages
   useEffect(() => {
     if (activeTab === 'usermanagement') {
       router.push('/dashboard/usermanagement');
@@ -221,7 +253,6 @@ export default function DashboardContent({ activeTab }) {
     }
   }, [activeTab, router]);
 
-  // If navigating to a separate page, show loading
   if (activeTab === 'usermanagement' || activeTab === 'customercategory') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
@@ -230,10 +261,22 @@ export default function DashboardContent({ activeTab }) {
     );
   }
 
-  // Format number with commas
   const formatNumber = (num) => {
     if (!num && num !== 0) return '0';
     return fmtAmt(num);
+  };
+
+  const applyDatePreset = (days) => {
+    const today = new Date();
+    const toStr = today.toISOString().split('T')[0];
+    let fromDate = new Date();
+    if (days === 'year') {
+      fromDate = new Date(today.getFullYear(), 0, 1);
+    } else {
+      fromDate.setDate(today.getDate() - days);
+    }
+    const fromStr = fromDate.toISOString().split('T')[0];
+    setMonthlyAnalyticsFilters({ fromDate: fromStr, toDate: toStr });
   };
 
   const kpiData = analyticsData ? [
@@ -328,8 +371,88 @@ export default function DashboardContent({ activeTab }) {
     router.push(path);
   };
 
-  // Show different content based on active tab
+  // Helper renderer for SVG bar charts used in Monthly Graphs
+  const renderSingleBarChart = ({ data, getValue, colorPrimary, colorGradientStop, barId, labelKey = 'period', hoverUnit = 'PKR' }) => {
+    if (!data || data.length === 0) {
+      return (
+        <div className="h-56 flex flex-col items-center justify-center text-gray-400 text-sm">
+          <BarChart3 className="w-10 h-10 mb-2 opacity-30" />
+          No data available for selected date range
+        </div>
+      );
+    }
+
+    const pL = 52, pR = 16, pT = 24, pB = 36, W = 600, H = 220;
+    const cW = W - pL - pR, cH = H - pT - pB;
+    const n = data.length;
+    const grpW = cW / n;
+    const barW = Math.min(grpW * 0.55, 36);
+    const values = data.map(getValue);
+    const maxV = Math.max(...values.map(v => Math.abs(v)), 1);
+
+    return (
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="230" className="overflow-visible">
+        <defs>
+          <linearGradient id={barId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={colorPrimary} />
+            <stop offset="100%" stopColor={colorGradientStop} stopOpacity="0.4" />
+          </linearGradient>
+        </defs>
+        <line x1={pL} y1={pT} x2={pL} y2={pT + cH} stroke="#e2e8f0" strokeWidth="1" />
+        {[0, 0.25, 0.5, 0.75, 1].map(f => {
+          const y = pT + cH * (1 - f);
+          return (
+            <g key={f}>
+              <line x1={pL} y1={y} x2={W - pR} y2={y} stroke={f === 0 ? '#e2e8f0' : '#f8fafc'} strokeWidth="1" strokeDasharray={f === 0 ? '' : '3 3'} />
+              <text x={pL - 6} y={y + 4} fontSize="9" fill="#94a3b8" textAnchor="end">{fmtK(maxV * f)}</text>
+            </g>
+          );
+        })}
+        {data.map((item, i) => {
+          const val = getValue(item);
+          const cx = pL + grpW * i + grpW / 2;
+          const bx = cx - barW / 2;
+          const bH = Math.max((Math.abs(val) / maxV) * cH, val !== 0 ? 3 : 0);
+          const lbl = formatMonthLabel(item[labelKey]);
+          const hoverTxt = `${lbl}: ${hoverUnit} ${val.toLocaleString()}`;
+
+          return (
+            <g key={i} className="group cursor-pointer">
+              <rect
+                x={bx}
+                y={pT + cH - bH}
+                width={barW}
+                height={bH}
+                rx="4"
+                fill={`url(#${barId})`}
+                className="transition-all duration-200 group-hover:opacity-80"
+              >
+                <title>{hoverTxt}</title>
+              </rect>
+              {val !== 0 && (
+                <text x={cx} y={pT + cH - bH - 5} fontSize="9" fill={colorPrimary} textAnchor="middle" fontWeight="700">
+                  {fmtK(val)}
+                </text>
+              )}
+              <text x={cx} y={H - 8} fontSize="9" fill="#64748b" textAnchor="middle">{lbl}</text>
+            </g>
+          );
+        })}
+      </svg>
+    );
+  };
+
   if (activeTab === 'dashboard') {
+    const monthlyCreditList = monthlyAnalyticsData?.monthlyCredit || [];
+    const monthlyDebitList = monthlyAnalyticsData?.monthlyDebit || [];
+    const monthlySalesList = monthlyAnalyticsData?.monthlySales || [];
+    const monthlyProfitList = monthlyAnalyticsData?.monthlyProfit || [];
+
+    const totalCreditVal = monthlyCreditList.reduce((s, i) => s + i.amount, 0);
+    const totalDebitVal = monthlyDebitList.reduce((s, i) => s + i.amount, 0);
+    const totalSalesVal = monthlySalesList.reduce((s, i) => s + i.amount, 0);
+    const totalProfitVal = monthlyProfitList.reduce((s, i) => s + i.profit, 0);
+
     return (
       <div className="space-y-6 max-w-7xl mx-auto">
         {/* KPI Cards - Analytics Widgets at Top */}
@@ -366,7 +489,7 @@ export default function DashboardContent({ activeTab }) {
           </div>
         )}
 
-        {/* Quick Actions - Full Width */}
+        {/* Quick Actions */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50">
           <div className="px-6 py-4 border-b border-gray-200">
             <h3 className="text-lg font-semibold text-gray-900">Quick Actions</h3>
@@ -389,7 +512,200 @@ export default function DashboardContent({ activeTab }) {
           </div>
         </div>
 
-        {/* Charts Section */}
+        {/* Dedicated Monthly Performance & Analytics Graphs with Date Filter */}
+        <div className="space-y-6">
+          {/* Filter Bar Header */}
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6 flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <BarChart3 className="w-6 h-6 text-blue-600" />
+                Monthly Analytics & Financial Performance
+              </h3>
+              <p className="text-xs text-gray-500 mt-1">
+                Visualizing Monthly Credit, Monthly Debit, Monthly Profit, and Monthly Sales with custom date range filters
+              </p>
+            </div>
+
+            {/* Date Controls & Quick Presets */}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+                <Calendar className="w-4 h-4 text-gray-400" />
+                <span className="text-xs font-semibold text-gray-600">From</span>
+                <input
+                  type="date"
+                  value={monthlyAnalyticsFilters.fromDate}
+                  onChange={e => setMonthlyAnalyticsFilters(f => ({ ...f, fromDate: e.target.value }))}
+                  className="text-xs font-medium text-gray-800 bg-transparent focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+                <Calendar className="w-4 h-4 text-gray-400" />
+                <span className="text-xs font-semibold text-gray-600">To</span>
+                <input
+                  type="date"
+                  value={monthlyAnalyticsFilters.toDate}
+                  onChange={e => setMonthlyAnalyticsFilters(f => ({ ...f, toDate: e.target.value }))}
+                  className="text-xs font-medium text-gray-800 bg-transparent focus:outline-none"
+                />
+              </div>
+
+              {/* Quick Preset Buttons */}
+              <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl border border-gray-200">
+                <button
+                  onClick={() => applyDatePreset(30)}
+                  className="px-2.5 py-1 text-xs font-medium rounded-lg text-gray-700 hover:bg-white hover:shadow-sm transition-all"
+                >
+                  30D
+                </button>
+                <button
+                  onClick={() => applyDatePreset(90)}
+                  className="px-2.5 py-1 text-xs font-medium rounded-lg text-gray-700 hover:bg-white hover:shadow-sm transition-all"
+                >
+                  3M
+                </button>
+                <button
+                  onClick={() => applyDatePreset(180)}
+                  className="px-2.5 py-1 text-xs font-medium rounded-lg text-gray-700 hover:bg-white hover:shadow-sm transition-all"
+                >
+                  6M
+                </button>
+                <button
+                  onClick={() => applyDatePreset('year')}
+                  className="px-2.5 py-1 text-xs font-medium rounded-lg text-gray-700 hover:bg-white hover:shadow-sm transition-all"
+                >
+                  Year
+                </button>
+              </div>
+
+              {(monthlyAnalyticsFilters.fromDate || monthlyAnalyticsFilters.toDate) && (
+                <button
+                  onClick={() => setMonthlyAnalyticsFilters({ fromDate: '', toDate: '' })}
+                  className="text-xs text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-xl font-medium transition-colors"
+                >
+                  Clear Filter
+                </button>
+              )}
+
+              {monthlyAnalyticsLoading && (
+                <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+              )}
+            </div>
+          </div>
+
+          {/* 4 Monthly Graphs Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* 1. Monthly Credit Graph */}
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6 flex flex-col justify-between">
+              <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
+                <div>
+                  <h4 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                    <Banknote className="w-5 h-5 text-emerald-600" />
+                    Monthly Credit Graph
+                  </h4>
+                  <p className="text-xs text-gray-400 mt-0.5">Credit amount / receivings by period</p>
+                </div>
+                <div className="bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100 text-right">
+                  <p className="text-[10px] text-emerald-600 uppercase font-bold tracking-wider">Total Credit</p>
+                  <p className="text-sm font-black text-emerald-700 font-mono">PKR {fmtAmt(totalCreditVal)}</p>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                {renderSingleBarChart({
+                  data: monthlyCreditList,
+                  getValue: d => d.amount,
+                  colorPrimary: '#059669',
+                  colorGradientStop: '#6ee7b7',
+                  barId: 'gMonthlyCredit'
+                })}
+              </div>
+            </div>
+
+            {/* 2. Monthly Debit Graph */}
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6 flex flex-col justify-between">
+              <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
+                <div>
+                  <h4 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                    <CreditCard className="w-5 h-5 text-amber-600" />
+                    Monthly Debit Graph
+                  </h4>
+                  <p className="text-xs text-gray-400 mt-0.5">Debit amount / payments by period</p>
+                </div>
+                <div className="bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-100 text-right">
+                  <p className="text-[10px] text-amber-600 uppercase font-bold tracking-wider">Total Debit</p>
+                  <p className="text-sm font-black text-amber-700 font-mono">PKR {fmtAmt(totalDebitVal)}</p>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                {renderSingleBarChart({
+                  data: monthlyDebitList,
+                  getValue: d => d.amount,
+                  colorPrimary: '#d97706',
+                  colorGradientStop: '#fcd34d',
+                  barId: 'gMonthlyDebit'
+                })}
+              </div>
+            </div>
+
+            {/* 3. Monthly Profit Graph */}
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6 flex flex-col justify-between">
+              <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
+                <div>
+                  <h4 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-blue-600" />
+                    Monthly Profit Graph
+                  </h4>
+                  <p className="text-xs text-gray-400 mt-0.5">Net profit performance (Revenue - Cost - Expense)</p>
+                </div>
+                <div className="bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-100 text-right">
+                  <p className="text-[10px] text-blue-600 uppercase font-bold tracking-wider">Net Profit</p>
+                  <p className="text-sm font-black text-blue-700 font-mono">PKR {fmtAmt(totalProfitVal)}</p>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                {renderSingleBarChart({
+                  data: monthlyProfitList,
+                  getValue: d => d.profit,
+                  colorPrimary: '#2563eb',
+                  colorGradientStop: '#93c5fd',
+                  barId: 'gMonthlyProfit'
+                })}
+              </div>
+            </div>
+
+            {/* 4. Monthly Sale Graph */}
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6 flex flex-col justify-between">
+              <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
+                <div>
+                  <h4 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                    <ShoppingCart className="w-5 h-5 text-purple-600" />
+                    Monthly Sale Graph
+                  </h4>
+                  <p className="text-xs text-gray-400 mt-0.5">Total sales volume by period</p>
+                </div>
+                <div className="bg-purple-50 px-3 py-1.5 rounded-xl border border-purple-100 text-right">
+                  <p className="text-[10px] text-purple-600 uppercase font-bold tracking-wider">Total Sales</p>
+                  <p className="text-sm font-black text-purple-700 font-mono">PKR {fmtAmt(totalSalesVal)}</p>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                {renderSingleBarChart({
+                  data: monthlySalesList,
+                  getValue: d => d.amount,
+                  colorPrimary: '#9333ea',
+                  colorGradientStop: '#e9d5ff',
+                  barId: 'gMonthlySale'
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Existing Charts Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Sales Overview — Clustered Column: Bills vs Orders */}
           <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 overflow-hidden">
@@ -409,7 +725,6 @@ export default function DashboardContent({ activeTab }) {
                 const n=chartsData.labels.length,grpW=cW/n,barW=Math.min(grpW*0.36,32);
                 const s1=chartsData.billAmounts,s2=chartsData.orderAmounts;
                 const maxV=Math.max(...s1,...s2,1);
-                const fmtK=v=>v>=1000000?`${(v/1000000).toFixed(1)}M`:v>=1000?`${(v/1000).toFixed(0)}K`:'0';
                 return (
                   <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="230">
                     <defs>
@@ -477,75 +792,13 @@ export default function DashboardContent({ activeTab }) {
           </div>
         </div>
 
-        {/* Profit Chart — Clustered Column: Revenue vs Profit */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 overflow-hidden">
-          <div className="px-6 pt-5 pb-3 flex items-start justify-between">
-            <div>
-              <h3 className="text-base font-semibold text-gray-900">Monthly Sales Profit</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Last 6 months</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm inline-block" style={{background:'#f97316'}}/><span className="text-xs text-gray-500">Revenue</span></div>
-              <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm inline-block" style={{background:'#3b82f6'}}/><span className="text-xs text-gray-500">Profit</span></div>
-            </div>
-          </div>
-          {profitData.length > 0 && (() => {
-            const totRev=profitData.reduce((s,d)=>s+d.revenue,0);
-            const totProfit=profitData.reduce((s,d)=>s+d.profit,0);
-            const fmtK=v=>v>=1000000?`${(v/1000000).toFixed(1)}M`:v>=1000?`${(v/1000).toFixed(0)}K`:v.toFixed(0);
-            return (
-              <div className="flex gap-3 px-6 pb-4">
-                {[{label:'Total Revenue',value:fmtK(totRev),bg:'bg-orange-50',text:'text-orange-700'},{label:'Net Profit',value:fmtK(totProfit),bg:'bg-blue-50',text:'text-blue-700'}].map(c=>(
-                  <div key={c.label} className={`flex-1 rounded-xl px-4 py-2.5 ${c.bg}`}>
-                    <p className={`text-xs opacity-60 ${c.text}`}>{c.label}</p>
-                    <p className={`text-sm font-bold ${c.text}`}>PKR {c.value}</p>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
-          <div className="px-1 pb-3">
-            {profitData.length === 0 ? (
-              <div className="h-56 flex items-center justify-center"><TrendingUp className="w-12 h-12 text-gray-200"/></div>
-            ) : (() => {
-              const pL=52,pR=12,pT=20,pB=36,W=700,H=210,cW=W-pL-pR,cH=H-pT-pB;
-              const n=profitData.length,grpW=cW/n,barW=Math.min(grpW*0.36,40);
-              const s1=profitData.map(d=>d.revenue),s2=profitData.map(d=>d.profit);
-              const maxV=Math.max(...s1,...s2,1);
-              const mN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-              const fmtK=v=>v>=1000000?`${(v/1000000).toFixed(1)}M`:v>=1000?`${(v/1000).toFixed(0)}K`:'0';
-              return (
-                <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="240">
-                  <defs>
-                    <linearGradient id="cc3O" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#f97316"/><stop offset="100%" stopColor="#fdba74" stopOpacity="0.5"/></linearGradient>
-                    <linearGradient id="cc3B" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3b82f6"/><stop offset="100%" stopColor="#93c5fd" stopOpacity="0.5"/></linearGradient>
-                  </defs>
-                  <line x1={pL} y1={pT} x2={pL} y2={pT+cH} stroke="#e2e8f0" strokeWidth="1"/>
-                  {[0,0.25,0.5,0.75,1].map(f=>{const y=pT+cH*(1-f);return(<g key={f}><line x1={pL} y1={y} x2={W-pR} y2={y} stroke={f===0?'#e2e8f0':'#f8fafc'} strokeWidth="1" strokeDasharray={f===0?'':'3 3'}/><text x={pL-4} y={y+4} fontSize="9" fill="#cbd5e1" textAnchor="end">{fmtK(maxV*f)}</text></g>);})}
-                  {profitData.map((d,i)=>{
-                    const cx=pL+grpW*i+grpW/2,rx=cx-barW-1,bx=cx+1;
-                    const h1=Math.max((s1[i]/maxV)*cH,s1[i]>0?2:0),h2=Math.max((s2[i]/maxV)*cH,s2[i]>0?2:0);
-                    const mi=parseInt(d.month.slice(5))-1;
-                    return(<g key={i}>
-                      <rect x={rx} y={pT+cH-h1} width={barW} height={h1} rx="3" fill="url(#cc3O)"><title>Revenue {mN[mi]}: PKR {d.revenue.toLocaleString()}</title></rect>
-                      <rect x={bx} y={pT+cH-h2} width={barW} height={h2} rx="3" fill="url(#cc3B)"><title>Profit {mN[mi]}: PKR {d.profit.toLocaleString()}</title></rect>
-                      {d.profit>0&&<text x={bx+barW/2} y={pT+cH-h2-3} fontSize="8" fill="#2563eb" textAnchor="middle" fontWeight="700">{fmtK(d.profit)}</text>}
-                      <text x={cx} y={H-7} fontSize="9" fill="#64748b" textAnchor="middle">{mN[mi]} '{d.month.slice(2,4)}</text>
-                    </g>);
-                  })}
-                </svg>
-              );
-            })()}
-          </div>
-        </div>
-
         {/* Customer & Supplier Balance Charts — full width, stacked */}
         <div className="space-y-4">
           {/* Shared date-range filter bar */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100/50 px-5 py-3 flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 text-gray-500">
               <Calendar className="w-4 h-4" />
-              <span className="text-sm font-medium">Date Range</span>
+              <span className="text-sm font-medium">Customer/Supplier Date Range</span>
             </div>
             <input
               type="date"
@@ -571,22 +824,12 @@ export default function DashboardContent({ activeTab }) {
             {balanceLoading && (
               <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
             )}
-            {(balanceFilters.fromDate || balanceFilters.toDate) && (
-              <span className="text-xs text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full font-medium">
-                {balanceFilters.fromDate && balanceFilters.toDate
-                  ? `${balanceFilters.fromDate} → ${balanceFilters.toDate}`
-                  : balanceFilters.fromDate
-                    ? `From ${balanceFilters.fromDate}`
-                    : `Until ${balanceFilters.toDate}`}
-              </span>
-            )}
           </div>
 
-          {/* Customer Balance Chart — full width */}
+          {/* Customer Balance Chart */}
           {(() => {
             const rows = balanceData.customers;
             const color = '#3b82f6', gradId = 'balCustG', light = '#eff6ff';
-            const fmtK = v => v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}K` : '0';
             const n = Math.min(rows.length, 15);
             const pL = 52, pR = 16, pT = 20, pB = 90, W = 1200, H = 260;
             const cW = W - pL - pR, cH = H - pT - pB;
@@ -672,11 +915,10 @@ export default function DashboardContent({ activeTab }) {
             );
           })()}
 
-          {/* Supplier Balance Chart — full width */}
+          {/* Supplier Balance Chart */}
           {(() => {
             const rows = balanceData.suppliers;
             const color = '#f97316', gradId = 'balSuppG', light = '#fff7ed';
-            const fmtK = v => v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}K` : '0';
             const n = Math.min(rows.length, 15);
             const pL = 52, pR = 16, pT = 20, pB = 90, W = 1200, H = 260;
             const cW = W - pL - pR, cH = H - pT - pB;
@@ -798,7 +1040,6 @@ export default function DashboardContent({ activeTab }) {
     );
   }
 
-  // For other tabs that don't have separate pages yet
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-12 text-center">

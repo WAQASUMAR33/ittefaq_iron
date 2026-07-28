@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Plus,
   Edit,
@@ -40,7 +40,7 @@ export default function ExpensesPage() {
   const [paymentAccounts, setPaymentAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingExpense, setEditingExpense] = useState(null);
-  const [currentView, setCurrentView] = useState('list'); // 'list' or 'create'
+  const [currentView, setCurrentView] = useState('list'); // 'list' or 'create' (modal)
 
   // Filter states
   const [searchTerm, setSearchTerm] = useState('');
@@ -110,7 +110,6 @@ export default function ExpensesPage() {
       }
       if (accountsRes.ok) {
         const accountsData = await accountsRes.json();
-        // Get all accounts, we will filter them in the dialog based on exact rules
         setPaymentAccounts(accountsData);
       }
     } catch (error) {
@@ -344,6 +343,7 @@ export default function ExpensesPage() {
       payment_reference: expense.payment_reference || '',
       paymentMethod: method
     });
+
     setCurrentView('create');
   };
 
@@ -366,8 +366,6 @@ export default function ExpensesPage() {
       }
     }
   };
-
-
 
   const handleCreateType = async () => {
     if (!newTypeName.trim()) return;
@@ -413,12 +411,11 @@ export default function ExpensesPage() {
     );
   }
 
-  // Render Expenses List View
-  const renderExpensesListView = () => (
+  return (
     <DashboardLayout>
-      {/* Fixed Height Container with Overflow Hidden */}
+      {/* Main Expenses List Page */}
       <div className="h-full flex flex-col overflow-hidden">
-        {/* Fixed Header Section */}
+        {/* Header Section */}
         <div className="flex-shrink-0 mb-6">
           <div className="flex items-center justify-between">
             <div>
@@ -428,13 +425,18 @@ export default function ExpensesPage() {
             <button
               onClick={() => {
                 setEditingExpense(null);
+                const defaultCashAcc = paymentAccounts.find(acc => {
+                  const typeTitle = acc.customer_type?.cus_type_title?.toLowerCase() || '';
+                  const catTitle = acc.customer_category?.cus_cat_title?.toLowerCase() || '';
+                  return typeTitle.includes('cash') && catTitle.includes('cash');
+                });
                 setFormData({
                   exp_title: '',
                   exp_type: '',
                   exp_detail: '',
                   exp_amount: '',
                   is_paid: 'true',
-                  paid_from_account_id: '',
+                  paid_from_account_id: defaultCashAcc ? defaultCashAcc.cus_id.toString() : '',
                   bank_account_id: '',
                   cash_amount: '',
                   bank_amount: '',
@@ -443,7 +445,7 @@ export default function ExpensesPage() {
                 });
                 setCurrentView('create');
               }}
-              className="group bg-gradient-to-r from-red-500 to-pink-500 text-white px-6 py-3 rounded-lg hover:from-red-600 hover:to-pink-600 transition-all duration-200 font-medium shadow-md hover:shadow-lg transform hover:scale-105"
+              className="group bg-gradient-to-r from-red-500 to-pink-500 text-white px-6 py-3 rounded-xl hover:from-red-600 hover:to-pink-600 transition-all duration-200 font-medium shadow-md hover:shadow-lg transform hover:scale-105"
             >
               <span className="flex items-center">
                 <Plus className="w-5 h-5 mr-2 group-hover:rotate-90 transition-transform duration-200" />
@@ -453,7 +455,7 @@ export default function ExpensesPage() {
           </div>
         </div>
 
-        {/* Fixed Filters Section */}
+        {/* Filters Section */}
         <div className="flex-shrink-0 mb-6">
           <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 p-6">
             <div className="flex items-center justify-between mb-4">
@@ -502,7 +504,7 @@ export default function ExpensesPage() {
           </div>
         </div>
 
-        {/* Fixed Stats Cards Section */}
+        {/* Stats Cards Section */}
         <div className="flex-shrink-0 mb-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {/* Total Expenses Card */}
@@ -567,10 +569,9 @@ export default function ExpensesPage() {
           </div>
         </div>
 
-        {/* Flexible Table Section - Only This Scrolls */}
+        {/* Table Section */}
         <div className="flex-1 min-h-0">
           <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 h-full flex flex-col">
-            {/* Fixed Table Header */}
             <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900">Expenses List</h3>
               <span className="text-sm text-gray-500">
@@ -592,7 +593,6 @@ export default function ExpensesPage() {
               </div>
             ) : (
               <div className="flex-1 flex flex-col min-h-0">
-                {/* Fixed Column Headers */}
                 <div className="flex-shrink-0 bg-gray-50 border-b border-gray-200">
                   <div className="grid grid-cols-12 gap-4 px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                     <div className="col-span-1">ID</div>
@@ -605,7 +605,6 @@ export default function ExpensesPage() {
                   </div>
                 </div>
 
-                {/* Scrollable Table Body */}
                 <div className="flex-1 overflow-y-auto">
                   <div className="divide-y divide-gray-200">
                     {finalExpenses.map((expense) => {
@@ -645,66 +644,63 @@ export default function ExpensesPage() {
                           {/* Paid From */}
                           <div className="col-span-3 flex items-center min-w-0">
                             {(() => {
-                               const cashAmt = parseFloat(expense.cash_amount || 0);
-                               const bankAmt = parseFloat(expense.bank_amount || 0);
+                              const cashAmt = parseFloat(expense.cash_amount || 0);
+                              const bankAmt = parseFloat(expense.bank_amount || 0);
 
-                               // Cash only (or legacy cash)
-                               if (expense.paid_from_account && (cashAmt > 0 && bankAmt === 0 || cashAmt === 0 && bankAmt === 0 && !expense.paid_from_account.cus_name?.toLowerCase().includes('bank'))) {
-                                 return (
-                                   <div className="flex items-center w-full">
-                                     <div className="flex-shrink-0 w-7 h-7 bg-green-50 rounded-full flex items-center justify-center mr-2 border border-green-100">
-                                       <Banknote className="w-3.5 h-3.5 text-green-600" />
-                                     </div>
-                                     <div className="truncate w-full">
-                                       <div className="text-sm font-medium text-gray-900 truncate" title={expense.paid_from_account.cus_name}>
-                                         {expense.paid_from_account.cus_name}
-                                       </div>
-                                       <div className="text-[10px] text-gray-400 font-mono">
-                                         {expense.payment_date ? new Date(expense.payment_date).toLocaleDateString() : ''}
-                                       </div>
-                                     </div>
-                                   </div>
-                                 );
-                               }
+                              if (expense.paid_from_account && (cashAmt > 0 && bankAmt === 0 || cashAmt === 0 && bankAmt === 0 && !expense.paid_from_account.cus_name?.toLowerCase().includes('bank'))) {
+                                return (
+                                  <div className="flex items-center w-full">
+                                    <div className="flex-shrink-0 w-7 h-7 bg-green-50 rounded-full flex items-center justify-center mr-2 border border-green-100">
+                                      <Banknote className="w-3.5 h-3.5 text-green-600" />
+                                    </div>
+                                    <div className="truncate w-full">
+                                      <div className="text-sm font-medium text-gray-900 truncate" title={expense.paid_from_account.cus_name}>
+                                        {expense.paid_from_account.cus_name}
+                                      </div>
+                                      <div className="text-[10px] text-gray-400 font-mono">
+                                        {expense.payment_date ? new Date(expense.payment_date).toLocaleDateString() : ''}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              }
 
-                               // Bank only (or legacy bank)
-                               const bankAcc = expense.bank_account || (expense.paid_from_account && expense.paid_from_account.cus_name?.toLowerCase().includes('bank') ? expense.paid_from_account : null);
-                               if (bankAcc && (bankAmt > 0 && cashAmt === 0 || cashAmt === 0 && bankAmt === 0)) {
-                                 return (
-                                   <div className="flex items-center w-full">
-                                     <div className="flex-shrink-0 w-7 h-7 bg-blue-50 rounded-full flex items-center justify-center mr-2 border border-blue-100">
-                                       <CreditCard className="w-3.5 h-3.5 text-blue-600" />
-                                     </div>
-                                     <div className="truncate w-full">
-                                       <div className="text-sm font-medium text-gray-900 truncate" title={bankAcc.cus_name}>
-                                         {bankAcc.cus_name}
-                                       </div>
-                                       <div className="text-[10px] text-gray-400 font-mono">
-                                         {expense.payment_date ? new Date(expense.payment_date).toLocaleDateString() : ''}
-                                       </div>
-                                     </div>
-                                   </div>
-                                 );
-                               }
+                              const bankAcc = expense.bank_account || (expense.paid_from_account && expense.paid_from_account.cus_name?.toLowerCase().includes('bank') ? expense.paid_from_account : null);
+                              if (bankAcc && (bankAmt > 0 && cashAmt === 0 || cashAmt === 0 && bankAmt === 0)) {
+                                return (
+                                  <div className="flex items-center w-full">
+                                    <div className="flex-shrink-0 w-7 h-7 bg-blue-50 rounded-full flex items-center justify-center mr-2 border border-blue-100">
+                                      <CreditCard className="w-3.5 h-3.5 text-blue-600" />
+                                    </div>
+                                    <div className="truncate w-full">
+                                      <div className="text-sm font-medium text-gray-900 truncate" title={bankAcc.cus_name}>
+                                        {bankAcc.cus_name}
+                                      </div>
+                                      <div className="text-[10px] text-gray-400 font-mono">
+                                        {expense.payment_date ? new Date(expense.payment_date).toLocaleDateString() : ''}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              }
 
-                               // Partial Payment
-                               if (expense.paid_from_account && expense.bank_account && cashAmt > 0 && bankAmt > 0) {
-                                 return (
-                                   <div className="flex flex-col w-full text-xs space-y-1">
-                                     <div className="flex items-center text-green-700 font-medium truncate" title={expense.paid_from_account.cus_name}>
-                                       <Banknote className="w-3 h-3 mr-1 flex-shrink-0 text-green-500" />
-                                       Cash: Rs. {cashAmt.toLocaleString()}
-                                     </div>
-                                     <div className="flex items-center text-blue-700 font-medium truncate" title={expense.bank_account.cus_name}>
-                                       <CreditCard className="w-3 h-3 mr-1 flex-shrink-0 text-blue-500" />
-                                       Bank: Rs. {bankAmt.toLocaleString()}
-                                     </div>
-                                   </div>
-                                 );
-                               }
+                              if (expense.paid_from_account && expense.bank_account && cashAmt > 0 && bankAmt > 0) {
+                                return (
+                                  <div className="flex flex-col w-full text-xs space-y-1">
+                                    <div className="flex items-center text-green-700 font-medium truncate" title={expense.paid_from_account.cus_name}>
+                                      <Banknote className="w-3 h-3 mr-1 flex-shrink-0 text-green-500" />
+                                      Cash: Rs. {cashAmt.toLocaleString()}
+                                    </div>
+                                    <div className="flex items-center text-blue-700 font-medium truncate" title={expense.bank_account.cus_name}>
+                                      <CreditCard className="w-3 h-3 mr-1 flex-shrink-0 text-blue-500" />
+                                      Bank: Rs. {bankAmt.toLocaleString()}
+                                    </div>
+                                  </div>
+                                );
+                              }
 
-                               return <span className="text-sm text-gray-300 italic">—</span>;
-                             })()}
+                              return <span className="text-sm text-gray-300 italic">—</span>;
+                            })()}
                           </div>
 
                           {/* Created */}
@@ -743,187 +739,233 @@ export default function ExpensesPage() {
           </div>
         </div>
       </div>
-    </DashboardLayout>
-  );
 
-  // Render Expense Create View
-  const renderExpenseCreateView = () => (
-    <DashboardLayout>
-      <div className="h-full flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="flex-shrink-0 mb-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
+      {/* Slim Add / Edit Expense Light Modal Popup */}
+      {currentView === 'create' && (
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 sm:p-6 overflow-y-auto">
+          <div className="bg-white text-gray-900 rounded-3xl shadow-2xl border border-gray-100 max-w-3xl w-full p-6 sm:p-8 relative max-h-[90vh] flex flex-col my-auto transition-all">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-gray-200 flex-shrink-0">
+              <h3 className="text-xl font-bold text-gray-900 flex items-center">
+                <Receipt className="w-5 h-5 mr-2 text-red-500" />
+                {editingExpense ? 'Edit Expense' : 'Create New Expense'}
+              </h3>
               <button
+                type="button"
                 onClick={() => setCurrentView('list')}
-                className="mr-4 p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors duration-200"
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
               >
-                <ArrowLeft className="w-5 h-5" />
+                <X className="w-5 h-5" />
               </button>
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">
-                  {editingExpense ? 'Edit Expense' : 'Create New Expense'}
-                </h2>
-                <p className="text-gray-600 mt-1">
-                  {editingExpense ? 'Update expense information' : 'Add a new business expense'}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Main Content */}
-        <div className="flex-1 min-h-0">
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100/50 h-full flex flex-col">
-            {/* Form Header */}
-            <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Expense Details</h3>
             </div>
 
-            {/* Form Content */}
-            <div className="flex-1 overflow-y-auto p-6">
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Form Fields Section */}
-                <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                  <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                    <Receipt className="w-5 h-5 mr-2 text-gray-600" />
-                    Expense Information
-                  </h4>
-                  <div className="grid grid-cols-1 gap-6">
-                    {/* Expense Title */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Expense Title *
+            {/* Modal Scrollable Body */}
+            <div className="flex-1 overflow-y-auto py-5 pr-1">
+              <form onSubmit={handleSubmit} id="expense-modal-form" className="space-y-5">
+                {/* 2-Column Grid for Title & Type */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                  {/* Expense Title */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Expense Title *
+                    </label>
+                    <input
+                      type="text"
+                      name="exp_title"
+                      value={formData.exp_title}
+                      onChange={handleInputChange}
+                      required
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 text-black text-sm transition-all"
+                      placeholder="Enter expense title (e.g., Office Supplies, Travel)"
+                    />
+                  </div>
+
+                  {/* Expense Type */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Expense Type *
                       </label>
-                      <input
-                        type="text"
-                        name="exp_title"
-                        value={formData.exp_title}
-                        onChange={handleInputChange}
-                        required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all duration-200 text-black"
-                        placeholder="Enter expense title (e.g., Office Supplies, Travel)"
-                      />
-                    </div>
-
-                    {/* Expense Type */}
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="block text-sm font-medium text-gray-700">
-                          Expense Type *
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => setShowTypeDialog(true)}
-                          className="text-xs text-red-600 hover:text-red-800 font-bold flex items-center bg-red-50 px-2 py-1 rounded-md border border-red-100 transition-colors"
-                        >
-                          <Plus className="w-3 h-3 mr-1" />
-                          Add New Type
-                        </button>
-                      </div>
-                      <select
-                        name="exp_type"
-                        value={formData.exp_type}
-                        onChange={handleInputChange}
-                        required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all duration-200 text-black"
+                      <button
+                        type="button"
+                        onClick={() => setShowTypeDialog(true)}
+                        className="text-xs text-red-600 hover:text-red-800 font-bold flex items-center bg-red-50 px-2.5 py-1 rounded-md border border-red-100 transition-colors"
                       >
-                        <option value="">Select expense type</option>
-                        {expenseTitles.map((title) => (
-                          <option key={title.id} value={title.id}>
-                            {title.title}
+                        <Plus className="w-3 h-3 mr-1" />
+                        Add New Type
+                      </button>
+                    </div>
+                    <select
+                      name="exp_type"
+                      value={formData.exp_type}
+                      onChange={handleInputChange}
+                      required
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 text-black text-sm transition-all"
+                    >
+                      <option value="">Select expense type</option>
+                      {expenseTitles.map((title) => (
+                        <option key={title.id} value={title.id}>
+                          {title.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* 2-Column Grid for Amount & Payment Reference */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                  {/* Expense Amount */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Amount *
+                    </label>
+                    <input
+                      type="number"
+                      name="exp_amount"
+                      value={formData.exp_amount}
+                      onChange={handleInputChange}
+                      required
+                      step="0.01"
+                      min="0.01"
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 text-black text-sm font-semibold transition-all"
+                      placeholder="0.00"
+                    />
+                  </div>
+
+                  {/* Payment Reference */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Payment Reference (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      name="payment_reference"
+                      value={formData.payment_reference || ''}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 text-black text-sm transition-all"
+                      placeholder="e.g., Check #1234, Transfer ID"
+                    />
+                  </div>
+                </div>
+
+                {/* Payment Method - 3 Button Choice */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Payment Method *
+                  </label>
+                  <div className="grid grid-cols-3 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, paymentMethod: 'CASH', paid_from_account_id: '', bank_account_id: '', cash_amount: '', bank_amount: '' }))}
+                      className={`flex items-center justify-center px-3 py-2.5 rounded-xl border-2 transition-all text-xs sm:text-sm ${
+                        formData.paymentMethod === 'CASH'
+                          ? 'border-green-500 bg-green-50 text-green-700 font-bold shadow-sm'
+                          : 'border-gray-200 bg-gray-50 text-gray-500 font-medium hover:border-gray-300'
+                      }`}
+                    >
+                      <Banknote className="w-4 h-4 mr-1.5" />
+                      Cash
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, paymentMethod: 'BANK', paid_from_account_id: '', bank_account_id: '', cash_amount: '', bank_amount: '' }))}
+                      className={`flex items-center justify-center px-3 py-2.5 rounded-xl border-2 transition-all text-xs sm:text-sm ${
+                        formData.paymentMethod === 'BANK'
+                          ? 'border-blue-500 bg-blue-50 text-blue-700 font-bold shadow-sm'
+                          : 'border-gray-200 bg-gray-50 text-gray-500 font-medium hover:border-gray-300'
+                      }`}
+                    >
+                      <CreditCard className="w-4 h-4 mr-1.5" />
+                      Bank
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, paymentMethod: 'PARTIAL', paid_from_account_id: '', bank_account_id: '', cash_amount: '', bank_amount: '' }))}
+                      className={`flex items-center justify-center px-3 py-2.5 rounded-xl border-2 transition-all text-xs sm:text-sm ${
+                        formData.paymentMethod === 'PARTIAL'
+                          ? 'border-purple-500 bg-purple-50 text-purple-700 font-bold shadow-sm'
+                          : 'border-gray-200 bg-gray-50 text-gray-500 font-medium hover:border-gray-300'
+                      }`}
+                    >
+                      <DollarSign className="w-4 h-4 mr-1.5" />
+                      Partial
+                    </button>
+                  </div>
+                </div>
+
+                {/* Account Selection & Split Details */}
+                {formData.paymentMethod === 'CASH' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Cash Account *
+                    </label>
+                    <select
+                      name="paid_from_account_id"
+                      value={formData.paid_from_account_id || ''}
+                      onChange={handleInputChange}
+                      required
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black text-sm font-semibold transition-all"
+                    >
+                      <option value="">Select cash account</option>
+                      {paymentAccounts
+                        .filter(account => {
+                          const typeTitle = account.customer_type?.cus_type_title?.toLowerCase() || '';
+                          const catTitle = account.customer_category?.cus_cat_title?.toLowerCase() || '';
+                          return typeTitle.includes('cash') && catTitle.includes('cash');
+                        })
+                        .map((account) => (
+                          <option key={account.cus_id} value={account.cus_id}>
+                            {account.cus_name} (Balance: Rs. {parseFloat(account.cus_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })})
                           </option>
                         ))}
-                      </select>
-                    </div>
+                    </select>
+                  </div>
+                )}
 
-                    {/* Expense Detail */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Expense Detail
-                      </label>
-                      <textarea
-                        name="exp_detail"
-                        value={formData.exp_detail}
-                        onChange={handleInputChange}
-                        rows={3}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all duration-200 text-black"
-                        placeholder="Enter additional details about the expense"
-                      />
-                    </div>
+                {formData.paymentMethod === 'BANK' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Bank Account *
+                    </label>
+                    <select
+                      name="bank_account_id"
+                      value={formData.bank_account_id || ''}
+                      onChange={handleInputChange}
+                      required
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black text-sm font-semibold transition-all"
+                    >
+                      <option value="">Select bank account</option>
+                      {paymentAccounts
+                        .filter(account => {
+                          const typeTitle = account.customer_type?.cus_type_title?.toLowerCase() || '';
+                          const catTitle = account.customer_category?.cus_cat_title?.toLowerCase() || '';
+                          return typeTitle.includes('bank') && catTitle.includes('bank');
+                        })
+                        .map((account) => (
+                          <option key={account.cus_id} value={account.cus_id}>
+                            {account.cus_name} (Balance: Rs. {parseFloat(account.cus_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })})
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                )}
 
-                    {/* Expense Amount */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Amount *
-                      </label>
-                      <input
-                        type="number"
-                        name="exp_amount"
-                        value={formData.exp_amount}
-                        onChange={handleInputChange}
-                        required
-                        step="0.01"
-                        min="0.01"
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all duration-200 text-black"
-                        placeholder="0.00"
-                      />
-                    </div>
-
-                    {/* Payment Method */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Payment Method *
-                      </label>
-                      <div className="grid grid-cols-3 gap-4">
-                        <button
-                          type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, paymentMethod: 'CASH', paid_from_account_id: '', bank_account_id: '', cash_amount: '', bank_amount: '' }))}
-                          className={`flex items-center justify-center px-4 py-3 rounded-xl border-2 transition-all ${formData.paymentMethod === 'CASH'
-                            ? 'border-green-500 bg-green-50 text-green-700 font-bold'
-                            : 'border-gray-100 bg-gray-50 text-gray-400 font-medium'
-                            }`}
-                        >
-                          <Banknote className="w-5 h-5 mr-2" />
-                          Cash
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, paymentMethod: 'BANK', paid_from_account_id: '', bank_account_id: '', cash_amount: '', bank_amount: '' }))}
-                          className={`flex items-center justify-center px-4 py-3 rounded-xl border-2 transition-all ${formData.paymentMethod === 'BANK'
-                            ? 'border-blue-500 bg-blue-50 text-blue-700 font-bold'
-                            : 'border-gray-100 bg-gray-50 text-gray-400 font-medium'
-                            }`}
-                        >
-                          <CreditCard className="w-5 h-5 mr-2" />
-                          Bank
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, paymentMethod: 'PARTIAL', paid_from_account_id: '', bank_account_id: '', cash_amount: '', bank_amount: '' }))}
-                          className={`flex items-center justify-center px-4 py-3 rounded-xl border-2 transition-all ${formData.paymentMethod === 'PARTIAL'
-                            ? 'border-purple-500 bg-purple-50 text-purple-700 font-bold'
-                            : 'border-gray-100 bg-gray-50 text-gray-400 font-medium'
-                            }`}
-                        >
-                          <DollarSign className="w-5 h-5 mr-2" />
-                          Partial
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Payment Account(s) & Amount(s) */}
-                    {formData.paymentMethod === 'CASH' && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Cash Account *
-                        </label>
+                {formData.paymentMethod === 'PARTIAL' && (
+                  <div className="space-y-3 bg-purple-50/60 p-4 rounded-2xl border border-purple-100">
+                    <h5 className="text-xs font-bold text-purple-900 flex items-center uppercase tracking-wide">
+                      <DollarSign className="w-4 h-4 mr-1 text-purple-600" /> Split Payment Details
+                    </h5>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Cash Part */}
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-semibold text-gray-700">Cash Account *</label>
                         <select
                           name="paid_from_account_id"
                           value={formData.paid_from_account_id || ''}
                           onChange={handleInputChange}
                           required
-                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-black font-semibold"
+                          className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-black font-semibold"
                         >
                           <option value="">Select cash account</option>
                           {paymentAccounts
@@ -934,24 +976,34 @@ export default function ExpensesPage() {
                             })
                             .map((account) => (
                               <option key={account.cus_id} value={account.cus_id}>
-                                {account.cus_name} (Balance: Rs. {parseFloat(account.cus_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })})
+                                {account.cus_name} (Bal: Rs. {parseFloat(account.cus_balance || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })})
                               </option>
                             ))}
                         </select>
+                        
+                        <label className="block text-xs font-semibold text-gray-700 mt-2">Cash Amount *</label>
+                        <input
+                          type="number"
+                          name="cash_amount"
+                          value={formData.cash_amount || ''}
+                          onChange={handleInputChange}
+                          required
+                          step="0.01"
+                          min="0.01"
+                          placeholder="0.00"
+                          className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-black font-mono font-semibold"
+                        />
                       </div>
-                    )}
 
-                    {formData.paymentMethod === 'BANK' && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Bank Account *
-                        </label>
+                      {/* Bank Part */}
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-semibold text-gray-700">Bank Account *</label>
                         <select
                           name="bank_account_id"
                           value={formData.bank_account_id || ''}
                           onChange={handleInputChange}
                           required
-                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-black font-semibold"
+                          className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-black font-semibold"
                         >
                           <option value="">Select bank account</option>
                           {paymentAccounts
@@ -962,198 +1014,116 @@ export default function ExpensesPage() {
                             })
                             .map((account) => (
                               <option key={account.cus_id} value={account.cus_id}>
-                                {account.cus_name} (Balance: Rs. {parseFloat(account.cus_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })})
+                                {account.cus_name} (Bal: Rs. {parseFloat(account.cus_balance || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })})
                               </option>
                             ))}
                         </select>
-                      </div>
-                    )}
-
-                    {formData.paymentMethod === 'PARTIAL' && (
-                      <div className="space-y-4 bg-purple-50/50 p-4 rounded-xl border border-purple-100">
-                        <h5 className="text-sm font-bold text-purple-900 mb-2 flex items-center">
-                          <DollarSign className="w-4 h-4 mr-1" /> Split Payment Details
-                        </h5>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {/* Cash Part */}
-                          <div className="space-y-2">
-                            <label className="block text-xs font-semibold text-gray-700">Cash Account *</label>
-                            <select
-                              name="paid_from_account_id"
-                              value={formData.paid_from_account_id || ''}
-                              onChange={handleInputChange}
-                              required
-                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black font-semibold"
-                            >
-                              <option value="">Select cash account</option>
-                              {paymentAccounts
-                                .filter(account => {
-                                  const typeTitle = account.customer_type?.cus_type_title?.toLowerCase() || '';
-                                  const catTitle = account.customer_category?.cus_cat_title?.toLowerCase() || '';
-                                  return typeTitle.includes('cash') && catTitle.includes('cash');
-                                })
-                                .map((account) => (
-                                  <option key={account.cus_id} value={account.cus_id}>
-                                    {account.cus_name} (Bal: Rs. {parseFloat(account.cus_balance || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })})
-                                  </option>
-                                ))}
-                            </select>
-                            
-                            <label className="block text-xs font-semibold text-gray-700 mt-2">Cash Amount *</label>
-                            <input
-                              type="number"
-                              name="cash_amount"
-                              value={formData.cash_amount || ''}
-                              onChange={handleInputChange}
-                              required
-                              step="0.01"
-                              min="0.01"
-                              placeholder="0.00"
-                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black font-semibold"
-                            />
-                          </div>
+                        <label className="block text-xs font-semibold text-gray-700 mt-2">Bank Amount *</label>
+                        <input
+                          type="number"
+                          name="bank_amount"
+                          value={formData.bank_amount || ''}
+                          onChange={handleInputChange}
+                          required
+                          step="0.01"
+                          min="0.01"
+                          placeholder="0.00"
+                          className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-black font-mono font-semibold"
+                        />
+                      </div>
+                    </div>
 
-                          {/* Bank Part */}
-                          <div className="space-y-2">
-                            <label className="block text-xs font-semibold text-gray-700">Bank Account *</label>
-                            <select
-                              name="bank_account_id"
-                              value={formData.bank_account_id || ''}
-                              onChange={handleInputChange}
-                              required
-                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black font-semibold"
-                            >
-                              <option value="">Select bank account</option>
-                              {paymentAccounts
-                                .filter(account => {
-                                  const typeTitle = account.customer_type?.cus_type_title?.toLowerCase() || '';
-                                  const catTitle = account.customer_category?.cus_cat_title?.toLowerCase() || '';
-                                  return typeTitle.includes('bank') && catTitle.includes('bank');
-                                })
-                                .map((account) => (
-                                  <option key={account.cus_id} value={account.cus_id}>
-                                    {account.cus_name} (Bal: Rs. {parseFloat(account.cus_balance || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })})
-                                  </option>
-                                ))}
-                            </select>
-                            
-                            <label className="block text-xs font-semibold text-gray-700 mt-2">Bank Amount *</label>
-                            <input
-                              type="number"
-                              name="bank_amount"
-                              value={formData.bank_amount || ''}
-                              onChange={handleInputChange}
-                              required
-                              step="0.01"
-                              min="0.01"
-                              placeholder="0.00"
-                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black font-semibold"
-                            />
-                          </div>
-                        </div>
-
-                        {/* Live calculation banner */}
-                        {parseFloat(formData.exp_amount || 0) > 0 && (
-                          <div className="mt-3 pt-3 border-t border-purple-100 flex justify-between items-center text-xs">
-                            <span className="text-gray-500">
-                              Total: <strong className="text-gray-900 font-bold">Rs. {parseFloat(formData.exp_amount || 0).toLocaleString()}</strong>
-                            </span>
-                            <span className="text-gray-500">
-                              Allocated: <strong className="text-gray-900 font-bold">Rs. {(parseFloat(formData.cash_amount || 0) + parseFloat(formData.bank_amount || 0)).toLocaleString()}</strong>
-                            </span>
-                            {(() => {
-                              const remaining = parseFloat(formData.exp_amount || 0) - parseFloat(formData.cash_amount || 0) - parseFloat(formData.bank_amount || 0);
-                              if (Math.abs(remaining) < 0.01) {
-                                return <span className="text-green-600 font-bold bg-green-50 px-2 py-0.5 rounded-full">Fully Allocated</span>;
-                              } else if (remaining > 0) {
-                                return <span className="text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-full">Remaining: Rs. {remaining.toLocaleString()}</span>;
-                              } else {
-                                return <span className="text-red-600 font-bold bg-red-50 px-2 py-0.5 rounded-full">Over allocated: Rs. {Math.abs(remaining).toLocaleString()}</span>;
-                              }
-                            })()}
-                          </div>
-                        )}
+                    {/* Live calculation banner */}
+                    {parseFloat(formData.exp_amount || 0) > 0 && (
+                      <div className="mt-2 pt-2 border-t border-purple-200 flex justify-between items-center text-xs">
+                        <span className="text-gray-600">
+                          Total: <strong className="text-gray-900 font-bold">Rs. {parseFloat(formData.exp_amount || 0).toLocaleString()}</strong>
+                        </span>
+                        <span className="text-gray-600">
+                          Allocated: <strong className="text-gray-900 font-bold">Rs. {(parseFloat(formData.cash_amount || 0) + parseFloat(formData.bank_amount || 0)).toLocaleString()}</strong>
+                        </span>
+                        {(() => {
+                          const remaining = parseFloat(formData.exp_amount || 0) - parseFloat(formData.cash_amount || 0) - parseFloat(formData.bank_amount || 0);
+                          if (Math.abs(remaining) < 0.01) {
+                            return <span className="text-green-600 font-bold bg-green-100 px-2 py-0.5 rounded-full">Fully Allocated</span>;
+                          } else if (remaining > 0) {
+                            return <span className="text-amber-600 font-bold bg-amber-100 px-2 py-0.5 rounded-full">Remaining: Rs. {remaining.toLocaleString()}</span>;
+                          } else {
+                            return <span className="text-red-600 font-bold bg-red-100 px-2 py-0.5 rounded-full">Over allocated: Rs. {Math.abs(remaining).toLocaleString()}</span>;
+                          }
+                        })()}
                       </div>
                     )}
-
-                    {/* Payment Reference */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Payment Reference (Optional)
-                      </label>
-                      <input
-                        type="text"
-                        name="payment_reference"
-                        value={formData.payment_reference || ''}
-                        onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all duration-200 text-black"
-                        placeholder="e.g., Check #1234, Transfer ID"
-                      />
-                    </div>
                   </div>
-                </div>
+                )}
 
-                {/* Form Actions */}
-                <div className="flex items-center justify-end space-x-4 pt-6 border-t border-gray-200">
-                  <button
-                    type="button"
-                    onClick={() => setCurrentView('list')}
-                    className="px-6 py-3 text-gray-600 hover:text-gray-800 font-medium transition-colors duration-200"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className={`px-8 py-3 bg-gradient-to-r from-red-500 to-pink-500 text-white font-medium rounded-xl transition-all duration-200 shadow-md hover:shadow-lg ${
-                      isSubmitting 
-                        ? 'opacity-60 cursor-not-allowed' 
-                        : 'hover:from-red-600 hover:to-pink-600 transform hover:scale-105'
-                    }`}
-                  >
-                    {isSubmitting ? (
-                      <span className="flex items-center justify-center">
-                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        {editingExpense ? 'Updating...' : 'Creating...'}
-                      </span>
-                    ) : (
-                      editingExpense ? 'Update Expense' : 'Create Expense'
-                    )}
-                  </button>
+                {/* Payment Reference */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Payment Reference (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    name="payment_reference"
+                    value={formData.payment_reference || ''}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 text-black text-sm transition-all"
+                    placeholder="e.g., Check #1234, Transfer ID"
+                  />
                 </div>
               </form>
             </div>
+
+            {/* Modal Actions Footer */}
+            <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200 mt-2 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setCurrentView('list')}
+                className="px-5 py-2.5 text-sm text-gray-600 hover:text-gray-800 font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="expense-modal-form"
+                disabled={isSubmitting}
+                className={`px-6 py-2.5 bg-gradient-to-r from-red-500 to-pink-500 text-white text-sm font-medium rounded-xl hover:from-red-600 hover:to-pink-600 transition-all shadow-md hover:shadow-lg ${
+                  isSubmitting ? 'opacity-60 cursor-not-allowed' : 'transform hover:scale-105'
+                }`}
+              >
+                {isSubmitting ? (
+                  <span className="flex items-center justify-center">
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    {editingExpense ? 'Updating...' : 'Creating...'}
+                  </span>
+                ) : (
+                  editingExpense ? 'Update Expense' : 'Create Expense'
+                )}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    </DashboardLayout>
-  );
-
-  return (
-    <>
-      {currentView === 'list' ? renderExpensesListView() : renderExpenseCreateView()}
-
-
+      )}
 
       {/* Add Expense Type Dialog */}
       {showTypeDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full mx-4">
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-xl font-bold text-gray-900 flex items-center">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full mx-4 overflow-hidden">
+            <div className="p-5 border-b border-gray-200">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center">
                 <Tag className="w-5 h-5 mr-2 text-red-500" />
                 Add New Expense Type
               </h3>
-              <p className="text-sm text-gray-600 mt-1">
+              <p className="text-xs text-gray-600 mt-1">
                 Create a new category for your expenses
               </p>
             </div>
 
-            <div className="p-6">
+            <div className="p-5">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Type Title *
               </label>
@@ -1168,25 +1138,27 @@ export default function ExpensesPage() {
                     handleCreateType();
                   }
                 }}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all duration-200 text-black font-medium"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 text-black text-sm font-medium"
                 placeholder="e.g., Electricity, Rent, Salary"
               />
             </div>
 
-            <div className="p-6 border-t border-gray-200 flex items-center justify-end space-x-4">
+            <div className="p-4 bg-gray-50 border-t border-gray-200 flex items-center justify-end space-x-3">
               <button
+                type="button"
                 onClick={() => {
                   setShowTypeDialog(false);
                   setNewTypeName('');
                 }}
-                className="px-6 py-3 text-gray-600 hover:text-gray-800 font-medium transition-colors duration-200"
+                className="px-4 py-2 text-xs text-gray-600 hover:text-gray-800 font-medium transition-colors"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleCreateType}
                 disabled={isSubmittingType || !newTypeName.trim()}
-                className="px-8 py-3 bg-gradient-to-r from-red-500 to-pink-500 text-white font-medium rounded-xl hover:from-red-600 hover:to-pink-600 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 disabled:opacity-50 disabled:scale-100"
+                className="px-5 py-2 bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs font-medium rounded-xl hover:from-red-600 hover:to-pink-600 transition-all shadow-md disabled:opacity-50"
               >
                 {isSubmittingType ? 'Saving...' : 'Add Type'}
               </button>
@@ -1194,6 +1166,6 @@ export default function ExpensesPage() {
           </div>
         </div>
       )}
-    </>
+    </DashboardLayout>
   );
 }
