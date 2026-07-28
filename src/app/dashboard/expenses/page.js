@@ -1111,20 +1111,32 @@ export default function ExpensesPage() {
 
       {/* Add Expense Type Dialog */}
       {showTypeDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full mx-4 overflow-hidden">
-            <div className="p-5 border-b border-gray-200">
-              <h3 className="text-lg font-bold text-gray-900 flex items-center">
-                <Tag className="w-5 h-5 mr-2 text-red-500" />
-                Add New Expense Type
-              </h3>
-              <p className="text-xs text-gray-600 mt-1">
-                Create a new category for your expenses
-              </p>
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 max-w-sm w-full p-6 relative overflow-hidden transition-all">
+            <div className="flex items-center justify-between pb-4 border-b border-gray-200 mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 flex items-center">
+                  <Tag className="w-5 h-5 mr-2 text-red-500" />
+                  Add New Expense Type
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Create a new category for your expenses
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTypeDialog(false);
+                  setNewTypeName('');
+                }}
+                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
-            <div className="p-5">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 Type Title *
               </label>
               <input
@@ -1138,12 +1150,12 @@ export default function ExpensesPage() {
                     handleCreateType();
                   }
                 }}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 text-black text-sm font-medium"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 text-black text-sm font-medium transition-all"
                 placeholder="e.g., Electricity, Rent, Salary"
               />
             </div>
 
-            <div className="p-4 bg-gray-50 border-t border-gray-200 flex items-center justify-end space-x-3">
+            <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200">
               <button
                 type="button"
                 onClick={() => {
@@ -1158,7 +1170,7 @@ export default function ExpensesPage() {
                 type="button"
                 onClick={handleCreateType}
                 disabled={isSubmittingType || !newTypeName.trim()}
-                className="px-5 py-2 bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs font-medium rounded-xl hover:from-red-600 hover:to-pink-600 transition-all shadow-md disabled:opacity-50"
+                className="px-5 py-2.5 bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs font-medium rounded-xl hover:from-red-600 hover:to-pink-600 transition-all shadow-md disabled:opacity-50 transform hover:scale-105"
               >
                 {isSubmittingType ? 'Saving...' : 'Add Type'}
               </button>
