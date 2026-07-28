@@ -25,6 +25,20 @@ import {
   Wallet,
   Banknote
 } from 'lucide-react';
+import {
+  Autocomplete,
+  TextField,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Box,
+  Typography,
+  IconButton,
+  Grid,
+  Paper
+} from '@mui/material';
 import DashboardLayout from '../components/dashboard-layout';
 
 const fmtAmt = (val) => {
@@ -224,7 +238,7 @@ export default function ExpensesPage() {
     }
 
     if (!formData.exp_type) {
-      alert('Please select an expense type');
+      alert('Please select an expense category / type');
       return;
     }
 
@@ -400,6 +414,23 @@ export default function ExpensesPage() {
     setSortBy('created_at');
     setSortOrder('desc');
   };
+
+  // Filter options for cash and bank accounts
+  const cashAccountsList = useMemo(() => {
+    return paymentAccounts.filter(account => {
+      const typeTitle = account.customer_type?.cus_type_title?.toLowerCase() || '';
+      const catTitle = account.customer_category?.cus_cat_title?.toLowerCase() || '';
+      return typeTitle.includes('cash') && catTitle.includes('cash');
+    });
+  }, [paymentAccounts]);
+
+  const bankAccountsList = useMemo(() => {
+    return paymentAccounts.filter(account => {
+      const typeTitle = account.customer_type?.cus_type_title?.toLowerCase() || '';
+      const catTitle = account.customer_category?.cus_cat_title?.toLowerCase() || '';
+      return typeTitle.includes('bank') && catTitle.includes('bank');
+    });
+  }, [paymentAccounts]);
 
   if (loading) {
     return (
@@ -738,9 +769,7 @@ export default function ExpensesPage() {
             )}
           </div>
         </div>
-      </div>
-
-      {/* Slim Add / Edit Expense Light Modal Popup */}
+      </div>      {/* Add / Edit Expense Popup Modal */}
       {currentView === 'create' && (
         <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 sm:p-6 overflow-y-auto">
           <div className="bg-white text-gray-900 rounded-3xl shadow-2xl border border-gray-100 max-w-3xl w-full p-6 sm:p-8 relative max-h-[90vh] flex flex-col my-auto transition-all">
@@ -762,29 +791,30 @@ export default function ExpensesPage() {
             {/* Modal Scrollable Body */}
             <div className="flex-1 overflow-y-auto py-5 pr-1">
               <form onSubmit={handleSubmit} id="expense-modal-form" className="space-y-5">
-                {/* 2-Column Grid for Title & Type */}
+                {/* 2-Column Grid for Title & Filterable Category */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                   {/* Expense Title */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">
                       Expense Title *
                     </label>
-                    <input
-                      type="text"
+                    <TextField
+                      fullWidth
                       name="exp_title"
                       value={formData.exp_title}
                       onChange={handleInputChange}
                       required
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 text-black text-sm transition-all"
-                      placeholder="Enter expense title (e.g., Office Supplies, Travel)"
+                      size="small"
+                      variant="outlined"
+                      placeholder="Enter expense title (e.g., Office Supplies, Rent)"
                     />
                   </div>
 
-                  {/* Expense Type */}
+                  {/* Filterable Expense Category (Material-UI Autocomplete) */}
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="block text-sm font-medium text-gray-700">
-                        Expense Type *
+                        Category / Expense Type *
                       </label>
                       <button
                         type="button"
@@ -795,20 +825,28 @@ export default function ExpensesPage() {
                         Add New Type
                       </button>
                     </div>
-                    <select
-                      name="exp_type"
-                      value={formData.exp_type}
-                      onChange={handleInputChange}
-                      required
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 text-black text-sm transition-all"
-                    >
-                      <option value="">Select expense type</option>
-                      {expenseTitles.map((title) => (
-                        <option key={title.id} value={title.id}>
-                          {title.title}
-                        </option>
-                      ))}
-                    </select>
+                    <Autocomplete
+                      options={expenseTitles}
+                      getOptionLabel={(option) => {
+                        if (typeof option === 'string') return option;
+                        return option.title || '';
+                      }}
+                      value={expenseTitles.find(t => t.id == formData.exp_type) || null}
+                      onChange={(event, newValue) => {
+                        setFormData(prev => ({ ...prev, exp_type: newValue ? newValue.id : '' }));
+                      }}
+                      isOptionEqualToValue={(option, value) => option.id == value.id}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          placeholder="Type to filter category..."
+                          size="small"
+                          required={!formData.exp_type}
+                          fullWidth
+                          variant="outlined"
+                        />
+                      )}
+                    />
                   </div>
                 </div>
 
@@ -819,15 +857,16 @@ export default function ExpensesPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">
                       Amount *
                     </label>
-                    <input
+                    <TextField
+                      fullWidth
                       type="number"
                       name="exp_amount"
                       value={formData.exp_amount}
                       onChange={handleInputChange}
                       required
-                      step="0.01"
-                      min="0.01"
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 text-black text-sm font-semibold transition-all"
+                      inputProps={{ step: '0.01', min: '0.01' }}
+                      size="small"
+                      variant="outlined"
                       placeholder="0.00"
                     />
                   </div>
@@ -837,88 +876,88 @@ export default function ExpensesPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">
                       Payment Reference (Optional)
                     </label>
-                    <input
-                      type="text"
+                    <TextField
+                      fullWidth
                       name="payment_reference"
                       value={formData.payment_reference || ''}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 text-black text-sm transition-all"
+                      size="small"
+                      variant="outlined"
                       placeholder="e.g., Check #1234, Transfer ID"
                     />
                   </div>
                 </div>
 
-                {/* Payment Method - 3 Button Choice */}
+                {/* Payment Method Choice */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Payment Method *
                   </label>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-3 gap-3 sm:gap-4">
                     <button
                       type="button"
                       onClick={() => setFormData(prev => ({ ...prev, paymentMethod: 'CASH', paid_from_account_id: '', bank_account_id: '', cash_amount: '', bank_amount: '' }))}
-                      className={`flex items-center justify-center px-3 py-2.5 rounded-xl border-2 transition-all text-xs sm:text-sm ${
+                      className={`flex items-center justify-center px-4 py-3 rounded-xl border-2 transition-all text-xs sm:text-sm ${
                         formData.paymentMethod === 'CASH'
                           ? 'border-green-500 bg-green-50 text-green-700 font-bold shadow-sm'
                           : 'border-gray-200 bg-gray-50 text-gray-500 font-medium hover:border-gray-300'
                       }`}
                     >
-                      <Banknote className="w-4 h-4 mr-1.5" />
+                      <Banknote className="w-4 h-4 mr-2" />
                       Cash
                     </button>
                     <button
                       type="button"
                       onClick={() => setFormData(prev => ({ ...prev, paymentMethod: 'BANK', paid_from_account_id: '', bank_account_id: '', cash_amount: '', bank_amount: '' }))}
-                      className={`flex items-center justify-center px-3 py-2.5 rounded-xl border-2 transition-all text-xs sm:text-sm ${
+                      className={`flex items-center justify-center px-4 py-3 rounded-xl border-2 transition-all text-xs sm:text-sm ${
                         formData.paymentMethod === 'BANK'
                           ? 'border-blue-500 bg-blue-50 text-blue-700 font-bold shadow-sm'
                           : 'border-gray-200 bg-gray-50 text-gray-500 font-medium hover:border-gray-300'
                       }`}
                     >
-                      <CreditCard className="w-4 h-4 mr-1.5" />
+                      <CreditCard className="w-4 h-4 mr-2" />
                       Bank
                     </button>
                     <button
                       type="button"
                       onClick={() => setFormData(prev => ({ ...prev, paymentMethod: 'PARTIAL', paid_from_account_id: '', bank_account_id: '', cash_amount: '', bank_amount: '' }))}
-                      className={`flex items-center justify-center px-3 py-2.5 rounded-xl border-2 transition-all text-xs sm:text-sm ${
+                      className={`flex items-center justify-center px-4 py-3 rounded-xl border-2 transition-all text-xs sm:text-sm ${
                         formData.paymentMethod === 'PARTIAL'
                           ? 'border-purple-500 bg-purple-50 text-purple-700 font-bold shadow-sm'
                           : 'border-gray-200 bg-gray-50 text-gray-500 font-medium hover:border-gray-300'
                       }`}
                     >
-                      <DollarSign className="w-4 h-4 mr-1.5" />
+                      <DollarSign className="w-4 h-4 mr-2" />
                       Partial
                     </button>
                   </div>
                 </div>
 
-                {/* Account Selection & Split Details */}
+                {/* Account Selection (Filterable Material-UI Autocomplete) */}
                 {formData.paymentMethod === 'CASH' && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">
                       Cash Account *
                     </label>
-                    <select
-                      name="paid_from_account_id"
-                      value={formData.paid_from_account_id || ''}
-                      onChange={handleInputChange}
-                      required
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black text-sm font-semibold transition-all"
-                    >
-                      <option value="">Select cash account</option>
-                      {paymentAccounts
-                        .filter(account => {
-                          const typeTitle = account.customer_type?.cus_type_title?.toLowerCase() || '';
-                          const catTitle = account.customer_category?.cus_cat_title?.toLowerCase() || '';
-                          return typeTitle.includes('cash') && catTitle.includes('cash');
-                        })
-                        .map((account) => (
-                          <option key={account.cus_id} value={account.cus_id}>
-                            {account.cus_name} (Balance: Rs. {parseFloat(account.cus_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })})
-                          </option>
-                        ))}
-                    </select>
+                    <Autocomplete
+                      options={cashAccountsList}
+                      getOptionLabel={(account) => `${account.cus_name} (Balance: Rs. ${parseFloat(account.cus_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })})`}
+                      value={cashAccountsList.find(a => a.cus_id.toString() === formData.paid_from_account_id) || null}
+                      onChange={(event, newValue) => {
+                        setFormData(prev => ({ ...prev, paid_from_account_id: newValue ? newValue.cus_id.toString() : '' }));
+                      }}
+                      isOptionEqualToValue={(option, value) => option.cus_id === value.cus_id}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          placeholder="Type to filter cash account..."
+                          size="small"
+                          required={!formData.paid_from_account_id}
+                          fullWidth
+                          variant="outlined"
+                        />
+                      )}
+                    />
                   </div>
                 )}
 
@@ -927,109 +966,108 @@ export default function ExpensesPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">
                       Bank Account *
                     </label>
-                    <select
-                      name="bank_account_id"
-                      value={formData.bank_account_id || ''}
-                      onChange={handleInputChange}
-                      required
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black text-sm font-semibold transition-all"
-                    >
-                      <option value="">Select bank account</option>
-                      {paymentAccounts
-                        .filter(account => {
-                          const typeTitle = account.customer_type?.cus_type_title?.toLowerCase() || '';
-                          const catTitle = account.customer_category?.cus_cat_title?.toLowerCase() || '';
-                          return typeTitle.includes('bank') && catTitle.includes('bank');
-                        })
-                        .map((account) => (
-                          <option key={account.cus_id} value={account.cus_id}>
-                            {account.cus_name} (Balance: Rs. {parseFloat(account.cus_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })})
-                          </option>
-                        ))}
-                    </select>
+                    <Autocomplete
+                      options={bankAccountsList}
+                      getOptionLabel={(account) => `${account.cus_name} (Balance: Rs. ${parseFloat(account.cus_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })})`}
+                      value={bankAccountsList.find(a => a.cus_id.toString() === formData.bank_account_id) || null}
+                      onChange={(event, newValue) => {
+                        setFormData(prev => ({ ...prev, bank_account_id: newValue ? newValue.cus_id.toString() : '' }));
+                      }}
+                      isOptionEqualToValue={(option, value) => option.cus_id === value.cus_id}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          placeholder="Type to filter bank account..."
+                          size="small"
+                          required={!formData.bank_account_id}
+                          fullWidth
+                          variant="outlined"
+                        />
+                      )}
+                    />
                   </div>
                 )}
 
                 {formData.paymentMethod === 'PARTIAL' && (
-                  <div className="space-y-3 bg-purple-50/60 p-4 rounded-2xl border border-purple-100">
+                  <div className="space-y-3 bg-purple-50/60 p-4 sm:p-5 rounded-2xl border border-purple-100">
                     <h5 className="text-xs font-bold text-purple-900 flex items-center uppercase tracking-wide">
                       <DollarSign className="w-4 h-4 mr-1 text-purple-600" /> Split Payment Details
                     </h5>
                     
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {/* Cash Part */}
                       <div className="space-y-1.5">
                         <label className="block text-xs font-semibold text-gray-700">Cash Account *</label>
-                        <select
-                          name="paid_from_account_id"
-                          value={formData.paid_from_account_id || ''}
-                          onChange={handleInputChange}
-                          required
-                          className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-black font-semibold"
-                        >
-                          <option value="">Select cash account</option>
-                          {paymentAccounts
-                            .filter(account => {
-                              const typeTitle = account.customer_type?.cus_type_title?.toLowerCase() || '';
-                              const catTitle = account.customer_category?.cus_cat_title?.toLowerCase() || '';
-                              return typeTitle.includes('cash') && catTitle.includes('cash');
-                            })
-                            .map((account) => (
-                              <option key={account.cus_id} value={account.cus_id}>
-                                {account.cus_name} (Bal: Rs. {parseFloat(account.cus_balance || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })})
-                              </option>
-                            ))}
-                        </select>
+                        <Autocomplete
+                          options={cashAccountsList}
+                          getOptionLabel={(account) => account.cus_name}
+                          value={cashAccountsList.find(a => a.cus_id.toString() === formData.paid_from_account_id) || null}
+                          onChange={(event, newValue) => {
+                            setFormData(prev => ({ ...prev, paid_from_account_id: newValue ? newValue.cus_id.toString() : '' }));
+                          }}
+                          isOptionEqualToValue={(option, value) => option.cus_id === value.cus_id}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              placeholder="Select Cash Acc..."
+                              size="small"
+                              required={!formData.paid_from_account_id}
+                              fullWidth
+                              variant="outlined"
+                            />
+                          )}
+                        />
                         
                         <label className="block text-xs font-semibold text-gray-700 mt-2">Cash Amount *</label>
-                        <input
+                        <TextField
+                          fullWidth
                           type="number"
                           name="cash_amount"
                           value={formData.cash_amount || ''}
                           onChange={handleInputChange}
                           required
-                          step="0.01"
-                          min="0.01"
+                          inputProps={{ step: '0.01', min: '0.01' }}
+                          size="small"
+                          variant="outlined"
                           placeholder="0.00"
-                          className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-black font-mono font-semibold"
                         />
                       </div>
 
                       {/* Bank Part */}
                       <div className="space-y-1.5">
                         <label className="block text-xs font-semibold text-gray-700">Bank Account *</label>
-                        <select
-                          name="bank_account_id"
-                          value={formData.bank_account_id || ''}
-                          onChange={handleInputChange}
-                          required
-                          className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-black font-semibold"
-                        >
-                          <option value="">Select bank account</option>
-                          {paymentAccounts
-                            .filter(account => {
-                              const typeTitle = account.customer_type?.cus_type_title?.toLowerCase() || '';
-                              const catTitle = account.customer_category?.cus_cat_title?.toLowerCase() || '';
-                              return typeTitle.includes('bank') && catTitle.includes('bank');
-                            })
-                            .map((account) => (
-                              <option key={account.cus_id} value={account.cus_id}>
-                                {account.cus_name} (Bal: Rs. {parseFloat(account.cus_balance || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })})
-                              </option>
-                            ))}
-                        </select>
+                        <Autocomplete
+                          options={bankAccountsList}
+                          getOptionLabel={(account) => account.cus_name}
+                          value={bankAccountsList.find(a => a.cus_id.toString() === formData.bank_account_id) || null}
+                          onChange={(event, newValue) => {
+                            setFormData(prev => ({ ...prev, bank_account_id: newValue ? newValue.cus_id.toString() : '' }));
+                          }}
+                          isOptionEqualToValue={(option, value) => option.cus_id === value.cus_id}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              placeholder="Select Bank Acc..."
+                              size="small"
+                              required={!formData.bank_account_id}
+                              fullWidth
+                              variant="outlined"
+                            />
+                          )}
+                        />
                         
                         <label className="block text-xs font-semibold text-gray-700 mt-2">Bank Amount *</label>
-                        <input
+                        <TextField
+                          fullWidth
                           type="number"
                           name="bank_amount"
                           value={formData.bank_amount || ''}
                           onChange={handleInputChange}
                           required
-                          step="0.01"
-                          min="0.01"
+                          inputProps={{ step: '0.01', min: '0.01' }}
+                          size="small"
+                          variant="outlined"
                           placeholder="0.00"
-                          className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-black font-mono font-semibold"
                         />
                       </div>
                     </div>
@@ -1058,18 +1096,21 @@ export default function ExpensesPage() {
                   </div>
                 )}
 
-                {/* Payment Reference */}
+                {/* Expense Detail */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Payment Reference (Optional)
+                    Expense Detail
                   </label>
-                  <input
-                    type="text"
-                    name="payment_reference"
-                    value={formData.payment_reference || ''}
+                  <TextField
+                    fullWidth
+                    multiline
+                    rows={2}
+                    name="exp_detail"
+                    value={formData.exp_detail}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 text-black text-sm transition-all"
-                    placeholder="e.g., Check #1234, Transfer ID"
+                    placeholder="Enter additional details about the expense"
+                    size="small"
+                    variant="outlined"
                   />
                 </div>
               </form>
@@ -1088,7 +1129,7 @@ export default function ExpensesPage() {
                 type="submit"
                 form="expense-modal-form"
                 disabled={isSubmitting}
-                className={`px-6 py-2.5 bg-gradient-to-r from-red-500 to-pink-500 text-white text-sm font-medium rounded-xl hover:from-red-600 hover:to-pink-600 transition-all shadow-md hover:shadow-lg ${
+                className={`px-7 py-2.5 bg-gradient-to-r from-red-500 to-pink-500 text-white text-sm font-medium rounded-xl hover:from-red-600 hover:to-pink-600 transition-all shadow-md hover:shadow-lg ${
                   isSubmitting ? 'opacity-60 cursor-not-allowed' : 'transform hover:scale-105'
                 }`}
               >
@@ -1109,75 +1150,81 @@ export default function ExpensesPage() {
         </div>
       )}
 
-      {/* Add Expense Type Dialog */}
-      {showTypeDialog && (
-        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 max-w-sm w-full p-6 relative overflow-hidden transition-all">
-            <div className="flex items-center justify-between pb-4 border-b border-gray-200 mb-4">
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 flex items-center">
-                  <Tag className="w-5 h-5 mr-2 text-red-500" />
-                  Add New Expense Type
-                </h3>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Create a new category for your expenses
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowTypeDialog(false);
-                  setNewTypeName('');
-                }}
-                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Type Title *
-              </label>
-              <input
-                type="text"
-                autoFocus
-                value={newTypeName}
-                onChange={(e) => setNewTypeName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleCreateType();
-                  }
-                }}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 text-black text-sm font-medium transition-all"
-                placeholder="e.g., Electricity, Rent, Salary"
-              />
-            </div>
-
-            <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowTypeDialog(false);
-                  setNewTypeName('');
-                }}
-                className="px-4 py-2 text-xs text-gray-600 hover:text-gray-800 font-medium transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleCreateType}
-                disabled={isSubmittingType || !newTypeName.trim()}
-                className="px-5 py-2.5 bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs font-medium rounded-xl hover:from-red-600 hover:to-pink-600 transition-all shadow-md disabled:opacity-50 transform hover:scale-105"
-              >
-                {isSubmittingType ? 'Saving...' : 'Add Type'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Material-UI Add Expense Type Dialog */}
+      <Dialog
+        open={showTypeDialog}
+        onClose={() => setShowTypeDialog(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: '20px',
+            p: 0.5
+          }
+        }}
+      >
+        <DialogTitle sx={{ m: 0, p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f3f4f6' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Tag style={{ color: '#ef4444', width: 20, height: 20 }} />
+            <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '1.125rem', color: '#111827' }}>
+              Add New Expense Type
+            </Typography>
+          </Box>
+          <IconButton onClick={() => setShowTypeDialog(false)} size="small">
+            <X size={18} />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ py: 2.5, pt: 3 }}>
+          <TextField
+            fullWidth
+            autoFocus
+            label="Type Title *"
+            value={newTypeName}
+            onChange={(e) => setNewTypeName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleCreateType();
+              }
+            }}
+            placeholder="e.g., Electricity, Rent, Salary"
+            size="small"
+            variant="outlined"
+            sx={{
+              mt: 1,
+              '& .MuiOutlinedInput-root': { borderRadius: '12px' }
+            }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 2.5, py: 1.5, borderTop: '1px solid #f3f4f6' }}>
+          <Button
+            onClick={() => {
+              setShowTypeDialog(false);
+              setNewTypeName('');
+            }}
+            sx={{ textTransform: 'none', color: '#4b5563', fontWeight: 600 }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleCreateType}
+            disabled={isSubmittingType || !newTypeName.trim()}
+            variant="contained"
+            sx={{
+              textTransform: 'none',
+              fontWeight: 700,
+              px: 3,
+              borderRadius: '10px',
+              background: 'linear-gradient(to right, #ef4444, #ec4899)',
+              '&:hover': {
+                background: 'linear-gradient(to right, #dc2626, #db2777)'
+              }
+            }}
+          >
+            {isSubmittingType ? 'Saving...' : 'Add Type'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </DashboardLayout>
   );
 }
