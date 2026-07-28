@@ -115,15 +115,15 @@ const getLedgerEntryDisplayAmounts = (entry) => {
 };
 
 const compareChronologically = (a, b) => {
-  const timeA = new Date(a.created_at).getTime();
-  const timeB = new Date(b.created_at).getTime();
+  const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+  const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
   if (timeA !== timeB) return timeA - timeB;
 
   const billA = parseInt(a.bill_no) || 0;
   const billB = parseInt(b.bill_no) || 0;
   if (billA !== billB) return billA - billB;
 
-  return a.l_id - b.l_id;
+  return (a.l_id || 0) - (b.l_id || 0);
 };
 
 /** Bank / Cash display amounts for a ledger row — must match the table body logic (finance ledger columns). */
@@ -370,7 +370,6 @@ export default function FinancePage() {
   const [endDate, setEndDate] = useState('');
   const [selectedLedgerType, setSelectedLedgerType] = useState('');
   const [staticDataLoaded, setStaticDataLoaded] = useState(false);
-  const tableEndRef = useRef(null);
 
   // Customer dropdown filter states
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
@@ -1089,7 +1088,7 @@ export default function FinancePage() {
     }
 
     if (aValue === bValue) {
-      return compareChronologically(a, b);
+      return sortOrder === 'asc' ? compareChronologically(a, b) : compareChronologically(b, a);
     }
 
     if (sortOrder === 'asc') {
@@ -3380,7 +3379,6 @@ export default function FinancePage() {
                   <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
                     Showing {finalLedgerEntries.length} of {ledgerEntries.length} entries • Double-click any entry to edit
                   </Typography>
-                  <div ref={tableEndRef} />
                 </Box>
               </Box>
             )}

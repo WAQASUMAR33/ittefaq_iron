@@ -3975,102 +3975,103 @@ function OrdersPageContent() {
           </DialogTitle>
           <DialogContent sx={{ p: 0, bgcolor: 'white' }}>
             {currentBillData && (
-              <Box id="receipt-preview" sx={{ width: '100%', bgcolor: 'white', p: 3 }}>
+              <Box id="receipt-preview" sx={{ width: '100%', bgcolor: 'white', p: 2 }}>
                 {/* Company Header */}
-                <Box sx={{ textAlign: 'center', py: 2, borderBottom: '2px solid #000' }}>
-                  <Typography variant="h5" sx={{
+                <Box sx={{ textAlign: 'center', pb: 1, mb: 1, borderBottom: '2px solid #000' }}>
+                  <Typography sx={{
                     fontWeight: 'bold',
-                    mb: 1,
+                    mb: 0.25,
                     fontFamily: 'Arial, sans-serif',
-                    direction: 'rtl'
+                    fontSize: '1.4rem',
+                    direction: 'rtl',
+                    color: '#000'
                   }}>
                     اتفاق آئرن اینڈ سیمنٹ سٹور
                   </Typography>
-                  <Typography variant="body2" sx={{
-                    mb: 1,
-                    direction: 'rtl'
+                  <Typography sx={{
+                    mb: 0.25,
+                    fontSize: '0.85rem',
+                    direction: 'rtl',
+                    color: '#000'
                   }}>
                     گجرات سرگودھا روڈ، پاہڑیانوالی
                   </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 1 }}>
-                    <PhoneIcon sx={{ color: '#25D366', fontSize: '1rem' }} />
-                    <Typography variant="body2">
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, mb: 0.5 }}>
+                    <PhoneIcon sx={{ color: '#25D366', fontSize: '0.9rem' }} />
+                    <Typography sx={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#000' }}>
                       Ph:- 0346-7560306, 0300-7560306
                     </Typography>
                   </Box>
-                  <Typography variant="h6" sx={{
+                  <Typography sx={{
                     fontWeight: 'bold',
                     textTransform: 'uppercase',
                     letterSpacing: 1,
-                    mt: 1
+                    mt: 0.5,
+                    fontSize: '1rem',
+                    color: '#000'
                   }}>
-                    ORDER INVOICE
+                    SALE INVOICE
                   </Typography>
                 </Box>
 
                 {/* Customer and Invoice Details */}
-                <Box sx={{ px: 2, py: 2, borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between' }}>
+                <Box sx={{ px: 1, py: 1, mb: 1.5, borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between' }}>
                   <Box sx={{ flex: '0 0 50%' }}>
-                    <Typography variant="body2" sx={{ mb: 0.5 }}>
-                      Customer Name: <strong>{currentBillData.customer?.cus_name || 'N/A'}</strong>
+                    <Typography sx={{ mb: 0.25, fontSize: '0.85rem', color: '#000' }}>
+                      Customer Name: &nbsp;<strong>{currentBillData.customer?.cus_name || 'Cash Customer'}</strong>
                     </Typography>
-                    <Typography variant="body2" sx={{ mb: 0.5 }}>
-                      Phone No: <strong>{currentBillData.customer?.cus_phone_no || 'N/A'}</strong>
+                    <Typography sx={{ mb: 0.25, fontSize: '0.85rem', color: '#000' }}>
+                      Phone No: &nbsp;<strong>{currentBillData.customer?.cus_phone_no || 'N/A'}</strong>
                     </Typography>
                     {currentBillData.customer?.cus_address && (
-                      <Typography variant="body2">
-                        Address: <strong>{currentBillData.customer.cus_address}</strong>
+                      <Typography sx={{ fontSize: '0.85rem', color: '#000' }}>
+                        Address: &nbsp;<strong>{currentBillData.customer.cus_address}</strong>
                       </Typography>
                     )}
                   </Box>
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right', flex: '0 0 50%' }}>
-                    <Typography variant="body2" sx={{ mb: 0.5 }}>
-                      Invoice No: <strong>{getBillDisplayNo(currentBillData)}</strong>
+                    <Typography sx={{ mb: 0.25, fontSize: '0.85rem', color: '#000' }}>
+                      Invoice No: &nbsp;<strong>{getBillDisplayNo(currentBillData)}</strong>
                     </Typography>
-                    <Typography variant="body2" sx={{ mb: 0.5 }}>
-                      Time: <strong>{new Date(currentBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
+                    <Typography sx={{ mb: 0.25, fontSize: '0.85rem', color: '#000' }}>
+                      Sale ID: &nbsp;<strong>{currentBillData.sale_id || getBillDisplayNo(currentBillData)}</strong>
                     </Typography>
-                    <Typography variant="body2" sx={{ mb: 0.5 }}>
-                      Date: <strong>{new Date(currentBillData.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
+                    <Typography sx={{ mb: 0.25, fontSize: '0.85rem', color: '#000' }}>
+                      Date: &nbsp;<strong>{new Date(currentBillData.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
                     </Typography>
-                    <Typography variant="body2">
-                      Bill Type: <strong>{currentBillData.bill_type || 'BILL'}</strong>
+                    <Typography sx={{ fontSize: '0.85rem', color: '#000' }}>
+                      Time: &nbsp;<strong>{new Date(currentBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
                     </Typography>
-                    {currentBillData.reference && (
-                      <Typography variant="body2">
-                        Reference: <strong>{currentBillData.reference}</strong>
-                      </Typography>
-                    )}
                   </Box>
                 </Box>
 
                 {/* Product Table */}
-                <Box sx={{ px: 2, py: 2 }}>
-                  <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+                <Box sx={{ px: 1, py: 0.5 }}>
+                  <TableContainer component={Paper} variant="outlined" sx={{ mb: 1.5, border: '1px solid #000', boxShadow: 'none' }}>
                     <Table size="small">
                       <TableHead>
-                        <TableRow sx={{ bgcolor: '#9e9e9e' }}>
-                          <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }}>S#</TableCell>
-                          <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }}>Product Name</TableCell>
-                          <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Qty</TableCell>
-                          <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Rate</TableCell>
-                          <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Amount</TableCell>
+                        <TableRow sx={{ bgcolor: '#808080' }}>
+                          <TableCell sx={{ fontWeight: 'bold', color: '#ffffff', py: 0.75, px: 1, fontSize: '0.85rem', border: '1px solid #777' }}>S#</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', color: '#ffffff', py: 0.75, px: 1, fontSize: '0.85rem', border: '1px solid #777' }}>Product Name</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', color: '#ffffff', py: 0.75, px: 1, fontSize: '0.85rem', border: '1px solid #777' }} align="center">Qty</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', color: '#ffffff', py: 0.75, px: 1, fontSize: '0.85rem', border: '1px solid #777' }} align="right">Rate</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', color: '#ffffff', py: 0.75, px: 1, fontSize: '0.85rem', border: '1px solid #777' }} align="right">Amount</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
                         {currentBillData.sale_details && currentBillData.sale_details.length > 0 ? (
                           currentBillData.sale_details.map((detail, index) => (
                             <TableRow key={detail.sale_detail_id || index}>
-                              <TableCell sx={{ px: 1 }}>{index + 1}</TableCell>
-                              <TableCell sx={{ px: 1 }}>{detail.product?.pro_title || 'N/A'}</TableCell>
-                              <TableCell sx={{ px: 1 }} align="right">{detail.qnty || 0}</TableCell>
-                              <TableCell sx={{ px: 1 }} align="right">{fmtAmt(detail.unit_rate)}</TableCell>
-                              <TableCell sx={{ px: 1 }} align="right">{fmtAmt(detail.total_amount)}</TableCell>
+                              <TableCell sx={{ px: 1, py: 0.5, color: '#000', fontSize: '0.85rem', border: '1px solid #777' }}>{index + 1}</TableCell>
+                              <TableCell sx={{ px: 1, py: 0.5, color: '#000', fontWeight: 'bold', fontSize: '0.85rem', border: '1px solid #777' }}>{detail.product?.pro_title || detail.product?.pro_name || 'N/A'}</TableCell>
+                              <TableCell sx={{ px: 1, py: 0.5, color: '#000', fontWeight: 'bold', fontSize: '0.85rem', border: '1px solid #777' }} align="center">{fmtAmt(detail.qnty || 0)}</TableCell>
+                              <TableCell sx={{ px: 1, py: 0.5, color: '#000', fontSize: '0.85rem', border: '1px solid #777' }} align="right">{fmtAmt(detail.unit_rate)}</TableCell>
+                              <TableCell sx={{ px: 1, py: 0.5, color: '#000', fontWeight: 'bold', fontSize: '0.85rem', border: '1px solid #777' }} align="right">{fmtAmt(detail.total_amount)}</TableCell>
                             </TableRow>
                           ))
                         ) : (
                           <TableRow>
-                            <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                            <TableCell colSpan={5} align="center" sx={{ py: 2, color: '#000', fontSize: '0.85rem' }}>
                               No items found
                             </TableCell>
                           </TableRow>
@@ -4080,9 +4081,9 @@ function OrdersPageContent() {
                   </TableContainer>
 
                   {/* Payment Summary */}
-                  <Box sx={{ mt: 2, width: '100%', display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                  <Box sx={{ mt: 1.5, width: '100%', display: 'flex', justifyContent: 'space-between', gap: 2 }}>
                     <Box sx={{ flex: '0 0 48%' }}>
-                      <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, border: '1px solid #000', width: '100%' }}>
+                      <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%', boxShadow: 'none' }}>
                         <Table size="small">
                           <TableBody>
                             {(() => {
@@ -4097,16 +4098,16 @@ function OrdersPageContent() {
                               return (
                                 <>
                                   <TableRow>
-                                    <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
-                                    <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>{fmtAmt(_prev)}</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>سابقہ بقایا</TableCell>
+                                    <TableCell align="right" sx={{ px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>{fmtAmt(_prev)}</TableCell>
                                   </TableRow>
                                   <TableRow>
-                                    <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</TableCell>
-                                    <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>{fmtAmt(_rem)}</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>موجوده بقايا</TableCell>
+                                    <TableCell align="right" sx={{ px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>{fmtAmt(_rem)}</TableCell>
                                   </TableRow>
-                                  <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                                    <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</TableCell>
-                                    <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>{fmtAmt(_total)}</TableCell>
+                                  <TableRow sx={{ bgcolor: '#808080' }}>
+                                    <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#ffffff', fontSize: '0.85rem' }}>كل بقايا</TableCell>
+                                    <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.4, border: '1px solid #777', color: '#ffffff', fontSize: '0.85rem' }}>{fmtAmt(_total)}</TableCell>
                                   </TableRow>
                                 </>
                               );
@@ -4116,67 +4117,67 @@ function OrdersPageContent() {
                       </TableContainer>
                       {currentBillData.notes && (
                         <Box sx={{ mt: 1 }}>
-                          <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
+                          <Typography sx={{ fontSize: '0.85rem', color: '#000' }}>
                             <strong>Notes:</strong> {currentBillData.notes}
                           </Typography>
                         </Box>
                       )}
                     </Box>
                     <Box sx={{ flex: '0 0 48%', display: 'flex', justifyContent: 'flex-end' }}>
-                      <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%', maxWidth: '100%' }}>
+                      <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%', boxShadow: 'none' }}>
                         <Table size="small">
                           <TableBody>
                             <TableRow>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رقم بل</TableCell>
-                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>رقم بل</TableCell>
+                              <TableCell align="right" sx={{ px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>
                                 {fmtAmt((currentBillData.sale_details || []).reduce((sum, d) => sum + parseFloat(d.total_amount || 0), 0))}
                               </TableCell>
                             </TableRow>
                             <TableRow>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>مزدوری</TableCell>
-                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>مزدوری</TableCell>
+                              <TableCell align="right" sx={{ px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>
                                 {fmtAmt(currentBillData.labour_charges || currentBillData.labour)}
                               </TableCell>
                             </TableRow>
                             <TableRow>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>کرایہ</TableCell>
-                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>کرایہ</TableCell>
+                              <TableCell align="right" sx={{ px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>
                                 {fmtAmt(currentBillData.shipping_amount)}
                               </TableCell>
                             </TableRow>
-                            <TableRow>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رعایت</TableCell>
-                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {fmtAmt(currentBillData.discount)}
-                              </TableCell>
-                            </TableRow>
-                            <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم</TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                            {parseFloat(currentBillData.discount || 0) > 0 && (
+                              <TableRow>
+                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>رعایت</TableCell>
+                                <TableCell align="right" sx={{ px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>
+                                  {fmtAmt(currentBillData.discount)}
+                                </TableCell>
+                              </TableRow>
+                            )}
+                            <TableRow sx={{ bgcolor: '#e0e0e0' }}>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>كل رقم</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>
                                 {fmtAmt(currentBillData.total_amount)}
                               </TableCell>
                             </TableRow>
-                            {/* Always show cash payment */}
                             <TableRow>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>نقد كيش</TableCell>
-                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                {fmtAmt(currentBillData.cash_payment)}
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>نقد كيش</TableCell>
+                              <TableCell align="right" sx={{ px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>
+                                {fmtAmt(currentBillData.cash_payment || (currentBillData.payment_type === 'CASH' ? currentBillData.payment : 0))}
                               </TableCell>
                             </TableRow>
-                            {/* Show bank payment with account name if bank payment exists */}
-                            {currentBillData.bank_payment > 0 && (
+                            {parseFloat(currentBillData.bank_payment || 0) > 0 && (
                               <TableRow>
-                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>
                                   {currentBillData.bank_title || 'بینک'}
                                 </TableCell>
-                                <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                <TableCell align="right" sx={{ px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>
                                   {fmtAmt(currentBillData.bank_payment)}
                                 </TableCell>
                               </TableRow>
                             )}
-                            <TableRow sx={{ bgcolor: '#d0d0d0' }}>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>بقايا رقم</TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                            <TableRow sx={{ bgcolor: '#808080' }}>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#ffffff', fontSize: '0.85rem' }}>بقایا رقم</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.4, border: '1px solid #777', color: '#ffffff', fontSize: '0.85rem' }}>
                                 {fmtAmt(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0))}
                               </TableCell>
                             </TableRow>
@@ -5485,100 +5486,103 @@ function OrdersPageContent() {
         </DialogTitle>
         <DialogContent sx={{ p: 0, bgcolor: 'white' }}>
           {selectedBill && (
-            <Box id="printable-invoice" sx={{ width: '100%', bgcolor: 'white' }}>
+            <Box id="printable-invoice" sx={{ width: '100%', bgcolor: 'white', p: 2 }}>
               {/* Company Header */}
-              <Box sx={{ textAlign: 'center', py: 3, borderBottom: '2px solid #000' }}>
-                <Typography variant="h4" sx={{
+              <Box sx={{ textAlign: 'center', pb: 1, mb: 1, borderBottom: '2px solid #000' }}>
+                <Typography sx={{
                   fontWeight: 'bold',
-                  mb: 1,
+                  mb: 0.25,
                   fontFamily: 'Arial, sans-serif',
-                  fontSize: { xs: '1.5rem', md: '2rem' },
-                  direction: 'rtl'
+                  fontSize: '1.4rem',
+                  direction: 'rtl',
+                  color: '#000'
                 }}>
                   اتفاق آئرن اینڈ سیمنٹ سٹور
                 </Typography>
-                <Typography variant="body2" sx={{
-                  mb: 1,
-                  fontSize: { xs: '0.75rem', md: '0.9rem' },
-                  direction: 'rtl'
+                <Typography sx={{
+                  mb: 0.25,
+                  fontSize: '0.85rem',
+                  direction: 'rtl',
+                  color: '#000'
                 }}>
                   گجرات سرگودھا روڈ، پاہڑیانوالی
                 </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 1 }}>
-                  <PhoneIcon sx={{ color: '#25D366', fontSize: '1rem' }} />
-                  <Typography variant="body2">
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, mb: 0.5 }}>
+                  <PhoneIcon sx={{ color: '#25D366', fontSize: '0.9rem' }} />
+                  <Typography sx={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#000' }}>
                     Ph:- 0346-7560306, 0300-7560306
                   </Typography>
                 </Box>
-                <Typography variant="h6" sx={{
+                <Typography sx={{
                   fontWeight: 'bold',
                   textTransform: 'uppercase',
                   letterSpacing: 1,
-                  mt: 2
+                  mt: 0.5,
+                  fontSize: '1rem',
+                  color: '#000'
                 }}>
                   SALE INVOICE
                 </Typography>
               </Box>
 
               {/* Customer and Invoice Details */}
-              <Box sx={{ px: 3, py: 2, borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between' }}>
+              <Box sx={{ px: 1, py: 1, mb: 1.5, borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between' }}>
                 <Box sx={{ flex: '0 0 50%' }}>
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    <strong>Customer Name:</strong> {selectedBill.customer?.cus_name || 'N/A'}
+                  <Typography sx={{ mb: 0.25, fontSize: '0.85rem', color: '#000' }}>
+                    Customer Name: &nbsp;<strong>{selectedBill.customer?.cus_name || 'Cash Customer'}</strong>
                   </Typography>
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    <strong>Phone No:</strong> {selectedBill.customer?.cus_phone_no || 'N/A'}
+                  <Typography sx={{ mb: 0.25, fontSize: '0.85rem', color: '#000' }}>
+                    Phone No: &nbsp;<strong>{selectedBill.customer?.cus_phone_no || 'N/A'}</strong>
                   </Typography>
                   {selectedBill.customer?.cus_address && (
-                    <Typography variant="body2">
-                      <strong>Address:</strong> {selectedBill.customer.cus_address}
+                    <Typography sx={{ fontSize: '0.85rem', color: '#000' }}>
+                      Address: &nbsp;<strong>{selectedBill.customer.cus_address}</strong>
                     </Typography>
                   )}
                 </Box>
                 <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right', flex: '0 0 50%' }}>
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    <strong>Invoice No:</strong> <strong>{getBillDisplayNo(selectedBill)}</strong>
+                  <Typography sx={{ mb: 0.25, fontSize: '0.85rem', color: '#000' }}>
+                    Invoice No: &nbsp;<strong>{getBillDisplayNo(selectedBill)}</strong>
                   </Typography>
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    <strong>Time:</strong> <strong>{new Date(selectedBill.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
+                  <Typography sx={{ mb: 0.25, fontSize: '0.85rem', color: '#000' }}>
+                    Sale ID: &nbsp;<strong>{selectedBill.sale_id || getBillDisplayNo(selectedBill)}</strong>
                   </Typography>
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    <strong>Date:</strong> <strong>{new Date(selectedBill.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
+                  <Typography sx={{ mb: 0.25, fontSize: '0.85rem', color: '#000' }}>
+                    Date: &nbsp;<strong>{new Date(selectedBill.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
                   </Typography>
-                  <Typography variant="body2">
-                    <strong>Bill Type:</strong> <strong>{selectedBill.bill_type || 'BILL'}</strong>
+                  <Typography sx={{ fontSize: '0.85rem', color: '#000' }}>
+                    Time: &nbsp;<strong>{new Date(selectedBill.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
                   </Typography>
                 </Box>
               </Box>
 
-              {/* Product Table and Payment Summary - Full Width */}
-              <Box sx={{ px: 3, py: 2 }}>
-                {/* Product Details Table - Full Width */}
-                <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+              {/* Product Table */}
+              <Box sx={{ px: 1, py: 0.5 }}>
+                <TableContainer component={Paper} variant="outlined" sx={{ mb: 1.5, border: '1px solid #000', boxShadow: 'none' }}>
                   <Table size="small">
                     <TableHead>
-                      <TableRow sx={{ bgcolor: '#9e9e9e' }}>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }}>S#</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }}>Product Name</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Qty</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Rate</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1 }} align="right">Amount</TableCell>
+                      <TableRow sx={{ bgcolor: '#808080' }}>
+                        <TableCell sx={{ fontWeight: 'bold', color: '#ffffff', py: 0.75, px: 1, fontSize: '0.85rem', border: '1px solid #777' }}>S#</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: '#ffffff', py: 0.75, px: 1, fontSize: '0.85rem', border: '1px solid #777' }}>Product Name</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: '#ffffff', py: 0.75, px: 1, fontSize: '0.85rem', border: '1px solid #777' }} align="center">Qty</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: '#ffffff', py: 0.75, px: 1, fontSize: '0.85rem', border: '1px solid #777' }} align="right">Rate</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', color: '#ffffff', py: 0.75, px: 1, fontSize: '0.85rem', border: '1px solid #777' }} align="right">Amount</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
                       {selectedBill.sale_details && selectedBill.sale_details.length > 0 ? (
                         selectedBill.sale_details.map((detail, index) => (
                           <TableRow key={detail.sale_detail_id || index}>
-                            <TableCell sx={{ px: 1 }}>{index + 1}</TableCell>
-                            <TableCell sx={{ px: 1 }}>{detail.product?.pro_title || detail.product?.pro_name || detail.product?.prod_name || 'N/A'}</TableCell>
-                            <TableCell sx={{ px: 1 }} align="right">{fmtAmt(detail.qnty || 0)}</TableCell>
-                            <TableCell sx={{ px: 1 }} align="right">{fmtAmt(detail.unit_rate)}</TableCell>
-                            <TableCell sx={{ px: 1 }} align="right">{fmtAmt(detail.total_amount)}</TableCell>
+                            <TableCell sx={{ px: 1, py: 0.5, color: '#000', fontSize: '0.85rem', border: '1px solid #777' }}>{index + 1}</TableCell>
+                            <TableCell sx={{ px: 1, py: 0.5, color: '#000', fontWeight: 'bold', fontSize: '0.85rem', border: '1px solid #777' }}>{detail.product?.pro_title || detail.product?.pro_name || detail.product?.prod_name || 'N/A'}</TableCell>
+                            <TableCell sx={{ px: 1, py: 0.5, color: '#000', fontWeight: 'bold', fontSize: '0.85rem', border: '1px solid #777' }} align="center">{fmtAmt(detail.qnty || 0)}</TableCell>
+                            <TableCell sx={{ px: 1, py: 0.5, color: '#000', fontSize: '0.85rem', border: '1px solid #777' }} align="right">{fmtAmt(detail.unit_rate)}</TableCell>
+                            <TableCell sx={{ px: 1, py: 0.5, color: '#000', fontWeight: 'bold', fontSize: '0.85rem', border: '1px solid #777' }} align="right">{fmtAmt(detail.total_amount)}</TableCell>
                           </TableRow>
                         ))
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                          <TableCell colSpan={5} align="center" sx={{ py: 2, color: '#000', fontSize: '0.85rem' }}>
                             No items found
                           </TableCell>
                         </TableRow>
@@ -5587,28 +5591,27 @@ function OrdersPageContent() {
                   </Table>
                 </TableContainer>
 
-                {/* Payment Summary - Below Product Details */}
-                <Box sx={{ mt: 2, width: '100%', display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-                  {/* Left Side - Balance Section */}
+                {/* Payment Summary */}
+                <Box sx={{ mt: 1.5, width: '100%', display: 'flex', justifyContent: 'space-between', gap: 2 }}>
                   <Box sx={{ flex: '0 0 48%' }}>
-                    <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, border: '1px solid #000', width: '100%' }}>
+                    <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%', boxShadow: 'none' }}>
                       <Table size="small">
                         <TableBody>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>سابقہ بقایا</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>
                               {fmtAmt(selectedBill.customer?.cus_balance)}
                             </TableCell>
                           </TableRow>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>موجوده بقايا</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>
                               {fmtAmt(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.payment || 0))}
                             </TableCell>
                           </TableRow>
-                          <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                          <TableRow sx={{ bgcolor: '#808080' }}>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#ffffff', fontSize: '0.85rem' }}>كل بقايا</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.4, border: '1px solid #777', color: '#ffffff', fontSize: '0.85rem' }}>
                               {fmtAmt(parseFloat(selectedBill.customer?.cus_balance || 0) + parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.payment || 0))}
                             </TableCell>
                           </TableRow>
@@ -5616,73 +5619,60 @@ function OrdersPageContent() {
                       </Table>
                     </TableContainer>
 
-                    {/* Notes Section */}
-                    <Box sx={{ mt: 1 }}>
-                      <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
-                        <strong>Notes:</strong> {selectedBill.notes || ''}
-                      </Typography>
-                    </Box>
+                    {selectedBill.notes && (
+                      <Box sx={{ mt: 1 }}>
+                        <Typography sx={{ fontSize: '0.85rem', color: '#000' }}>
+                          <strong>Notes:</strong> {selectedBill.notes}
+                        </Typography>
+                      </Box>
+                    )}
                   </Box>
-
-                  {/* Right Side - Payment Summary */}
                   <Box sx={{ flex: '0 0 48%', display: 'flex', justifyContent: 'flex-end' }}>
-                    <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%', maxWidth: '100%' }}>
+                    <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%', boxShadow: 'none' }}>
                       <Table size="small">
                         <TableBody>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رقم بل</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>رقم بل</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>
                               {fmtAmt((selectedBill.sale_details || []).reduce((sum, d) => sum + parseFloat(d.total_amount || 0), 0))}
                             </TableCell>
                           </TableRow>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>مزدوری</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>مزدوری</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>
                               {fmtAmt(selectedBill.labour)}
                             </TableCell>
                           </TableRow>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>کرایہ</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>کرایہ</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>
                               {fmtAmt(selectedBill.shipping_amount)}
                             </TableCell>
                           </TableRow>
-                          <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                          {parseFloat(selectedBill.discount || 0) > 0 && (
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>رعایت</TableCell>
+                              <TableCell align="right" sx={{ px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>
+                                {fmtAmt(selectedBill.discount)}
+                              </TableCell>
+                            </TableRow>
+                          )}
+                          <TableRow sx={{ bgcolor: '#e0e0e0' }}>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>كل رقم</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>
                               {fmtAmt(selectedBill.total_amount)}
                             </TableCell>
                           </TableRow>
-                          {/* Show payment details - use cash_payment and bank_payment fields */}
                           {(() => {
-                            console.log('🧾 Receipt - Payment Details:', {
-                              has_cash_payment: selectedBill.hasOwnProperty('cash_payment'),
-                              has_bank_payment: selectedBill.hasOwnProperty('bank_payment'),
-                              has_bank_title: selectedBill.hasOwnProperty('bank_title'),
-                              cash_payment: selectedBill.cash_payment,
-                              bank_payment: selectedBill.bank_payment,
-                              bank_title: selectedBill.bank_title,
-                              total_payment: selectedBill.payment,
-                              payment_type: selectedBill.payment_type
-                            });
-                            return null;
-                          })()}
-
-                          {/* Determine cash and bank amounts - handle both new and old sales */}
-                          {(() => {
-                            // For new sales, use cash_payment and bank_payment fields
-                            // For old sales, use payment and payment_type fields
                             let cashAmount = 0;
                             let bankAmount = 0;
                             let bankName = '';
 
                             if (selectedBill.hasOwnProperty('cash_payment') && selectedBill.hasOwnProperty('bank_payment')) {
-                              // NEW SALE: Has payment split fields
                               cashAmount = parseFloat(selectedBill.cash_payment || 0);
                               bankAmount = parseFloat(selectedBill.bank_payment || 0);
                               bankName = selectedBill.bank_title || selectedBill.debit_account?.cus_name || 'بینک';
                             } else {
-                              // OLD SALE: Use legacy payment field
                               if (selectedBill.payment_type === 'CASH' || !selectedBill.payment_type) {
                                 cashAmount = parseFloat(selectedBill.payment || 0);
                                 bankAmount = 0;
@@ -5695,23 +5685,20 @@ function OrdersPageContent() {
 
                             return (
                               <>
-                                {/* Always show cash payment row */}
                                 <TableRow>
-                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>
                                     نقد كيش
                                   </TableCell>
-                                  <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                  <TableCell align="right" sx={{ px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>
                                     {fmtAmt(cashAmount)}
                                   </TableCell>
                                 </TableRow>
-
-                                {/* Show bank payment row if bank payment exists */}
                                 {bankAmount > 0 && (
-                                  <TableRow sx={{ bgcolor: '#d0d0d0' }}>
-                                    <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                  <TableRow>
+                                    <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>
                                       {bankName}
                                     </TableCell>
-                                    <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                                    <TableCell align="right" sx={{ px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>
                                       {fmtAmt(bankAmount)}
                                     </TableCell>
                                   </TableRow>
@@ -5719,9 +5706,9 @@ function OrdersPageContent() {
                               </>
                             );
                           })()}
-                          <TableRow sx={{ bgcolor: '#d0d0d0' }}>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>بقايا رقم</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                          <TableRow sx={{ bgcolor: '#808080' }}>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#ffffff', fontSize: '0.85rem' }}>بقایا رقم</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.4, border: '1px solid #777', color: '#ffffff', fontSize: '0.85rem' }}>
                               {fmtAmt(parseFloat(selectedBill.total_amount || 0) - parseFloat(selectedBill.payment || 0))}
                             </TableCell>
                           </TableRow>
@@ -6530,88 +6517,107 @@ function OrdersPageContent() {
               bgcolor: '#ffffff',
               color: '#000000',
               mx: 'auto',
-              p: 3,
+              p: 2,
               display: 'none',
               boxSizing: 'border-box',
             }}
           >
             {/* Company Header */}
-            <Box sx={{ textAlign: 'center', py: 2, borderBottom: '2px solid #000' }}>
-              <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 0.5, fontFamily: 'Arial, sans-serif', fontSize: '1.75rem', direction: 'rtl', color: '#000' }}>
+            <Box sx={{ textAlign: 'center', pb: 1, mb: 1, borderBottom: '2px solid #000' }}>
+              <Typography sx={{
+                fontWeight: 'bold',
+                mb: 0.25,
+                fontFamily: 'Arial, sans-serif',
+                fontSize: '1.4rem',
+                direction: 'rtl',
+                color: '#000'
+              }}>
                 اتفاق آئرن اینڈ سیمنٹ سٹور
               </Typography>
-              <Typography variant="body2" sx={{ mb: 0.5, fontSize: '0.875rem', direction: 'rtl', color: '#000' }}>
+              <Typography sx={{
+                mb: 0.25,
+                fontSize: '0.85rem',
+                direction: 'rtl',
+                color: '#000'
+              }}>
                 گجرات سرگودھا روڈ، پاہڑیانوالی
               </Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 0.5 }}>
-                <PhoneIcon sx={{ color: '#25D366', fontSize: '1rem' }} />
-                <Typography variant="body2" sx={{ color: '#000' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, mb: 0.5 }}>
+                <PhoneIcon sx={{ color: '#25D366', fontSize: '0.9rem' }} />
+                <Typography sx={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#000' }}>
                   Ph:- 0346-7560306, 0300-7560306
                 </Typography>
               </Box>
-              <Typography variant="h6" sx={{ fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, mt: 1, color: '#000' }}>
-                ORDER RECEIPT
+              <Typography sx={{
+                fontWeight: 'bold',
+                textTransform: 'uppercase',
+                letterSpacing: 1,
+                mt: 0.5,
+                fontSize: '1rem',
+                color: '#000'
+              }}>
+                SALE INVOICE
               </Typography>
             </Box>
 
             {/* Customer and Invoice Details */}
-            <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between' }}>
+            <Box sx={{ px: 1, py: 1, mb: 1.5, borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between' }}>
               <Box sx={{ flex: '0 0 50%' }}>
-                <Typography variant="body2" sx={{ mb: 0.5, color: '#000' }}>
-                  <strong>Customer Name:</strong> {activeBillData.customer?.cus_name || 'Cash Customer'}
+                <Typography sx={{ mb: 0.25, fontSize: '0.85rem', color: '#000' }}>
+                  Customer Name: &nbsp;<strong>{activeBillData.customer?.cus_name || 'Cash Customer'}</strong>
                 </Typography>
-                <Typography variant="body2" sx={{ mb: 0.5, color: '#000' }}>
-                  <strong>Phone No:</strong> {activeBillData.customer?.cus_phone_no || 'N/A'}
+                <Typography sx={{ mb: 0.25, fontSize: '0.85rem', color: '#000' }}>
+                  Phone No: &nbsp;<strong>{activeBillData.customer?.cus_phone_no || 'N/A'}</strong>
                 </Typography>
                 {activeBillData.customer?.cus_address && (
-                  <Typography variant="body2" sx={{ color: '#000' }}>
-                    <strong>Address:</strong> {activeBillData.customer.cus_address}
+                  <Typography sx={{ fontSize: '0.85rem', color: '#000' }}>
+                    Address: &nbsp;<strong>{activeBillData.customer.cus_address}</strong>
                   </Typography>
                 )}
               </Box>
               <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right', flex: '0 0 50%' }}>
-                <Typography variant="body2" sx={{ mb: 0.5, color: '#000' }}>
-                  <strong>Invoice No:</strong> <strong>{getBillDisplayNo(activeBillData)}</strong>
+                <Typography sx={{ mb: 0.25, fontSize: '0.85rem', color: '#000' }}>
+                  Invoice No: &nbsp;<strong>{getBillDisplayNo(activeBillData)}</strong>
                 </Typography>
-                <Typography variant="body2" sx={{ mb: 0.5, color: '#000' }}>
-                  <strong>Time:</strong> <strong>{new Date(activeBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
+                <Typography sx={{ mb: 0.25, fontSize: '0.85rem', color: '#000' }}>
+                  Sale ID: &nbsp;<strong>{activeBillData.sale_id || getBillDisplayNo(activeBillData)}</strong>
                 </Typography>
-                <Typography variant="body2" sx={{ mb: 0.5, color: '#000' }}>
-                  <strong>Date:</strong> <strong>{new Date(activeBillData.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
+                <Typography sx={{ mb: 0.25, fontSize: '0.85rem', color: '#000' }}>
+                  Date: &nbsp;<strong>{new Date(activeBillData.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
                 </Typography>
-                <Typography variant="body2" sx={{ color: '#000' }}>
-                  <strong>Bill Type:</strong> <strong>{activeBillData.bill_type || 'ORDER'}</strong>
+                <Typography sx={{ fontSize: '0.85rem', color: '#000' }}>
+                  Time: &nbsp;<strong>{new Date(activeBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
                 </Typography>
               </Box>
             </Box>
 
-            {/* Product Details Table */}
-            <Box sx={{ px: 2, py: 1.5 }}>
-              <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, border: '1px solid #000' }}>
+            {/* Product Table */}
+            <Box sx={{ px: 1, py: 0.5 }}>
+              <TableContainer component={Paper} variant="outlined" sx={{ mb: 1.5, border: '1px solid #000', boxShadow: 'none' }}>
                 <Table size="small">
                   <TableHead>
-                    <TableRow sx={{ bgcolor: '#d0d0d0' }}>
-                      <TableCell sx={{ fontWeight: 'bold', color: '#000', py: 1, px: 1 }}>S#</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', color: '#000', py: 1, px: 1 }}>Product Name</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', color: '#000', py: 1, px: 1 }} align="center">Qty</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', color: '#000', py: 1, px: 1 }} align="right">Rate</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', color: '#000', py: 1, px: 1 }} align="right">Amount</TableCell>
+                    <TableRow sx={{ bgcolor: '#808080' }}>
+                      <TableCell sx={{ fontWeight: 'bold', color: '#ffffff', py: 0.75, px: 1, fontSize: '0.85rem', border: '1px solid #777' }}>S#</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: '#ffffff', py: 0.75, px: 1, fontSize: '0.85rem', border: '1px solid #777' }}>Product Name</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: '#ffffff', py: 0.75, px: 1, fontSize: '0.85rem', border: '1px solid #777' }} align="center">Qty</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: '#ffffff', py: 0.75, px: 1, fontSize: '0.85rem', border: '1px solid #777' }} align="right">Rate</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: '#ffffff', py: 0.75, px: 1, fontSize: '0.85rem', border: '1px solid #777' }} align="right">Amount</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {activeBillData.sale_details && activeBillData.sale_details.length > 0 ? (
                       activeBillData.sale_details.map((detail, index) => (
                         <TableRow key={detail.sale_detail_id || index}>
-                          <TableCell sx={{ px: 1, color: '#000' }}>{index + 1}</TableCell>
-                          <TableCell sx={{ px: 1, color: '#000', fontWeight: 'medium' }}>{detail.product?.pro_title || detail.product?.pro_name || 'N/A'}</TableCell>
-                          <TableCell sx={{ px: 1, color: '#000' }} align="center">{fmtAmt(detail.qnty || 0)}</TableCell>
-                          <TableCell sx={{ px: 1, color: '#000' }} align="right">{fmtAmt(detail.unit_rate)}</TableCell>
-                          <TableCell sx={{ px: 1, color: '#000', fontWeight: 'bold' }} align="right">{fmtAmt(detail.total_amount)}</TableCell>
+                          <TableCell sx={{ px: 1, py: 0.5, color: '#000', fontSize: '0.85rem', border: '1px solid #777' }}>{index + 1}</TableCell>
+                          <TableCell sx={{ px: 1, py: 0.5, color: '#000', fontWeight: 'bold', fontSize: '0.85rem', border: '1px solid #777' }}>{detail.product?.pro_title || detail.product?.pro_name || 'N/A'}</TableCell>
+                          <TableCell sx={{ px: 1, py: 0.5, color: '#000', fontWeight: 'bold', fontSize: '0.85rem', border: '1px solid #777' }} align="center">{fmtAmt(detail.qnty || 0)}</TableCell>
+                          <TableCell sx={{ px: 1, py: 0.5, color: '#000', fontSize: '0.85rem', border: '1px solid #777' }} align="right">{fmtAmt(detail.unit_rate)}</TableCell>
+                          <TableCell sx={{ px: 1, py: 0.5, color: '#000', fontWeight: 'bold', fontSize: '0.85rem', border: '1px solid #777' }} align="right">{fmtAmt(detail.total_amount)}</TableCell>
                         </TableRow>
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={5} align="center" sx={{ py: 3, color: '#000' }}>
+                        <TableCell colSpan={5} align="center" sx={{ py: 2, color: '#000', fontSize: '0.85rem' }}>
                           No items found
                         </TableCell>
                       </TableRow>
@@ -6621,87 +6627,98 @@ function OrdersPageContent() {
               </TableContainer>
 
               {/* Payment Summary */}
-              <Box sx={{ mt: 2, width: '100%', display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+              <Box sx={{ mt: 1.5, width: '100%', display: 'flex', justifyContent: 'space-between', gap: 2 }}>
                 {/* Left Side - Customer Balance */}
                 <Box sx={{ flex: '0 0 48%' }}>
-                  <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%' }}>
+                  <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%', boxShadow: 'none' }}>
                     <Table size="small">
                       <TableBody>
                         <TableRow>
-                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>سابقہ بقایا</TableCell>
-                          <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>سابقہ بقایا</TableCell>
+                          <TableCell align="right" sx={{ px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>
                             {fmtAmt(activeBillData.customer?.cus_balance)}
                           </TableCell>
                         </TableRow>
                         <TableRow>
-                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>موجوده بقايا</TableCell>
-                          <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>موجوده بقايا</TableCell>
+                          <TableCell align="right" sx={{ px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>
                             {fmtAmt(parseFloat(activeBillData.total_amount || 0) - parseFloat(activeBillData.payment || 0))}
                           </TableCell>
                         </TableRow>
-                        <TableRow sx={{ bgcolor: '#e0e0e0' }}>
-                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>كل بقايا</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>
+                        <TableRow sx={{ bgcolor: '#808080' }}>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#ffffff', fontSize: '0.85rem' }}>كل بقايا</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.4, border: '1px solid #777', color: '#ffffff', fontSize: '0.85rem' }}>
                             {fmtAmt(parseFloat(activeBillData.customer?.cus_balance || 0) + parseFloat(activeBillData.total_amount || 0) - parseFloat(activeBillData.payment || 0))}
                           </TableCell>
                         </TableRow>
                       </TableBody>
                     </Table>
                   </TableContainer>
+                  {activeBillData.notes && (
+                    <Box sx={{ mt: 1 }}>
+                      <Typography sx={{ fontSize: '0.85rem', color: '#000' }}>
+                        <strong>Notes:</strong> {activeBillData.notes}
+                      </Typography>
+                    </Box>
+                  )}
                 </Box>
 
                 {/* Right Side - Payment Summary */}
                 <Box sx={{ flex: '0 0 48%', display: 'flex', justifyContent: 'flex-end' }}>
-                  <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%' }}>
+                  <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%', boxShadow: 'none' }}>
                     <Table size="small">
                       <TableBody>
                         <TableRow>
-                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>رقم بل</TableCell>
-                          <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>رقم بل</TableCell>
+                          <TableCell align="right" sx={{ px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>
                             {fmtAmt((activeBillData.sale_details || []).reduce((sum, d) => sum + parseFloat(d.total_amount || 0), 0))}
                           </TableCell>
                         </TableRow>
-                        {parseFloat(activeBillData.labour || 0) > 0 && (
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>مزدوری</TableCell>
+                          <TableCell align="right" sx={{ px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>
+                            {fmtAmt(activeBillData.labour_charges || activeBillData.labour)}
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>کرایہ</TableCell>
+                          <TableCell align="right" sx={{ px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>
+                            {fmtAmt(activeBillData.shipping_amount)}
+                          </TableCell>
+                        </TableRow>
+                        {parseFloat(activeBillData.discount || 0) > 0 && (
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>مزدوری</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>
-                              {fmtAmt(activeBillData.labour)}
-                            </TableCell>
-                          </TableRow>
-                        )}
-                        {parseFloat(activeBillData.shipping_amount || 0) > 0 && (
-                          <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>کرایہ</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>
-                              {fmtAmt(activeBillData.shipping_amount)}
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>رعایت</TableCell>
+                            <TableCell align="right" sx={{ px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>
+                              {fmtAmt(activeBillData.discount)}
                             </TableCell>
                           </TableRow>
                         )}
                         <TableRow sx={{ bgcolor: '#e0e0e0' }}>
-                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>كل رقم</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>كل رقم</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>
                             {fmtAmt(activeBillData.total_amount)}
                           </TableCell>
                         </TableRow>
                         <TableRow>
-                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>نقد كيش</TableCell>
-                          <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>نقد كيش</TableCell>
+                          <TableCell align="right" sx={{ px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>
                             {fmtAmt(activeBillData.cash_payment || (activeBillData.payment_type === 'CASH' ? activeBillData.payment : 0))}
                           </TableCell>
                         </TableRow>
                         {parseFloat(activeBillData.bank_payment || 0) > 0 && (
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>
                               {activeBillData.bank_title || 'بینک'}
                             </TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>
+                            <TableCell align="right" sx={{ px: 1, py: 0.4, border: '1px solid #777', color: '#000', fontSize: '0.85rem' }}>
                               {fmtAmt(activeBillData.bank_payment)}
                             </TableCell>
                           </TableRow>
                         )}
-                        <TableRow sx={{ bgcolor: '#e0e0e0' }}>
-                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>بقايا رقم</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #000', color: '#000' }}>
+                        <TableRow sx={{ bgcolor: '#808080' }}>
+                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.4, border: '1px solid #777', color: '#ffffff', fontSize: '0.85rem' }}>بقایا رقم</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.4, border: '1px solid #777', color: '#ffffff', fontSize: '0.85rem' }}>
                             {fmtAmt(parseFloat(activeBillData.total_amount || 0) - parseFloat(activeBillData.payment || 0))}
                           </TableCell>
                         </TableRow>
