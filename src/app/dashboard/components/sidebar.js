@@ -194,6 +194,7 @@ export default function Sidebar({
     { id: 'orders', name: 'Order List', icon: ListAltIcon, category: 'main' },
     { id: 'new-sale', name: 'New Sale', icon: AddIcon, category: 'main' },
     { id: 'purchases', name: 'New Purchase', icon: ShoppingBagIcon, category: 'main' },
+    { id: 'day-end', name: 'Day End / Day Close', icon: CalendarIcon, category: 'main' },
     { id: 'cash-report', name: 'Cash Report', icon: AttachMoneyIcon, category: 'main' },
     { id: 'bank-report', name: 'Bank Report', icon: CreditCardIcon, category: 'main' },
     { id: 'ledger', name: 'Ledger', icon: DescriptionIcon, category: 'main' },
@@ -365,7 +366,7 @@ export default function Sidebar({
       if (requiredModule === 'import' && (allowed.includes('system') || allowed.includes('system_settings'))) return true;
       if (requiredModule === 'customers' && allowed.includes('accounts')) return true;
       if (requiredModule === 'sale_returns' && allowed.includes('sales')) return true;
-      if (requiredModule === 'cash_bank_day_end' && (allowed.includes('finance') || allowed.includes('reports') || allowed.includes('cash_day_end'))) return true;
+      if (requiredModule === 'cash_bank_day_end' && (allowed.includes('cash_bank_day_end') || allowed.includes('finance') || allowed.includes('reports') || allowed.includes('sales') || allowed.includes('cash_day_end'))) return true;
       return false;
     }
 

@@ -11,22 +11,28 @@ function mapTransactionTypeToPaymentType(transactionType) {
     'BANK_TRANSFER': 'BANK_TRANSFER',
     'BANK_PAYMENT': 'BANK_TRANSFER',
     'CASH_PAYMENT': 'CASH',
-    'PURCHASE': 'CASH', // Default to CASH for unspecified types
+    'PURCHASE': 'CASH',
     'SALE': 'CASH',
     'SALE_RETURN': 'CASH',
     'PURCHASE_RETURN': 'CASH'
   };
-  return mapping[transactionType] || 'CASH'; // Default to CASH if not found
+  return mapping[transactionType] || 'CASH';
 }
 
 // GET - Fetch day end data for a specific date or current day
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const date = searchParams.get('date') || new Date().toISOString().split('T')[0];
-    const businessDate = new Date(date);
+    const dateStr = searchParams.get('date') || new Date().toISOString().split('T')[0];
+    
+    // Parse YYYY-MM-DD components
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const businessDate = new Date(Date.UTC(year, month - 1, day));
+    
+    const startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0);
+    const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
 
-    // Get or create day end record for the date
+    // Get or find existing day end record
     let dayEnd = await prisma.dayEnd.findUnique({
       where: { business_date: businessDate },
       include: {
@@ -40,12 +46,24 @@ export async function GET(request) {
       }
     });
 
+    // Determine default opening cash from previous day end records if not created yet
+    let defaultOpeningCash = 0;
     if (!dayEnd) {
-      // Create new day end record
+      const prevDayEnd = await prisma.dayEnd.findFirst({
+        where: {
+          business_date: { lt: businessDate }
+        },
+        orderBy: { business_date: 'desc' }
+      });
+
+      if (prevDayEnd) {
+        defaultOpeningCash = prevDayEnd.closing_cash !== null ? parseFloat(prevDayEnd.closing_cash) : parseFloat(prevDayEnd.cash_in_hand || 0);
+      }
+
       dayEnd = await prisma.dayEnd.create({
         data: {
           business_date: businessDate,
-          opening_cash: 0,
+          opening_cash: defaultOpeningCash,
           status: 'OPEN'
         },
         include: {
@@ -60,100 +78,210 @@ export async function GET(request) {
       });
     }
 
-    // Calculate daily transactions
-    const startOfDay = new Date(businessDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(businessDate);
-    endOfDay.setHours(23, 59, 59, 999);
+    // Fetch all Cash and Bank Accounts for total account closing balances
+    const cashAndBankAccounts = await prisma.customer.findMany({
+      where: {
+        OR: [
+          { customer_type: { cus_type_title: { contains: 'cash' } } },
+          { customer_type: { cus_type_title: { contains: 'bank' } } },
+          { customer_category: { cus_cat_title: { contains: 'cash' } } },
+          { customer_category: { cus_cat_title: { contains: 'bank' } } },
+          { cus_name: { contains: 'cash' } },
+          { cus_name: { contains: 'bank' } }
+        ]
+      },
+      include: {
+        customer_type: { select: { cus_type_title: true } },
+        customer_category: { select: { cus_cat_title: true } }
+      }
+    });
+
+    let totalCashAccountsBalance = 0;
+    let totalBankAccountsBalance = 0;
+    const cashAccounts = [];
+    const bankAccounts = [];
+
+    cashAndBankAccounts.forEach(acc => {
+      const typeTitle = (acc.customer_type?.cus_type_title || '').toLowerCase();
+      const catTitle = (acc.customer_category?.cus_cat_title || '').toLowerCase();
+      const name = (acc.cus_name || '').toLowerCase();
+      const bal = parseFloat(acc.cus_balance || 0);
+
+      const isBank = typeTitle === 'bank' || catTitle === 'bank';
+      const isCash = typeTitle === 'cash' || catTitle === 'cash' || catTitle === 'cash account' || name === 'cash account' || name === 'cash 1' || name === 'cash 2';
+
+      if (isBank) {
+        totalBankAccountsBalance += bal;
+        bankAccounts.push({ cus_id: acc.cus_id, cus_name: acc.cus_name, balance: bal });
+      } else if (isCash) {
+        totalCashAccountsBalance += bal;
+        cashAccounts.push({ cus_id: acc.cus_id, cus_name: acc.cus_name, balance: bal });
+      }
+    });
 
     // Get sales for the day
     const sales = await prisma.sale.findMany({
       where: {
-        created_at: {
-          gte: startOfDay,
-          lte: endOfDay
-        }
+        created_at: { gte: startOfDay, lte: endOfDay }
       },
       include: {
-        customer: {
-          select: {
-            cus_name: true
-          }
-        }
-      }
+        customer: { select: { cus_name: true } }
+      },
+      orderBy: { created_at: 'desc' }
     });
 
     // Get purchases for the day
     const purchases = await prisma.purchase.findMany({
       where: {
-        created_at: {
-          gte: startOfDay,
-          lte: endOfDay
-        }
+        created_at: { gte: startOfDay, lte: endOfDay }
       },
       include: {
-        customer: {
-          select: {
-            cus_name: true
-          }
-        }
-      }
+        customer: { select: { cus_name: true } }
+      },
+      orderBy: { created_at: 'desc' }
     });
 
     // Get expenses for the day
     const expenses = await prisma.expense.findMany({
       where: {
-        created_at: {
-          gte: startOfDay,
-          lte: endOfDay
-        }
+        created_at: { gte: startOfDay, lte: endOfDay }
       },
       include: {
         expense_title: true
-      }
+      },
+      orderBy: { created_at: 'desc' }
     });
 
     // Get ledger entries for the day (receipts and payments)
     const ledgerEntries = await prisma.ledger.findMany({
       where: {
-        created_at: {
-          gte: startOfDay,
-          lte: endOfDay
-        }
+        created_at: { gte: startOfDay, lte: endOfDay }
       },
       include: {
         customer: {
           select: {
-            cus_name: true
+            cus_name: true,
+            customer_type: { select: { cus_type_title: true } }
           }
+        }
+      },
+      orderBy: { created_at: 'desc' }
+    });
+
+    // Detailed calculations
+    let totalSales = 0;
+    let cashSales = 0;
+    let bankSales = 0;
+    let creditSales = 0;
+
+    sales.forEach(sale => {
+      const netTotal = parseFloat(sale.total_amount || 0) - parseFloat(sale.discount || 0) + parseFloat(sale.shipping_amount || 0);
+      totalSales += netTotal;
+
+      const cPay = parseFloat(sale.cash_payment || 0);
+      const bPay = parseFloat(sale.bank_payment || 0);
+
+      if (cPay > 0 || bPay > 0) {
+        cashSales += cPay;
+        bankSales += bPay;
+        const paidSoFar = cPay + bPay;
+        if (netTotal > paidSoFar) {
+          creditSales += (netTotal - paidSoFar);
+        }
+      } else if (sale.payment_type === 'CASH') {
+        const fullPay = parseFloat(sale.payment || 0) || netTotal;
+        cashSales += fullPay;
+      } else if (sale.payment_type === 'BANK_TRANSFER' || sale.payment_type === 'CHEQUE') {
+        const fullPay = parseFloat(sale.payment || 0) || netTotal;
+        bankSales += fullPay;
+      } else {
+        creditSales += netTotal;
+      }
+    });
+
+    let totalPurchases = 0;
+    let cashPurchases = 0;
+    let bankPurchases = 0;
+    let creditPurchases = 0;
+
+    purchases.forEach(pur => {
+      const netTotal = parseFloat(pur.net_total || pur.total_amount || 0);
+      totalPurchases += netTotal;
+
+      const cPay = parseFloat(pur.cash_payment || 0);
+      const bPay = parseFloat(pur.bank_payment || 0);
+
+      if (cPay > 0 || bPay > 0) {
+        cashPurchases += cPay;
+        bankPurchases += bPay;
+        const paidSoFar = cPay + bPay;
+        if (netTotal > paidSoFar) {
+          creditPurchases += (netTotal - paidSoFar);
+        }
+      } else if (pur.payment_type === 'CASH') {
+        const fullPay = parseFloat(pur.payment || 0) || netTotal;
+        cashPurchases += fullPay;
+      } else if (pur.payment_type === 'BANK_TRANSFER' || pur.payment_type === 'CHEQUE') {
+        const fullPay = parseFloat(pur.payment || 0) || netTotal;
+        bankPurchases += fullPay;
+      } else {
+        creditPurchases += netTotal;
+      }
+    });
+
+    let totalExpenses = 0;
+    let cashExpenses = 0;
+    let bankExpenses = 0;
+
+    expenses.forEach(exp => {
+      const amt = parseFloat(exp.exp_amount || 0);
+      totalExpenses += amt;
+      cashExpenses += amt;
+    });
+
+    let totalReceipts = 0;
+    let cashReceipts = 0;
+    let bankReceipts = 0;
+
+    let totalPayments = 0;
+    let cashPayments = 0;
+    let bankPayments = 0;
+
+    ledgerEntries.forEach(entry => {
+      const isBankType = entry.trnx_type === 'BANK_TRANSFER' || entry.trnx_type === 'CHEQUE' ||
+        entry.customer?.customer_type?.cus_type_title?.toLowerCase().includes('bank');
+
+      if (entry.credit_amount > 0) {
+        const amt = parseFloat(entry.credit_amount);
+        totalReceipts += amt;
+        if (isBankType) {
+          bankReceipts += amt;
+        } else {
+          cashReceipts += amt;
+        }
+      }
+      if (entry.debit_amount > 0) {
+        const amt = parseFloat(entry.debit_amount);
+        totalPayments += amt;
+        if (isBankType) {
+          bankPayments += amt;
+        } else {
+          cashPayments += amt;
         }
       }
     });
 
-    // Calculate totals
-    const totalSales = sales.reduce((sum, sale) => {
-      const netTotal = parseFloat(sale.total_amount) - parseFloat(sale.discount) + parseFloat(sale.shipping_amount || 0);
-      return sum + netTotal;
-    }, 0);
+    const openingCash = parseFloat(dayEnd.opening_cash || 0);
+    const totalCashInflow = cashSales + cashReceipts;
+    const totalCashOutflow = cashPurchases + cashPayments + cashExpenses;
+    const expectedCashInHand = openingCash + totalCashInflow - totalCashOutflow;
 
-    const totalPurchases = purchases.reduce((sum, purchase) => {
-      return sum + parseFloat(purchase.net_total);
-    }, 0);
+    const totalBankInflow = bankSales + bankReceipts;
+    const totalBankOutflow = bankPurchases + bankPayments + bankExpenses;
+    const netBankFlow = totalBankInflow - totalBankOutflow;
 
-    const totalExpenses = expenses.reduce((sum, expense) => {
-      return sum + parseFloat(expense.exp_amount);
-    }, 0);
-
-    const totalReceipts = ledgerEntries
-      .filter(entry => entry.credit_amount > 0)
-      .reduce((sum, entry) => sum + parseFloat(entry.credit_amount), 0);
-
-    const totalPayments = ledgerEntries
-      .filter(entry => entry.debit_amount > 0)
-      .reduce((sum, entry) => sum + parseFloat(entry.debit_amount), 0);
-
-    // Calculate cash in hand
-    const cashInHand = parseFloat(dayEnd.opening_cash) + totalReceipts - totalPayments;
+    const actualClosingCash = dayEnd.closing_cash !== null ? parseFloat(dayEnd.closing_cash) : null;
+    const variance = actualClosingCash !== null ? (actualClosingCash - expectedCashInHand) : 0;
 
     return NextResponse.json({
       dayEnd: {
@@ -163,7 +291,11 @@ export async function GET(request) {
         total_expenses: totalExpenses,
         total_receipts: totalReceipts,
         total_payments: totalPayments,
-        cash_in_hand: cashInHand
+        cash_in_hand: expectedCashInHand,
+        actual_closing_cash: actualClosingCash,
+        variance,
+        total_cash_accounts_balance: totalCashAccountsBalance,
+        total_bank_accounts_balance: totalBankAccountsBalance
       },
       transactions: {
         sales,
@@ -171,14 +303,41 @@ export async function GET(request) {
         expenses,
         ledgerEntries
       },
+      accountBalances: {
+        totalCashAccountsBalance,
+        totalBankAccountsBalance,
+        cashAccounts,
+        bankAccounts
+      },
       summary: {
+        openingCash,
         totalSales,
+        cashSales,
+        bankSales,
+        creditSales,
         totalPurchases,
+        cashPurchases,
+        bankPurchases,
+        creditPurchases,
         totalExpenses,
+        cashExpenses,
+        bankExpenses,
         totalReceipts,
+        cashReceipts,
+        bankReceipts,
         totalPayments,
-        cashInHand,
-        netCashFlow: totalReceipts - totalPayments
+        cashPayments,
+        bankPayments,
+        totalCashInflow,
+        totalCashOutflow,
+        expectedCashInHand,
+        actualClosingCash,
+        variance,
+        totalBankInflow,
+        totalBankOutflow,
+        netBankFlow,
+        totalCashAccountsBalance,
+        totalBankAccountsBalance
       }
     });
   } catch (error) {
@@ -187,7 +346,7 @@ export async function GET(request) {
   }
 }
 
-// POST - Create or update day end record
+// POST - Save Draft, Close Day, or Reopen Day
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -196,314 +355,204 @@ export async function POST(request) {
       opening_cash,
       closing_cash,
       notes,
-      closed_by
+      closed_by,
+      action // 'SAVE_DRAFT', 'CLOSE_DAY', 'REOPEN_DAY'
     } = body;
 
-    const businessDate = new Date(business_date);
+    if (!business_date) {
+      return NextResponse.json({ error: 'Business date is required' }, { status: 400 });
+    }
 
-    // Check if day end already exists
+    const [year, month, day] = business_date.split('-').map(Number);
+    const businessDate = new Date(Date.UTC(year, month - 1, day));
+    const startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0);
+    const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
+
+    // Check existing record
     const existingDayEnd = await prisma.dayEnd.findUnique({
       where: { business_date: businessDate }
     });
 
-    if (existingDayEnd && existingDayEnd.status === 'CLOSED') {
-      return NextResponse.json({ error: 'Day is already closed' }, { status: 400 });
-    }
-
-    // Validate closing_cash if closing the day
-    if (closing_cash) {
-      const closingCashNum = parseFloat(closing_cash);
-      if (isNaN(closingCashNum) || closingCashNum < 0) {
-        return NextResponse.json({ error: 'Closing cash must be a valid positive number' }, { status: 400 });
+    if (action === 'REOPEN_DAY') {
+      if (!existingDayEnd) {
+        return NextResponse.json({ error: 'Day end record not found' }, { status: 404 });
       }
+      const reopened = await prisma.dayEnd.update({
+        where: { day_end_id: existingDayEnd.day_end_id },
+        data: {
+          status: 'OPEN',
+          notes: notes ? `${existingDayEnd.notes || ''} [Reopened: ${notes}]` : existingDayEnd.notes,
+          closed_at: null,
+          closed_by: null
+        }
+      });
+      return NextResponse.json({ message: 'Day reopened successfully', dayEnd: reopened });
     }
 
-    // Calculate daily transactions
-    const startOfDay = new Date(businessDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(businessDate);
-    endOfDay.setHours(23, 59, 59, 999);
+    if (existingDayEnd && existingDayEnd.status === 'CLOSED' && action !== 'SAVE_DRAFT') {
+      return NextResponse.json({ error: 'Day is already closed. Please reopen first if changes are needed.' }, { status: 400 });
+    }
 
-    // Get all transactions for the day
+    // Calculate totals for transaction details
     const [sales, purchases, expenses, ledgerEntries] = await Promise.all([
-      prisma.sale.findMany({
-        where: {
-          created_at: {
-            gte: startOfDay,
-            lte: endOfDay
-          }
-        }
-      }),
-      prisma.purchase.findMany({
-        where: {
-          created_at: {
-            gte: startOfDay,
-            lte: endOfDay
-          }
-        }
-      }),
-      prisma.expense.findMany({
-        where: {
-          created_at: {
-            gte: startOfDay,
-            lte: endOfDay
-          }
-        }
-      }),
-      prisma.ledger.findMany({
-        where: {
-          created_at: {
-            gte: startOfDay,
-            lte: endOfDay
-          }
-        }
-      })
+      prisma.sale.findMany({ where: { created_at: { gte: startOfDay, lte: endOfDay } } }),
+      prisma.purchase.findMany({ where: { created_at: { gte: startOfDay, lte: endOfDay } } }),
+      prisma.expense.findMany({ where: { created_at: { gte: startOfDay, lte: endOfDay } } }),
+      prisma.ledger.findMany({ where: { created_at: { gte: startOfDay, lte: endOfDay } } })
     ]);
 
-    // Calculate totals
-    const totalSales = sales.reduce((sum, sale) => {
-      const netTotal = parseFloat(sale.total_amount) - parseFloat(sale.discount) + parseFloat(sale.shipping_amount || 0);
-      return sum + netTotal;
-    }, 0);
+    const totalSales = sales.reduce((sum, s) => sum + (parseFloat(s.total_amount || 0) - parseFloat(s.discount || 0) + parseFloat(s.shipping_amount || 0)), 0);
+    const totalPurchases = purchases.reduce((sum, p) => sum + parseFloat(p.net_total || p.total_amount || 0), 0);
+    const totalExpenses = expenses.reduce((sum, e) => sum + parseFloat(e.exp_amount || 0), 0);
+    const totalReceipts = ledgerEntries.filter(l => l.credit_amount > 0).reduce((sum, l) => sum + parseFloat(l.credit_amount), 0);
+    const totalPayments = ledgerEntries.filter(l => l.debit_amount > 0).reduce((sum, l) => sum + parseFloat(l.debit_amount), 0);
 
-    const totalPurchases = purchases.reduce((sum, purchase) => {
-      return sum + parseFloat(purchase.net_total);
-    }, 0);
+    let cashSales = 0;
+    sales.forEach(s => {
+      const cPay = parseFloat(s.cash_payment || 0);
+      if (cPay > 0) cashSales += cPay;
+      else if (s.payment_type === 'CASH') cashSales += (parseFloat(s.payment || 0) || (parseFloat(s.total_amount || 0) - parseFloat(s.discount || 0)));
+    });
 
-    const totalExpenses = expenses.reduce((sum, expense) => {
-      return sum + parseFloat(expense.exp_amount);
-    }, 0);
+    let cashPurchases = 0;
+    purchases.forEach(p => {
+      const cPay = parseFloat(p.cash_payment || 0);
+      if (cPay > 0) cashPurchases += cPay;
+      else if (p.payment_type === 'CASH') cashPurchases += (parseFloat(p.payment || 0) || parseFloat(p.net_total || 0));
+    });
 
-    const totalReceipts = ledgerEntries
-      .filter(entry => entry.credit_amount > 0)
-      .reduce((sum, entry) => sum + parseFloat(entry.credit_amount), 0);
+    let cashReceipts = 0;
+    let cashPayments = 0;
+    ledgerEntries.forEach(l => {
+      const isBank = l.trnx_type === 'BANK_TRANSFER' || l.trnx_type === 'CHEQUE';
+      if (!isBank) {
+        if (l.credit_amount > 0) cashReceipts += parseFloat(l.credit_amount);
+        if (l.debit_amount > 0) cashPayments += parseFloat(l.debit_amount);
+      }
+    });
 
-    const totalPayments = ledgerEntries
-      .filter(entry => entry.debit_amount > 0)
-      .reduce((sum, entry) => sum + parseFloat(entry.debit_amount), 0);
+    const finalOpeningCash = (opening_cash !== undefined && opening_cash !== null && opening_cash !== '')
+      ? parseFloat(opening_cash)
+      : (existingDayEnd?.opening_cash ? parseFloat(existingDayEnd.opening_cash) : 0);
 
-    // Use transaction to ensure data consistency
+    const expectedCashInHand = finalOpeningCash + (cashSales + cashReceipts) - (cashPurchases + cashPayments + totalExpenses);
+    const isClosing = action === 'CLOSE_DAY' || (closing_cash !== undefined && closing_cash !== null && closing_cash !== '');
+    const finalClosingCash = isClosing ? parseFloat(closing_cash || 0) : (existingDayEnd?.closing_cash ? parseFloat(existingDayEnd.closing_cash) : null);
+
     const result = await prisma.$transaction(async (tx) => {
       let dayEnd;
-      
-      // Determine opening_cash value: use provided value or existing value or default to 0
-      const finalOpeningCash = opening_cash !== undefined && opening_cash !== null && opening_cash !== '' 
-        ? parseFloat(opening_cash) 
-        : (existingDayEnd?.opening_cash ? parseFloat(existingDayEnd.opening_cash) : 0);
-      
-      // Calculate cash_in_hand based on final opening cash
-      const finalCashInHand = finalOpeningCash + totalReceipts - totalPayments;
+      const dayData = {
+        opening_cash: finalOpeningCash,
+        closing_cash: finalClosingCash,
+        total_sales: totalSales,
+        total_purchases: totalPurchases,
+        total_expenses: totalExpenses,
+        total_receipts: totalReceipts,
+        total_payments: totalPayments,
+        cash_in_hand: expectedCashInHand,
+        status: isClosing ? 'CLOSED' : 'OPEN',
+        notes: notes || null,
+        closed_by: isClosing ? (closed_by || 1) : null,
+        closed_at: isClosing ? new Date() : null
+      };
 
       if (existingDayEnd) {
-        // Update existing day end
         dayEnd = await tx.dayEnd.update({
           where: { day_end_id: existingDayEnd.day_end_id },
-          data: {
-            opening_cash: finalOpeningCash,
-            closing_cash: closing_cash ? parseFloat(closing_cash) : null,
-            total_sales: totalSales,
-            total_purchases: totalPurchases,
-            total_expenses: totalExpenses,
-            total_receipts: totalReceipts,
-            total_payments: totalPayments,
-            cash_in_hand: finalCashInHand,
-            status: closing_cash ? 'CLOSED' : 'OPEN',
-            notes: notes || null,
-            closed_by: closing_cash ? closed_by : null,
-            closed_at: closing_cash ? new Date() : null
-          }
+          data: dayData
         });
-
-        // Delete existing day end details
-        await tx.dayEndDetail.deleteMany({
-          where: { day_end_id: existingDayEnd.day_end_id }
-        });
+        await tx.dayEndDetail.deleteMany({ where: { day_end_id: existingDayEnd.day_end_id } });
       } else {
-        // Create new day end
         dayEnd = await tx.dayEnd.create({
           data: {
             business_date: businessDate,
-            opening_cash: finalOpeningCash,
-            closing_cash: closing_cash ? parseFloat(closing_cash) : null,
-            total_sales: totalSales,
-            total_purchases: totalPurchases,
-            total_expenses: totalExpenses,
-            total_receipts: totalReceipts,
-            total_payments: totalPayments,
-            cash_in_hand: finalCashInHand,
-            status: closing_cash ? 'CLOSED' : 'OPEN',
-            notes: notes || null,
-            closed_by: closing_cash ? closed_by : null,
-            closed_at: closing_cash ? new Date() : null
+            ...dayData
           }
         });
       }
 
-      // Create day end details for all transactions
+      // Add details
       const dayEndDetails = [];
-
-      // Add sales
-      sales.forEach(sale => {
-        const netTotal = parseFloat(sale.total_amount) - parseFloat(sale.discount) + parseFloat(sale.shipping_amount || 0);
+      sales.forEach(s => {
+        const netTotal = parseFloat(s.total_amount || 0) - parseFloat(s.discount || 0) + parseFloat(s.shipping_amount || 0);
         dayEndDetails.push({
           day_end_id: dayEnd.day_end_id,
           transaction_type: 'SALE',
-          transaction_id: sale.sale_id,
+          transaction_id: s.sale_id,
           amount: netTotal,
-          payment_type: sale.payment_type,
-          description: `Sale to customer`
+          payment_type: s.payment_type || 'CASH',
+          description: `Sale Invoice #${s.bill_number || s.sale_id}`
         });
       });
 
-      // Add purchases
-      purchases.forEach(purchase => {
+      purchases.forEach(p => {
         dayEndDetails.push({
           day_end_id: dayEnd.day_end_id,
           transaction_type: 'PURCHASE',
-          transaction_id: purchase.pur_id,
-          amount: parseFloat(purchase.net_total),
-          payment_type: purchase.payment_type,
-          description: `Purchase from supplier`
+          transaction_id: p.pur_id,
+          amount: parseFloat(p.net_total || 0),
+          payment_type: p.payment_type || 'CASH',
+          description: `Purchase Bill #${p.invoice_number || p.pur_id}`
         });
       });
 
-      // Add expenses
-      expenses.forEach(expense => {
+      expenses.forEach(e => {
         dayEndDetails.push({
           day_end_id: dayEnd.day_end_id,
           transaction_type: 'EXPENSE',
-          transaction_id: expense.exp_id,
-          amount: parseFloat(expense.exp_amount),
-          payment_type: 'CASH', // Default for expenses
-          description: expense.exp_title
+          transaction_id: e.exp_id,
+          amount: parseFloat(e.exp_amount || 0),
+          payment_type: 'CASH',
+          description: e.exp_title || 'Expense'
         });
       });
 
-      // Add ledger entries
-      ledgerEntries.forEach(entry => {
-        const paymentType = mapTransactionTypeToPaymentType(entry.trnx_type);
-        
-        if (entry.credit_amount > 0) {
+      ledgerEntries.forEach(l => {
+        const paymentType = mapTransactionTypeToPaymentType(l.trnx_type);
+        if (l.credit_amount > 0) {
           dayEndDetails.push({
             day_end_id: dayEnd.day_end_id,
             transaction_type: 'RECEIPT',
-            transaction_id: entry.l_id,
-            amount: parseFloat(entry.credit_amount),
+            transaction_id: l.l_id,
+            amount: parseFloat(l.credit_amount),
             payment_type: paymentType,
-            description: entry.details || 'Receipt'
+            description: l.details || 'Receipt Voucher'
           });
         }
-        if (entry.debit_amount > 0) {
+        if (l.debit_amount > 0) {
           dayEndDetails.push({
             day_end_id: dayEnd.day_end_id,
             transaction_type: 'PAYMENT',
-            transaction_id: entry.l_id,
-            amount: parseFloat(entry.debit_amount),
+            transaction_id: l.l_id,
+            amount: parseFloat(l.debit_amount),
             payment_type: paymentType,
-            description: entry.details || 'Payment'
+            description: l.details || 'Payment Voucher'
           });
         }
       });
 
-      // Create all day end details
       if (dayEndDetails.length > 0) {
-        await tx.dayEndDetail.createMany({
-          data: dayEndDetails
-        });
+        await tx.dayEndDetail.createMany({ data: dayEndDetails });
       }
 
       return dayEnd;
-    }, {
-      timeout: 15000
     });
 
-    // Calculate cash discrepancy if day is closed
     let warning = null;
-    if (closing_cash) {
-      const closingCashNum = parseFloat(closing_cash);
-      const finalCashInHand = result.cash_in_hand ? parseFloat(result.cash_in_hand) : 0;
-      const discrepancy = Math.abs(closingCashNum - finalCashInHand);
-      
-      if (discrepancy > 0.01) { // Allow small floating-point differences
-        warning = `Cash discrepancy detected: Calculated cash in hand is ${finalCashInHand.toFixed(2)}, but closing cash is ${closingCashNum.toFixed(2)}. Difference: ${discrepancy.toFixed(2)}`;
+    if (isClosing && finalClosingCash !== null) {
+      const discrepancy = finalClosingCash - expectedCashInHand;
+      if (Math.abs(discrepancy) > 0.01) {
+        if (discrepancy < 0) {
+          warning = `⚠️ Cash Shortage detected: Physical cash is ${Math.abs(discrepancy).toFixed(2)} PKR less than calculated cash in hand (${expectedCashInHand.toFixed(2)} PKR).`;
+        } else {
+          warning = `ℹ️ Cash Excess detected: Physical cash is ${discrepancy.toFixed(2)} PKR more than calculated cash in hand (${expectedCashInHand.toFixed(2)} PKR).`;
+        }
       }
     }
 
-    return NextResponse.json({ 
-      ...result,
-      warning 
-    }, { status: 201 });
+    return NextResponse.json({ ...result, warning }, { status: 200 });
   } catch (error) {
     console.error('Error creating/updating day end:', error);
-    return NextResponse.json({ error: 'Failed to create/update day end' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to save day end: ' + error.message }, { status: 500 });
   }
 }
-
-// PUT - Update day end (mainly for closing the day)
-export async function PUT(request) {
-  try {
-    const body = await request.json();
-    const {
-      day_end_id,
-      closing_cash,
-      notes,
-      closed_by
-    } = body;
-
-    if (!day_end_id) {
-      return NextResponse.json({ error: 'Day end ID is required' }, { status: 400 });
-    }
-
-    if (!closing_cash) {
-      return NextResponse.json({ error: 'Closing cash is required' }, { status: 400 });
-    }
-
-    const closingCashNum = parseFloat(closing_cash);
-    if (isNaN(closingCashNum) || closingCashNum < 0) {
-      return NextResponse.json({ error: 'Closing cash must be a valid positive number' }, { status: 400 });
-    }
-
-    // Get the day end record to calculate discrepancy
-    const dayEndRecord = await prisma.dayEnd.findUnique({
-      where: { day_end_id }
-    });
-
-    if (!dayEndRecord) {
-      return NextResponse.json({ error: 'Day end record not found' }, { status: 404 });
-    }
-
-    if (dayEndRecord.status === 'CLOSED') {
-      return NextResponse.json({ error: 'Day is already closed' }, { status: 400 });
-    }
-
-    const result = await prisma.dayEnd.update({
-      where: { day_end_id },
-      data: {
-        closing_cash: closingCashNum,
-        status: 'CLOSED',
-        notes: notes || null,
-        closed_by,
-        closed_at: new Date()
-      }
-    });
-
-    // Calculate cash discrepancy
-    const calculatedCashInHand = result.cash_in_hand ? parseFloat(result.cash_in_hand) : 0;
-    const discrepancy = Math.abs(closingCashNum - calculatedCashInHand);
-    let warning = null;
-
-    if (discrepancy > 0.01) {
-      warning = `Cash discrepancy detected: Calculated cash in hand is ${calculatedCashInHand.toFixed(2)}, but closing cash is ${closingCashNum.toFixed(2)}. Difference: ${discrepancy.toFixed(2)}`;
-    }
-
-    return NextResponse.json({ 
-      ...result,
-      warning 
-    });
-  } catch (error) {
-    console.error('Error updating day end:', error);
-    return NextResponse.json({ error: 'Failed to update day end' }, { status: 500 });
-  }
-}
-
-

@@ -223,7 +223,7 @@ export function canStaffAccessPath(userOrRole, pathname) {
         if (requiredModule === 'import' && (allowed.includes('system') || allowed.includes('system_settings'))) return true;
         if (requiredModule === 'customers' && allowed.includes('accounts')) return true;
         if (requiredModule === 'sale_returns' && allowed.includes('sales')) return true;
-        if (requiredModule === 'cash_bank_day_end' && (allowed.includes('finance') || allowed.includes('reports') || allowed.includes('cash_day_end'))) return true;
+        if (requiredModule === 'cash_bank_day_end' && (allowed.includes('cash_bank_day_end') || allowed.includes('finance') || allowed.includes('reports') || allowed.includes('sales') || allowed.includes('cash_day_end'))) return true;
         return false;
       }
     }
