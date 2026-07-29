@@ -4010,7 +4010,7 @@ function OrdersPageContent() {
                     fontSize: '1rem',
                     color: '#000'
                   }}>
-                    SALE INVOICE
+                    ORDER INVOICE
                   </Typography>
                 </Box>
 
@@ -4034,7 +4034,7 @@ function OrdersPageContent() {
                       Invoice No: &nbsp;<strong>{getBillDisplayNo(currentBillData)}</strong>
                     </Typography>
                     <Typography sx={{ mb: 0.25, fontSize: '0.85rem', color: '#000' }}>
-                      Sale ID: &nbsp;<strong>{currentBillData.sale_id || getBillDisplayNo(currentBillData)}</strong>
+                      Order ID: &nbsp;<strong>{currentBillData.sale_id || getBillDisplayNo(currentBillData)}</strong>
                     </Typography>
                     <Typography sx={{ mb: 0.25, fontSize: '0.85rem', color: '#000' }}>
                       Date: &nbsp;<strong>{new Date(currentBillData.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
@@ -5521,7 +5521,7 @@ function OrdersPageContent() {
                   fontSize: '1rem',
                   color: '#000'
                 }}>
-                  SALE INVOICE
+                  ORDER INVOICE
                 </Typography>
               </Box>
 
@@ -5545,7 +5545,7 @@ function OrdersPageContent() {
                     Invoice No: &nbsp;<strong>{getBillDisplayNo(selectedBill)}</strong>
                   </Typography>
                   <Typography sx={{ mb: 0.25, fontSize: '0.85rem', color: '#000' }}>
-                    Sale ID: &nbsp;<strong>{selectedBill.sale_id || getBillDisplayNo(selectedBill)}</strong>
+                    Order ID: &nbsp;<strong>{selectedBill.sale_id || getBillDisplayNo(selectedBill)}</strong>
                   </Typography>
                   <Typography sx={{ mb: 0.25, fontSize: '0.85rem', color: '#000' }}>
                     Date: &nbsp;<strong>{new Date(selectedBill.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
@@ -6556,7 +6556,7 @@ function OrdersPageContent() {
                 fontSize: '1rem',
                 color: '#000'
               }}>
-                SALE INVOICE
+                ORDER INVOICE
               </Typography>
             </Box>
 
@@ -6580,7 +6580,7 @@ function OrdersPageContent() {
                   Invoice No: &nbsp;<strong>{getBillDisplayNo(activeBillData)}</strong>
                 </Typography>
                 <Typography sx={{ mb: 0.25, fontSize: '0.85rem', color: '#000' }}>
-                  Sale ID: &nbsp;<strong>{activeBillData.sale_id || getBillDisplayNo(activeBillData)}</strong>
+                  Order ID: &nbsp;<strong>{activeBillData.sale_id || getBillDisplayNo(activeBillData)}</strong>
                 </Typography>
                 <Typography sx={{ mb: 0.25, fontSize: '0.85rem', color: '#000' }}>
                   Date: &nbsp;<strong>{new Date(activeBillData.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>

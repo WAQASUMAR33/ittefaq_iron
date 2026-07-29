@@ -427,7 +427,7 @@ export default function OrderReport() {
                 <div className="text-xl font-bold" style={{ direction: 'rtl' }}>اتفاق آئرن اینڈ سیمنٹ سٹور</div>
                 <div className="text-sm text-gray-600" style={{ direction: 'rtl' }}>گجرات سرگودھا روڈ، پاہڑیانوالی</div>
                 <div className="text-sm mt-0.5">Ph:- 0346-7560306, 0300-7560306</div>
-                <div className="font-bold uppercase tracking-wider mt-1 text-sm">SALE INVOICE</div>
+                <div className="font-bold uppercase tracking-wider mt-1 text-sm">ORDER INVOICE</div>
               </div>
 
               {/* Customer & Invoice Info */}
