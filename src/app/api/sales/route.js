@@ -916,6 +916,8 @@ export async function POST(request) {
       transport_details,
       split_payments,
       is_loaded_order, // Flag to indicate if this is a loaded order
+      order_id,
+      loaded_order_id,
       updated_by
     } = body;
 
@@ -1746,6 +1748,18 @@ export async function POST(request) {
         }
 
       } // End of if (!isQuotation) for all financial transactions
+
+      // Automatically update converted order bill_type to ORDER_TRASH
+      const targetOrdId = order_id || loaded_order_id;
+      if (targetOrdId) {
+        const ordId = parseInt(targetOrdId);
+        if (Number.isFinite(ordId)) {
+          await tx.$executeRaw`
+            UPDATE sales SET bill_type = 'ORDER_TRASH', updated_at = NOW() WHERE sale_id = ${ordId}
+          `;
+          console.log(`✅ Backend POST: Order #${ordId} automatically moved to ORDER_TRASH upon conversion to sale`);
+        }
+      }
 
       const affectedCusIds = [...new Set(ledgerEntries.map(e => e.cus_id))];
 

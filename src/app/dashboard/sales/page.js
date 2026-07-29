@@ -1173,12 +1173,12 @@ function SalesPageContent() {
         labour: labourCharges > 0 ? labourCharges : '', // Only set if > 0, otherwise empty string
         deliveryCharges: parseFloat(fullOrder.shipping_amount || 0) || '', // Empty string if 0
         notes: fullOrder.reference ? `${fullOrder.reference} (Ref Order #${fullOrder.sale_id})` : `Ref Order #${fullOrder.sale_id}`,
-        isLoadedOrder: false // Flag to indicate if this is a loaded order
+        isLoadedOrder: true // Flag to indicate if this is a loaded order
       }));
 
-      setLoadedOrderId(null); // Keep order untouched
+      setLoadedOrderId(fullOrder.sale_id); // Set loaded order ID so when bill is saved, the order is moved to ORDER_TRASH
       setLoadOrderDialogOpen(false);
-      showSnackbar(`Order details loaded. Add items to bill.`, 'info');
+      showSnackbar(`Order details loaded. Save bill to complete conversion.`, 'info');
 
     } catch (error) {
       console.error('Error loading order:', error);
@@ -1530,7 +1530,9 @@ function SalesPageContent() {
         shipping_amount: totalShippingAmount, // Include both transport and delivery charges
         bill_type: billType || 'BILL',
         reference: paymentData.notes || null,
-        is_loaded_order: paymentData.isLoadedOrder || false, // Flag to indicate if this is a loaded order
+        is_loaded_order: paymentData.isLoadedOrder || !!loadedOrderId, // Flag to indicate if this is a loaded order
+        order_id: loadedOrderId || null, // Pass order_id to backend for direct conversion
+        loaded_order_id: loadedOrderId || null,
         sale_details: productTableData.map(product => ({
           pro_id: product.pro_id,
           vehicle_no: null,
