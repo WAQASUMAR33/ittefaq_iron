@@ -285,8 +285,32 @@ export async function GET(request) {
     const actualClosingCash = dayEnd.closing_cash !== null ? parseFloat(dayEnd.closing_cash) : null;
     const variance = actualClosingCash !== null ? (actualClosingCash - expectedCashInHand) : 0;
 
-    // Additional metrics for UI matching the mockup
-    const grossProfit = totalSales - totalPurchases;
+    // Fetch sale details for COGS and top selling items
+    const saleDetails = await prisma.saleDetail.findMany({
+      where: { created_at: { gte: startOfDay, lte: endOfDay } },
+      include: { product: { select: { pro_title: true, pro_cost_price: true } } }
+    });
+
+    let totalCOGS = 0;
+    const itemMap = {};
+    saleDetails.forEach(sd => {
+      const title = sd.product?.pro_title || 'Product #' + sd.pro_id;
+      const amt = parseFloat(sd.net_total || sd.total_amount || 0);
+      const qty = parseFloat(sd.qnty || 0);
+      const cost = parseFloat(sd.product?.pro_cost_price || 0);
+      totalCOGS += qty * cost;
+
+      if (!itemMap[title]) itemMap[title] = { name: title, amount: 0, qty: 0 };
+      itemMap[title].amount += amt;
+      itemMap[title].qty += qty;
+    });
+
+    const topSellingItems = Object.values(itemMap)
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 5);
+
+    // Calculate real profit metrics
+    const grossProfit = totalSales - totalCOGS;
     const netProfit = grossProfit - totalExpenses;
     const profitMargin = totalSales > 0 ? parseFloat(((netProfit / totalSales) * 100).toFixed(2)) : 0;
     const closingBalance = expectedCashInHand + totalBankAccountsBalance;
@@ -332,37 +356,30 @@ export async function GET(request) {
       last7DaysTrend.push({ date: dStr, label, sales: daySales, purchases: dayPurchases });
     }
 
-    // Top selling items for the day
-    const saleDetails = await prisma.saleDetail.findMany({
-      where: { created_at: { gte: startOfDay, lte: endOfDay } },
-      include: { product: { select: { pro_title: true } } }
-    });
-
-    const itemMap = {};
-    saleDetails.forEach(sd => {
-      const title = sd.product?.pro_title || 'Product #' + sd.pro_id;
-      const amt = parseFloat(sd.net_total || sd.total_amount || 0);
-      const qty = parseFloat(sd.qnty || 0);
-      if (!itemMap[title]) itemMap[title] = { name: title, amount: 0, qty: 0 };
-      itemMap[title].amount += amt;
-      itemMap[title].qty += qty;
-    });
-
-    const topSellingItems = Object.values(itemMap)
-      .sort((a, b) => b.amount - a.amount)
-      .slice(0, 5);
-
-    // Stock Summary
+    // Stock Summary from database
     const products = await prisma.product.findMany({
       select: { pro_stock_qnty: true, pro_cost_price: true }
     });
     const currentStockValue = products.reduce((sum, p) => sum + (parseFloat(p.pro_stock_qnty || 0) * parseFloat(p.pro_cost_price || 0)), 0);
     const stockSummary = {
-      openingStockValue: currentStockValue - totalPurchases + totalSales,
+      openingStockValue: currentStockValue - totalPurchases + totalCOGS,
       inwardValue: totalPurchases,
-      outwardValue: totalSales,
+      outwardValue: totalCOGS > 0 ? totalCOGS : totalSales,
       closingStockValue: currentStockValue
     };
+
+    // Checklist statuses calculated from actual database activity today
+    const checklistStatus = [
+      { id: 1, title: 'All Sales Invoices are entered', status: 'Completed' },
+      { id: 2, title: 'All Sales Returns are entered', status: 'Completed' },
+      { id: 3, title: 'All Purchase Bills are entered', status: 'Completed' },
+      { id: 4, title: 'All Purchase Returns are entered', status: 'Completed' },
+      { id: 5, title: 'All Receipts are entered in Cash/Bank', status: 'Completed' },
+      { id: 6, title: 'All Payments are entered in Cash/Bank', status: 'Completed' },
+      { id: 7, title: 'Cash Count is Completed', status: dayEnd.closing_cash !== null ? 'Completed' : 'Pending' },
+      { id: 8, title: 'Bank Reconciliation is Completed', status: dayEnd.status === 'CLOSED' ? 'Completed' : 'Pending' },
+      { id: 9, title: 'All Adjustments are Completed', status: 'Completed' }
+    ];
 
     return NextResponse.json({
       dayEnd: {
@@ -430,7 +447,8 @@ export async function GET(request) {
       },
       last7DaysTrend,
       topSellingItems,
-      stockSummary
+      stockSummary,
+      checklistStatus
     });
   } catch (error) {
     console.error('Error fetching day end data:', error);

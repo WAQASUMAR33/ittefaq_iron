@@ -144,6 +144,8 @@ export default function DayEndPage() {
         setTopSellingItems(data.topSellingItems || []);
         setStockSummary(data.stockSummary || null);
 
+        if (data.checklistStatus) setChecklist(data.checklistStatus);
+
         setOpeningCash(data.summary?.openingCash?.toString() || '0');
         setClosingCash(data.dayEnd?.closing_cash !== null && data.dayEnd?.closing_cash !== undefined ? data.dayEnd.closing_cash?.toString() : '');
         setNotes(data.dayEnd?.notes || '');
