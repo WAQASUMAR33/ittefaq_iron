@@ -198,6 +198,7 @@ export default function Sidebar({
     { id: 'new-sale', name: 'New Sale', icon: AddIcon, category: 'main' },
     { id: 'purchases', name: 'New Purchase', icon: ShoppingBagIcon, category: 'main' },
     { id: 'day-end', name: 'Day End / Day Close', icon: CalendarIcon, category: 'main' },
+    { id: 'day-end-history', name: 'Closing History', icon: CalendarIcon, category: 'main' },
     { id: 'cash-report', name: 'Cash Report', icon: AttachMoneyIcon, category: 'main' },
     { id: 'bank-report', name: 'Bank Report', icon: CreditCardIcon, category: 'main' },
     { id: 'ledger', name: 'Ledger', icon: DescriptionIcon, category: 'main' },
@@ -215,8 +216,8 @@ export default function Sidebar({
     { id: 'internal-transfer', name: 'Internal Transfer', icon: SwapHorizIcon, category: 'financial', parent: 'Finance' },
     { id: 'bank-accounts', name: 'Bank Accounts', icon: CreditCardIcon, category: 'financial', parent: 'Finance' },
     { id: 'adjustment-management', name: 'Adjustment Account', icon: SwapHorizIcon, category: 'financial', parent: 'Finance' },
-    { id: 'day-end', name: 'Day End Closing', icon: CalendarIcon, category: 'day-end-closing', parent: 'Day End Closing' },
-    { id: 'day-end-history', name: 'Closing History', icon: CalendarIcon, category: 'day-end-closing', parent: 'Day End Closing' },
+    { id: 'day-end', name: 'Day End Closing', icon: CalendarIcon, category: 'financial', parent: 'Finance' },
+    { id: 'day-end-history', name: 'Closing History', icon: CalendarIcon, category: 'financial', parent: 'Finance' },
 
     { id: 'orders', name: 'Order List', icon: ListAltIcon, category: 'sales-operations', parent: 'Sales' },
     { id: 'sales', name: 'Sales', icon: ShoppingCartIcon, category: 'sales-operations', parent: 'Sales' },
@@ -287,6 +288,7 @@ export default function Sidebar({
       'ledger': 'finance',
 
       'day-end': 'cash_bank_day_end',
+      'day-end-history': 'cash_bank_day_end',
       'cash-report': 'cash_bank_day_end',
       'bank-report': 'cash_bank_day_end',
 
@@ -403,6 +405,7 @@ export default function Sidebar({
       { path: '/dashboard/journal', id: 'journal', category: 'financial' },
       { path: '/dashboard/internal-transfer', id: 'internal-transfer', category: 'financial' },
       { path: '/dashboard/adjustment-management', id: 'adjustment-management', category: 'financial' },
+      { path: '/dashboard/day-end/history', id: 'day-end-history', category: 'financial' },
       { path: '/dashboard/day-end', id: 'day-end', category: 'financial' },
       { path: '/dashboard/cargo', id: 'cargo', category: 'cargo-operations' },
       { path: '/dashboard/orders', id: 'orders', category: 'sales-operations' },
@@ -527,6 +530,8 @@ export default function Sidebar({
       router.push('/dashboard/adjustment-management');
     } else if (itemId === 'day-end') {
       router.push('/dashboard/day-end');
+    } else if (itemId === 'day-end-history') {
+      router.push('/dashboard/day-end/history');
     } else if (itemId === 'cargo') {
       router.push('/dashboard/cargo');
     } else if (itemId === 'new-sale') {
