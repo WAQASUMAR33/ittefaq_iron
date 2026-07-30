@@ -3603,11 +3603,11 @@ function SalesPageContent() {
 
 
 
-  // Calculate stats
-  const totalSales = sales.length;
-  const totalSalesValue = sales.reduce((sum, sale) => sum + parseFloat(sale.total_amount || 0), 0);
-  const totalDiscount = sales.reduce((sum, sale) => sum + parseFloat(sale.discount || 0), 0);
-  const totalPayment = sales.reduce((sum, sale) => sum + parseFloat(sale.payment || 0), 0);
+  // Calculate stats from filtered sales
+  const totalSales = filteredSales.length;
+  const totalSalesValue = filteredSales.reduce((sum, sale) => sum + parseFloat(sale.total_amount || 0), 0);
+  const totalDiscount = filteredSales.reduce((sum, sale) => sum + parseFloat(sale.discount || 0), 0);
+  const totalPayment = filteredSales.reduce((sum, sale) => sum + parseFloat(sale.payment || 0), 0);
 
   // Filter and sort sales
   const filteredAndSortedSales = sales
