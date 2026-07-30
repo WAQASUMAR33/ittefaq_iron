@@ -85,9 +85,7 @@ export async function GET(request) {
           { customer_type: { cus_type_title: { contains: 'cash' } } },
           { customer_type: { cus_type_title: { contains: 'bank' } } },
           { customer_category: { cus_cat_title: { contains: 'cash' } } },
-          { customer_category: { cus_cat_title: { contains: 'bank' } } },
-          { cus_name: { contains: 'cash' } },
-          { cus_name: { contains: 'bank' } }
+          { customer_category: { cus_cat_title: { contains: 'bank' } } }
         ]
       },
       include: {
@@ -107,8 +105,11 @@ export async function GET(request) {
       const name = (acc.cus_name || '').toLowerCase();
       const bal = parseFloat(acc.cus_balance || 0);
 
-      const isBank = typeTitle === 'bank' || catTitle === 'bank';
-      const isCash = typeTitle === 'cash' || catTitle === 'cash' || catTitle === 'cash account' || name === 'cash account' || name === 'cash 1' || name === 'cash 2';
+      const isBank = catTitle.includes('bank') || typeTitle.includes('bank');
+
+      const isCash = !isBank &&
+        (catTitle.includes('cash account') || catTitle === 'cash' || typeTitle === 'cash') &&
+        catTitle !== 'customer' && catTitle !== 'supplier';
 
       if (isBank) {
         totalBankAccountsBalance += bal;
@@ -249,7 +250,8 @@ export async function GET(request) {
 
     ledgerEntries.forEach(entry => {
       const isBankType = entry.trnx_type === 'BANK_TRANSFER' || entry.trnx_type === 'CHEQUE' ||
-        entry.customer?.customer_type?.cus_type_title?.toLowerCase().includes('bank');
+        entry.customer?.customer_type?.cus_type_title?.toLowerCase().includes('bank') ||
+        entry.customer?.customer_category?.cus_cat_title?.toLowerCase().includes('bank');
 
       if (entry.credit_amount > 0) {
         const amt = parseFloat(entry.credit_amount);
@@ -398,7 +400,17 @@ export async function POST(request) {
       prisma.sale.findMany({ where: { created_at: { gte: startOfDay, lte: endOfDay } } }),
       prisma.purchase.findMany({ where: { created_at: { gte: startOfDay, lte: endOfDay } } }),
       prisma.expense.findMany({ where: { created_at: { gte: startOfDay, lte: endOfDay } } }),
-      prisma.ledger.findMany({ where: { created_at: { gte: startOfDay, lte: endOfDay } } })
+      prisma.ledger.findMany({
+        where: { created_at: { gte: startOfDay, lte: endOfDay } },
+        include: {
+          customer: {
+            select: {
+              customer_type: { select: { cus_type_title: true } },
+              customer_category: { select: { cus_cat_title: true } }
+            }
+          }
+        }
+      })
     ]);
 
     const totalSales = sales.reduce((sum, s) => sum + (parseFloat(s.total_amount || 0) - parseFloat(s.discount || 0) + parseFloat(s.shipping_amount || 0)), 0);
@@ -424,7 +436,9 @@ export async function POST(request) {
     let cashReceipts = 0;
     let cashPayments = 0;
     ledgerEntries.forEach(l => {
-      const isBank = l.trnx_type === 'BANK_TRANSFER' || l.trnx_type === 'CHEQUE';
+      const isBank = l.trnx_type === 'BANK_TRANSFER' || l.trnx_type === 'CHEQUE' ||
+        l.customer?.customer_type?.cus_type_title?.toLowerCase().includes('bank') ||
+        l.customer?.customer_category?.cus_cat_title?.toLowerCase().includes('bank');
       if (!isBank) {
         if (l.credit_amount > 0) cashReceipts += parseFloat(l.credit_amount);
         if (l.debit_amount > 0) cashPayments += parseFloat(l.debit_amount);
