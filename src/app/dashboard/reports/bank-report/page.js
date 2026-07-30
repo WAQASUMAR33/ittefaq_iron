@@ -77,7 +77,13 @@ export default function BankReport() {
     try {
       const response = await fetch('/api/customer-category');
       const data = await response.json();
-      if (response.ok) setCategories(data);
+      if (response.ok) {
+        setCategories(data);
+        const bankCat = data.find(c => (c.cus_cat_title || '').toLowerCase().includes('bank'));
+        if (bankCat) {
+          setSelectedCategory(bankCat.cus_cat_id.toString());
+        }
+      }
     } catch (error) { console.error('Error:', error); }
   };
 
@@ -222,21 +228,17 @@ export default function BankReport() {
               <label className="block text-xs font-semibold text-slate-600 mb-1 caps">CATEGORY</label>
               <Autocomplete
                 size="small"
+                disabled={true}
                 options={categories}
                 getOptionLabel={(option) => option.cus_cat_title || ''}
                 value={categories.find(c => c.cus_cat_id === parseInt(selectedCategory)) || null}
-                onChange={(e, val) => setSelectedCategory(val ? val.cus_cat_id.toString() : '')}
-                autoSelect={true}
-                autoHighlight={true}
-                openOnFocus={true}
-                selectOnFocus={true}
+                onChange={() => {}}
                 renderInput={(params) => (
                   <TextField
                     {...params}
-                    placeholder="All Categories"
-                    onFocus={(e) => e.target.select()}
+                    placeholder="Bank"
                     sx={{
-                      '& .MuiOutlinedInput-root': { py: '2px', borderRadius: '8px', bgcolor: 'white' }
+                      '& .MuiOutlinedInput-root': { py: '2px', borderRadius: '8px', bgcolor: '#f1f5f9' }
                     }}
                   />
                 )}
