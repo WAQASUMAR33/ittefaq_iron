@@ -2657,7 +2657,6 @@ export default function FinancePage() {
                 stats.push(
                   { title: 'Total Debit', val: totalDebit, color: '#16a34a', bg: '#f0fdf4', icon: <TrendingUp size={24} /> },
                   { title: 'Total Credit', val: totalCredit, color: '#dc2626', bg: '#fef2f2', icon: <TrendingDown size={24} /> },
-                  { title: 'Total Payments', val: totalPayments, color: '#2563eb', bg: '#eff6ff', icon: <DollarSign size={24} /> },
                   { title: 'Current Balance', val: currentBalance, color: '#d97706', bg: '#fffbeb', icon: <Receipt size={24} /> }
                 );
                 return stats.map((stat, i) => (
