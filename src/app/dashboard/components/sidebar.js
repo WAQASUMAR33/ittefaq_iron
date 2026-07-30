@@ -112,6 +112,7 @@ const ROUTE_MAP = {
   'internal-transfer': '/dashboard/internal-transfer',
   'bank-accounts': '/dashboard/bank-accounts',
   'day-end': '/dashboard/day-end',
+  'day-end-history': '/dashboard/day-end/history',
   'cargo': '/dashboard/cargo',
   'new-sale': '/dashboard/sales',
   'orders': '/dashboard/orders',
@@ -214,7 +215,8 @@ export default function Sidebar({
     { id: 'internal-transfer', name: 'Internal Transfer', icon: SwapHorizIcon, category: 'financial', parent: 'Finance' },
     { id: 'bank-accounts', name: 'Bank Accounts', icon: CreditCardIcon, category: 'financial', parent: 'Finance' },
     { id: 'adjustment-management', name: 'Adjustment Account', icon: SwapHorizIcon, category: 'financial', parent: 'Finance' },
-    { id: 'day-end', name: 'Day End / Day Close', icon: CalendarIcon, category: 'financial', parent: 'Finance' },
+    { id: 'day-end', name: 'Day End Closing', icon: CalendarIcon, category: 'day-end-closing', parent: 'Day End Closing' },
+    { id: 'day-end-history', name: 'Closing History', icon: CalendarIcon, category: 'day-end-closing', parent: 'Day End Closing' },
 
     { id: 'orders', name: 'Order List', icon: ListAltIcon, category: 'sales-operations', parent: 'Sales' },
     { id: 'sales', name: 'Sales', icon: ShoppingCartIcon, category: 'sales-operations', parent: 'Sales' },
