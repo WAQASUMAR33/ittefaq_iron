@@ -65,7 +65,6 @@ export default function DayEndPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [selectedBranch, setSelectedBranch] = useState('Main Branch');
   const [showHistory, setShowHistory] = useState(false);
   const [showDenominations, setShowDenominations] = useState(false);
 
@@ -310,13 +309,6 @@ export default function DayEndPage() {
             >
               Today
             </button>
-
-            {/* Branch Selector */}
-            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 space-x-2">
-              <Building2 className="w-4 h-4 text-slate-500" />
-              <span>{selectedBranch}</span>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-            </div>
 
             {/* Status Badge */}
             <div className={`px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center space-x-1.5 border ${
