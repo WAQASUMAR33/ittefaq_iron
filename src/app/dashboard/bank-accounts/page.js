@@ -327,20 +327,19 @@ export default function BankAccountsPage() {
                     <th className="py-3.5 px-4">Contact / City</th>
                     <th className="py-3.5 px-4">Last Activity</th>
                     <th className="py-3.5 px-4 text-right">Closing Balance</th>
-                    <th className="py-3.5 px-4 text-center print:hidden">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs">
                   {loading ? (
                     <tr>
-                      <td colSpan="7" className="py-12 text-center text-slate-400">
+                      <td colSpan="6" className="py-12 text-center text-slate-400">
                         <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-cyan-600" />
                         <p className="font-semibold text-xs text-slate-600">Loading bank accounts...</p>
                       </td>
                     </tr>
                   ) : filteredAccounts.length === 0 ? (
                     <tr>
-                      <td colSpan="7" className="py-12 text-center text-slate-400">
+                      <td colSpan="6" className="py-12 text-center text-slate-400">
                         <Landmark className="w-8 h-8 mx-auto mb-2 opacity-30" />
                         <p className="font-bold text-slate-700">No bank accounts found</p>
                         <p className="text-xs text-slate-400 mt-1">Try adjusting your search query or filters</p>
@@ -417,26 +416,6 @@ export default function BankAccountsPage() {
                             {acc.cus_balance > 0 ? 'Debit (Asset)' : acc.cus_balance < 0 ? 'Credit (Overdrawn)' : 'Zero'}
                           </span>
                         </td>
-
-                        {/* Actions */}
-                        <td className="py-3.5 px-4 text-center print:hidden">
-                          <div className="flex items-center justify-center space-x-1.5">
-                            <button
-                              onClick={() => router.push(`/dashboard/finance?account=${acc.cus_id}`)}
-                              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-900 hover:text-white text-slate-700 rounded-lg text-xs font-bold transition-all"
-                              title="View Account Ledger"
-                            >
-                              Ledger
-                            </button>
-                            <button
-                              onClick={() => router.push('/dashboard/reports/bank-report')}
-                              className="px-2.5 py-1.5 bg-cyan-50 hover:bg-cyan-600 hover:text-white text-cyan-700 rounded-lg text-xs font-bold transition-all border border-cyan-200/60"
-                              title="View Bank Book Report"
-                            >
-                              Bank Book
-                            </button>
-                          </div>
-                        </td>
                       </tr>
                     ))
                   )}
@@ -452,7 +431,6 @@ export default function BankAccountsPage() {
                       <td className="py-4 px-4 text-right text-sm font-extrabold text-cyan-300">
                         Rs {formatCurrency(data.summary?.totalBalance)}
                       </td>
-                      <td className="print:hidden"></td>
                     </tr>
                   </tfoot>
                 )}
