@@ -285,6 +285,85 @@ export async function GET(request) {
     const actualClosingCash = dayEnd.closing_cash !== null ? parseFloat(dayEnd.closing_cash) : null;
     const variance = actualClosingCash !== null ? (actualClosingCash - expectedCashInHand) : 0;
 
+    // Additional metrics for UI matching the mockup
+    const grossProfit = totalSales - totalPurchases;
+    const netProfit = grossProfit - totalExpenses;
+    const profitMargin = totalSales > 0 ? parseFloat(((netProfit / totalSales) * 100).toFixed(2)) : 0;
+    const closingBalance = expectedCashInHand + totalBankAccountsBalance;
+
+    const invoicesCount = sales.length;
+    const receiptsCount = ledgerEntries.filter(e => e.credit_amount > 0).length;
+    const billsCount = purchases.length;
+    const paymentsCount = ledgerEntries.filter(e => e.debit_amount > 0).length;
+
+    // Fetch last 7 days trend for chart
+    const sevenDaysAgo = new Date(startOfDay);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+
+    const [trendSales, trendPurchases] = await Promise.all([
+      prisma.sale.findMany({
+        where: { created_at: { gte: sevenDaysAgo, lte: endOfDay } },
+        select: { created_at: true, total_amount: true, discount: true, shipping_amount: true }
+      }),
+      prisma.purchase.findMany({
+        where: { created_at: { gte: sevenDaysAgo, lte: endOfDay } },
+        select: { created_at: true, net_total: true, total_amount: true }
+      })
+    ]);
+
+    const last7DaysTrend = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(startOfDay);
+      d.setDate(d.getDate() - i);
+      const dStr = d.toISOString().split('T')[0];
+      const label = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+
+      const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+      const dayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+
+      const daySales = trendSales
+        .filter(s => new Date(s.created_at) >= dayStart && new Date(s.created_at) <= dayEnd)
+        .reduce((sum, s) => sum + (parseFloat(s.total_amount || 0) - parseFloat(s.discount || 0) + parseFloat(s.shipping_amount || 0)), 0);
+
+      const dayPurchases = trendPurchases
+        .filter(p => new Date(p.created_at) >= dayStart && new Date(p.created_at) <= dayEnd)
+        .reduce((sum, p) => sum + parseFloat(p.net_total || p.total_amount || 0), 0);
+
+      last7DaysTrend.push({ date: dStr, label, sales: daySales, purchases: dayPurchases });
+    }
+
+    // Top selling items for the day
+    const saleDetails = await prisma.saleDetail.findMany({
+      where: { created_at: { gte: startOfDay, lte: endOfDay } },
+      include: { product: { select: { pro_title: true } } }
+    });
+
+    const itemMap = {};
+    saleDetails.forEach(sd => {
+      const title = sd.product?.pro_title || 'Product #' + sd.pro_id;
+      const amt = parseFloat(sd.net_total || sd.total_amount || 0);
+      const qty = parseFloat(sd.qnty || 0);
+      if (!itemMap[title]) itemMap[title] = { name: title, amount: 0, qty: 0 };
+      itemMap[title].amount += amt;
+      itemMap[title].qty += qty;
+    });
+
+    const topSellingItems = Object.values(itemMap)
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 5);
+
+    // Stock Summary
+    const products = await prisma.product.findMany({
+      select: { pro_stock_qnty: true, pro_cost_price: true }
+    });
+    const currentStockValue = products.reduce((sum, p) => sum + (parseFloat(p.pro_stock_qnty || 0) * parseFloat(p.pro_cost_price || 0)), 0);
+    const stockSummary = {
+      openingStockValue: currentStockValue - totalPurchases + totalSales,
+      inwardValue: totalPurchases,
+      outwardValue: totalSales,
+      closingStockValue: currentStockValue
+    };
+
     return NextResponse.json({
       dayEnd: {
         ...dayEnd,
@@ -339,8 +418,19 @@ export async function GET(request) {
         totalBankOutflow,
         netBankFlow,
         totalCashAccountsBalance,
-        totalBankAccountsBalance
-      }
+        totalBankAccountsBalance,
+        grossProfit,
+        netProfit,
+        profitMargin,
+        closingBalance,
+        invoicesCount,
+        receiptsCount,
+        billsCount,
+        paymentsCount
+      },
+      last7DaysTrend,
+      topSellingItems,
+      stockSummary
     });
   } catch (error) {
     console.error('Error fetching day end data:', error);
