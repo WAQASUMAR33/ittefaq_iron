@@ -11,7 +11,7 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   RefreshCw,
-  SwapHoriz,
+  ArrowLeftRight,
   CreditCard,
   Building2,
   CheckCircle,
@@ -163,7 +163,7 @@ export default function BankAccountsPage() {
                 onClick={() => router.push('/dashboard/internal-transfer')}
                 className="flex items-center px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 text-white"
               >
-                <SwapHoriz className="w-4 h-4 mr-2" /> Internal Transfer
+                <ArrowLeftRight className="w-4 h-4 mr-2" /> Internal Transfer
               </button>
               <button
                 onClick={handleExportCSV}
