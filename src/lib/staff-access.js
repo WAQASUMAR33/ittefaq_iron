@@ -196,6 +196,7 @@ export function canStaffAccessPath(userOrRole, pathname) {
       '/dashboard/finance': 'finance',
       '/dashboard/internal-transfer': 'finance',
       '/dashboard/adjustment-management': 'finance',
+      '/dashboard/bank-accounts': 'finance',
 
       '/dashboard/day-end': 'cash_bank_day_end',
       '/dashboard/reports/cash-report': 'cash_bank_day_end',

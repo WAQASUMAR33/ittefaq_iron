@@ -109,6 +109,8 @@ const ROUTE_MAP = {
   'expense-titles': '/dashboard/expense-titles',
   'expenses': '/dashboard/expenses',
   'journal': '/dashboard/journal',
+  'internal-transfer': '/dashboard/internal-transfer',
+  'bank-accounts': '/dashboard/bank-accounts',
   'day-end': '/dashboard/day-end',
   'cargo': '/dashboard/cargo',
   'new-sale': '/dashboard/sales',
@@ -210,6 +212,7 @@ export default function Sidebar({
     { id: 'expenses', name: 'Expense Management', icon: AttachMoneyIcon, category: 'financial', parent: 'Finance' },
     { id: 'journal', name: 'Journal Entries', icon: MenuBookIcon, category: 'financial', parent: 'Finance' },
     { id: 'internal-transfer', name: 'Internal Transfer', icon: SwapHorizIcon, category: 'financial', parent: 'Finance' },
+    { id: 'bank-accounts', name: 'Bank Accounts', icon: CreditCardIcon, category: 'financial', parent: 'Finance' },
     { id: 'adjustment-management', name: 'Adjustment Account', icon: SwapHorizIcon, category: 'financial', parent: 'Finance' },
     { id: 'day-end', name: 'Day End / Day Close', icon: CalendarIcon, category: 'financial', parent: 'Finance' },
 
@@ -277,6 +280,7 @@ export default function Sidebar({
       'expenses': 'finance',
       'journal': 'finance',
       'internal-transfer': 'finance',
+      'bank-accounts': 'finance',
       'adjustment-management': 'finance',
       'ledger': 'finance',
 
@@ -515,6 +519,8 @@ export default function Sidebar({
       router.push('/dashboard/journal');
     } else if (itemId === 'internal-transfer') {
       router.push('/dashboard/internal-transfer');
+    } else if (itemId === 'bank-accounts') {
+      router.push('/dashboard/bank-accounts');
     } else if (itemId === 'adjustment-management') {
       router.push('/dashboard/adjustment-management');
     } else if (itemId === 'day-end') {
