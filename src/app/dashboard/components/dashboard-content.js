@@ -368,7 +368,12 @@ export default function DashboardContent({ activeTab }) {
   ];
 
   const handleQuickActionClick = (path) => {
-    router.push(path);
+    if (!path) return;
+    try {
+      router.push(path);
+    } catch (error) {
+      window.location.href = path;
+    }
   };
 
   // Helper renderer for SVG bar charts used in Monthly Graphs
@@ -499,6 +504,7 @@ export default function DashboardContent({ activeTab }) {
               {quickActions.map((action, index) => (
                 <button
                   key={index}
+                  type="button"
                   onClick={() => handleQuickActionClick(action.path)}
                   className="group p-4 rounded-xl border border-gray-200 hover:border-gray-300 transition-all duration-200 hover:shadow-md cursor-pointer"
                 >
