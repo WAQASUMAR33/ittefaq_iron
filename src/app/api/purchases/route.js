@@ -44,10 +44,27 @@ async function resolveOpeningBalance(tx, cus_id, target_created_at) {
   return parseFloat(customer?.cus_balance || 0);
 }
 
+/** Helper to build a comprehensive WHERE clause matching all ledger entries associated with a purchase bill. */
+function getPurchaseLedgerWhere(id) {
+  const purIdStr = String(id);
+  return {
+    OR: [
+      { bill_no: purIdStr },
+      { bill_no: `PUR-${purIdStr}` },
+      { bill_no: `PURCHASE-${purIdStr}` },
+      { bill_no: `INC-${purIdStr}` },
+      { bill_no: `incity-${purIdStr}` },
+      { details: { contains: `Purchase #${purIdStr}` } },
+      { details: { contains: `Purchase Update #${purIdStr}` } },
+      { details: { contains: `Purchase Return #${purIdStr}` } }
+    ]
+  };
+}
+
 /** Prepares a list of ledger entries about to be deleted by re-linking any subsequent entries to preserve the starting opening balance. */
 async function prepareLedgerDeletion(tx, bill_no) {
   const entriesToDelete = await tx.ledger.findMany({
-    where: { bill_no: String(bill_no) },
+    where: getPurchaseLedgerWhere(bill_no),
     orderBy: { l_id: 'asc' }
   });
 
@@ -74,7 +91,7 @@ async function prepareLedgerDeletion(tx, bill_no) {
     const nextEntry = await tx.ledger.findFirst({
       where: {
         cus_id,
-        bill_no: { not: String(bill_no) },
+        bill_no: { notIn: [String(bill_no), `PUR-${bill_no}`, `PURCHASE-${bill_no}`, `INC-${bill_no}`, `incity-${bill_no}`] },
         OR: [
           { created_at: { gt: latestDeleted.created_at } },
           {
@@ -1276,7 +1293,7 @@ export async function PUT(request) {
 
       // ── Collect affected account IDs for chronological recalculation ──
       const oldLedgerEntries = await tx.ledger.findMany({
-        where: { bill_no: String(id) }
+        where: getPurchaseLedgerWhere(id)
       });
       oldLedgerEntries.forEach(entry => affectedCusIds.add(entry.cus_id));
 
@@ -1308,7 +1325,7 @@ export async function PUT(request) {
       await prepareLedgerDeletion(tx, id);
 
       // ── Step 2: Delete old ledger entries for this bill ──
-      await tx.ledger.deleteMany({ where: { bill_no: String(id) } });
+      await tx.ledger.deleteMany({ where: getPurchaseLedgerWhere(id) });
 
       // ── Step 3: Reverse stock for old quantities ──
       for (const old of oldDetails) {
@@ -1792,7 +1809,7 @@ export async function DELETE(request) {
 
       // 2. Collect all affected accounts from ledger entries before deletion
       const oldLedgerEntries = await tx.ledger.findMany({
-        where: { bill_no: String(id) }
+        where: getPurchaseLedgerWhere(id)
       });
       oldLedgerEntries.forEach(entry => affectedCusIds.add(entry.cus_id));
 
@@ -1801,7 +1818,7 @@ export async function DELETE(request) {
 
       // 3. Delete ledger entries for this bill
       await tx.ledger.deleteMany({
-        where: { bill_no: String(id) }
+        where: getPurchaseLedgerWhere(id)
       });
 
       // 5. Delete purchase details
