@@ -112,6 +112,7 @@ function QuotationsPageContent() {
 
   // Form state for sales creation
   const [formSelectedCustomer, setFormSelectedCustomer] = useState(null);
+  const [selectedCustomerTypeFilter, setSelectedCustomerTypeFilter] = useState(null);
   const [formSelectedProduct, setFormSelectedProduct] = useState(null);
   const [formSelectedStore, setFormSelectedStore] = useState(null);
 
@@ -1082,23 +1083,59 @@ function QuotationsPageContent() {
           {/* Main Form */}
           <Card>
             <CardContent sx={{ p: 2 }}>
-              {/* Top Row - Date, Customer */}
-              <Grid container spacing={2} sx={{ mb: 2 }}>
-                <Grid item xs={12} md={3}>
-                  <Box>
-                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
-                      DATE:
-                    </Typography>
-                    <TextField
-                      fullWidth
-                      type="date"
-                      size="small"
-                      defaultValue={new Date().toISOString().split('T')[0]}
-                      sx={{ bgcolor: 'white' }}
-                    />
-                  </Box>
-                </Grid>
-                <Grid item xs={12} md={5}>
+              {/* Top Filter Bar: Customer Type */}
+              <Box sx={{ mb: 2, p: 2, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'text.primary', whiteSpace: 'nowrap' }}>
+                    Customer Type:
+                  </Typography>
+                  <Autocomplete
+                    size="small"
+                    sx={{ minWidth: 300 }}
+                    options={customerTypes || []}
+                    getOptionLabel={(option) => option.cus_type_title || ''}
+                    value={selectedCustomerTypeFilter}
+                    onChange={(event, newValue) => {
+                      setSelectedCustomerTypeFilter(newValue);
+                    }}
+                    isOptionEqualToValue={(option, value) => option.cus_type_id === value?.cus_type_id}
+                    autoSelect={true}
+                    autoHighlight={true}
+                    openOnFocus={true}
+                    selectOnFocus={true}
+                    onKeyDown={(e) => {
+                      if ((e.key === 'Enter' || e.key === 'Tab') && !e.shiftKey) {
+                        e.preventDefault();
+                        setTimeout(() => {
+                          const customerInput = document.getElementById('customer-search-dropdown-input');
+                          if (customerInput) {
+                            customerInput.focus();
+                          }
+                        }, 50);
+                      }
+                    }}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        placeholder="All Customer Types"
+                        variant="outlined"
+                        sx={{
+                          bgcolor: 'white',
+                          minWidth: 300,
+                          '& .MuiInputBase-input': {
+                            fontWeight: 'bold',
+                            color: 'black'
+                          }
+                        }}
+                      />
+                    )}
+                  />
+                </Box>
+              </Box>
+
+              {/* First Row - Customer, Date, Reference */}
+              <Grid container spacing={2} sx={{ mb: 2, alignItems: 'flex-end' }}>
+                <Grid item xs={12} md={6}>
                   <Box sx={{ position: 'relative' }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                       <Typography variant="body2" sx={{ fontWeight: 'medium', color: 'text.secondary' }}>
@@ -1109,8 +1146,8 @@ function QuotationsPageContent() {
                           fontWeight: 'bold',
                           color: 'white',
                           fontSize: '0.875rem',
-                          bgcolor: 'primary.light',
-                          px: 1,
+                          bgcolor: 'success.main',
+                          px: 1.5,
                           py: 0.5,
                           borderRadius: 1
                         }}>
@@ -1119,44 +1156,214 @@ function QuotationsPageContent() {
                       )}
                     </Box>
                     <Autocomplete
+                      fullWidth
                       size="small"
-                      options={customers}
+                      sx={{ 
+                        minWidth: 450,
+                        '& .MuiAutocomplete-popupIndicator': { color: 'white' },
+                        '& .MuiAutocomplete-clearIndicator': { color: 'white' }
+                      }}
+                      onKeyDown={(e) => {
+                        if ((e.key === 'Tab' || e.key === 'Enter') && !e.shiftKey) {
+                          e.preventDefault();
+                          const productInput = document.getElementById('product-select-dropdown-input');
+                          if (productInput) {
+                            productInput.focus();
+                          } else {
+                            const fallbackInput = document.querySelector('input[placeholder*="Select product"]');
+                            if (fallbackInput) fallbackInput.focus();
+                          }
+                        }
+                      }}
+                      options={customers.filter(customer => {
+                        const category = customerCategories.find(c => c.cus_cat_id === customer.cus_category);
+                        if (category && !category.cus_cat_title.toLowerCase().includes('customer')) {
+                          return false;
+                        }
+                        
+                        if (selectedCustomerTypeFilter) {
+                          return customer.cus_type === selectedCustomerTypeFilter.cus_type_id;
+                        }
+                        return true;
+                      })}
                       getOptionLabel={(option) => option.cus_name || ''}
+                      ListboxProps={{ sx: { maxHeight: 180 } }}
+                      filterOptions={(options, { inputValue }) => {
+                        const q = inputValue.toLowerCase().trim();
+                        if (!q) return options;
+                        return options.filter(o =>
+                          (o.cus_name || '').toLowerCase().startsWith(q) ||
+                          (o.cus_phone_no || '').toLowerCase().startsWith(q) ||
+                          (o.cus_phone_no2 || '').toLowerCase().startsWith(q) ||
+                          (o.cus_address || '').toLowerCase().startsWith(q) ||
+                          (o.cus_reference || '').toLowerCase().startsWith(q) ||
+                          (o.city?.city_name || '').toLowerCase().startsWith(q)
+                        );
+                      }}
                       value={formSelectedCustomer}
                       onChange={(event, newValue) => setFormSelectedCustomer(newValue)}
+                      isOptionEqualToValue={(option, value) => option.cus_id === value?.cus_id}
                       autoSelect={true}
                       autoHighlight={true}
                       openOnFocus={true}
                       selectOnFocus={true}
+                      renderOption={(props, option) => {
+                        const { key, ...optionProps } = props;
+                        return (
+                          <Box component="li" key={option.cus_id} {...optionProps}>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', py: 0.5 }}>
+                              <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '1rem' }}>{option.cus_name}</Typography>
+                              <Typography variant="body2" sx={{ fontSize: '0.8rem' }} color="text.secondary">
+                                {[option.cus_phone_no, option.cus_address, option.city?.city_name, option.cus_reference].filter(Boolean).join(' • ')}
+                              </Typography>
+                            </Box>
+                          </Box>
+                        );
+                      }}
                       renderInput={(params) => (
                         <TextField
                           {...params}
-                          placeholder="Select Customer"
+                          id="customer-search-dropdown-input"
+                          fullWidth
+                          placeholder="Search by name, phone, address, city, reference..."
                           onFocus={(e) => e.target.select()}
-                          sx={{ bgcolor: 'white', '& .MuiInputBase-input': { fontWeight: formSelectedCustomer ? 'bold' : 'normal' } }}
+                          sx={{
+                            bgcolor: '#2e7d32',
+                            minWidth: 450,
+                            borderRadius: 1,
+                            '& .MuiOutlinedInput-root': {
+                              fontSize: '1.1rem',
+                              color: 'white !important',
+                              '-webkit-text-fill-color': 'white !important',
+                              '& fieldset': {
+                                borderColor: '#1b5e20',
+                                borderWidth: '2px'
+                              },
+                              '&:hover fieldset': {
+                                borderColor: '#1b5e20'
+                              },
+                              '&.Mui-focused fieldset': {
+                                borderColor: '#1b5e20'
+                              }
+                            },
+                            '& .MuiInputBase-input': {
+                              fontWeight: 'bold',
+                              color: 'white !important',
+                              '-webkit-text-fill-color': 'white !important',
+                              '&::placeholder': {
+                                color: 'rgba(255, 255, 255, 0.7) !important',
+                                '-webkit-text-fill-color': 'rgba(255, 255, 255, 0.7) !important',
+                                opacity: 1
+                              }
+                            }
+                          }}
                         />
                       )}
                     />
                   </Box>
                 </Grid>
-                <Grid item xs={12} md={4}>
-                  {/* Space for future fields or just empty */}
+                <Grid item xs={12} md={3}>
+                  <Box>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
+                      DATE:
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      type="date"
+                      size="small"
+                      defaultValue={new Date().toISOString().split('T')[0]}
+                      onFocus={(e) => e.target.select()}
+                      sx={{ bgcolor: 'white' }}
+                    />
+                  </Box>
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <Box>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
+                      REFERENCE
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      sx={{ bgcolor: 'white' }}
+                      value={paymentData.notes || ''}
+                      onChange={(e) => setPaymentData(prev => ({ ...prev, notes: e.target.value }))}
+                      onFocus={(e) => e.target.select()}
+                    />
+                  </Box>
                 </Grid>
               </Grid>
 
               {/* Product Selection Row */}
               <Grid container spacing={2} sx={{ mb: 2 }}>
-                <Grid item xs={12} md={3}>
+                <Grid item xs={12} md={4}>
                   <Box>
                     <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
                       SELECT PRODUCT
                     </Typography>
                     <Autocomplete
                       size="small"
-                      options={products}
+                      sx={{ minWidth: 450 }}
+                      options={products || []}
                       getOptionLabel={(option) => option.pro_title || ''}
+                      ListboxProps={{ sx: { maxHeight: 180 } }}
+                      filterOptions={(options, { inputValue }) => {
+                        const q = inputValue.toLowerCase().trim();
+                        if (!q) return options;
+                        return options.filter(o =>
+                          (o.pro_title || '').toLowerCase().startsWith(q) ||
+                          (o.pro_code || '').toLowerCase().startsWith(q)
+                        );
+                      }}
+                      renderOption={(props, option) => (
+                        <li {...props} key={option.pro_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography sx={{ fontWeight: 500 }}>{option.pro_title}</Typography>
+                          </Box>
+                        </li>
+                      )}
                       value={formSelectedProduct}
                       onChange={(event, newValue) => handleProductSelect(newValue)}
+                      isOptionEqualToValue={(option, value) => option.pro_id === value?.pro_id}
+                      autoSelect={true}
+                      autoHighlight={true}
+                      openOnFocus={true}
+                      selectOnFocus={true}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && formSelectedProduct) {
+                          e.preventDefault();
+                          const storeInput = document.querySelector('input[placeholder*="Select Store"]');
+                          if (storeInput) storeInput.focus();
+                        }
+                      }}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          id="product-select-dropdown-input"
+                          placeholder={products.length === 0 ? "No products available" : "Select product"}
+                          onFocus={(e) => e.target.select()}
+                          sx={{ bgcolor: 'white', width: 450, minWidth: 450, '& .MuiInputBase-input': { fontWeight: formSelectedProduct ? 'bold' : 'normal' } }}
+                        />
+                      )}
+                      disabled={products.length === 0}
+                    />
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                      Debug: {products.length} products available
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} md={1.5}>
+                  <Box>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
+                      SELECT STORE
+                    </Typography>
+                    <Autocomplete
+                      size="small"
+                      options={stores || []}
+                      getOptionLabel={(option) => option.store_name || ''}
+                      value={formSelectedStore}
+                      onChange={(event, newValue) => setFormSelectedStore(newValue)}
+                      isOptionEqualToValue={(option, value) => option.storeid === value?.storeid}
                       autoSelect={true}
                       autoHighlight={true}
                       openOnFocus={true}
@@ -1164,54 +1371,15 @@ function QuotationsPageContent() {
                       renderInput={(params) => (
                         <TextField
                           {...params}
-                          placeholder="Select Product"
+                          placeholder="Select Store"
                           onFocus={(e) => e.target.select()}
-                          sx={{ bgcolor: 'white', '& .MuiInputBase-input': { fontWeight: formSelectedProduct ? 'bold' : 'normal' } }}
+                          sx={{ bgcolor: 'white', '& .MuiInputBase-input': { fontWeight: formSelectedStore ? 'bold' : 'normal' } }}
                         />
                       )}
                     />
                   </Box>
                 </Grid>
-                <Grid item xs={12} md={2}>
-                  <Box>
-                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
-                      SELECT STORE
-                    </Typography>
-                    <FormControl fullWidth size="small">
-                      <Select
-                        value={formSelectedStore?.storeid || ''}
-                        onChange={(e) => {
-                          const store = stores.find(s => s.storeid === e.target.value);
-                          setFormSelectedStore(store);
-                        }}
-                        sx={{ bgcolor: 'white', '& .MuiSelect-select': { fontWeight: formSelectedStore ? 'bold' : 'normal' } }}
-                        displayEmpty
-                      >
-                        <MenuItem value="">Select Store</MenuItem>
-                        {stores.map((store) => (
-                          <MenuItem key={store.storeid} value={store.storeid}>
-                            {store.store_name}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Box>
-                </Grid>
-                <Grid item xs={12} md={1.5}>
-                  <Box>
-                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
-                      STOCK
-                    </Typography>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      value={productFormData.stock}
-                      disabled
-                      sx={{ bgcolor: '#f8f9fa' }}
-                    />
-                  </Box>
-                </Grid>
-                <Grid item xs={12} md={1.5}>
+                <Grid item xs={12} md={1.2}>
                   <Box>
                     <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
                       QTY
@@ -1222,18 +1390,12 @@ function QuotationsPageContent() {
                       type="number"
                       value={productFormData.quantity}
                       onChange={(e) => handleQuantityChange(e.target.value)}
+                      onFocus={(e) => e.target.select()}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
                           if (productFormData.rate > 0) {
                             handleAddProductToTable();
-                          } else {
-                            // Focus on rate field
-                            const inputs = document.querySelectorAll('input[type="number"]');
-                            // Find current input index and focus next
-                            // Simple workaround: focus the rate input
-                            // Ideally use refs, but DOM query is easier here
-                            // We know Rate is next
                           }
                         }
                       }}
@@ -1244,7 +1406,7 @@ function QuotationsPageContent() {
                 <Grid item xs={12} md={1.5}>
                   <Box>
                     <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
-                      RATE
+                      SALE RATE:
                     </Typography>
                     <TextField
                       fullWidth
@@ -1252,6 +1414,7 @@ function QuotationsPageContent() {
                       type="number"
                       value={productFormData.rate}
                       onChange={(e) => handleRateChange(e.target.value)}
+                      onFocus={(e) => e.target.select()}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
@@ -1265,7 +1428,7 @@ function QuotationsPageContent() {
                 <Grid item xs={12} md={1.5}>
                   <Box>
                     <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
-                      AMOUNT
+                      AMOUNT:
                     </Typography>
                     <TextField
                       fullWidth
@@ -1273,26 +1436,41 @@ function QuotationsPageContent() {
                       type="number"
                       value={productFormData.amount}
                       disabled
-                      sx={{ bgcolor: 'white' }}
+                      sx={{ bgcolor: 'white', '& .MuiInputBase-input': { fontWeight: 'bold' } }}
                     />
                   </Box>
                 </Grid>
-                <Grid item xs={12} md={1}>
-                  <Box sx={{ mt: 3.5 }}>
-                    <Button
+                <Grid item xs={12} md={1.3}>
+                  <Box>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 'medium', color: 'text.secondary' }}>
+                      STOCK
+                    </Typography>
+                    <TextField
                       fullWidth
-                      variant="contained"
-                      onClick={handleAddProductToTable}
-                      sx={{
-                        bgcolor: '#6f42c1',
-                        color: 'white',
-                        height: 40,
-                        '&:hover': { bgcolor: '#5a2d91' }
-                      }}
-                    >
-                      <AddIcon />
-                    </Button>
+                      size="small"
+                      value={productFormData.stock}
+                      disabled
+                      sx={{ bgcolor: 'white', '& .MuiInputBase-input': { fontWeight: 'bold' } }}
+                    />
                   </Box>
+                </Grid>
+                <Grid item xs={12} md={0.8} sx={{ display: 'flex', alignItems: 'flex-end' }}>
+                  <Button
+                    variant="contained"
+                    onClick={handleAddProductToTable}
+                    sx={{
+                      bgcolor: '#673ab7',
+                      color: 'white',
+                      minWidth: '42px',
+                      height: '40px',
+                      borderRadius: 2,
+                      fontWeight: 'bold',
+                      fontSize: '1.2rem',
+                      '&:hover': { bgcolor: '#5e35b1' }
+                    }}
+                  >
+                    +
+                  </Button>
                 </Grid>
               </Grid>
 
@@ -1300,17 +1478,21 @@ function QuotationsPageContent() {
               <TableContainer component={Paper} sx={{ mb: 2, border: '1px solid #e9ecef' }}>
                 <Table size="small">
                   <TableHead>
-                    <TableRow sx={{ bgcolor: '#f8f9fa' }}>
-                      <TableCell sx={{ fontWeight: 'bold' }}>Product</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 'bold' }}>Quantity</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 'bold' }}>Rate</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 'bold' }}>Total</TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 'bold' }}>Action</TableCell>
+                    <TableRow sx={{ bgcolor: '#2e7d32' }}>
+                      <TableCell sx={{ fontWeight: 'bold', color: 'white' }}>S. No</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: 'white' }}>Store</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', color: 'white' }}>Product</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 'bold', color: 'white' }}>Qty</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 'bold', color: 'white' }}>Sale Price</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 'bold', color: 'white' }}>Amount</TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 'bold', color: 'white' }}>Delete</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {productTableData.map((row) => (
+                    {productTableData.map((row, index) => (
                       <TableRow key={row.id} sx={{ '&:hover': { bgcolor: '#f8f9fa' } }}>
+                        <TableCell>{index + 1}</TableCell>
+                        <TableCell>{row.store_name || '-'}</TableCell>
                         <TableCell>{row.pro_title}</TableCell>
                         <TableCell align="right">{row.quantity}</TableCell>
                         <TableCell align="right">{fmtAmt(row.rate)}</TableCell>
@@ -1324,7 +1506,7 @@ function QuotationsPageContent() {
                     ))}
                     {productTableData.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={5} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                        <TableCell colSpan={7} align="center" sx={{ py: 4, color: 'text.secondary' }}>
                           No products added yet
                         </TableCell>
                       </TableRow>
