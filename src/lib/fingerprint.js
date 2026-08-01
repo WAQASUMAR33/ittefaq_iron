@@ -15,17 +15,29 @@ export function getMinScoreThreshold() {
 }
 
 async function sidecar(path, body) {
-  const res = await fetch(`${MATCHER_URL}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    cache: "no-store",
-  });
-  const text = await res.text();
-  if (!res.ok) {
-    throw new Error(`Matcher ${path} failed (${res.status}): ${text || res.statusText}`);
+  try {
+    const res = await fetch(`${MATCHER_URL}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      throw new Error(`Matcher ${path} failed (${res.status}): ${text || res.statusText}`);
+    }
+    return JSON.parse(text);
+  } catch (err) {
+    if (
+      err instanceof Error &&
+      (err.message === "fetch failed" || err.name === "TypeError" || err.message.includes("fetch"))
+    ) {
+      throw new Error(
+        `Fingerprint matcher service is offline (cannot reach ${MATCHER_URL}). Please run "npm run dev:matcher".`
+      );
+    }
+    throw err;
   }
-  return JSON.parse(text);
 }
 
 function toStandardBase64(input) {
