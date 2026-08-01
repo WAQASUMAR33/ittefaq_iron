@@ -73,8 +73,14 @@ import {
   Folder as FolderIcon,
   FolderOpen as FolderOpenIcon,
   ArrowUpward as ArrowUpIcon,
-  ArrowDownward as ArrowDownIcon
+  ArrowDownward as ArrowDownIcon,
+  Wifi as WifiIcon,
+  WifiOff as WifiOffIcon,
+  Sync as SyncIcon,
+  CloudUpload as CloudUploadIcon
 } from '@mui/icons-material';
+
+import { getOfflineSalesQueue, saveOfflineSale, syncOfflineSalesQueue } from '@/lib/offline-sales-helper';
 
 // Helper to get product cost price safely, handling decimal-as-string from API and avoiding JS truthy string bugs
 const getProductCostPrice = (product) => {
@@ -88,6 +94,11 @@ const getProductCostPrice = (product) => {
 function SalesPageContent() {
   const searchParams = useSearchParams();
   const { requireAuth, authDialogOpen, handleAuthSuccess, handleAuthCancel } = usePinAuth();
+
+  // Network & Offline Queue state
+  const [isOnline, setIsOnline] = useState(typeof window !== 'undefined' ? navigator.onLine : true);
+  const [offlineQueueCount, setOfflineQueueCount] = useState(0);
+  const [isSyncingOffline, setIsSyncingOffline] = useState(false);
 
   // State management
   const [sales, setSales] = useState([]);
@@ -125,6 +136,64 @@ function SalesPageContent() {
   const [currentScreenIndex, setCurrentScreenIndex] = useState(-1);
   const [showScreenIndicator, setShowScreenIndicator] = useState(false);
 
+  // Offline Auto-Sync Helpers & Event Listeners
+  const refreshOfflineCount = useCallback(() => {
+    setOfflineQueueCount(getOfflineSalesQueue().length);
+  }, []);
+
+  const triggerAutoSync = useCallback(async () => {
+    if (typeof window === 'undefined') return;
+    const queue = getOfflineSalesQueue();
+    if (!queue || queue.length === 0) {
+      refreshOfflineCount();
+      return;
+    }
+    setIsSyncingOffline(true);
+    try {
+      const result = await syncOfflineSalesQueue((serverResult, offlineItem) => {
+        console.log(`✅ Offline bill ${offlineItem.offlineId} synced to server as Sale #${serverResult.sale_id}`);
+      });
+      refreshOfflineCount();
+      if (result.syncedCount > 0) {
+        showSnackbar(`✅ ${result.syncedCount} offline bill(s) uploaded to server automatically!`, 'success');
+        fetchData();
+      }
+    } catch (e) {
+      console.error('Error auto-syncing offline sales:', e);
+    } finally {
+      setIsSyncingOffline(false);
+    }
+  }, [refreshOfflineCount]);
+
+  useEffect(() => {
+    refreshOfflineCount();
+    const handleOnline = () => {
+      setIsOnline(true);
+      showSnackbar('🌐 Internet connection restored! Syncing pending offline bills...', 'info');
+      triggerAutoSync();
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      showSnackbar('⚡ Offline mode active. New bills will be saved locally.', 'warning');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // Periodic sync check every 20 seconds
+    const syncInterval = setInterval(() => {
+      if (navigator.onLine && getOfflineSalesQueue().length > 0) {
+        triggerAutoSync();
+      }
+    }, 20000);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      clearInterval(syncInterval);
+    };
+  }, [triggerAutoSync, refreshOfflineCount]);
+
   // Handle URL query parameter for view
   useEffect(() => {
     const viewParam = searchParams?.get('view');
@@ -144,9 +213,9 @@ function SalesPageContent() {
   const loadedQuotationIdRef = useRef(null);
 
   useEffect(() => {
-    const quotationId = searchParams?.get('quotationId');
+    const quotationId = searchParams?.get('quotationId') || searchParams?.get('orderId');
 
-    // Only proceed if we have a quotation ID, reference data is loaded, and we haven't loaded this ID yet
+    // Only proceed if we have a quotation/order ID, reference data is loaded, and we haven't loaded this ID yet
     if (quotationId &&
       quotationId !== loadedQuotationIdRef.current &&
       customers.length > 0 &&
@@ -159,10 +228,10 @@ function SalesPageContent() {
           loadedQuotationIdRef.current = quotationId; // Mark as loading/loaded
 
           const response = await fetch(`/api/sales?id=${quotationId}`);
-          if (!response.ok) throw new Error('Failed to fetch quotation details');
+          if (!response.ok) throw new Error('Failed to fetch quotation/order details');
           const fullQuotation = await response.json();
 
-          console.log('📦 Loaded Quotation from URL:', fullQuotation);
+          console.log('📦 Loaded Order/Quotation from URL:', fullQuotation);
 
           // Set Customer
           if (fullQuotation.customer) {
@@ -186,21 +255,34 @@ function SalesPageContent() {
             selectedStore = stores[0];
           }
 
-          // Don't load products - start fresh with empty table
-          setProductTableData([]);
+          // Map Products if available
+          if (fullQuotation.sale_details && Array.isArray(fullQuotation.sale_details) && fullQuotation.sale_details.length > 0) {
+            const mappedProducts = fullQuotation.sale_details.map((item, index) => ({
+              id: Date.now() + index,
+              pro_id: item.pro_id,
+              pro_title: item.product ? (item.product.pro_title || item.product.pro_name) : 'Unknown Product',
+              quantity: parseFloat(item.qnty || 0),
+              rate: parseFloat(item.unit_rate || 0),
+              amount: parseFloat(item.total_amount || 0),
+              crate: item.product ? (item.product.pro_crate || '') : '',
+              stock: 0,
+              storeid: fullQuotation.store_id || selectedStore?.storeid,
+              store_name: selectedStore ? selectedStore.store_name : 'Unknown'
+            }));
+            setProductTableData(mappedProducts);
+          }
 
-          // Set payment data - do NOT load advance payment (as it's a new bill and the order remains)
-          // Set discount and notes
+          // Set payment data
           setPaymentData(prev => ({
             ...prev,
             advancePayment: '',
-            discount: 0,
-            notes: `Ref Order #${quotationId}. ${fullQuotation.reference || ''}`,
-            isLoadedOrder: false
+            discount: parseFloat(fullQuotation.discount || 0) || '',
+            notes: fullQuotation.reference ? `${fullQuotation.reference} (Ref Order #${quotationId})` : `Ref Order #${quotationId}`,
+            isLoadedOrder: true
           }));
 
           setLoadedOrderId(parseInt(quotationId));
-          showSnackbar(`Order details loaded. Add items to bill.`, 'info');
+          showSnackbar(`Order #${quotationId} details loaded. Save bill to complete conversion.`, 'info');
         } catch (error) {
           console.error('Error loading quotation from URL:', error);
           showSnackbar('Failed to load quotation from URL', 'error');
@@ -536,8 +618,9 @@ function SalesPageContent() {
       // Payment data (deep copy)
       paymentData: JSON.parse(JSON.stringify(paymentData)),
 
-      // Bill type
+      // Bill type & Loaded Order ID
       billType: billType,
+      loadedOrderId: loadedOrderId,
 
       // Product form
       formSelectedProduct: formSelectedProduct ? { ...formSelectedProduct } : null,
@@ -576,6 +659,7 @@ function SalesPageContent() {
     setProductTableData(state.productTableData);
     setPaymentData(state.paymentData);
     setBillType(state.billType);
+    setLoadedOrderId(state.loadedOrderId || null);
     setFormSelectedProduct(state.formSelectedProduct);
     setProductFormData(state.productFormData);
     setNewTransport(state.newTransport);
@@ -592,6 +676,7 @@ function SalesPageContent() {
   const clearFormState = () => {
     console.log('🧹 Clearing form state');
     setEditingSale(null);
+    setLoadedOrderId(null);
     setFormSelectedCustomer(null);
     setFormSelectedProduct(null);
     setFormSelectedStore(null);
@@ -1562,13 +1647,81 @@ function SalesPageContent() {
       // Use PUT when editing an existing sale, POST for new
       const isEditing = !!editingSale;
       const apiBody = isEditing ? { ...saleData, id: editingSale.sale_id } : saleData;
-      const response = await fetch('/api/sales', {
-        method: isEditing ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(apiBody),
-      });
+      let response;
+      let isNetworkFailure = typeof navigator !== 'undefined' && !navigator.onLine;
 
-      if (response.ok) {
+      if (!isNetworkFailure) {
+        try {
+          response = await fetch('/api/sales', {
+            method: isEditing ? 'PUT' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(apiBody),
+          });
+        } catch (fetchErr) {
+          console.warn('Network connection failed when saving sale:', fetchErr);
+          isNetworkFailure = true;
+        }
+      }
+
+      // Offline mode fallback when server cannot be reached
+      if (isNetworkFailure || (response && response.status === 0)) {
+        const offlineId = saveOfflineSale(saleData);
+        refreshOfflineCount();
+
+        if (offlineId) {
+          showSnackbar(`⚡ Internet Disconnected! Bill saved locally (${offlineId}). Will auto-upload when online.`, 'warning');
+
+          const offlineBillData = {
+            sale_id: offlineId,
+            bill_number: offlineId,
+            cus_id: formSelectedCustomer.cus_id,
+            total_amount: grandTotal,
+            discount: parseFloat(paymentData.discount) || 0,
+            payment: finalPaymentTotal,
+            payment_type: splitPayments.length > 0 ? splitPayments[0].payment_type : 'CASH',
+            cash_payment: cashAmount,
+            bank_payment: bankAmount,
+            advance_payment: advancePayment,
+            previous_balance: parseFloat(formSelectedCustomer?.cus_balance || 0),
+            bank_title: selectedBankAccount?.cus_name || null,
+            shipping_amount: totalShippingAmount,
+            bill_type: billType || 'BILL',
+            reference: (paymentData.notes ? paymentData.notes + ' ' : '') + `[OFFLINE - Local]`,
+            created_at: new Date().toISOString(),
+            customer: formSelectedCustomer,
+            sale_details: productTableData.map((product, index) => ({
+              sale_detail_id: index + 1,
+              pro_id: product.pro_id,
+              qnty: product.quantity,
+              unit: 'PCS',
+              unit_rate: product.rate,
+              total_amount: product.amount,
+              product: { pro_title: product.pro_title || 'N/A' }
+            })),
+            labour: parseFloat(paymentData.labour) || 0,
+            notes: paymentData.notes || '',
+            isOffline: true
+          };
+
+          setCurrentBillData(offlineBillData);
+          setReceiptDialogOpen(true);
+
+          // Clear form for next bill entry
+          setFormSelectedCustomer(null);
+          setFormSelectedProduct(null);
+          setFormSelectedStore(null);
+          setProductTableData([]);
+          setPaymentData({ cash: 0, bank: 0, bankAccountId: '', totalCashReceived: 0, advancePayment: 0, discount: 0, labour: 0, deliveryCharges: 0, notes: '' });
+          setTransportOptions([]);
+          setNewTransport({ amount: 0, accountId: '' });
+          setScreenStack([]);
+          setCurrentScreenIndex(-1);
+          setLoading(false);
+          return;
+        }
+      }
+
+      if (response && response.ok) {
         const result = await response.json();
         showSnackbar('Bill saved successfully!', 'success');
 
@@ -3835,6 +3988,41 @@ function SalesPageContent() {
                 </Typography>
               </Box>
             </Box>
+
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+              {/* Network Status Badge */}
+              <Chip
+                icon={isOnline ? <WifiIcon style={{ color: '#2e7d32' }} /> : <WifiOffIcon style={{ color: '#d32f2f' }} />}
+                label={
+                  isOnline
+                    ? (offlineQueueCount > 0 ? `Online (${offlineQueueCount} Pending)` : 'Online')
+                    : `Offline Mode (${offlineQueueCount} Pending)`
+                }
+                color={!isOnline || offlineQueueCount > 0 ? 'warning' : 'success'}
+                variant={!isOnline || offlineQueueCount > 0 ? 'filled' : 'outlined'}
+                size="small"
+                sx={{ fontWeight: 'bold', px: 0.5 }}
+              />
+
+              {/* Sync Offline Queue Button */}
+              {offlineQueueCount > 0 && (
+                <Button
+                  variant="contained"
+                  size="small"
+                  startIcon={isSyncingOffline ? <CircularProgress size={16} color="inherit" /> : <SyncIcon />}
+                  onClick={triggerAutoSync}
+                  disabled={isSyncingOffline || !isOnline}
+                  sx={{
+                    bgcolor: '#ed6c02',
+                    color: 'white',
+                    fontWeight: 'bold',
+                    '&:hover': { bgcolor: '#e65100' }
+                  }}
+                  title="Upload pending offline bills to online server"
+                >
+                  {isSyncingOffline ? 'Syncing...' : `Sync Offline (${offlineQueueCount})`}
+                </Button>
+              )}
             <Button
               variant="outlined"
               startIcon={<ReceiptIcon />}
@@ -3919,6 +4107,7 @@ function SalesPageContent() {
               Add Product Sub Category
             </Button>
           </Box>
+        </Box>
 
 
           {/* Screen Stack Indicator */}

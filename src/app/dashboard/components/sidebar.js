@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter, usePathname } from 'next/navigation';
+import Link from 'next/link';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Box,
@@ -145,6 +146,7 @@ const ROUTE_MAP = {
   'employees': '/dashboard/employees',
   'attendance': '/dashboard/attendance',
   'payroll': '/dashboard/payroll',
+  'salary-management': '/dashboard/salary-management',
   'settings': '/dashboard/settings',
   'import': '/dashboard/import',
   'internal-transfer': '/dashboard/internal-transfer',
@@ -153,6 +155,14 @@ const ROUTE_MAP = {
 
 // Reverse lookup: path → { itemId, category }
 const PATH_TO_ITEM = {};
+
+const getItemHref = (itemId) => {
+  if (itemId === 'new-purchase') return '/dashboard/purchases?view=new';
+  if (itemId === 'purchase-returns') return '/dashboard/purchases?type=return';
+  if (itemId === 'sale-returns') return '/dashboard/sales?type=return';
+  if (itemId === 'sub-categories') return '/dashboard/subcategories';
+  return ROUTE_MAP[itemId] || '/dashboard';
+};
 
 export default function Sidebar({
   sidebarOpen,
@@ -202,6 +212,7 @@ export default function Sidebar({
     { id: 'day-end-history', name: 'Closing History', icon: CalendarIcon, category: 'main' },
     { id: 'cash-report', name: 'Cash Report', icon: AttachMoneyIcon, category: 'main' },
     { id: 'bank-report', name: 'Bank Report', icon: CreditCardIcon, category: 'main' },
+    { id: 'bank-accounts', name: 'Bank Accounts', icon: CreditCardIcon, category: 'main' },
     { id: 'ledger', name: 'Ledger', icon: DescriptionIcon, category: 'main' },
 
     { id: 'customercategory', name: 'Account Categories', icon: LabelIcon, category: 'customer-management', parent: 'Accounts' },
@@ -216,7 +227,6 @@ export default function Sidebar({
     { id: 'expenses', name: 'Expense Management', icon: AttachMoneyIcon, category: 'financial', parent: 'Finance' },
     { id: 'journal', name: 'Journal Entries', icon: MenuBookIcon, category: 'financial', parent: 'Finance' },
     { id: 'internal-transfer', name: 'Internal Transfer', icon: SwapHorizIcon, category: 'financial', parent: 'Finance' },
-    { id: 'bank-accounts', name: 'Bank Accounts', icon: CreditCardIcon, category: 'financial', parent: 'Finance' },
     { id: 'adjustment-management', name: 'Adjustment Account', icon: SwapHorizIcon, category: 'financial', parent: 'Finance' },
     { id: 'day-end', name: 'Day End Closing', icon: CalendarIcon, category: 'financial', parent: 'Finance' },
     { id: 'day-end-history', name: 'Closing History', icon: CalendarIcon, category: 'financial', parent: 'Finance' },
@@ -258,6 +268,7 @@ export default function Sidebar({
     { id: 'employees', name: 'Employees', icon: BadgeIcon, category: 'hr-management', parent: 'HR Management' },
     { id: 'attendance', name: 'Attendance', icon: EventNoteIcon, category: 'hr-management', parent: 'HR Management' },
     { id: 'payroll', name: 'Payroll / Salary', icon: PaymentsIcon, category: 'hr-management', parent: 'HR Management' },
+    { id: 'salary-management', name: 'Salary & Advances', icon: PaymentsIcon, category: 'hr-management', parent: 'HR Management' },
 
     { id: 'usermanagement', name: 'User Management', icon: PersonIcon, category: 'system', parent: 'System' },
     { id: 'stores', name: 'Store Management', icon: StoreIcon, category: 'system', parent: 'System' },
@@ -317,6 +328,7 @@ export default function Sidebar({
       'employees': 'hr',
       'attendance': 'hr',
       'payroll': 'hr',
+      'salary-management': 'hr',
 
       'stores': 'store_management',
       'store-stock': 'store_stock',
@@ -405,8 +417,8 @@ export default function Sidebar({
       { path: '/dashboard/purchases', id: 'purchases', category: 'purchase-operations' },
       { path: '/dashboard/expense-titles', id: 'expense-titles', category: 'financial' },
       { path: '/dashboard/expenses', id: 'expenses', category: 'financial' },
-      { path: '/dashboard/journal', id: 'journal', category: 'financial' },
       { path: '/dashboard/internal-transfer', id: 'internal-transfer', category: 'financial' },
+      { path: '/dashboard/bank-accounts', id: 'bank-accounts', category: 'main' },
       { path: '/dashboard/adjustment-management', id: 'adjustment-management', category: 'financial' },
       { path: '/dashboard/day-end/history', id: 'day-end-history', category: 'financial' },
       { path: '/dashboard/day-end', id: 'day-end', category: 'financial' },
@@ -439,6 +451,7 @@ export default function Sidebar({
       { path: '/dashboard/employees', id: 'employees', category: 'hr-management' },
       { path: '/dashboard/attendance', id: 'attendance', category: 'hr-management' },
       { path: '/dashboard/payroll', id: 'payroll', category: 'hr-management' },
+      { path: '/dashboard/salary-management', id: 'salary-management', category: 'hr-management' },
       { path: '/dashboard/settings', id: 'settings', category: 'system' },
       { path: '/dashboard/import', id: 'import', category: 'system' },
       { path: '/dashboard', id: 'dashboard', category: 'main' },
@@ -595,6 +608,8 @@ export default function Sidebar({
       router.push('/dashboard/attendance');
     } else if (itemId === 'payroll') {
       router.push('/dashboard/payroll');
+    } else if (itemId === 'salary-management') {
+      router.push('/dashboard/salary-management');
     } else if (itemId === 'settings') {
       router.push('/dashboard/settings');
     } else if (itemId === 'import') {
@@ -643,66 +658,73 @@ export default function Sidebar({
     const width = PILL_WIDTHS[colorIdx % PILL_WIDTHS.length];
     const isActive = activeTab === item.id;
     const isDark = isDarkColor(color);
+    const href = getItemHref(item.id);
 
     return (
       <Box key={`${item.id}-${item.category}`} sx={{ mb: 0.9, px: 1.5 }}>
-        <Box
-          onClick={() => handleNavigation(item.id)}
-          sx={{
-            width,
-            background: `linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.1) 40%, rgba(0, 0, 0, 0.15) 100%)`,
-            backgroundColor: color,
-            borderRadius: '28px',
-            display: 'flex',
-            alignItems: 'center',
-            px: 1.5,
-            py: 0.9,
-            cursor: 'pointer',
-            outline: isActive ? (isDark ? '2.5px solid rgba(255,255,255,0.6)' : '2.5px solid rgba(0,0,0,0.35)') : 'none',
-            outlineOffset: '1px',
-            boxShadow: isActive
-              ? `0 6px 20px ${color}b0, inset 0 2px 3px rgba(255,255,255,0.7), inset 0 -2px 3px rgba(0,0,0,0.15)`
-              : `0 3px 10px ${color}70, inset 0 2px 3px rgba(255,255,255,0.5), inset 0 -1.5px 2px rgba(0,0,0,0.1)`,
-            opacity: 1,
-            transform: isActive ? 'scale(1.02)' : 'scale(1)',
-            transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-            '&:hover': {
-              opacity: 1,
-              boxShadow: `0 8px 24px ${color}cc, inset 0 2px 3px rgba(255,255,255,0.8), inset 0 -2px 3px rgba(0,0,0,0.2)`,
-              filter: 'brightness(1.12) contrast(1.05)',
-              transform: 'translateX(5px) scale(1.04)',
+        <Link href={href} passHref style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+          <Box
+            onClick={(e) => {
+              if (!e.ctrlKey && !e.metaKey && e.button === 0) {
+                handleNavigation(item.id);
+              }
+            }}
+            sx={{
+              width,
+              background: `linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.1) 40%, rgba(0, 0, 0, 0.15) 100%)`,
               backgroundColor: color,
-            },
-          }}
-        >
-          <Box sx={{
-            color: isActive 
-              ? (isDark ? 'rgba(255,255,255,0.95)' : 'rgba(0,0,0,0.8)') 
-              : (isDark ? 'rgba(255,255,255,0.75)' : 'rgba(0,0,0,0.5)'),
-            display: 'flex',
-            alignItems: 'center',
-            mr: 1.5,
-            flexShrink: 0,
-            transition: 'color 0.2s ease',
-          }}>
-            <item.icon sx={{ fontSize: 21 }} />
+              borderRadius: '28px',
+              display: 'flex',
+              alignItems: 'center',
+              px: 1.5,
+              py: 0.9,
+              cursor: 'pointer',
+              outline: isActive ? (isDark ? '2.5px solid rgba(255,255,255,0.6)' : '2.5px solid rgba(0,0,0,0.35)') : 'none',
+              outlineOffset: '1px',
+              boxShadow: isActive
+                ? `0 6px 20px ${color}b0, inset 0 2px 3px rgba(255,255,255,0.7), inset 0 -2px 3px rgba(0,0,0,0.15)`
+                : `0 3px 10px ${color}70, inset 0 2px 3px rgba(255,255,255,0.5), inset 0 -1.5px 2px rgba(0,0,0,0.1)`,
+              opacity: 1,
+              transform: isActive ? 'scale(1.02)' : 'scale(1)',
+              transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+              '&:hover': {
+                opacity: 1,
+                boxShadow: `0 8px 24px ${color}cc, inset 0 2px 3px rgba(255,255,255,0.8), inset 0 -2px 3px rgba(0,0,0,0.2)`,
+                filter: 'brightness(1.12) contrast(1.05)',
+                transform: 'translateX(5px) scale(1.04)',
+                backgroundColor: color,
+              },
+            }}
+          >
+            <Box sx={{
+              color: isActive 
+                ? (isDark ? 'rgba(255,255,255,0.95)' : 'rgba(0,0,0,0.8)') 
+                : (isDark ? 'rgba(255,255,255,0.75)' : 'rgba(0,0,0,0.5)'),
+              display: 'flex',
+              alignItems: 'center',
+              mr: 1.5,
+              flexShrink: 0,
+              transition: 'color 0.2s ease',
+            }}>
+              <item.icon sx={{ fontSize: 21 }} />
+            </Box>
+            <Typography sx={{
+              fontWeight: isActive ? 800 : 600,
+              color: isActive 
+                ? (isDark ? '#fff' : '#000') 
+                : (isDark ? 'rgba(255,255,255,0.85)' : '#333'),
+              flex: 1,
+              fontSize: '0.84rem',
+              letterSpacing: 0.3,
+              lineHeight: 1.3,
+              userSelect: 'none',
+              transition: 'all 0.2s ease',
+            }}>
+              {item.name}
+            </Typography>
+            {showCoin && <GoldCoin />}
           </Box>
-          <Typography sx={{
-            fontWeight: isActive ? 800 : 600,
-            color: isActive 
-              ? (isDark ? '#fff' : '#000') 
-              : (isDark ? 'rgba(255,255,255,0.85)' : '#333'),
-            flex: 1,
-            fontSize: '0.84rem',
-            letterSpacing: 0.3,
-            lineHeight: 1.3,
-            userSelect: 'none',
-            transition: 'all 0.2s ease',
-          }}>
-            {item.name}
-          </Typography>
-          {showCoin && <GoldCoin />}
-        </Box>
+        </Link>
       </Box>
     );
   };
@@ -711,92 +733,108 @@ export default function Sidebar({
   const renderChildItem = (item, colorIdx, sectionColor) => {
     const isActive = activeTab === item.id;
     const isDark = isDarkColor(sectionColor);
+    const href = getItemHref(item.id);
 
     return (
       <Box key={`${item.id}-${item.category}`} sx={{ mb: 0.2 }}>
-        <Box
-          onClick={() => handleNavigation(item.id)}
-          sx={{
-            width: '100%',
-            background: isActive
-              ? `linear-gradient(135deg, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.1) 40%, rgba(0, 0, 0, 0.1) 100%)`
-              : 'transparent',
-            backgroundColor: isActive ? sectionColor : 'transparent',
-            borderRadius: '0px', // REMOVE CORNERS
-            display: 'flex',
-            alignItems: 'center',
-            pl: 4.5, // Indent child items
-            pr: 2,
-            py: 1,
-            cursor: 'pointer',
-            borderLeft: isActive 
-              ? (isDark ? `4px solid #fff` : `4px solid #111`) 
-              : `4px solid transparent`,
-            opacity: isActive ? 1 : 0.75,
-            transition: 'all 0.2s ease-in-out',
-            '&:hover': {
-              opacity: 1,
-              backgroundColor: isActive ? sectionColor : `${sectionColor}22`,
+        <Link href={href} passHref style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+          <Box
+            onClick={(e) => {
+              if (!e.ctrlKey && !e.metaKey && e.button === 0) {
+                handleNavigation(item.id);
+              }
+            }}
+            sx={{
+              width: '100%',
+              background: isActive
+                ? `linear-gradient(135deg, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.1) 40%, rgba(0, 0, 0, 0.1) 100%)`
+                : 'transparent',
+              backgroundColor: isActive ? sectionColor : 'transparent',
+              borderRadius: '0px', // REMOVE CORNERS
+              display: 'flex',
+              alignItems: 'center',
+              pl: 4.5, // Indent child items
+              pr: 2,
+              py: 1,
+              cursor: 'pointer',
               borderLeft: isActive 
                 ? (isDark ? `4px solid #fff` : `4px solid #111`) 
-                : `4px solid ${sectionColor}`,
-              transform: 'translateX(4px)',
-              filter: 'brightness(1.05)',
-            },
-          }}
-        >
-          <Box sx={{
-            color: isActive 
-              ? (isDark ? 'rgba(255,255,255,0.95)' : 'rgba(0,0,0,0.85)') 
-              : 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            mr: 1.5,
-            flexShrink: 0,
-            transition: 'color 0.2s ease',
-          }}>
-            <item.icon sx={{ fontSize: 19 }} />
+                : `4px solid transparent`,
+              opacity: isActive ? 1 : 0.75,
+              transition: 'all 0.2s ease-in-out',
+              '&:hover': {
+                opacity: 1,
+                backgroundColor: isActive ? sectionColor : `${sectionColor}22`,
+                borderLeft: isActive 
+                  ? (isDark ? `4px solid #fff` : `4px solid #111`) 
+                  : `4px solid ${sectionColor}`,
+                transform: 'translateX(4px)',
+                filter: 'brightness(1.05)',
+              },
+            }}
+          >
+            <Box sx={{
+              color: isActive 
+                ? (isDark ? 'rgba(255,255,255,0.95)' : 'rgba(0,0,0,0.85)') 
+                : 'rgba(0,0,0,0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              mr: 1.5,
+              flexShrink: 0,
+              transition: 'color 0.2s ease',
+            }}>
+              <item.icon sx={{ fontSize: 19 }} />
+            </Box>
+            <Typography sx={{
+              fontWeight: isActive ? 700 : 500,
+              color: isActive 
+                ? (isDark ? '#fff' : '#000') 
+                : '#444',
+              flex: 1,
+              fontSize: '0.82rem',
+              letterSpacing: 0.2,
+              lineHeight: 1.3,
+              userSelect: 'none',
+              transition: 'all 0.2s ease',
+            }}>
+              {item.name}
+            </Typography>
           </Box>
-          <Typography sx={{
-            fontWeight: isActive ? 700 : 500,
-            color: isActive 
-              ? (isDark ? '#fff' : '#000') 
-              : '#444',
-            flex: 1,
-            fontSize: '0.82rem',
-            letterSpacing: 0.2,
-            lineHeight: 1.3,
-            userSelect: 'none',
-            transition: 'all 0.2s ease',
-          }}>
-            {item.name}
-          </Typography>
-        </Box>
+        </Link>
       </Box>
     );
   };
 
-  const renderCollapsedIcon = (item) => (
-    <Tooltip key={item.id} title={item.name} placement="right" arrow>
-      <ListItemButton
-        onClick={() => handleNavigation(item.id)}
-        sx={{
-          borderRadius: 2,
-          mb: 0.5,
-          minHeight: 44,
-          justifyContent: 'center',
-          px: 1,
-          backgroundColor: activeTab === item.id ? 'rgba(0,0,0,0.08)' : 'transparent',
-          color: activeTab === item.id ? '#111' : '#888',
-          '&:hover': { backgroundColor: 'rgba(0,0,0,0.05)' },
-        }}
-      >
-        <ListItemIcon sx={{ minWidth: 0, color: 'inherit', justifyContent: 'center' }}>
-          <item.icon fontSize="small" />
-        </ListItemIcon>
-      </ListItemButton>
-    </Tooltip>
-  );
+  const renderCollapsedIcon = (item) => {
+    const href = getItemHref(item.id);
+    return (
+      <Tooltip key={item.id} title={item.name} placement="right" arrow>
+        <Link href={href} passHref style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+          <ListItemButton
+            onClick={(e) => {
+              if (!e.ctrlKey && !e.metaKey && e.button === 0) {
+                handleNavigation(item.id);
+              }
+            }}
+            sx={{
+              borderRadius: 2,
+              mb: 0.5,
+              minHeight: 44,
+              justifyContent: 'center',
+              px: 1,
+              backgroundColor: activeTab === item.id ? 'rgba(0,0,0,0.08)' : 'transparent',
+              color: activeTab === item.id ? '#111' : '#888',
+              '&:hover': { backgroundColor: 'rgba(0,0,0,0.05)' },
+            }}
+          >
+            <ListItemIcon sx={{ minWidth: 0, color: 'inherit', justifyContent: 'center' }}>
+              <item.icon fontSize="small" />
+            </ListItemIcon>
+          </ListItemButton>
+        </Link>
+      </Tooltip>
+    );
+  };
 
   const renderMenuSection = (category, title, sectionIdx) => {
     const items = filteredItems.filter(item => item.category === category);
