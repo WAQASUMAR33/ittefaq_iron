@@ -6126,12 +6126,14 @@ function SalesPageContent() {
                     fontFamily: 'Arial, sans-serif',
                     boxSizing: 'border-box',
                     color: '#000',
+                    fontWeight: 'bold',
+                    '& *': { fontWeight: 'bold !important', color: '#000 !important' }
                   }}
                 >
                   <Box sx={{ textAlign: 'center', pb: 1, borderBottom: '1px solid #000' }}>
                     <Typography sx={{ fontSize: '12px', fontWeight: 'bold' }}>اتفاق آئرن اینڈ سیمنٹ سٹور</Typography>
-                    <Typography sx={{ fontSize: '10px' }}>گجرات سرگودھا روڈ، پاہڑیانوالی</Typography>
-                    <Typography sx={{ fontSize: '10px' }}>Ph: 0346-7560306, 0300-7560306</Typography>
+                    <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>گجرات سرگودھا روڈ، پاہڑیانوالی</Typography>
+                    <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>Ph: 0346-7560306, 0300-7560306</Typography>
                     <Typography
                       sx={{
                         mt: 0.5,
@@ -6144,18 +6146,18 @@ function SalesPageContent() {
                     </Typography>
                   </Box>
                   <Box sx={{ py: 1 }}>
-                    <Typography sx={{ fontSize: '10px' }}>Inv#: {getBillDisplayNo(currentBillData)}</Typography>
-                    <Typography sx={{ fontSize: '10px' }}>
+                    <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>Inv#: {getBillDisplayNo(currentBillData)}</Typography>
+                    <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>
                       {currentBillData?.is_return ? `Return ID: ${currentBillData.return_id}` : `Sale ID: ${currentBillData.sale_id}`}
                     </Typography>
                     {currentBillData?.is_return && currentBillData.sale_id && (
-                      <Typography sx={{ fontSize: '10px' }}>Sale ID: {currentBillData.sale_id}</Typography>
+                      <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>Sale ID: {currentBillData.sale_id}</Typography>
                     )}
-                    <Typography sx={{ fontSize: '10px' }}>Type: {currentBillData.bill_type || 'BILL'}</Typography>
-                    <Typography sx={{ fontSize: '10px' }}>
+                    <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>Type: {currentBillData.bill_type || 'BILL'}</Typography>
+                    <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>
                       Date: {new Date(currentBillData.created_at).toLocaleDateString('en-GB')}
                     </Typography>
-                    <Typography sx={{ fontSize: '10px' }}>
+                    <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>
                       Time:{' '}
                       {new Date(currentBillData.created_at).toLocaleTimeString('en-US', {
                         hour: '2-digit',
@@ -6163,7 +6165,7 @@ function SalesPageContent() {
                         hour12: true,
                       })}
                     </Typography>
-                    <Typography sx={{ fontSize: '10px' }}>Cust: {currentBillData.customer?.cus_name || 'N/A'}</Typography>
+                    <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>Cust: {currentBillData.customer?.cus_name || 'N/A'}</Typography>
                   </Box>
                   <Box
                     sx={{
@@ -6173,15 +6175,15 @@ function SalesPageContent() {
                       textAlign: 'center',
                     }}
                   >
-                    <Typography sx={{ fontSize: '10px' }}>
+                    <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>
                       {currentBillData?.is_return ? 'Return lines' : 'Line items'}:{' '}
                       {Array.isArray(currentBillData.sale_details) ? currentBillData.sale_details.length : 0}
                     </Typography>
                   </Box>
                   <Box sx={{ pt: 1 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography sx={{ fontSize: '10px' }}>Subtotal</Typography>
-                      <Typography sx={{ fontSize: '10px' }}>
+                      <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>Subtotal</Typography>
+                      <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>
                         {fmtAmt(
                           parseFloat(currentBillData.total_amount || 0) -
                             parseFloat(currentBillData.labour_charges || currentBillData.labour || 0) -
@@ -6192,13 +6194,13 @@ function SalesPageContent() {
                     </Box>
                     {parseFloat(currentBillData.discount || 0) > 0 && (
                       <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <Typography sx={{ fontSize: '10px' }}>Discount</Typography>
-                        <Typography sx={{ fontSize: '10px' }}>{fmtAmt(currentBillData.discount)}</Typography>
+                        <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>Discount</Typography>
+                        <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>{fmtAmt(currentBillData.discount)}</Typography>
                       </Box>
                     )}
                     <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography sx={{ fontSize: '10px' }}>Shipping</Typography>
-                      <Typography sx={{ fontSize: '10px' }}>{fmtAmt(currentBillData.shipping_amount)}</Typography>
+                      <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>Shipping</Typography>
+                      <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>{fmtAmt(currentBillData.shipping_amount)}</Typography>
                     </Box>
                     <Box
                       sx={{
@@ -6210,32 +6212,32 @@ function SalesPageContent() {
                         pt: 0.5,
                       }}
                     >
-                      <Typography sx={{ fontSize: '11px' }}>Grand Total</Typography>
-                      <Typography sx={{ fontSize: '11px' }}>{fmtAmt(currentBillData.total_amount)}</Typography>
+                      <Typography sx={{ fontSize: '11px', fontWeight: 'bold' }}>Grand Total</Typography>
+                      <Typography sx={{ fontSize: '11px', fontWeight: 'bold' }}>{fmtAmt(currentBillData.total_amount)}</Typography>
                     </Box>
                     {parseFloat(currentBillData.cash_payment || 0) > 0 && (
                       <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <Typography sx={{ fontSize: '10px' }}>Cash Payment</Typography>
-                        <Typography sx={{ fontSize: '10px' }}>{fmtAmt(currentBillData.cash_payment)}</Typography>
+                        <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>Cash Payment</Typography>
+                        <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>{fmtAmt(currentBillData.cash_payment)}</Typography>
                       </Box>
                     )}
                     {parseFloat(currentBillData.bank_payment || 0) > 0 && (
                       <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <Typography sx={{ fontSize: '10px' }}>
+                        <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>
                           Bank ({currentBillData.bank_title || 'Bank'})
                         </Typography>
-                        <Typography sx={{ fontSize: '10px' }}>{fmtAmt(currentBillData.bank_payment)}</Typography>
+                        <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>{fmtAmt(currentBillData.bank_payment)}</Typography>
                       </Box>
                     )}
                     {currentBillData.previous_balance !== undefined && (
                       <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <Typography sx={{ fontSize: '10px' }}>Prev Balance</Typography>
-                        <Typography sx={{ fontSize: '10px' }}>{fmtAmt(currentBillData.previous_balance)}</Typography>
+                        <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>Prev Balance</Typography>
+                        <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>{fmtAmt(currentBillData.previous_balance)}</Typography>
                       </Box>
                     )}
                     <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography sx={{ fontSize: '10px' }}>Balance</Typography>
-                      <Typography sx={{ fontSize: '10px' }}>
+                      <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>Balance</Typography>
+                      <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>
                         {fmtAmt(
                           parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0)
                         )}
@@ -6243,11 +6245,11 @@ function SalesPageContent() {
                     </Box>
                   </Box>
                   <Box sx={{ textAlign: 'center', borderTop: '1px solid #000', mt: 1, pt: 1 }}>
-                    <Typography sx={{ fontSize: '9px' }}>Thank you for your business!</Typography>
+                    <Typography sx={{ fontSize: '9px', fontWeight: 'bold' }}>Thank you for your business!</Typography>
                   </Box>
                 </Box>
 
-              <Box id="receipt-preview" sx={{ width: '100%', bgcolor: 'white', p: 3 }}>
+              <Box id="receipt-preview" className="thermal-receipt" sx={{ width: '100%', bgcolor: 'white', p: 3, color: '#000', fontWeight: 'bold', '& *': { fontWeight: 'bold !important', color: '#000 !important' } }}>
                 {/* Company Header */}
                 <Box sx={{ textAlign: 'center', py: 2, borderBottom: '2px solid #000' }}>
                   <Typography variant="h5" sx={{

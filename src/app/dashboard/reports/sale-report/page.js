@@ -261,10 +261,11 @@ export default function SaleReport() {
           <title>Sale Invoice - ${sale.sale_id}</title>
           <style>
             @page { size: A5; margin: 10mm; }
-            body{font-family:Arial,Helvetica,sans-serif;color:#111;padding:16px}
+            body{font-family:Arial,Helvetica,sans-serif;color:#000;padding:16px;font-weight:bold;}
+            *, body, table, td, th, div, span, p { font-weight: bold !important; color: #000 !important; }
             .company{ text-align:center; margin-bottom:8px }
             table{ width:100%; border-collapse:collapse; margin-top:12px }
-            th,td{ border:1px solid #ddd; padding:8px }
+            th,td{ border:1px solid #000; padding:8px; font-weight:bold; }
             th{ background:#f3f4f6; text-align:left }
             .right{ text-align:right }
             .totals{ margin-top:12px; width:360px; float:right }

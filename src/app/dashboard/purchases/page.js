@@ -6018,7 +6018,7 @@ function PurchasesPageContent() {
 
         <DialogContent sx={{ p: 2, bgcolor: '#f5f5f5', maxHeight: '80vh', overflow: 'auto' }}>
           {currentBillData && (
-            <Box id="receipt-preview" sx={{ width: '100%', bgcolor: 'white', p: 3, mt: 2 }}>
+            <Box id="receipt-preview" className="thermal-receipt" sx={{ width: '100%', bgcolor: 'white', p: 3, mt: 2, color: '#000', fontWeight: 'bold', '& *': { fontWeight: 'bold !important', color: '#000 !important' } }}>
               {/* Company Header */}
               <Box sx={{ textAlign: 'center', py: 2, borderBottom: '2px solid #000' }}>
                 <Typography variant="h5" sx={{
