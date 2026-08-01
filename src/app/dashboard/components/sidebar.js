@@ -92,6 +92,7 @@ const ROUTE_MAP = {
   'dashboard': '/dashboard',
   'usermanagement': '/dashboard/usermanagement',
   'customercategory': '/dashboard/customercategory',
+  'customer-types': '/dashboard/customer-types',
   'customers': '/dashboard/customers',
   'categories': '/dashboard/categories',
   'sub-categories': '/dashboard/subcategories',
@@ -204,6 +205,7 @@ export default function Sidebar({
     { id: 'ledger', name: 'Ledger', icon: DescriptionIcon, category: 'main' },
 
     { id: 'customercategory', name: 'Account Categories', icon: LabelIcon, category: 'customer-management', parent: 'Accounts' },
+    { id: 'customer-types', name: 'Account Types', icon: LabelIcon, category: 'customer-management', parent: 'Accounts', adminOnly: true },
     { id: 'customers', name: 'Accounts', icon: PeopleIcon, category: 'customer-management', parent: 'Accounts' },
 
     { id: 'categories', name: 'Category Management', icon: FolderIcon, category: 'product-management', parent: 'Product Management' },
@@ -273,6 +275,7 @@ export default function Sidebar({
     const categoryToModuleMap = {
       'subscriptions': 'customers',
       'customercategory': 'customers',
+      'customer-types': 'customers',
       'customers': 'customers',
 
       'categories': 'products',

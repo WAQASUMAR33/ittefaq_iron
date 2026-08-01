@@ -168,6 +168,7 @@ export function canStaffAccessPath(userOrRole, pathname) {
 
       '/dashboard/subscriptions': 'customers',
       '/dashboard/customercategory': 'customers',
+      '/dashboard/customer-types': 'customers',
       '/dashboard/customers': 'customers',
 
       '/dashboard/categories': 'products',

@@ -552,10 +552,12 @@ export default function ItemSaleReport() {
                                   <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: 'rtl' }}>منسوخ کردہ رقم</td>
                                   <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right' }}>{fmtAmtAlways(totalAmt)}</td>
                                 </tr>
-                                <tr>
-                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: 'rtl' }}>رعایت</td>
-                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right' }}>-{fmtAmtAlways(discount)}</td>
-                                </tr>
+                                {discount > 0 && (
+                                  <tr>
+                                    <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: 'rtl' }}>رعایت</td>
+                                    <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right' }}>-{fmtAmtAlways(discount)}</td>
+                                  </tr>
+                                )}
                                 <tr>
                                   <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: 'rtl' }}>مزدوری</td>
                                   <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right' }}>{fmtAmtAlways(labour)}</td>
@@ -654,10 +656,12 @@ export default function ItemSaleReport() {
                                   <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: isSale ? 'rtl' : 'ltr' }}>{isSale ? 'کرایہ' : 'Transport'}</td>
                                   <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right' }}>{fmtAmtAlways(isSale ? shipping : (d.transport_amount || 0))}</td>
                                 </tr>
-                                <tr>
-                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: isSale ? 'rtl' : 'ltr' }}>{isSale ? 'رعایت' : 'Discount'}</td>
-                                  <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right' }}>{fmtAmtAlways(discount)}</td>
-                                </tr>
+                                {discount > 0 && (
+                                  <tr>
+                                    <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: isSale ? 'rtl' : 'ltr' }}>{isSale ? 'رعایت' : 'Discount'}</td>
+                                    <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right' }}>{fmtAmtAlways(discount)}</td>
+                                  </tr>
+                                )}
                                 <tr style={{ background: '#f5f5f5' }}>
                                   <td style={{ border: '1px solid #ddd', padding: '5px 8px', fontWeight: 700, direction: isSale ? 'rtl' : 'ltr' }}>{isSale ? 'كل رقم' : 'Total Amount'}</td>
                                   <td style={{ border: '1px solid #ddd', padding: '5px 8px', textAlign: 'right', fontWeight: 700 }}>{fmtAmtAlways(totalAmt)}</td>
