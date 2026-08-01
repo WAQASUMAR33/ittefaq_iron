@@ -5590,28 +5590,46 @@ export default function FinancePage() {
                   {/* Left Side - Balance Section */}
                   <Box sx={{ flex: '0 0 48%' }}>
                     <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, border: '1px solid #000', width: '100%' }}>
-                      <Table size="small">
-                        <TableBody>
-                          <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                              {fmtAmt(viewingSaleReturn.previous_balance ?? viewingSaleReturn.customer?.cus_balance ?? 0)}
-                            </TableCell>
-                          </TableRow>
-                          <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                              {fmtAmt(parseFloat(viewingSaleReturn.total_amount || 0) - parseFloat(viewingSaleReturn.cash_refund || 0) - parseFloat(viewingSaleReturn.bank_refund || 0))}
-                            </TableCell>
-                          </TableRow>
-                          <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقایا</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                              {fmtAmt(parseFloat(viewingSaleReturn.previous_balance ?? viewingSaleReturn.customer?.cus_balance ?? 0) - (parseFloat(viewingSaleReturn.total_amount || 0) - parseFloat(viewingSaleReturn.cash_refund || 0) - parseFloat(viewingSaleReturn.bank_refund || 0)))}
-                            </TableCell>
-                          </TableRow>
-                        </TableBody>
-                      </Table>
+                      {(() => {
+                        const netReturnCredit = parseFloat(viewingSaleReturn.total_amount || 0)
+                          - parseFloat(viewingSaleReturn.labour_charges || 0)
+                          - parseFloat(viewingSaleReturn.shipping_amount || 0)
+                          - parseFloat(viewingSaleReturn.discount || 0)
+                          - parseFloat(viewingSaleReturn.payment || (parseFloat(viewingSaleReturn.cash_refund || 0) + parseFloat(viewingSaleReturn.bank_refund || 0)) || 0);
+
+                        const prevBal = (viewingSaleReturn.previous_balance !== undefined && viewingSaleReturn.previous_balance !== null)
+                          ? parseFloat(viewingSaleReturn.previous_balance)
+                          : (viewingSaleReturn.previous_customer_balance !== undefined && viewingSaleReturn.previous_customer_balance !== null)
+                            ? parseFloat(viewingSaleReturn.previous_customer_balance)
+                            : (parseFloat(viewingSaleReturn.customer?.cus_balance || 0) + netReturnCredit);
+
+                        const totalBal = prevBal - netReturnCredit;
+
+                        return (
+                          <Table size="small">
+                            <TableBody>
+                              <TableRow>
+                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
+                                <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                  {fmtAmt(prevBal)}
+                                </TableCell>
+                              </TableRow>
+                              <TableRow>
+                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجودہ بقایا</TableCell>
+                                <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                  {fmtAmt(netReturnCredit)}
+                                </TableCell>
+                              </TableRow>
+                              <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>کل بقایا</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                  {fmtAmt(totalBal)}
+                                </TableCell>
+                              </TableRow>
+                            </TableBody>
+                          </Table>
+                        );
+                      })()}
                     </TableContainer>
 
                     {/* Notes Section */}

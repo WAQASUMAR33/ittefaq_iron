@@ -250,7 +250,7 @@ export default function SaleReport() {
     const labour = parseFloat(sale.labour_charges || sale.labour || 0) || 0;
     const shipping = parseFloat(sale.shipping_amount || 0) || 0;
     const paid = Number.isFinite(Number(sale.payment)) ? parseFloat(sale.payment) || 0 : ((parseFloat(sale.cash_payment || 0) || 0) + (parseFloat(sale.bank_payment || 0) || 0) + (parseFloat(sale.advance_payment || 0) || 0));
-    const prevBal = parseFloat(sale.customer?.cus_balance || sale.prev_balance || sale.previous_balance || 0) || 0;
+    const prevBal = parseFloat(sale.previous_balance ?? sale.prev_balance ?? sale.previous_customer_balance ?? sale.customer?.cus_balance ?? 0) || 0;
     const totalQty = details.reduce((s, d) => s + (parseFloat(d.qnty || 0) || 0), 0);
     const netTotal = subtotal - discount + labour + shipping;
 

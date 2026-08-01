@@ -200,7 +200,33 @@ export async function GET(request) {
         return NextResponse.json({ error: 'Sale return not found' }, { status: 404 });
       }
 
-      return NextResponse.json(saleReturn);
+      const ledgerEntry = await prisma.ledger.findFirst({
+        where: {
+          bill_no: String(saleReturn.return_id),
+          cus_id: saleReturn.cus_id,
+          ledger_type: { contains: 'Return' }
+        },
+        orderBy: { l_id: 'asc' },
+        select: { opening_balance: true }
+      });
+
+      const netCredit = parseFloat(saleReturn.total_amount || 0)
+        - parseFloat(saleReturn.labour_charges || 0)
+        - parseFloat(saleReturn.shipping_amount || 0)
+        - parseFloat(saleReturn.discount || 0)
+        - parseFloat(saleReturn.payment || 0);
+
+      const prevBal = ledgerEntry
+        ? parseFloat(ledgerEntry.opening_balance)
+        : (parseFloat(saleReturn.customer?.cus_balance || 0) + netCredit);
+
+      const enhancedSaleReturn = {
+        ...saleReturn,
+        previous_balance: prevBal,
+        previous_customer_balance: prevBal
+      };
+
+      return NextResponse.json(enhancedSaleReturn);
     } else {
       // Fetch all sale returns
       const saleReturns = await prisma.saleReturn.findMany({
@@ -256,7 +282,44 @@ export async function GET(request) {
         }
       });
 
-      return NextResponse.json(saleReturns);
+      const returnIds = saleReturns.map(sr => String(sr.return_id));
+      const ledgerEntries = await prisma.ledger.findMany({
+        where: {
+          bill_no: { in: returnIds },
+          ledger_type: { contains: 'Return' }
+        },
+        orderBy: { l_id: 'asc' },
+        select: { bill_no: true, cus_id: true, opening_balance: true }
+      });
+
+      const ledgerMap = new Map();
+      for (const entry of ledgerEntries) {
+        const key = `${entry.bill_no}_${entry.cus_id}`;
+        if (!ledgerMap.has(key)) {
+          ledgerMap.set(key, parseFloat(entry.opening_balance));
+        }
+      }
+
+      const enhancedSaleReturns = saleReturns.map(sr => {
+        const key = `${sr.return_id}_${sr.cus_id}`;
+        const netCredit = parseFloat(sr.total_amount || 0)
+          - parseFloat(sr.labour_charges || 0)
+          - parseFloat(sr.shipping_amount || 0)
+          - parseFloat(sr.discount || 0)
+          - parseFloat(sr.payment || 0);
+
+        const prevBal = ledgerMap.has(key)
+          ? ledgerMap.get(key)
+          : (parseFloat(sr.customer?.cus_balance || 0) + netCredit);
+
+        return {
+          ...sr,
+          previous_balance: prevBal,
+          previous_customer_balance: prevBal
+        };
+      });
+
+      return NextResponse.json(enhancedSaleReturns);
     }
   } catch (error) {
     console.error('Error fetching sale returns:', error);

@@ -1384,9 +1384,13 @@ function SalesPageContent() {
             bill_type: 'SALE_RETURN',
             is_return: true,
             created_at: new Date(),
+            previous_balance: parseFloat(
+              formSelectedCustomer?.cus_balance ??
+              selectedSaleForReturnMain?.customer?.cus_balance ?? 0
+            ),
             previous_customer_balance: parseFloat(
-              selectedSaleForReturnMain?.customer?.cus_balance ??
-              formSelectedCustomer?.cus_balance ?? 0
+              formSelectedCustomer?.cus_balance ??
+              selectedSaleForReturnMain?.customer?.cus_balance ?? 0
             )
           };
 
@@ -5221,7 +5225,7 @@ function SalesPageContent() {
                   flexDirection: 'column'
                 }}>
                   {/* PREVIOUS BALANCE & BILL ADVANCE - Show customer's balance and advance side-by-side */}
-                  {billType !== 'SALE_RETURN' && formSelectedCustomer && (
+                  {formSelectedCustomer && (
                     <Box sx={{ mb: 1.5, display: 'flex', gap: 2, width: '100%' }}>
                       {/* PREV. BALANCE (readonly, warning orange color theme) */}
                       <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -6371,9 +6375,14 @@ function SalesPageContent() {
                                 // Net return = items - labour - delivery - discount
                                 const netReturn = productTotal - labour - shipping - discount;
                                 const totalRefund = parseFloat(currentBillData.payment || 0);
-                                const prevBal = parseFloat(currentBillData.previous_customer_balance ?? currentBillData.customer?.cus_balance ?? 0);
+                                const netReturnCredit = netReturn - totalRefund;
+                                const prevBal = (currentBillData.previous_customer_balance !== undefined && currentBillData.previous_customer_balance !== null)
+                                  ? parseFloat(currentBillData.previous_customer_balance)
+                                  : (currentBillData.previous_balance !== undefined && currentBillData.previous_balance !== null)
+                                    ? parseFloat(currentBillData.previous_balance)
+                                    : (parseFloat(currentBillData.customer?.cus_balance || 0) + netReturnCredit);
                                 // Balance after return credit AND payment applied
-                                const newBal = prevBal - netReturn + totalRefund;
+                                const newBal = prevBal - netReturnCredit;
                                 return (
                                   <>
                                     <TableRow>
