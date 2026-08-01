@@ -3370,7 +3370,7 @@ function PurchasesPageContent() {
                           renderOption={(props, option) => {
                             const { key, ...optionProps } = props;
                             return (
-                              <Box component="li" key={option.invoice_number} {...optionProps}>
+                              <Box component="li" key={option.pur_id} {...optionProps}>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: '100%' }}>
                                   <ReceiptIcon sx={{ color: 'primary.main', fontSize: 20 }} />
                                   <Box sx={{ flex: 1 }}>
