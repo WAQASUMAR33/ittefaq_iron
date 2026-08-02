@@ -1009,6 +1009,12 @@ export default function SettingsPage() {
               hint={`Captured ${fpSamples.length}/4 scans.`}
             />
 
+            <Alert severity="info" sx={{ mt: 2, borderRadius: 2.5, fontSize: '0.8rem' }}>
+              <strong>Hardware Requirement:</strong> Fingerprint scanning requires a physical <strong>DigitalPersona U.are.U 4500 USB Reader</strong> connected to this computer, and the <strong>DigitalPersona WebAgent</strong> running on Windows (<code style={{ fontSize: '0.75rem' }}>ws://127.0.0.1:9001</code>).
+              <br />
+              💡 <em>If no USB reader is attached to this PC, use <strong>6-digit PIN Security</strong> instead for instant 100% reliable authorization.</em>
+            </Alert>
+
             {fpError && <Alert severity="error" sx={{ mt: 2, borderRadius: 2 }}>{fpError}</Alert>}
             {fpSuccess && <Alert severity="success" sx={{ mt: 2, borderRadius: 2 }}>{fpSuccess}</Alert>}
           </DialogContent>
