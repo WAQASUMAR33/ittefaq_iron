@@ -53,7 +53,7 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
     setPin('');
     setPinError('');
     setPinLoading(false);
-    setAuthMode(user?.fingerprint_enrolled ? 'fp' : 'pin');
+    setAuthMode('pin');
     setFpError('');
     setFpLoading(false);
     setLastSample(null);
@@ -73,7 +73,6 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
         const mergedUser = { ...user, fingerprint_enrolled: !!serverUser.fingerprint_enrolled };
         setCurrentUser(mergedUser);
         localStorage.setItem('user', JSON.stringify(mergedUser));
-        setAuthMode(mergedUser.fingerprint_enrolled ? 'fp' : 'pin');
       } catch {
         // keep local user fallback
       }
@@ -380,6 +379,30 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
                   : 'Place your finger on the reader to auto-verify.'
               }
             />
+
+            <button
+              type="button"
+              onClick={() => setAuthMode('pin')}
+              style={{
+                marginTop: '14px',
+                width: '100%',
+                padding: '12px',
+                borderRadius: '12px',
+                border: '2px solid #3b82f6',
+                background: '#eff6ff',
+                color: '#1d4ed8',
+                fontWeight: '800',
+                fontSize: '0.875rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                boxShadow: '0 2px 4px rgba(29,78,216,0.1)'
+              }}
+            >
+              🔑 Switch to PIN Authentication
+            </button>
           </div>
         )}
 
