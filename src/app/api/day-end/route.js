@@ -561,6 +561,20 @@ export async function POST(request) {
     const isClosing = action === 'CLOSE_DAY' || (closing_cash !== undefined && closing_cash !== null && closing_cash !== '');
     const finalClosingCash = isClosing ? parseFloat(closing_cash || 0) : (existingDayEnd?.closing_cash ? parseFloat(existingDayEnd.closing_cash) : null);
 
+    // Validate closed_by User ID against database to prevent foreign key P2003 errors
+    let validClosedBy = null;
+    if (isClosing) {
+      const parsedId = closed_by ? parseInt(closed_by, 10) : null;
+      if (parsedId && !isNaN(parsedId)) {
+        const userExists = await prisma.users.findUnique({ where: { user_id: parsedId }, select: { user_id: true } });
+        if (userExists) validClosedBy = parsedId;
+      }
+      if (!validClosedBy) {
+        const firstUser = await prisma.users.findFirst({ select: { user_id: true } });
+        validClosedBy = firstUser ? firstUser.user_id : null;
+      }
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       let dayEnd;
       const dayData = {
@@ -574,7 +588,7 @@ export async function POST(request) {
         cash_in_hand: expectedCashInHand,
         status: isClosing ? 'CLOSED' : 'OPEN',
         notes: notes || null,
-        closed_by: isClosing ? (closed_by || 1) : null,
+        closed_by: validClosedBy,
         closed_at: isClosing ? new Date() : null
       };
 
