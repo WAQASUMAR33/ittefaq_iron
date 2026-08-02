@@ -1632,11 +1632,18 @@ function SalesPageContent() {
           discount: 0,
           cus_id: formSelectedCustomer.cus_id
         })),
-        transport_details: transportOptions.map(transport => ({
-          account_id: transport.accountId,
-          amount: transportOptions.length > 0 ? (parseFloat(paymentData.deliveryCharges) || 0) / transportOptions.length : 0,
-          description: transport.description || 'Transport charges - Split from Delivery'
-        })),
+        transport_details: transportOptions.map(transport => {
+          const itemAmt = parseFloat(transport.amount || 0);
+          let finalAmt = itemAmt;
+          if (finalAmt <= 0 && transportOptions.length > 0) {
+            finalAmt = (parseFloat(paymentData.deliveryCharges) || 0) / transportOptions.length;
+          }
+          return {
+            account_id: transport.accountId,
+            amount: finalAmt,
+            description: transport.description || 'Transport charges - Split from Delivery'
+          };
+        }),
         split_payments: splitPayments, // Keep split_payments for backward compatibility
         updated_by: 6 // System Administrator
       };
@@ -3841,13 +3848,16 @@ function SalesPageContent() {
       }));
 
       // Map Transport Options
+      let totalTransportAmount = 0;
       if (fullSale.transport_details && Array.isArray(fullSale.transport_details)) {
         const mappedTransport = fullSale.transport_details.map((item, index) => {
           const account = transportAccounts.find(t => t.cus_id === item.account_id);
+          const itemAmt = parseFloat(item.amount || 0);
+          totalTransportAmount += itemAmt;
           return {
             id: Date.now() + index + 100, // Offset ID to avoid collision
             name: account ? account.cus_name : (item.account?.cus_name || 'Unknown Account'),
-            amount: parseFloat(item.amount || 0),
+            amount: itemAmt,
             accountId: item.account_id,
             accountName: account ? account.cus_name : (item.account?.cus_name || 'Unknown Account')
           };
@@ -3871,6 +3881,9 @@ function SalesPageContent() {
       // Payment data
       const cashAmt = parseFloat(fullSale.cash_payment || 0);
       const bankAmt = parseFloat(fullSale.bank_payment || 0);
+      const fullShippingAmt = parseFloat(fullSale.shipping_amount || 0);
+      const deliveryOnly = Math.max(0, fullShippingAmt - totalTransportAmount);
+
       setPaymentData({
         cash: cashAmt > 0 ? cashAmt.toString() : '',
         bank: bankAmt > 0 ? bankAmt.toString() : '',
@@ -3879,7 +3892,7 @@ function SalesPageContent() {
         advancePayment: parseFloat(fullSale.advance_payment || 0),
         discount: fullSale.discount?.toString() || '',
         labour: fullSale.labour_charges?.toString() || '',
-        deliveryCharges: fullSale.shipping_amount?.toString() || '',
+        deliveryCharges: deliveryOnly > 0 ? deliveryOnly.toString() : '',
         notes: fullSale.reference || ''
       });
 

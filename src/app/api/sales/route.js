@@ -245,8 +245,8 @@ async function recalculateLedgerBalances(tx, cus_id) {
   entries.sort((a, b) => {
     const timeDiff = a.created_at.getTime() - b.created_at.getTime();
     if (timeDiff !== 0) return timeDiff;
-    const billA = parseInt(a.bill_no) || 0;
-    const billB = parseInt(b.bill_no) || 0;
+    const billA = parseInt(String(a.bill_no || '').replace(/\D/g, '')) || 0;
+    const billB = parseInt(String(b.bill_no || '').replace(/\D/g, '')) || 0;
     if (billA !== billB) return billA - billB;
     return a.l_id - b.l_id;
   });
@@ -377,7 +377,8 @@ export async function GET(request) {
             bill_no: id.toString(),
             trnx_type: { in: ['SALE', 'CREDIT'] },
             credit_amount: { gt: 0 },
-            cus_id: { not: sale.cus_id }
+            cus_id: { not: sale.cus_id },
+            details: { contains: 'Transport' }
           },
           include: {
             customer: {
