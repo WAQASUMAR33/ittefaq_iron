@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { ArrowLeft, Download, Printer, Search, Banknote, TrendingUp, TrendingDown } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
-import { Autocomplete, TextField } from '@mui/material';
 
 const fmtAmt = (val) => {
   const n = parseFloat(val || 0);
@@ -45,14 +44,6 @@ export default function CashReport() {
   const today = new Date().toISOString().split('T')[0];
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
-  const [categories, setCategories] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [accounts, setAccounts] = useState([]);
-  const [selectedAccount, setSelectedAccount] = useState('');
-  const [stores, setStores] = useState([]);
-  const [selectedStore, setSelectedStore] = useState('');
-  const [selectedPaymentType, setSelectedPaymentType] = useState('');
-  const [sortOrder, setSortOrder] = useState('desc'); // Screen default: descending
 
   // Auto-fetch report when dates are set
   useEffect(() => {
@@ -60,45 +51,6 @@ export default function CashReport() {
       fetchReport();
     }
   }, [startDate, endDate]);
-
-  useEffect(() => { fetchCategories(); fetchStores(); }, []);
-
-  useEffect(() => {
-    if (selectedCategory) { fetchAccountsByCategory(selectedCategory); }
-    else { setAccounts([]); setSelectedAccount(''); }
-  }, [selectedCategory]);
-
-  const fetchCategories = async () => {
-    try {
-      const response = await fetch('/api/customer-category');
-      const data = await response.json();
-      if (response.ok) setCategories(data);
-    } catch (error) { console.error('Error:', error); }
-  };
-
-  const fetchAccountsByCategory = async (categoryId) => {
-    try {
-      const response = await fetch(`/api/customers?category=${categoryId}&dropdown=true`);
-      const data = await response.json();
-      if (response.ok) setAccounts(data);
-    } catch (error) { console.error('Error:', error); }
-  };
-
-  const fetchStores = async () => {
-    try {
-      const response = await fetch('/api/stores');
-      const result = await response.json();
-      if (response.ok && result.success && Array.isArray(result.data)) {
-        setStores(result.data);
-      } else {
-        console.error('Stores API did not return valid data:', result);
-        setStores([]);
-      }
-    } catch (error) {
-      console.error('Error fetching stores:', error);
-      setStores([]);
-    }
-  };
 
   const fetchReport = async () => {
     if (!startDate || !endDate) { return; }
@@ -117,30 +69,7 @@ export default function CashReport() {
             return a.l_id - b.l_id;
           });
         }
-        if (selectedCategory) {
-          filteredData.ledgerEntries = data.ledgerEntries.filter(e => e.customer?.customer_category?.cus_cat_id === parseInt(selectedCategory));
-          filteredData.cashSales = data.cashSales.filter(s => s.customer?.customer_category?.cus_cat_id === parseInt(selectedCategory));
-          filteredData.cashPurchases = data.cashPurchases.filter(p => p.customer?.customer_category?.cus_cat_id === parseInt(selectedCategory));
-        }
-        if (selectedAccount) {
-          filteredData.ledgerEntries = filteredData.ledgerEntries.filter(e => e.customer?.cus_id === parseInt(selectedAccount));
-          filteredData.cashSales = filteredData.cashSales.filter(s => s.customer?.cus_id === parseInt(selectedAccount));
-          filteredData.cashPurchases = filteredData.cashPurchases.filter(p => p.customer?.cus_id === parseInt(selectedAccount));
-        }
-        if (selectedStore) {
-          filteredData.cashSales = filteredData.cashSales.filter(s => s.store_id === parseInt(selectedStore));
-          filteredData.cashPurchases = filteredData.cashPurchases.filter(p => p.store_id === parseInt(selectedStore));
-        }
-        if (selectedPaymentType) {
-          if (selectedPaymentType === 'CASH') {
-            filteredData.cashSales = filteredData.cashSales.filter(s => s.payment_type === 'CASH' || s.cash_payment > 0);
-            filteredData.cashPurchases = filteredData.cashPurchases.filter(p => p.payment_type === 'CASH' || p.cash_payment > 0);
-          } else if (selectedPaymentType === 'BANK') {
-            filteredData.cashSales = filteredData.cashSales.filter(s => s.payment_type === 'BANK_TRANSFER' || s.bank_payment > 0);
-            filteredData.cashPurchases = filteredData.cashPurchases.filter(p => p.payment_type === 'BANK_TRANSFER' || p.bank_payment > 0);
-          }
-        }
-        const forSum = excludeMemoFromBankCashSummary(filteredData.ledgerEntries);
+        const forSum = excludeMemoFromBankCashSummary(filteredData.ledgerEntries || []);
         filteredData.summary = {
           ...data.summary,
           totalLedgerDebit: forSum.reduce((sum, l) => {
@@ -151,8 +80,8 @@ export default function CashReport() {
             const { credit } = getLedgerEntryDisplayAmounts(l);
             return sum + credit;
           }, 0),
-          totalCashSales: filteredData.cashSales.reduce((sum, s) => sum + parseFloat(s.payment || 0), 0),
-          totalCashPurchases: filteredData.cashPurchases.reduce((sum, p) => {
+          totalCashSales: (filteredData.cashSales || []).reduce((sum, s) => sum + parseFloat(s.payment || 0), 0),
+          totalCashPurchases: (filteredData.cashPurchases || []).reduce((sum, p) => {
             const cashSupplier = parseFloat(p.cash_payment || (p.payment_type === 'CASH' ? p.payment : 0) || 0);
             const incity = parseFloat(p.incity_charges_total || 0) || (parseFloat(p.incity_own_labour || 0) + parseFloat(p.incity_own_delivery || 0));
             return sum + cashSupplier + incity;
@@ -160,8 +89,11 @@ export default function CashReport() {
         };
         setReportData(filteredData);
       }
-    } catch (error) { console.error('Error:', error); }
-    finally { setLoading(false); }
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handlePrint = () => window.print();
@@ -181,7 +113,7 @@ export default function CashReport() {
     let csv = 'CASH BOOK\n';
     csv += `Period: ${formatDate(startDate)} to ${formatDate(endDate)}\n\n`;
     csv += 'S.No,Date,Voucher Type,Account,Description,Debit (Dr),Credit (Cr),Balance\n';
-    reportData.ledgerEntries.forEach((entry, i) => {
+    (reportData.ledgerEntries || []).forEach((entry, i) => {
       const displayAmts = getLedgerEntryDisplayAmounts(entry);
       csv += `${i + 1},${formatDate(entry.created_at)},Cash,${entry.customer?.cus_name || '-'},${entry.details || '-'},${formatCurrency(displayAmts.debit)},${formatCurrency(displayAmts.credit)},${formatCurrency(entry.closing_balance)}\n`;
     });
@@ -203,9 +135,9 @@ export default function CashReport() {
         ? parseFloat(reportData.ledgerEntries[reportData.ledgerEntries.length - 1].closing_balance || 0)
         : openingBalance);
 
-  // Screen entries order (default descending: newest on top)
+  // Screen entries display order (newest first / descending)
   const screenEntries = reportData?.ledgerEntries
-    ? (sortOrder === 'desc' ? [...reportData.ledgerEntries].reverse() : reportData.ledgerEntries)
+    ? [...reportData.ledgerEntries].reverse()
     : [];
 
   return (
@@ -241,95 +173,21 @@ export default function CashReport() {
           </div>
         </div>
 
-        {/* Filters Bar */}
+        {/* Filters Bar (Only Date Range & Generate Button) */}
         <div className="flex-shrink-0 bg-slate-50 border-b border-slate-200 px-6 py-3 print:hidden">
           <div className="flex flex-wrap items-end gap-3">
-            <div className="flex-1 min-w-[140px] max-w-[180px]">
+            <div className="flex-1 min-w-[160px] max-w-[220px]">
               <label className="block text-xs font-semibold text-slate-600 mb-1">FROM DATE</label>
               <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
                 className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" />
             </div>
-            <div className="flex-1 min-w-[140px] max-w-[180px]">
+            <div className="flex-1 min-w-[160px] max-w-[220px]">
               <label className="block text-xs font-semibold text-slate-600 mb-1">TO DATE</label>
               <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
                 className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" />
             </div>
-            <div className="flex-1 min-w-[180px] max-w-[220px]">
-              <label className="block text-xs font-semibold text-slate-600 mb-1 caps">CATEGORY</label>
-              <Autocomplete
-                size="small"
-                options={categories}
-                getOptionLabel={(option) => option.cus_cat_title || ''}
-                value={categories.find(c => c.cus_cat_id === parseInt(selectedCategory)) || null}
-                onChange={(e, val) => setSelectedCategory(val ? val.cus_cat_id.toString() : '')}
-                autoSelect={true}
-                autoHighlight={true}
-                openOnFocus={true}
-                selectOnFocus={true}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    placeholder="All Categories"
-                    onFocus={(e) => e.target.select()}
-                    sx={{
-                      '& .MuiOutlinedInput-root': { py: '2px', borderRadius: '8px', bgcolor: 'white' }
-                    }}
-                  />
-                )}
-              />
-            </div>
-            <div className="flex-1 min-w-[180px] max-w-[220px]">
-              <label className="block text-xs font-semibold text-slate-600 mb-1 caps">ACCOUNT</label>
-              <Autocomplete
-                size="small"
-                disabled={!selectedCategory}
-                options={accounts}
-                getOptionLabel={(option) => option.cus_name || ''}
-                value={accounts.find(a => a.cus_id === parseInt(selectedAccount)) || null}
-                onChange={(e, val) => setSelectedAccount(val ? val.cus_id.toString() : '')}
-                autoSelect={true}
-                autoHighlight={true}
-                openOnFocus={true}
-                selectOnFocus={true}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    placeholder="All Accounts"
-                    onFocus={(e) => e.target.select()}
-                    sx={{
-                      '& .MuiOutlinedInput-root': { py: '2px', borderRadius: '8px', bgcolor: selectedCategory ? 'white' : '#f1f5f9' }
-                    }}
-                  />
-                )}
-              />
-            </div>
-            <div className="flex-1 min-w-[140px] max-w-[160px]">
-              <label className="block text-xs font-semibold text-slate-600 mb-1">STORE</label>
-              <select value={selectedStore} onChange={(e) => setSelectedStore(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
-                <option value="">All Stores</option>
-                {(stores || []).map((store) => (<option key={store.storeid} value={store.storeid}>{store.store_name}</option>))}
-              </select>
-            </div>
-            <div className="flex-1 min-w-[140px] max-w-[160px]">
-              <label className="block text-xs font-semibold text-slate-600 mb-1">PAYMENT TYPE</label>
-              <select value={selectedPaymentType} onChange={(e) => setSelectedPaymentType(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
-                <option value="">All Types</option>
-                <option value="CASH">Cash Only</option>
-                <option value="BANK">Bank Only</option>
-              </select>
-            </div>
-            <div className="flex-1 min-w-[150px] max-w-[170px]">
-              <label className="block text-xs font-semibold text-slate-600 mb-1">SORT (SCREEN)</label>
-              <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-semibold">
-                <option value="desc">Descending (Newest First)</option>
-                <option value="asc">Ascending (Oldest First)</option>
-              </select>
-            </div>
             <button onClick={fetchReport} disabled={loading}
-              className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white rounded-lg text-sm font-semibold transition-colors min-w-[130px]">
+              className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white rounded-lg text-sm font-semibold transition-colors min-w-[150px]">
               {loading ? 'Generating...' : 'Generate Report'}
             </button>
           </div>
@@ -415,13 +273,10 @@ export default function CashReport() {
                 </table>
               </div>
 
-              {/* 1. SCREEN LEDGER TABLE (Supports Descending / Ascending) */}
+              {/* SCREEN LEDGER TABLE */}
               <div className="bg-white border border-slate-300 rounded-lg overflow-hidden print:hidden">
                 <div className="bg-slate-100 px-4 py-2 border-b border-slate-300 flex items-center justify-between">
                   <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Cash Ledger Transactions</h3>
-                  <span className="text-xs font-medium text-slate-500">
-                    Sort: <span className="font-bold text-slate-700">{sortOrder === 'desc' ? 'Descending (Newest First)' : 'Ascending (Oldest First)'}</span>
-                  </span>
                 </div>
                 <table className="w-full text-sm">
                   <thead>
@@ -437,26 +292,10 @@ export default function CashReport() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
-                    {/* Opening Balance Row at top for Ascending */}
-                    {sortOrder === 'asc' && reportData.ledgerEntries.length > 0 && (
-                      <tr className="bg-slate-100 font-semibold">
-                        <td className="px-3 py-2.5 text-slate-500 border-r border-slate-200 text-xs">—</td>
-                        <td className="px-3 py-2.5 text-slate-700 border-r border-slate-200 whitespace-nowrap text-xs">{formatDate(startDate)}</td>
-                        <td className="px-3 py-2.5 text-slate-700 border-r border-slate-200" colSpan={3}>
-                          <span className="text-xs font-bold uppercase tracking-wide text-slate-600">Balance b/f (Opening Balance)</span>
-                        </td>
-                        <td className="px-3 py-2.5 text-right border-r border-slate-200 text-slate-400">—</td>
-                        <td className="px-3 py-2.5 text-right border-r border-slate-200 text-slate-400">—</td>
-                        <td className={`px-3 py-2.5 text-right font-bold tabular-nums ${openingBalance >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
-                          {formatCurrency(openingBalance)}
-                        </td>
-                      </tr>
-                    )}
-
                     {screenEntries.map((entry, index) => {
                       const displayAmts = getLedgerEntryDisplayAmounts(entry);
                       const balance = parseFloat(entry.closing_balance || 0);
-                      const sno = sortOrder === 'desc' ? reportData.ledgerEntries.length - index : index + 1;
+                      const sno = reportData.ledgerEntries.length - index;
                       return (
                         <tr key={entry.l_id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} ledger-row-hover cursor-pointer`}>
                           <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200">{sno}</td>
@@ -477,8 +316,8 @@ export default function CashReport() {
                       );
                     })}
 
-                    {/* Opening Balance Row at bottom for Descending */}
-                    {sortOrder === 'desc' && reportData.ledgerEntries.length > 0 && (
+                    {/* Opening Balance Row at bottom for Descending view */}
+                    {reportData.ledgerEntries && (
                       <tr className="bg-slate-100 font-semibold">
                         <td className="px-3 py-2.5 text-slate-500 border-r border-slate-200 text-xs">—</td>
                         <td className="px-3 py-2.5 text-slate-700 border-r border-slate-200 whitespace-nowrap text-xs">{formatDate(startDate)}</td>
@@ -493,7 +332,7 @@ export default function CashReport() {
                       </tr>
                     )}
 
-                    {reportData.ledgerEntries.length === 0 && (
+                    {(!reportData.ledgerEntries || reportData.ledgerEntries.length === 0) && (
                       <tr><td colSpan="8" className="px-6 py-12 text-center text-slate-500">No cash transactions found for the selected period</td></tr>
                     )}
                   </tbody>
@@ -508,7 +347,7 @@ export default function CashReport() {
                 </table>
               </div>
 
-              {/* 2. PRINT LEDGER TABLE (ALWAYS ASCENDING CHRONOLOGICAL ORDER) */}
+              {/* PRINT LEDGER TABLE */}
               <div className="hidden print:block bg-white border border-black">
                 <table className="w-full text-sm">
                   <thead>
@@ -525,23 +364,21 @@ export default function CashReport() {
                   </thead>
                   <tbody className="divide-y divide-black">
                     {/* Opening Balance Row at Top for Print */}
-                    {reportData.ledgerEntries.length > 0 && (
-                      <tr className="bg-gray-100 font-semibold">
-                        <td className="px-3 py-2 text-gray-700 border-r border-black text-xs">—</td>
-                        <td className="px-3 py-2 text-gray-700 border-r border-black whitespace-nowrap text-xs">{formatDate(startDate)}</td>
-                        <td className="px-3 py-2 text-gray-700 border-r border-black" colSpan={3}>
-                          <span className="text-xs font-bold uppercase tracking-wide">Balance b/f (Opening Balance)</span>
-                        </td>
-                        <td className="px-3 py-2 text-right border-r border-black text-gray-500">—</td>
-                        <td className="px-3 py-2 text-right border-r border-black text-gray-500">—</td>
-                        <td className="px-3 py-2 text-right font-bold tabular-nums">
-                          {formatCurrency(openingBalance)}
-                        </td>
-                      </tr>
-                    )}
+                    <tr className="bg-gray-100 font-semibold">
+                      <td className="px-3 py-2 text-gray-700 border-r border-black text-xs">—</td>
+                      <td className="px-3 py-2 text-gray-700 border-r border-black whitespace-nowrap text-xs">{formatDate(startDate)}</td>
+                      <td className="px-3 py-2 text-gray-700 border-r border-black" colSpan={3}>
+                        <span className="text-xs font-bold uppercase tracking-wide">Balance b/f (Opening Balance)</span>
+                      </td>
+                      <td className="px-3 py-2 text-right border-r border-black text-gray-500">—</td>
+                      <td className="px-3 py-2 text-right border-r border-black text-gray-500">—</td>
+                      <td className="px-3 py-2 text-right font-bold tabular-nums">
+                        {formatCurrency(openingBalance)}
+                      </td>
+                    </tr>
 
                     {/* Always Ascending Chronological List for Print */}
-                    {reportData.ledgerEntries.map((entry, index) => {
+                    {(reportData.ledgerEntries || []).map((entry, index) => {
                       const displayAmts = getLedgerEntryDisplayAmounts(entry);
                       const balance = parseFloat(entry.closing_balance || 0);
                       return (
@@ -558,7 +395,7 @@ export default function CashReport() {
                       );
                     })}
 
-                    {reportData.ledgerEntries.length === 0 && (
+                    {(!reportData.ledgerEntries || reportData.ledgerEntries.length === 0) && (
                       <tr><td colSpan="8" className="px-6 py-12 text-center text-slate-500">No cash transactions found for the selected period</td></tr>
                     )}
                   </tbody>
