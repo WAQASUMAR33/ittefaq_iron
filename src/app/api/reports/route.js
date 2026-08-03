@@ -680,9 +680,33 @@ async function getCashReport(startDate, endDate) {
     return String(a.l_id).localeCompare(String(b.l_id));
   });
 
+  // Calculate exact Opening Balance before startDate for all Cash accounts
+  let openingBalance = 0;
+  if (startDate && cashCategoryIds.length > 0) {
+    const [year, month, day] = startDate.split('-').map(Number);
+    const startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0);
+
+    const priorLedger = await prisma.ledger.aggregate({
+      where: {
+        customer: {
+          cus_category: { in: cashCategoryIds }
+        },
+        created_at: { lt: startOfDay }
+      },
+      _sum: {
+        debit_amount: true,
+        credit_amount: true
+      }
+    });
+
+    const priorDebit = parseFloat(priorLedger._sum.debit_amount || 0);
+    const priorCredit = parseFloat(priorLedger._sum.credit_amount || 0);
+    openingBalance = priorDebit - priorCredit;
+  }
+
   // Re-calculate running balances for finalLedgerEntries
+  let runningBal = openingBalance;
   if (finalLedgerEntries.length > 0) {
-    let runningBal = parseFloat(finalLedgerEntries[0].opening_balance || 0);
     for (let i = 0; i < finalLedgerEntries.length; i++) {
       const e = finalLedgerEntries[i];
       const debit = parseFloat(e.debit_amount || 0);
@@ -714,6 +738,8 @@ async function getCashReport(startDate, endDate) {
 
   // Cash account (asset): debit = money IN, credit = money OUT
   const summary = {
+    openingBalance,
+    closingBalance: runningBal,
     totalLedgerEntries: ledgerEntriesForSummary.length,
     totalLedgerDebit: ledgerEntriesForSummary.reduce((sum, l) => sum + parseFloat(l.debit_amount || 0), 0),
     totalLedgerCredit: ledgerEntriesForSummary.reduce((sum, l) => sum + parseFloat(l.credit_amount || 0), 0),
