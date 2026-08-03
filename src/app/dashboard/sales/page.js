@@ -4435,12 +4435,12 @@ function SalesPageContent() {
                         const q = inputValue.toLowerCase().trim();
                         if (!q) return options;
                         return options.filter(o =>
-                          (o.cus_name || '').toLowerCase().startsWith(q) ||
-                          (o.cus_phone_no || '').toLowerCase().startsWith(q) ||
-                          (o.cus_phone_no2 || '').toLowerCase().startsWith(q) ||
-                          (o.cus_address || '').toLowerCase().startsWith(q) ||
-                          (o.cus_reference || '').toLowerCase().startsWith(q) ||
-                          (o.city?.city_name || '').toLowerCase().startsWith(q)
+                          (o.cus_name || '').toLowerCase().includes(q) ||
+                          (o.cus_phone_no || '').toLowerCase().includes(q) ||
+                          (o.cus_phone_no2 || '').toLowerCase().includes(q) ||
+                          (o.cus_address || '').toLowerCase().includes(q) ||
+                          (o.cus_reference || '').toLowerCase().includes(q) ||
+                          (o.city?.city_name || '').toLowerCase().includes(q)
                         );
                       }}
                       value={formSelectedCustomer}
@@ -4646,8 +4646,8 @@ function SalesPageContent() {
                         const q = inputValue.toLowerCase().trim();
                         if (!q) return options;
                         return options.filter(o =>
-                          (o.pro_title || '').toLowerCase().startsWith(q) ||
-                          (o.pro_code || '').toLowerCase().startsWith(q)
+                          (o.pro_title || '').toLowerCase().includes(q) ||
+                          (o.pro_code || '').toLowerCase().includes(q)
                         );
                       }}
                       renderOption={(props, option) => (
@@ -7528,12 +7528,12 @@ function SalesPageContent() {
                         const q = inputValue.toLowerCase().trim();
                         if (!q) return options;
                         return options.filter(o =>
-                          (o.cus_name || '').toLowerCase().startsWith(q) ||
-                          (o.cus_phone_no || '').toLowerCase().startsWith(q) ||
-                          (o.cus_phone_no2 || '').toLowerCase().startsWith(q) ||
-                          (o.cus_address || '').toLowerCase().startsWith(q) ||
-                          (o.cus_reference || '').toLowerCase().startsWith(q) ||
-                          (o.city?.city_name || '').toLowerCase().startsWith(q)
+                          (o.cus_name || '').toLowerCase().includes(q) ||
+                          (o.cus_phone_no || '').toLowerCase().includes(q) ||
+                          (o.cus_phone_no2 || '').toLowerCase().includes(q) ||
+                          (o.cus_address || '').toLowerCase().includes(q) ||
+                          (o.cus_reference || '').toLowerCase().includes(q) ||
+                          (o.city?.city_name || '').toLowerCase().includes(q)
                         );
                       }}
                       value={customers.find(c => c.cus_id.toString() === filterCustomer) || null}
