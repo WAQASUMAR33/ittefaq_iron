@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
     Download,
     Printer,
@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
+import { Autocomplete, TextField } from '@mui/material';
 
 const fmtAmt = (val) => {
   const n = parseFloat(val || 0);
@@ -173,6 +174,11 @@ export default function RebateReport() {
 
     const rebateTotalAmount = reportData ? Number((reportData.summary.totalQuantity * (parseFloat(rebateRate) || 0)).toFixed(2)) : 0;
 
+    const supplierOptions = useMemo(() => {
+        const list = suppliers.filter(s => s.customer_category?.cus_cat_title?.toLowerCase().includes('supplier'));
+        return list.length > 0 ? list : suppliers;
+    }, [suppliers]);
+
     return (
         <DashboardLayout>
             <div id="printable-report" className="h-full flex flex-col overflow-hidden print:overflow-visible">
@@ -200,28 +206,44 @@ export default function RebateReport() {
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Select Supplier</label>
-                                <select
-                                    value={selectedSupplierId}
-                                    onChange={(e) => setSelectedSupplierId(e.target.value)}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black shadow-sm"
-                                >
-                                    <option value="">Choose a supplier...</option>
-                                    {suppliers
-                                        .filter(s => s.customer_category?.cus_cat_title?.toLowerCase().includes('supplier'))
-                                        .map((s) => (
-                                            <option key={s.cus_id} value={s.cus_id}>
-                                                {s.cus_name} ({s.customer_category?.cus_cat_title})
-                                            </option>
-                                        ))}
-                                    {/* Fallback: show all if no 'supplier' category items found */}
-                                    {suppliers.filter(s => s.customer_category?.cus_cat_title?.toLowerCase().includes('supplier')).length === 0 &&
-                                        suppliers.map((s) => (
-                                            <option key={s.cus_id} value={s.cus_id}>
-                                                {s.cus_name} ({s.customer_category?.cus_cat_title || 'No Category'})
-                                            </option>
-                                        ))
-                                    }
-                                </select>
+                                <Autocomplete
+                                    size="small"
+                                    options={supplierOptions}
+                                    getOptionLabel={(option) => option.cus_name ? `${option.cus_name}${option.customer_category?.cus_cat_title ? ` (${option.customer_category.cus_cat_title})` : ''}` : ''}
+                                    value={suppliers.find(s => s.cus_id.toString() === selectedSupplierId) || null}
+                                    onChange={(event, newValue) => {
+                                        setSelectedSupplierId(newValue ? newValue.cus_id.toString() : '');
+                                    }}
+                                    isOptionEqualToValue={(option, value) => option.cus_id === value?.cus_id}
+                                    autoSelect={true}
+                                    autoHighlight={true}
+                                    openOnFocus={true}
+                                    selectOnFocus={true}
+                                    filterOptions={(options, { inputValue }) => {
+                                        const q = inputValue.toLowerCase().trim();
+                                        if (!q) return options;
+                                        return options.filter(o =>
+                                            (o.cus_name || '').toLowerCase().includes(q) ||
+                                            (o.customer_category?.cus_cat_title || '').toLowerCase().includes(q) ||
+                                            (o.cus_phone_no || '').toLowerCase().includes(q) ||
+                                            (o.cus_address || '').toLowerCase().includes(q)
+                                        );
+                                    }}
+                                    renderInput={(params) => (
+                                        <TextField
+                                            {...params}
+                                            placeholder="Search & choose supplier..."
+                                            variant="outlined"
+                                            onFocus={(e) => e.target.select()}
+                                            sx={{
+                                                bgcolor: 'white',
+                                                borderRadius: '8px',
+                                                '& .MuiOutlinedInput-root': { py: '2px', borderRadius: '8px', bgcolor: 'white' },
+                                                '& .MuiInputBase-input': { fontWeight: 'bold', color: 'black' }
+                                            }}
+                                        />
+                                    )}
+                                />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
