@@ -13,14 +13,11 @@ const compareChronologically = (a, b) => {
   return (a.l_id || 0) - (b.l_id || 0);
 };
 
-function calculateClosingBalance(openingBalance, debitAmount = 0, creditAmount = 0, accountNature = 'RECEIVABLE') {
+function calculateClosingBalance(openingBalance, debitAmount = 0, creditAmount = 0) {
   const opening = parseFloat(openingBalance || 0);
   const debit = parseFloat(debitAmount || 0);
   const credit = parseFloat(creditAmount || 0);
 
-  if (accountNature === 'PAYABLE') {
-    return Number((opening - debit + credit).toFixed(2));
-  }
   return Number((opening + debit - credit).toFixed(2));
 }
 

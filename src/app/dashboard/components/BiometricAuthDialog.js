@@ -34,7 +34,7 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
     }
   }
 
-  const [authMode, setAuthMode] = useState('pin');
+  const [authMode, setAuthMode] = useState('fp');
   const [pin, setPin] = useState('');
   const [pinError, setPinError] = useState('');
   const [pinLoading, setPinLoading] = useState(false);
@@ -53,7 +53,11 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
     setPin('');
     setPinError('');
     setPinLoading(false);
-    setAuthMode('pin');
+
+    // Primary mode is Fingerprint if enrolled/available, otherwise fallback to PIN
+    const isFpEnrolled = user ? (user.fingerprint_enrolled !== false) : true;
+    setAuthMode(isFpEnrolled ? 'fp' : 'pin');
+
     setFpError('');
     setFpLoading(false);
     setLastSample(null);
@@ -70,9 +74,15 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
           : null;
         if (!serverUser) return;
 
-        const mergedUser = { ...user, fingerprint_enrolled: !!serverUser.fingerprint_enrolled };
+        const enrolled = !!serverUser.fingerprint_enrolled;
+        const mergedUser = { ...user, fingerprint_enrolled: enrolled };
         setCurrentUser(mergedUser);
         localStorage.setItem('user', JSON.stringify(mergedUser));
+        if (enrolled) {
+          setAuthMode('fp');
+        } else {
+          setAuthMode('pin');
+        }
       } catch {
         // keep local user fallback
       }
@@ -80,9 +90,11 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
   }, [open]);
 
   useEffect(() => {
-    if (!open || showFingerprint) return;
-    setAuthMode((m) => (m === 'fp' ? 'pin' : m));
-  }, [open, showFingerprint]);
+    if (!open) return;
+    if (!showFingerprint && currentUser) {
+      setAuthMode('pin');
+    }
+  }, [open, showFingerprint, currentUser]);
 
   function addDigit(digit) {
     if (pin.length < 6) setPin((prev) => prev + digit);
@@ -235,20 +247,6 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
         >
           <button
             type="button"
-            onClick={() => setAuthMode('pin')}
-            style={{
-              padding: '10px 12px',
-              borderRadius: 12,
-              border: `2px solid ${authMode === 'pin' ? '#1d4ed8' : '#e2e8f0'}`,
-              background: authMode === 'pin' ? '#eff6ff' : 'white',
-              fontWeight: 900,
-              cursor: 'pointer',
-            }}
-          >
-            PIN
-          </button>
-          <button
-            type="button"
             onClick={() => setAuthMode('fp')}
             style={{
               padding: '10px 12px',
@@ -260,6 +258,20 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
             }}
           >
             Fingerprint
+          </button>
+          <button
+            type="button"
+            onClick={() => setAuthMode('pin')}
+            style={{
+              padding: '10px 12px',
+              borderRadius: 12,
+              border: `2px solid ${authMode === 'pin' ? '#1d4ed8' : '#e2e8f0'}`,
+              background: authMode === 'pin' ? '#eff6ff' : 'white',
+              fontWeight: 900,
+              cursor: 'pointer',
+            }}
+          >
+            PIN
           </button>
         </div>
         ) : null}
