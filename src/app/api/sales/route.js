@@ -1504,7 +1504,10 @@ export async function POST(request) {
         // 5. Transport account entries — credit each transport account for its delivery charge share
         if (transport_details && transport_details.length > 0) {
           for (const td of transport_details) {
-            const transportAmount = parseFloat(td.amount) || 0;
+            let transportAmount = parseFloat(td.amount) || 0;
+            if (transportAmount <= 0 && parseFloat(shipping_amount || 0) > 0) {
+              transportAmount = parseFloat(shipping_amount) / transport_details.length;
+            }
             if (!td.account_id || transportAmount <= 0) continue;
 
             const transportAccount = await tx.customer.findUnique({ where: { cus_id: parseInt(td.account_id) } });
@@ -2435,7 +2438,10 @@ export async function PUT(request) {
         // ── 4f. Transport account entries ──
         if (transport_details && transport_details.length > 0) {
           for (const td of transport_details) {
-            const transportAmount = parseFloat(td.amount) || 0;
+            let transportAmount = parseFloat(td.amount) || 0;
+            if (transportAmount <= 0 && parseFloat(shipping_amount || 0) > 0) {
+              transportAmount = parseFloat(shipping_amount) / transport_details.length;
+            }
             if (!td.account_id || transportAmount <= 0) continue;
 
             const transportAccount = await tx.customer.findUnique({ where: { cus_id: parseInt(td.account_id) } });

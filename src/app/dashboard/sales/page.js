@@ -1123,7 +1123,7 @@ function SalesPageContent() {
     const labour = parseFloat(paymentData.labour) || 0;
     const deliveryCharges = parseFloat(paymentData.deliveryCharges) || 0;
     const transportTotal = calculateTransportTotal();
-    const totalDelivery = deliveryCharges + transportTotal;
+    const totalDelivery = Math.max(deliveryCharges, transportTotal);
     const discount = parseFloat(paymentData.discount) || 0;
     if (billType === 'SALE_RETURN') {
       return Number((productTotal - labour - totalDelivery - discount).toFixed(0));
@@ -1564,7 +1564,7 @@ function SalesPageContent() {
       // Prepare sale data
       const transportTotal = calculateTransportTotal();
       const deliveryCharges = parseFloat(paymentData.deliveryCharges) || 0;
-      const totalShippingAmount = deliveryCharges; // Only delivery, transport handled via transport_details
+      const totalShippingAmount = Math.max(deliveryCharges, transportTotal);
 
       // Build split payments array for cash and bank
       const splitPayments = [];
@@ -1634,9 +1634,10 @@ function SalesPageContent() {
         })),
         transport_details: transportOptions.map(transport => {
           const itemAmt = parseFloat(transport.amount || 0);
+          const totalDel = Math.max(parseFloat(paymentData.deliveryCharges) || 0, calculateTransportTotal());
           let finalAmt = itemAmt;
-          if (finalAmt <= 0 && transportOptions.length > 0) {
-            finalAmt = (parseFloat(paymentData.deliveryCharges) || 0) / transportOptions.length;
+          if (finalAmt <= 0 && transportOptions.length > 0 && totalDel > 0) {
+            finalAmt = totalDel / transportOptions.length;
           }
           return {
             account_id: transport.accountId,
@@ -3882,7 +3883,6 @@ function SalesPageContent() {
       const cashAmt = parseFloat(fullSale.cash_payment || 0);
       const bankAmt = parseFloat(fullSale.bank_payment || 0);
       const fullShippingAmt = parseFloat(fullSale.shipping_amount || 0);
-      const deliveryOnly = Math.max(0, fullShippingAmt - totalTransportAmount);
 
       setPaymentData({
         cash: cashAmt > 0 ? cashAmt.toString() : '',
@@ -3892,7 +3892,7 @@ function SalesPageContent() {
         advancePayment: parseFloat(fullSale.advance_payment || 0),
         discount: fullSale.discount?.toString() || '',
         labour: fullSale.labour_charges?.toString() || '',
-        deliveryCharges: deliveryOnly > 0 ? deliveryOnly.toString() : '',
+        deliveryCharges: fullShippingAmt > 0 ? fullShippingAmt.toString() : '',
         notes: fullSale.reference || ''
       });
 
@@ -5587,18 +5587,8 @@ function SalesPageContent() {
                     <TextField
                       size="small"
                       type="number"
-                      value={(() => {
-                        const totalDelivery = (parseFloat(paymentData.deliveryCharges || 0) + calculateTransportTotal());
-                        if (totalDelivery === 0) return '';
-                        return totalDelivery % 1 === 0 ? String(totalDelivery) : totalDelivery.toFixed(0);
-                      })()}
-                      onChange={(e) => {
-                        // Calculate delivery charges by subtracting transport from total
-                        const totalValue = parseFloat(e.target.value) || 0;
-                        const transportTotal = calculateTransportTotal();
-                        const deliveryOnly = totalValue - transportTotal;
-                        handlePaymentDataChange('deliveryCharges', deliveryOnly >= 0 ? deliveryOnly : 0);
-                      }}
+                      value={paymentData.deliveryCharges === 0 ? '' : paymentData.deliveryCharges}
+                      onChange={(e) => handlePaymentDataChange('deliveryCharges', e.target.value)}
                       onFocus={(e) => e.target.select()}
                       inputProps={{ step: 'any' }}
                       sx={{
