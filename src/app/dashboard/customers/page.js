@@ -133,6 +133,8 @@ export default function CustomersPage() {
   // Filter states
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [minAmount, setMinAmount] = useState('');
+  const [debouncedMinAmount, setDebouncedMinAmount] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [balanceFilter, setBalanceFilter] = useState('all');
@@ -156,23 +158,24 @@ export default function CustomersPage() {
     fetchStaticData();
   }, []);
 
-  // Debounce search input
+  // Debounce search and minAmount input
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearch(searchTerm);
+      setDebouncedMinAmount(minAmount);
     }, 400);
     return () => clearTimeout(handler);
-  }, [searchTerm]);
+  }, [searchTerm, minAmount]);
 
   // Fetch paginated customers when filters, page, sorting changes
   useEffect(() => {
     fetchCustomers(page);
-  }, [page, limit, debouncedSearch, typeFilter, categoryFilter, balanceFilter, activityFilter, sortBy, sortOrder]);
+  }, [page, limit, debouncedSearch, debouncedMinAmount, typeFilter, categoryFilter, balanceFilter, activityFilter, sortBy, sortOrder]);
 
   // Reset to page 1 whenever any filter condition changes
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, typeFilter, categoryFilter, balanceFilter, activityFilter]);
+  }, [debouncedSearch, debouncedMinAmount, typeFilter, categoryFilter, balanceFilter, activityFilter]);
 
   const fetchStaticData = async () => {
     try {
@@ -214,6 +217,7 @@ export default function CustomersPage() {
         page: String(currentPage),
         limit: String(limit),
         search: debouncedSearch,
+        minAmount: debouncedMinAmount,
         typeFilter,
         categoryFilter,
         balanceFilter,
@@ -257,6 +261,7 @@ export default function CustomersPage() {
         paginate: 'true',
         all: 'true',
         search: debouncedSearch,
+        minAmount: debouncedMinAmount,
         typeFilter,
         categoryFilter,
         balanceFilter,
@@ -571,6 +576,8 @@ export default function CustomersPage() {
   // Clear all filters
   const clearFilters = () => {
     setSearchTerm('');
+    setMinAmount('');
+    setDebouncedMinAmount('');
     setTypeFilter('all');
     setCategoryFilter('all');
     setBalanceFilter('all');
@@ -952,7 +959,8 @@ export default function CustomersPage() {
                 gridTemplateColumns: {
                   xs: '1fr',
                   sm: '1fr 1fr',
-                  md: 'repeat(5, 1fr)'
+                  md: 'repeat(3, 1fr)',
+                  lg: 'repeat(6, 1fr)'
                 },
                 gap: 3,
                 width: '100%'
@@ -1078,6 +1086,31 @@ export default function CustomersPage() {
                         }}
                       />
                     )}
+                  />
+                </Box>
+
+                {/* Balance > Amount Filter */}
+                <Box>
+                  <TextField
+                    fullWidth
+                    label="Balance > Amount"
+                    placeholder="e.g. 50000"
+                    type="number"
+                    value={minAmount}
+                    onChange={(e) => setMinAmount(e.target.value)}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <TrendingUp size={18} color="#94a3b8" />
+                        </InputAdornment>
+                      ),
+                    }}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: 1.5,
+                        bgcolor: 'white',
+                      }
+                    }}
                   />
                 </Box>
 

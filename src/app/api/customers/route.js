@@ -61,7 +61,7 @@ export async function GET(request) {
       const typeFilter = searchParams.get('typeFilter') || 'all';
       const categoryFilter = searchParams.get('categoryFilter') || 'all';
       const balanceFilter = searchParams.get('balanceFilter') || 'all';
-      const activityFilter = searchParams.get('activityFilter') || 'all';
+      const minAmount = searchParams.get('minAmount') || '';
       const sortBy = searchParams.get('sortBy') || 'cus_name';
       const sortOrder = searchParams.get('sortOrder') || 'asc';
 
@@ -102,6 +102,16 @@ export async function GET(request) {
           where.cus_balance = { equals: 0 };
         } else if (balanceFilter === 'non-zero') {
           where.cus_balance = { not: 0 };
+        }
+      }
+
+      // 4b. Min Amount Filter (Balance > Amount)
+      if (minAmount && !isNaN(parseFloat(minAmount))) {
+        const minVal = parseFloat(minAmount);
+        if (!where.cus_balance) {
+          where.cus_balance = { gt: minVal };
+        } else if (typeof where.cus_balance === 'object') {
+          where.cus_balance = { ...where.cus_balance, gt: minVal };
         }
       }
 

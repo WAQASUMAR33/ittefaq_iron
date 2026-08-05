@@ -6547,7 +6547,18 @@ export default function FinancePage() {
 
           body.print-a4 #printable-invoice-a4-finance, body.print-a4 #printable-invoice-a4-finance * { visibility: visible !important; }
           body.print-thermal #printable-invoice-thermal-finance, body.print-thermal #printable-invoice-thermal-finance * { visibility: visible !important; }
-          body.print-a4 #printable-invoice-a4-finance { display: block !important; width: 100% !important; }
+          body.print-a4 #printable-invoice-a4-finance {
+            display: block !important;
+            position: fixed !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            z-index: 999999 !important;
+            background: white !important;
+          }
           body.print-thermal #printable-invoice-thermal-finance {
             display: block !important;
             position: absolute !important;
