@@ -3652,7 +3652,7 @@ function SalesPageContent() {
         totalAmount <= parseFloat(filterMaxAmount);
 
       // Balance status filter
-      const balance = parseFloat(sale.total_amount) - parseFloat(sale.discount || 0) + parseFloat(sale.shipping_amount || 0) - parseFloat(sale.payment || 0);
+      const balance = parseFloat(sale.total_amount || 0) - parseFloat(sale.payment || 0);
       const matchesBalanceStatus = filterBalanceStatus === '' ||
         (filterBalanceStatus === 'with_balance' && balance > 0) ||
         (filterBalanceStatus === 'without_balance' && balance <= 0) ||
@@ -7838,7 +7838,7 @@ function SalesPageContent() {
                     </TableRow>
                   ) : (
                     filteredSales.map((sale) => {
-                      const balance = parseFloat(sale.total_amount) - parseFloat(sale.discount || 0) + parseFloat(sale.shipping_amount || 0) - parseFloat(sale.payment || 0);
+                      const balance = parseFloat(sale.total_amount || 0) - parseFloat(sale.payment || 0);
                       return (
                         <TableRow
                           key={sale.sale_id}

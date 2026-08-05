@@ -2115,7 +2115,7 @@ function OrdersPageContent() {
         totalAmount <= parseFloat(filterMaxAmount);
 
       // Balance status filter
-      const balance = parseFloat(sale.total_amount) - parseFloat(sale.discount || 0) + parseFloat(sale.shipping_amount || 0) - parseFloat(sale.payment || 0);
+      const balance = parseFloat(sale.total_amount || 0) - parseFloat(sale.payment || 0);
       const matchesBalanceStatus = filterBalanceStatus === '' ||
         (filterBalanceStatus === 'with_balance' && balance > 0) ||
         (filterBalanceStatus === 'without_balance' && balance <= 0) ||
@@ -2226,7 +2226,7 @@ function OrdersPageContent() {
   const statsTotalShipping = filteredSales.reduce((sum, sale) => sum + parseFloat(sale.shipping_amount || 0), 0);
   const statsTotalPayment = filteredSales.reduce((sum, sale) => sum + parseFloat(sale.payment || 0), 0);
   const statsTotalBalance = filteredSales.reduce((sum, sale) => {
-    const balance = parseFloat(sale.total_amount) - parseFloat(sale.discount || 0) + parseFloat(sale.shipping_amount || 0) - parseFloat(sale.payment || 0);
+    const balance = parseFloat(sale.total_amount || 0) - parseFloat(sale.payment || 0);
     return sum + balance;
   }, 0);
 
@@ -4803,7 +4803,7 @@ function OrdersPageContent() {
                     </TableRow>
                   ) : (
                     filteredSales.map((sale) => {
-                      const balance = parseFloat(sale.total_amount) - parseFloat(sale.discount || 0) + parseFloat(sale.shipping_amount || 0) - parseFloat(sale.payment || 0);
+                      const balance = parseFloat(sale.total_amount || 0) - parseFloat(sale.payment || 0);
                       return (
                         <TableRow key={sale.sale_id} sx={{ '&:hover': { bgcolor: '#f8f9fa' } }}>
                           <TableCell sx={{ fontWeight: 'medium' }}>#{sale.sale_id}</TableCell>

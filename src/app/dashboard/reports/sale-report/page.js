@@ -506,7 +506,7 @@ export default function SaleReport() {
                         <div className="w-1/2"><strong>Discount:</strong> Rs. {formatCurrency(selectedSale.discount)}</div>
                         <div className="w-1/2"><strong>Shipping:</strong> Rs. {formatCurrency(selectedSale.shipping_amount)}</div>
                         <div className="w-1/2"><strong>Paid:</strong> Rs. {formatCurrency(selectedSale.payment)}</div>
-                        <div className="w-1/2"><strong>Balance:</strong> Rs. {formatCurrency((parseFloat(selectedSale.total_amount||0) - parseFloat(selectedSale.discount||0) + parseFloat(selectedSale.shipping_amount||0)) - (parseFloat(selectedSale.payment||0)))}</div>
+                        <div className="w-1/2"><strong>Balance:</strong> Rs. {formatCurrency(parseFloat(selectedSale.total_amount || 0) - parseFloat(selectedSale.payment || 0))}</div>
                       </div>
                       {showFullFields && (
                         <pre className="mt-3 p-3 bg-slate-50 text-xs overflow-auto" style={{maxHeight: 240}}>{JSON.stringify(selectedSale, null, 2)}</pre>
