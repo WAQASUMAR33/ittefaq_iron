@@ -115,7 +115,7 @@ async function recalculateCustomerLedger(targetCusId) {
         cus_balance: currentBalance
       }
     });
-  });
+  }, { timeout: 60000, maxWait: 10000 });
 
   console.log(`\n========================================`);
   console.log(`✅ RECALCULATION COMPLETED FOR CUSTOMER ID ${cusId}`);

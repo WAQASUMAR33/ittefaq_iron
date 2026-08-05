@@ -87,7 +87,7 @@ export async function POST(request) {
           cus_balance: currentBalance
         }
       });
-    });
+    }, { timeout: 60000, maxWait: 10000 });
 
     return NextResponse.json({
       success: true,
