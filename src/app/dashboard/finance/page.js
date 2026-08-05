@@ -1020,28 +1020,32 @@ export default function FinancePage() {
       entry.customer?.cus_id?.toString().includes(searchTerm) ||
       entry.debit_amount?.toString().includes(searchTerm) ||
       entry.credit_amount?.toString().includes(searchTerm) ||
+      entry.closing_balance?.toString().includes(searchTerm) ||
       displayAmts.debit.toString().includes(searchTerm) ||
       displayAmts.credit.toString().includes(searchTerm) ||
       (!isNaN(searchNum) && (
         Math.abs(parseFloat(entry.debit_amount || 0) - searchNum) < 0.01 ||
         Math.abs(parseFloat(entry.credit_amount || 0) - searchNum) < 0.01 ||
+        Math.abs(parseFloat(entry.closing_balance || 0) - searchNum) < 0.01 ||
         Math.abs(displayAmts.debit - searchNum) < 0.01 ||
         Math.abs(displayAmts.credit - searchNum) < 0.01
       ));
 
-    // Dedicated Search by Amount filter (either debit or credit match)
+    // Dedicated Search by Amount filter (debit, credit, or balance match)
     let matchesAmount = true;
     if (filterAmount && filterAmount.trim() !== '') {
       const targetStr = filterAmount.trim();
       const targetNum = parseFloat(targetStr);
       const debitRaw = entry.debit_amount ? parseFloat(entry.debit_amount) : 0;
       const creditRaw = entry.credit_amount ? parseFloat(entry.credit_amount) : 0;
+      const closingRaw = entry.closing_balance ? parseFloat(entry.closing_balance) : 0;
       const debitDisp = displayAmts.debit || 0;
       const creditDisp = displayAmts.credit || 0;
 
       const numMatch = !isNaN(targetNum) && (
         Math.abs(debitRaw - targetNum) < 0.01 ||
         Math.abs(creditRaw - targetNum) < 0.01 ||
+        Math.abs(closingRaw - targetNum) < 0.01 ||
         Math.abs(debitDisp - targetNum) < 0.01 ||
         Math.abs(creditDisp - targetNum) < 0.01
       );
@@ -1049,6 +1053,7 @@ export default function FinancePage() {
       const strMatch =
         entry.debit_amount?.toString().includes(targetStr) ||
         entry.credit_amount?.toString().includes(targetStr) ||
+        entry.closing_balance?.toString().includes(targetStr) ||
         debitDisp.toString().includes(targetStr) ||
         creditDisp.toString().includes(targetStr);
 
@@ -2648,7 +2653,7 @@ export default function FinancePage() {
                   <TextField
                     fullWidth
                     label="Search by Amount"
-                    placeholder="Debit or credit amount..."
+                    placeholder="Debit, credit, or balance..."
                     value={filterAmount}
                     onChange={(e) => setFilterAmount(e.target.value)}
                     InputProps={{

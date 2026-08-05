@@ -128,6 +128,7 @@ export async function GET(request) {
       if (!isNaN(searchFloat)) {
         orConditions.push({ debit_amount: searchFloat });
         orConditions.push({ credit_amount: searchFloat });
+        orConditions.push({ closing_balance: searchFloat });
       }
 
       where.OR = orConditions;
