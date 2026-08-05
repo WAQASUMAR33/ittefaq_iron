@@ -123,6 +123,7 @@ function SalesPageContent() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [filterItem, setFilterItem] = useState('');
+  const [filterNotes, setFilterNotes] = useState('');
 
   // Bill view state
   const [viewBillDialog, setViewBillDialog] = useState(false);
@@ -432,6 +433,18 @@ function SalesPageContent() {
   const [isSearchingOrder, setIsSearchingOrder] = useState(false);
   const [loadedOrderId, setLoadedOrderId] = useState(null); // Track the order being converted to bill
   const [selectedCustomerTypeFilter, setSelectedCustomerTypeFilter] = useState(null); // Filter customers by type
+
+  const isWalkinCustomer = (customer) => {
+    if (!customer) return true;
+    const name = (customer.cus_name || '').toLowerCase();
+    const typeTitle = (customer.customer_type?.cus_type_title || customer.cus_type_title || '').toLowerCase();
+    return (
+      name.includes('walk') ||
+      name.includes('cash') ||
+      typeTitle.includes('walk') ||
+      typeTitle.includes('cash')
+    );
+  };
 
   // Load Quotation state
   const [loadQuotationDialogOpen, setLoadQuotationDialogOpen] = useState(false);
@@ -3651,9 +3664,13 @@ function SalesPageContent() {
       const matchesDateTo = dateTo === '' ||
         (dateTo && sale.created_at && new Date(sale.created_at) <= new Date(dateTo));
 
+      const matchesNotes = filterNotes === '' ||
+        (sale.reference && sale.reference.toLowerCase().includes(filterNotes.toLowerCase())) ||
+        (sale.notes && sale.notes.toLowerCase().includes(filterNotes.toLowerCase()));
+
       const result = matchesSearch && matchesCustomer && matchesBillType && matchesStore &&
         matchesPaymentType && matchesAmount && matchesMinAmount && matchesMaxAmount &&
-        matchesBalanceStatus && matchesDateFrom && matchesDateTo && matchesItem;
+        matchesBalanceStatus && matchesDateFrom && matchesDateTo && matchesItem && matchesNotes;
 
       if (!result) {
         console.log('🔍 Sale', sale.sale_id, 'filtered out:', {
@@ -3705,7 +3722,7 @@ function SalesPageContent() {
       console.log('🔍 First filtered sale:', filtered[0]);
     }
     return filtered;
-  }, [sales, searchTerm, filterItem, filterCustomer, filterBillType, filterStore, filterPaymentType, filterAmount, filterMinAmount, filterMaxAmount, filterBalanceStatus, dateFrom, dateTo, sortBy, sortOrder]);
+  }, [sales, searchTerm, filterItem, filterNotes, filterCustomer, filterBillType, filterStore, filterPaymentType, filterAmount, filterMinAmount, filterMaxAmount, filterBalanceStatus, dateFrom, dateTo, sortBy, sortOrder]);
 
   console.log('🔍 Filtered sales count:', filteredSales.length);
   console.log('🔍 Sales state:', sales);
@@ -3935,6 +3952,7 @@ function SalesPageContent() {
   const clearFilters = () => {
     setSearchTerm('');
     setFilterItem('');
+    setFilterNotes('');
     setSelectedCustomer(null);
     setFilterCustomer('');
     setFilterBillType('');
@@ -4257,6 +4275,18 @@ function SalesPageContent() {
                     value={selectedCustomerTypeFilter}
                     onChange={(event, newValue) => {
                       setSelectedCustomerTypeFilter(newValue);
+                      if (newValue) {
+                        const typeTitle = (newValue.cus_type_title || '').toLowerCase();
+                        if (typeTitle.includes('walk')) {
+                          const matchingCustomer = customers.find(c =>
+                            c.cus_type === newValue.cus_type_id ||
+                            (c.cus_name || '').toLowerCase().includes('walk')
+                          );
+                          if (matchingCustomer) {
+                            setFormSelectedCustomer(matchingCustomer);
+                          }
+                        }
+                      }
                     }}
                     isOptionEqualToValue={(option, value) => option.cus_type_id === value?.cus_type_id}
                     autoSelect={true}
@@ -6170,30 +6200,32 @@ function SalesPageContent() {
                   {/* Payment Summary */}
                   <Box sx={{ mt: 2, width: '100%', display: 'flex', justifyContent: 'space-between', gap: 2 }}>
                     <Box sx={{ flex: '0 0 48%' }}>
-                      <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, border: '1px solid #000', width: '100%' }}>
-                        <Table size="small">
-                          <TableBody>
-                            <TableRow>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
-                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                {fmtAmt(currentBillData.customer?.cus_balance)}
-                              </TableCell>
-                            </TableRow>
-                            <TableRow>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</TableCell>
-                              <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                {fmtAmt(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0))}
-                              </TableCell>
-                            </TableRow>
-                            <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                              <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</TableCell>
-                              <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                {fmtAmt(parseFloat(currentBillData.customer?.cus_balance || 0) + parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0))}
-                              </TableCell>
-                            </TableRow>
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
+                      {!isWalkinCustomer(currentBillData.customer) && (
+                        <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, border: '1px solid #000', width: '100%' }}>
+                          <Table size="small">
+                            <TableBody>
+                              <TableRow>
+                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
+                                <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                  {fmtAmt(currentBillData.customer?.cus_balance)}
+                                </TableCell>
+                              </TableRow>
+                              <TableRow>
+                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</TableCell>
+                                <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                  {fmtAmt(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0))}
+                                </TableCell>
+                              </TableRow>
+                              <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                                <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                  {fmtAmt(parseFloat(currentBillData.customer?.cus_balance || 0) + parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0))}
+                                </TableCell>
+                              </TableRow>
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      )}
                       {(currentBillData.notes || currentBillData.reference) && (
                         <Box sx={{ mt: 1 }}>
                           <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
@@ -6559,92 +6591,87 @@ function SalesPageContent() {
                   {/* Payment Summary */}
                   <Box sx={{ mt: 2, width: '100%', display: 'flex', justifyContent: 'space-between', gap: 2 }}>
                     <Box sx={{ flex: '0 0 48%' }}>
-                      <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, border: '1px solid #000', width: '100%' }}>
-                        <Table size="small">
-                          <TableBody>
-                            {currentBillData?.is_return ? (
-                              (() => {
-                                const productTotal = parseFloat(currentBillData.total_amount || 0);
-                                const labour = parseFloat(currentBillData.labour_charges || 0);
-                                const shipping = parseFloat(currentBillData.shipping_amount || 0);
-                                const discount = parseFloat(currentBillData.discount || 0);
-                                // Net return = items - labour - delivery - discount
-                                const netReturn = productTotal - labour - shipping - discount;
-                                const totalRefund = parseFloat(currentBillData.payment || 0);
-                                const netReturnCredit = netReturn - totalRefund;
-                                const prevBal = (currentBillData.previous_customer_balance !== undefined && currentBillData.previous_customer_balance !== null)
-                                  ? parseFloat(currentBillData.previous_customer_balance)
-                                  : (currentBillData.previous_balance !== undefined && currentBillData.previous_balance !== null)
-                                    ? parseFloat(currentBillData.previous_balance)
-                                    : (parseFloat(currentBillData.customer?.cus_balance || 0) + netReturnCredit);
-                                // Balance after return credit AND payment applied
-                                const newBal = prevBal - netReturnCredit;
-                                return (
-                                  <>
-                                    <TableRow>
-                                      <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>منسوخ کردہ رقم</TableCell>
-                                      <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>{fmtAmt(productTotal)}</TableCell>
-                                    </TableRow>
-                                    {discount > 0 && (
+                      {!isWalkinCustomer(currentBillData?.customer) && (
+                        <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, border: '1px solid #000', width: '100%' }}>
+                          <Table size="small">
+                            <TableBody>
+                              {currentBillData?.is_return ? (
+                                (() => {
+                                  const netReturnCredit = parseFloat(currentBillData.total_amount || 0);
+                                  const totalRefund = parseFloat(currentBillData.payment || 0);
+                                  const prevBal = parseFloat(currentBillData.customer?.cus_balance ?? currentBillData.previous_customer_balance ?? 0);
+                                  const productTotal = (currentBillData.sale_details || []).reduce((sum, item) => sum + (parseFloat(item.total_amount) || 0), 0);
+                                  const discount = parseFloat(currentBillData.discount || 0);
+                                  const labour = parseFloat(currentBillData.labour_charges || currentBillData.labour || 0);
+                                  const shipping = parseFloat(currentBillData.shipping_amount || 0);
+                                  const newBal = prevBal - netReturnCredit;
+                                  return (
+                                    <>
                                       <TableRow>
-                                        <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>رعایت</TableCell>
-                                        <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>-{fmtAmt(discount)}</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>منسوخ کردہ رقم</TableCell>
+                                        <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>{fmtAmt(productTotal)}</TableCell>
                                       </TableRow>
-                                    )}
-                                    <TableRow>
-                                      <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>مزدوری</TableCell>
-                                      <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>-{fmtAmt(labour)}</TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>کرایہ</TableCell>
-                                      <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>-{fmtAmt(shipping)}</TableCell>
-                                    </TableRow>
-                                    <TableRow sx={{ bgcolor: '#e8f5e9' }}>
-                                      <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>کل منسوخی</TableCell>
-                                      <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', color: '#2e7d32' }}>
-                                        {fmtAmt(netReturn)}
-                                      </TableCell>
-                                    </TableRow>
-                                    <TableRow sx={{ bgcolor: '#ffe0b2' }}>
-                                      <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>کل واپسی</TableCell>
-                                      <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', color: '#e65100', fontSize: '1rem' }}>{fmtAmt(totalRefund)}</TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
-                                      <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>{fmtAmt(prevBal)}</TableCell>
-                                    </TableRow>
-                                    <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                                      <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجودہ بقایا</TableCell>
-                                      <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>{fmtAmt(newBal)}</TableCell>
-                                    </TableRow>
-                                  </>
-                                );
-                              })()
-                            ) : (
-                              <>
-                                <TableRow>
-                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
-                                  <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                    {fmtAmt(currentBillData.customer?.cus_balance)}
-                                  </TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</TableCell>
-                                  <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                    {fmtAmt(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0))}
-                                  </TableCell>
-                                </TableRow>
-                                <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</TableCell>
-                                  <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                                    {fmtAmt(parseFloat(currentBillData.customer?.cus_balance || 0) + parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0))}
-                                  </TableCell>
-                                </TableRow>
-                              </>
-                            )}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
+                                      {discount > 0 && (
+                                        <TableRow>
+                                          <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>رعایت</TableCell>
+                                          <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>-{fmtAmt(discount)}</TableCell>
+                                        </TableRow>
+                                      )}
+                                      <TableRow>
+                                        <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>مزدوری</TableCell>
+                                        <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>-{fmtAmt(labour)}</TableCell>
+                                      </TableRow>
+                                      <TableRow>
+                                        <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>کرایہ</TableCell>
+                                        <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>-{fmtAmt(shipping)}</TableCell>
+                                      </TableRow>
+                                      <TableRow sx={{ bgcolor: '#e8f5e9' }}>
+                                        <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>کل منسوخی</TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', color: '#2e7d32' }}>
+                                          {fmtAmt(netReturn)}
+                                        </TableCell>
+                                      </TableRow>
+                                      <TableRow sx={{ bgcolor: '#ffe0b2' }}>
+                                        <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>کل واپسی</TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', color: '#e65100', fontSize: '1rem' }}>{fmtAmt(totalRefund)}</TableCell>
+                                      </TableRow>
+                                      <TableRow>
+                                        <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
+                                        <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>{fmtAmt(prevBal)}</TableCell>
+                                      </TableRow>
+                                      <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                                        <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجودہ بقایا</TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>{fmtAmt(newBal)}</TableCell>
+                                      </TableRow>
+                                    </>
+                                  );
+                                })()
+                              ) : (
+                                <>
+                                  <TableRow>
+                                    <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
+                                    <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                      {fmtAmt(currentBillData.customer?.cus_balance)}
+                                    </TableCell>
+                                  </TableRow>
+                                  <TableRow>
+                                    <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</TableCell>
+                                    <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                      {fmtAmt(parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0))}
+                                    </TableCell>
+                                  </TableRow>
+                                  <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                                    <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقايا</TableCell>
+                                    <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
+                                      {fmtAmt(parseFloat(currentBillData.customer?.cus_balance || 0) + parseFloat(currentBillData.total_amount || 0) - parseFloat(currentBillData.payment || 0))}
+                                    </TableCell>
+                                  </TableRow>
+                                </>
+                              )}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      )}
                       {(currentBillData.notes || currentBillData.reference) && (
                         <Box sx={{ mt: 1 }}>
                           <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
@@ -7694,6 +7721,26 @@ function SalesPageContent() {
                       placeholder="Product name or quantity..."
                       value={filterItem}
                       onChange={(e) => setFilterItem(e.target.value)}
+                      onFocus={(e) => e.target.select()}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <SearchIcon size={18} sx={{ color: '#94a3b8' }} />
+                          </InputAdornment>
+                        ),
+                      }}
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, bgcolor: 'white' } }}
+                    />
+                  </Box>
+
+                  {/* Notes Filter */}
+                  <Box>
+                    <TextField
+                      fullWidth
+                      label="Search by Notes"
+                      placeholder="Reference or notes..."
+                      value={filterNotes}
+                      onChange={(e) => setFilterNotes(e.target.value)}
                       onFocus={(e) => e.target.select()}
                       InputProps={{
                         startAdornment: (
@@ -8777,7 +8824,7 @@ function SalesPageContent() {
                 <Box sx={{ mt: 2, width: '100%', display: 'flex', justifyContent: 'space-between', gap: 2 }}>
                   {/* Left Side - Balance Section */}
                   <Box sx={{ flex: '0 0 48%' }}>
-                    {(() => {
+                    {!isWalkinCustomer(selectedBill?.customer) && (() => {
                       const prevBalance = parseFloat(selectedBill.previous_balance || 0);
                       const currentBillAmount = parseFloat(selectedBill.total_amount || 0);
                       const payment = parseFloat(selectedBill.payment || 0);
@@ -10376,7 +10423,7 @@ function SalesPageContent() {
                   <Typography sx={{ fontSize: '11px', color: '#000' }}>{fmtAmt(activeBillData.bank_payment)}</Typography>
                 </Box>
               )}
-              {activeBillData.previous_balance !== undefined && parseFloat(activeBillData.previous_balance || 0) !== 0 && (
+              {!isWalkinCustomer(activeBillData?.customer) && activeBillData.previous_balance !== undefined && parseFloat(activeBillData.previous_balance || 0) !== 0 && (
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                   <Typography sx={{ fontSize: '11px', color: '#000' }}>Prev Balance</Typography>
                   <Typography sx={{ fontSize: '11px', color: '#000' }}>{fmtAmt(activeBillData.previous_balance)}</Typography>
