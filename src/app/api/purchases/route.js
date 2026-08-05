@@ -1067,15 +1067,17 @@ export async function POST(request) {
       const incityTotal = safeParseFloat(incity_own_labour || 0) + safeParseFloat(incity_own_delivery || 0);
 
       if (incityTotal > 0) {
-        // Resolve Cash Account ALWAYS for Incity charges (never Bank Account)
+        // Resolve Cash Account ALWAYS for Incity charges (Category: "Cash Account", ID: 2551)
         const cashAcc = await tx.customer.findFirst({
           where: {
             OR: [
+              { customer_category: { cus_cat_title: 'Cash Account' } },
               { cus_name: 'Cash Account' },
-              { cus_name: 'Cash' },
-              { cus_name: { contains: 'Cash' } },
-              { customer_category: { cus_cat_title: { contains: 'Cash' } } },
-              { customer_type: { cus_type_title: { contains: 'cash' } } }
+              { customer_category: { cus_cat_title: { contains: 'Cash Account' } } }
+            ],
+            NOT: [
+              { cus_name: { contains: 'Cash Sales' } },
+              { cus_name: { contains: 'cash purchase' } }
             ]
           },
           select: { cus_id: true }
@@ -1646,15 +1648,17 @@ export async function PUT(request) {
       const incityTotalPUT = safeParseFloat(incity_own_labour || 0) + safeParseFloat(incity_own_delivery || 0);
 
       if (incityTotalPUT > 0) {
-        // Resolve Cash Account ALWAYS for Incity charges in PUT (never Bank Account)
+        // Resolve Cash Account ALWAYS for Incity charges in PUT (Category: "Cash Account", ID: 2551)
         const cashAccPUT = await tx.customer.findFirst({
           where: {
             OR: [
+              { customer_category: { cus_cat_title: 'Cash Account' } },
               { cus_name: 'Cash Account' },
-              { cus_name: 'Cash' },
-              { cus_name: { contains: 'Cash' } },
-              { customer_category: { cus_cat_title: { contains: 'Cash' } } },
-              { customer_type: { cus_type_title: { contains: 'cash' } } }
+              { customer_category: { cus_cat_title: { contains: 'Cash Account' } } }
+            ],
+            NOT: [
+              { cus_name: { contains: 'Cash Sales' } },
+              { cus_name: { contains: 'cash purchase' } }
             ]
           },
           select: { cus_id: true }
