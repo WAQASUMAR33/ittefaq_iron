@@ -62,6 +62,7 @@ export async function GET(request) {
       const categoryFilter = searchParams.get('categoryFilter') || 'all';
       const balanceFilter = searchParams.get('balanceFilter') || 'all';
       const minAmount = searchParams.get('minAmount') || '';
+      const activityFilter = searchParams.get('activityFilter') || 'all';
       const sortBy = searchParams.get('sortBy') || 'cus_name';
       const sortOrder = searchParams.get('sortOrder') || 'asc';
 
