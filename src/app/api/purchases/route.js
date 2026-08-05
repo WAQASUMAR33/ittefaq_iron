@@ -1067,23 +1067,20 @@ export async function POST(request) {
       const incityTotal = safeParseFloat(incity_own_labour || 0) + safeParseFloat(incity_own_delivery || 0);
 
       if (incityTotal > 0) {
-        // Resolve cash account reliably
-        let incityCashAccountId = (creditAccountIdInt && creditAccountIdInt !== parseInt(cus_id)) ? creditAccountIdInt : null;
-
-        if (!incityCashAccountId) {
-          const cashAcc = await tx.customer.findFirst({
-            where: {
-              OR: [
-                { cus_name: 'Cash Account' },
-                { cus_name: 'Cash' },
-                { customer_category: { cus_cat_title: { contains: 'Cash' } } },
-                { customer_type: { cus_type_title: { contains: 'cash' } } }
-              ]
-            },
-            select: { cus_id: true }
-          });
-          incityCashAccountId = cashAcc?.cus_id || null;
-        }
+        // Resolve Cash Account ALWAYS for Incity charges (never Bank Account)
+        const cashAcc = await tx.customer.findFirst({
+          where: {
+            OR: [
+              { cus_name: 'Cash Account' },
+              { cus_name: 'Cash' },
+              { cus_name: { contains: 'Cash' } },
+              { customer_category: { cus_cat_title: { contains: 'Cash' } } },
+              { customer_type: { cus_type_title: { contains: 'cash' } } }
+            ]
+          },
+          select: { cus_id: true }
+        });
+        const incityCashAccountId = cashAcc?.cus_id || null;
 
         const incityCashAccount = incityCashAccountId
           ? await tx.customer.findUnique({ where: { cus_id: incityCashAccountId }, select: { cus_id: true, cus_name: true } })
@@ -1649,22 +1646,20 @@ export async function PUT(request) {
       const incityTotalPUT = safeParseFloat(incity_own_labour || 0) + safeParseFloat(incity_own_delivery || 0);
 
       if (incityTotalPUT > 0) {
-        let incityCashAccountIdPUT = (creditAccountIdInt && creditAccountIdInt !== parseInt(cus_id)) ? creditAccountIdInt : null;
-
-        if (!incityCashAccountIdPUT) {
-          const cashAccPUT = await tx.customer.findFirst({
-            where: {
-              OR: [
-                { cus_name: 'Cash Account' },
-                { cus_name: 'Cash' },
-                { customer_category: { cus_cat_title: { contains: 'Cash' } } },
-                { customer_type: { cus_type_title: { contains: 'cash' } } }
-              ]
-            },
-            select: { cus_id: true }
-          });
-          incityCashAccountIdPUT = cashAccPUT?.cus_id || null;
-        }
+        // Resolve Cash Account ALWAYS for Incity charges in PUT (never Bank Account)
+        const cashAccPUT = await tx.customer.findFirst({
+          where: {
+            OR: [
+              { cus_name: 'Cash Account' },
+              { cus_name: 'Cash' },
+              { cus_name: { contains: 'Cash' } },
+              { customer_category: { cus_cat_title: { contains: 'Cash' } } },
+              { customer_type: { cus_type_title: { contains: 'cash' } } }
+            ]
+          },
+          select: { cus_id: true }
+        });
+        const incityCashAccountIdPUT = cashAccPUT?.cus_id || null;
 
         const incityCashAccountPUT = incityCashAccountIdPUT
           ? await tx.customer.findUnique({ where: { cus_id: incityCashAccountIdPUT }, select: { cus_id: true, cus_name: true } })
