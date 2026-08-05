@@ -124,6 +124,12 @@ export async function GET(request) {
         orConditions.push({ cus_id: searchInt });
       }
 
+      const searchFloat = parseFloat(search);
+      if (!isNaN(searchFloat)) {
+        orConditions.push({ debit_amount: searchFloat });
+        orConditions.push({ credit_amount: searchFloat });
+      }
+
       where.OR = orConditions;
     }
 

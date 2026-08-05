@@ -361,6 +361,7 @@ export default function FinancePage() {
 
   // Filter states
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterAmount, setFilterAmount] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(''); // This will be customer category ID
   const [selectedSubCategory, setSelectedSubCategory] = useState(''); // This will be customer type ID
@@ -1004,14 +1005,55 @@ export default function FinancePage() {
 
   // Filter and sort logic
   const filteredLedgerEntries = ledgerEntries.filter(entry => {
-    const matchesSearch = entry.customer?.cus_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      entry.details?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      entry.bill_no?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      entry.customer?.cus_phone_no?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      entry.customer?.cus_phone_no2?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      entry.customer?.cus_reference?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const displayAmts = getLedgerEntryDisplayAmounts(entry);
+    const searchLower = searchTerm.trim().toLowerCase();
+    const searchNum = parseFloat(searchTerm.trim());
+
+    const matchesSearch = !searchTerm ||
+      entry.customer?.cus_name?.toLowerCase().includes(searchLower) ||
+      entry.details?.toLowerCase().includes(searchLower) ||
+      entry.bill_no?.toLowerCase().includes(searchLower) ||
+      entry.customer?.cus_phone_no?.toLowerCase().includes(searchLower) ||
+      entry.customer?.cus_phone_no2?.toLowerCase().includes(searchLower) ||
+      entry.customer?.cus_reference?.toLowerCase().includes(searchLower) ||
       entry.cus_id?.toString().includes(searchTerm) ||
-      entry.customer?.cus_id?.toString().includes(searchTerm);
+      entry.customer?.cus_id?.toString().includes(searchTerm) ||
+      entry.debit_amount?.toString().includes(searchTerm) ||
+      entry.credit_amount?.toString().includes(searchTerm) ||
+      displayAmts.debit.toString().includes(searchTerm) ||
+      displayAmts.credit.toString().includes(searchTerm) ||
+      (!isNaN(searchNum) && (
+        Math.abs(parseFloat(entry.debit_amount || 0) - searchNum) < 0.01 ||
+        Math.abs(parseFloat(entry.credit_amount || 0) - searchNum) < 0.01 ||
+        Math.abs(displayAmts.debit - searchNum) < 0.01 ||
+        Math.abs(displayAmts.credit - searchNum) < 0.01
+      ));
+
+    // Dedicated Search by Amount filter (either debit or credit match)
+    let matchesAmount = true;
+    if (filterAmount && filterAmount.trim() !== '') {
+      const targetStr = filterAmount.trim();
+      const targetNum = parseFloat(targetStr);
+      const debitRaw = entry.debit_amount ? parseFloat(entry.debit_amount) : 0;
+      const creditRaw = entry.credit_amount ? parseFloat(entry.credit_amount) : 0;
+      const debitDisp = displayAmts.debit || 0;
+      const creditDisp = displayAmts.credit || 0;
+
+      const numMatch = !isNaN(targetNum) && (
+        Math.abs(debitRaw - targetNum) < 0.01 ||
+        Math.abs(creditRaw - targetNum) < 0.01 ||
+        Math.abs(debitDisp - targetNum) < 0.01 ||
+        Math.abs(creditDisp - targetNum) < 0.01
+      );
+
+      const strMatch =
+        entry.debit_amount?.toString().includes(targetStr) ||
+        entry.credit_amount?.toString().includes(targetStr) ||
+        debitDisp.toString().includes(targetStr) ||
+        creditDisp.toString().includes(targetStr);
+
+      matchesAmount = numMatch || strMatch;
+    }
 
     // Cascading filter logic for ledger entries
     const matchesCustomer = !selectedCustomer || entry.cus_id == selectedCustomer;
@@ -1027,7 +1069,7 @@ export default function FinancePage() {
       if (endDate) matchesDate = matchesDate && entryDateStr <= endDate;
     }
 
-    return matchesSearch && matchesCustomer && matchesCategory && matchesSubCategory && matchesLedgerType && matchesDate;
+    return matchesSearch && matchesCustomer && matchesCategory && matchesSubCategory && matchesLedgerType && matchesDate && matchesAmount;
   });
 
   // Customer filtering logic
@@ -1966,6 +2008,7 @@ export default function FinancePage() {
 
   const clearFilters = () => {
     setSearchTerm('');
+    setFilterAmount('');
     setSelectedCustomer('');
     setSelectedCategory('');
     setSelectedSubCategory('');
@@ -2600,12 +2643,36 @@ export default function FinancePage() {
                   </FormControl>
                 </Box>
 
+                {/* Search by Amount */}
+                <Box>
+                  <TextField
+                    fullWidth
+                    label="Search by Amount"
+                    placeholder="Debit or credit amount..."
+                    value={filterAmount}
+                    onChange={(e) => setFilterAmount(e.target.value)}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <DollarSign size={18} color="#94a3b8" />
+                        </InputAdornment>
+                      ),
+                    }}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: 1.5,
+                        bgcolor: 'white',
+                      }
+                    }}
+                  />
+                </Box>
+
                 {/* Search - SEVENTH */}
                 <Box>
                   <TextField
                     fullWidth
                     label="Search"
-                    placeholder="Search by name, phone, reference..."
+                    placeholder="Search by name, phone, ref, amount..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     InputProps={{
