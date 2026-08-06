@@ -4349,7 +4349,7 @@ export default function FinancePage() {
               />
             </Box>
 
-            <Box>
+            <Box sx={{ width: '50%' }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
                 Discount
               </Typography>
@@ -4587,7 +4587,7 @@ export default function FinancePage() {
               />
             </Box>
 
-            <Box>
+            <Box sx={{ width: '50%' }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
                 Discount
               </Typography>
@@ -4733,15 +4733,15 @@ export default function FinancePage() {
                   </Box>
                 )}
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1, borderBottom: '1px solid #ddd', bgcolor: '#f1f5f9' }}>
-                  <Typography variant="body2" sx={{ fontWeight: 700 }}>Total Paid</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: '#0f172a' }}>Total Paid</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: '#0f172a' }}>
                     {fmtAmt(paymentReceiptData.totalAmount)}
                   </Typography>
                 </Box>
                 {/* Remaining Balance */}
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1.5, bgcolor: '#1e293b' }}>
-                  <Typography variant="body2" sx={{ fontWeight: 700, color: 'white' }}>Remaining Balance (کل بقایا)</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700, color: paymentReceiptData.remainingBalance == null ? '#e2e8f0' : (paymentReceiptData.remainingBalance > 0 ? '#fbbf24' : '#4ade80') }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: '#ffffff' }}>Remaining Balance (کل بقایا)</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: paymentReceiptData.remainingBalance == null ? '#ffffff' : (paymentReceiptData.remainingBalance > 0 ? '#facc15' : '#4ade80') }}>
                     {paymentReceiptData.remainingBalance == null ? '—' : `PKR ${fmtAmt(paymentReceiptData.remainingBalance)}`}
                   </Typography>
                 </Box>
@@ -5179,9 +5179,9 @@ export default function FinancePage() {
                               {fmtAmt(parseFloat(viewingPurchase.payment || 0))}
                             </TableCell>
                           </TableRow>
-                          <TableRow sx={{ bgcolor: '#d0d0d0' }}>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>بقايا رقم</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                          <TableRow sx={{ bgcolor: '#1e293b' }}>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #475569', fontSize: '0.875rem', color: '#ffffff' }}>بقايا رقم</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #475569', fontSize: '0.875rem', color: '#facc15' }}>
                               {fmtAmt(getInvoiceRemainingDue(viewingPurchase))}
                             </TableCell>
                           </TableRow>
@@ -5464,9 +5464,9 @@ export default function FinancePage() {
                               {fmtAmt((parseFloat(0 || 0) + parseFloat(0 || 0)) || 0)}
                             </TableCell>
                           </TableRow>
-                          <TableRow sx={{ bgcolor: '#d0d0d0' }}>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>بقايا رقم</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                          <TableRow sx={{ bgcolor: '#1e293b' }}>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #475569', fontSize: '0.875rem', color: '#ffffff' }}>بقايا رقم</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #475569', fontSize: '0.875rem', color: '#facc15' }}>
                               {fmtAmt(parseFloat(viewingPurchaseReturn.total_return_amount || 0) - (parseFloat(0 || 0) + parseFloat(0 || 0)))}
                             </TableCell>
                           </TableRow>
@@ -5780,9 +5780,9 @@ export default function FinancePage() {
                               {fmtAmt((parseFloat(viewingSaleReturn.cash_refund || 0) + parseFloat(viewingSaleReturn.bank_refund || 0)) || 0)}
                             </TableCell>
                           </TableRow>
-                          <TableRow sx={{ bgcolor: '#d0d0d0' }}>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>بقايا رقم</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                          <TableRow sx={{ bgcolor: '#1e293b' }}>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #475569', fontSize: '0.875rem', color: '#ffffff' }}>بقايا رقم</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #475569', fontSize: '0.875rem', color: '#facc15' }}>
                               {fmtAmt(parseFloat(viewingSaleReturn.total_amount || 0) - (parseFloat(viewingSaleReturn.cash_refund || 0) + parseFloat(viewingSaleReturn.bank_refund || 0)))}
                             </TableCell>
                           </TableRow>
@@ -6090,9 +6090,9 @@ export default function FinancePage() {
                               {fmtAmt(viewingSale.payment || 0)}
                             </TableCell>
                           </TableRow>
-                          <TableRow sx={{ bgcolor: '#d0d0d0' }}>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>بقايا رقم</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
+                          <TableRow sx={{ bgcolor: '#1e293b' }}>
+                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #475569', fontSize: '0.875rem', color: '#ffffff' }}>بقايا رقم</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #475569', fontSize: '0.875rem', color: '#facc15' }}>
                               {fmtAmt(parseFloat(viewingSale.total_amount || 0) - parseFloat(viewingSale.payment || 0))}
                             </TableCell>
                           </TableRow>
