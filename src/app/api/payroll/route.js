@@ -3,16 +3,33 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-function calcPayroll({ basic_salary, total_days, days_present, allowed_leaves, advance_deduction = 0, bonus = 0, other_deduction = 0 }) {
+function calcPayroll({
+  basic_salary,
+  total_days,
+  days_present,
+  leaves_taken,
+  allowed_leaves,
+  advance_deduction = 0,
+  bonus = 0,
+  other_deduction = 0
+}) {
   const salary = parseFloat(basic_salary) || 0;
   const days = parseInt(total_days) || 30;
-  const present = parseFloat(days_present) || 0;
   const allowed = parseInt(allowed_leaves) || 0;
 
-  // Unattended / absent days in month
-  const absentDays = Math.max(0, days - present);
+  let present = days;
+  let leaves = 0;
+
+  if (days_present !== undefined && days_present !== null && !isNaN(parseFloat(days_present))) {
+    present = Math.min(days, Math.max(0, parseFloat(days_present)));
+    leaves = Math.max(0, days - present);
+  } else if (leaves_taken !== undefined && leaves_taken !== null && !isNaN(parseFloat(leaves_taken))) {
+    leaves = Math.min(days, Math.max(0, parseFloat(leaves_taken)));
+    present = Math.max(0, days - leaves);
+  }
+
   // Excess unpaid absent days beyond allowed paid leaves
-  const excess = Math.max(0, absentDays - allowed);
+  const excess = Math.max(0, leaves - allowed);
   const perDay = days > 0 ? salary / days : 0;
   const leaveDeduction = excess * perDay;
 
@@ -22,8 +39,9 @@ function calcPayroll({ basic_salary, total_days, days_present, allowed_leaves, a
   const net = Math.max(0, salary - leaveDeduction - advDeduction + bonusAmt - othDeduction);
 
   return {
-    leaves_taken: Math.round(absentDays),
-    excess_leaves: Math.round(excess),
+    days_present: present,
+    leaves_taken: Math.round(leaves * 10) / 10,
+    excess_leaves: Math.round(excess * 10) / 10,
     deduction_per_day: perDay,
     total_deduction: leaveDeduction,
     advance_deduction: advDeduction,
@@ -62,9 +80,9 @@ export async function GET(request) {
       basic_salary: parseFloat(r.basic_salary || 0),
       total_days: r.total_days,
       days_present: parseFloat(r.days_present || 0),
-      leaves_taken: r.leaves_taken,
+      leaves_taken: parseFloat(r.leaves_taken || 0),
       allowed_leaves: r.allowed_leaves,
-      excess_leaves: r.excess_leaves,
+      excess_leaves: parseFloat(r.excess_leaves || 0),
       deduction_per_day: parseFloat(r.deduction_per_day || 0),
       total_deduction: parseFloat(r.total_deduction || 0),
       advance_deduction: parseFloat(r.advance_deduction || 0),
@@ -112,7 +130,10 @@ export async function POST(request) {
         const att = await prisma.attendance.findMany({
           where: {
             emp_id: emp.emp_id,
-            att_date: { gte: new Date(year, month - 1, 1), lt: new Date(year, month, 1) },
+            att_date: {
+              gte: new Date(Date.UTC(year, month - 1, 1)),
+              lt: new Date(Date.UTC(year, month, 1)),
+            },
           },
         });
 
@@ -124,9 +145,15 @@ export async function POST(request) {
 
         const totalPendingAdvance = pendingAdvances.reduce((sum, a) => sum + parseFloat(a.amount || 0), 0);
 
-        const presentCount = att.filter((a) => a.status === 'PRESENT').length;
-        const halfDayCount = att.filter((a) => a.status === 'HALF_DAY').length;
-        const days_present = presentCount + halfDayCount * 0.5;
+        let days_present = daysInMonth;
+        let leaves_taken = 0;
+
+        if (att.length > 0) {
+          const absentCount = att.filter((a) => a.status === 'ABSENT' || a.status === 'LEAVE').length;
+          const halfDayCount = att.filter((a) => a.status === 'HALF_DAY').length;
+          leaves_taken = absentCount + halfDayCount * 0.5;
+          days_present = Math.max(0, daysInMonth - leaves_taken);
+        }
 
         const derived = calcPayroll({
           basic_salary: emp.basic_salary,
@@ -144,7 +171,7 @@ export async function POST(request) {
             bonus, other_deduction, net_salary, status, created_at, updated_at
           ) VALUES (
             ${emp.emp_id}, ${parseInt(month)}, ${parseInt(year)}, ${parseFloat(emp.basic_salary || 0)},
-            ${daysInMonth}, ${days_present}, ${derived.leaves_taken}, ${allowedPerMonth},
+            ${daysInMonth}, ${derived.days_present}, ${derived.leaves_taken}, ${allowedPerMonth},
             ${derived.excess_leaves}, ${derived.deduction_per_day}, ${derived.total_deduction}, ${derived.advance_deduction},
             0.00, 0.00, ${derived.net_salary}, 'PENDING', NOW(), NOW()
           ) ON DUPLICATE KEY UPDATE
@@ -170,7 +197,7 @@ export async function POST(request) {
     const { emp_id, month, year, basic_salary, total_days, days_present, leaves_taken, allowed_leaves, advance_deduction, bonus, other_deduction, notes } = body;
     if (!emp_id || !month || !year) return NextResponse.json({ error: 'emp_id, month, year required' }, { status: 400 });
 
-    const derived = calcPayroll({ basic_salary, total_days, leaves_taken, allowed_leaves, advance_deduction, bonus, other_deduction });
+    const derived = calcPayroll({ basic_salary, total_days, days_present, leaves_taken, allowed_leaves, advance_deduction, bonus, other_deduction });
     const notesText = notes ? notes.replace(/'/g, "''") : '';
 
     await prisma.$executeRawUnsafe(`
@@ -180,7 +207,7 @@ export async function POST(request) {
         bonus, other_deduction, net_salary, status, notes, created_at, updated_at
       ) VALUES (
         ${parseInt(emp_id)}, ${parseInt(month)}, ${parseInt(year)}, ${parseFloat(basic_salary) || 0},
-        ${parseInt(total_days) || 30}, ${parseFloat(days_present) || 0}, ${parseInt(leaves_taken) || 0}, ${parseInt(allowed_leaves) || 0},
+        ${parseInt(total_days) || 30}, ${derived.days_present}, ${derived.leaves_taken}, ${parseInt(allowed_leaves) || 0},
         ${derived.excess_leaves}, ${derived.deduction_per_day}, ${derived.total_deduction}, ${derived.advance_deduction},
         ${derived.bonus}, ${derived.other_deduction}, ${derived.net_salary}, 'PENDING', '${notesText}', NOW(), NOW()
       )
@@ -199,7 +226,7 @@ export async function PUT(request) {
     const { payroll_id, basic_salary, total_days, days_present, leaves_taken, allowed_leaves, advance_deduction, bonus, other_deduction, status, payment_date, notes } = body;
     if (!payroll_id) return NextResponse.json({ error: 'payroll_id required' }, { status: 400 });
 
-    const derived = calcPayroll({ basic_salary, total_days, leaves_taken, allowed_leaves, advance_deduction, bonus, other_deduction });
+    const derived = calcPayroll({ basic_salary, total_days, days_present, leaves_taken, allowed_leaves, advance_deduction, bonus, other_deduction });
     const notesText = notes ? notes.replace(/'/g, "''") : '';
     const payDate = payment_date ? `'${payment_date}'` : 'NULL';
 
@@ -207,8 +234,8 @@ export async function PUT(request) {
       UPDATE payrolls
       SET basic_salary = ${parseFloat(basic_salary) || 0},
           total_days = ${parseInt(total_days) || 30},
-          days_present = ${parseFloat(days_present) || 0},
-          leaves_taken = ${parseInt(leaves_taken) || 0},
+          days_present = ${derived.days_present},
+          leaves_taken = ${derived.leaves_taken},
           allowed_leaves = ${parseInt(allowed_leaves) || 0},
           excess_leaves = ${derived.excess_leaves},
           deduction_per_day = ${derived.deduction_per_day},
