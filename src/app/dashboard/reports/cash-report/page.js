@@ -1,7 +1,22 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Download, Printer, Search, Banknote, TrendingUp, TrendingDown } from 'lucide-react';
+import {
+  ArrowLeft,
+  Download,
+  Printer,
+  Search,
+  Banknote,
+  TrendingUp,
+  TrendingDown,
+  Calendar,
+  ArrowUpDown,
+  Filter,
+  PlusCircle,
+  MinusCircle,
+  FileText,
+  DollarSign
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
 
@@ -44,6 +59,9 @@ export default function CashReport() {
   const today = new Date().toISOString().split('T')[0];
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortOrder, setSortOrder] = useState('desc'); // 'desc' (newest first) or 'asc' (oldest first)
+  const [typeFilter, setTypeFilter] = useState('ALL'); // 'ALL', 'DEBIT', 'CREDIT'
 
   // Auto-fetch report when dates are set
   useEffect(() => {
@@ -53,7 +71,7 @@ export default function CashReport() {
   }, [startDate, endDate]);
 
   const fetchReport = async () => {
-    if (!startDate || !endDate) { return; }
+    if (!startDate || !endDate) return;
     try {
       setLoading(true);
       const response = await fetch(`/api/reports?type=cash-report&startDate=${startDate}&endDate=${endDate}`);
@@ -90,7 +108,7 @@ export default function CashReport() {
         setReportData(filteredData);
       }
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error fetching cash report:', error);
     } finally {
       setLoading(false);
     }
@@ -108,14 +126,40 @@ export default function CashReport() {
     return new Date(dateStr).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
+  const setDatePreset = (preset) => {
+    const now = new Date();
+    if (preset === 'today') {
+      const d = now.toISOString().split('T')[0];
+      setStartDate(d);
+      setEndDate(d);
+    } else if (preset === 'yesterday') {
+      const y = new Date(now);
+      y.setDate(y.getDate() - 1);
+      const d = y.toISOString().split('T')[0];
+      setStartDate(d);
+      setEndDate(d);
+    } else if (preset === 'thisWeek') {
+      const day = now.getDay();
+      const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+      const monday = new Date(now.setDate(diff)).toISOString().split('T')[0];
+      setStartDate(monday);
+      setEndDate(today);
+    } else if (preset === 'thisMonth') {
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      setStartDate(firstDay);
+      setEndDate(today);
+    }
+  };
+
   const handleExport = () => {
     if (!reportData) return;
-    let csv = 'CASH BOOK\n';
+    let csv = 'CASH BOOK REPORT\n';
     csv += `Period: ${formatDate(startDate)} to ${formatDate(endDate)}\n\n`;
-    csv += 'S.No,Date,Voucher Type,Account,Description,Debit (Dr),Credit (Cr),Balance\n';
+    csv += 'S.No,Date,Type,Account Title,Description,Bill No,Debit (Cash In),Credit (Cash Out),Running Balance\n';
     (reportData.ledgerEntries || []).forEach((entry, i) => {
       const displayAmts = getLedgerEntryDisplayAmounts(entry);
-      csv += `${i + 1},${formatDate(entry.created_at)},Cash,${entry.customer?.cus_name || '-'},${entry.details || '-'},${formatCurrency(displayAmts.debit)},${formatCurrency(displayAmts.credit)},${formatCurrency(entry.closing_balance)}\n`;
+      const isDebit = displayAmts.debit > 0;
+      csv += `${i + 1},${formatDate(entry.created_at)},${isDebit ? 'Cash In' : 'Cash Out'},"${entry.customer?.cus_name || '-'}","${entry.details || '-'}","${entry.bill_no || '-'}","${formatCurrency(displayAmts.debit)}","${formatCurrency(displayAmts.credit)}","${formatCurrency(entry.closing_balance)}"\n`;
     });
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -135,246 +179,488 @@ export default function CashReport() {
         ? parseFloat(reportData.ledgerEntries[reportData.ledgerEntries.length - 1].closing_balance || 0)
         : openingBalance);
 
-  // Screen entries display order (newest first / descending)
-  const screenEntries = reportData?.ledgerEntries
-    ? [...reportData.ledgerEntries].reverse()
-    : [];
+  const totalDebit = parseFloat(reportData?.summary?.totalLedgerDebit || 0);
+  const totalCredit = parseFloat(reportData?.summary?.totalLedgerCredit || 0);
+  const netCashFlow = totalDebit - totalCredit;
+
+  // Screen entries ordering & filtering
+  const allEntries = reportData?.ledgerEntries || [];
+
+  const filteredEntries = allEntries.filter((entry) => {
+    const displayAmts = getLedgerEntryDisplayAmounts(entry);
+    const matchesSearch =
+      !searchQuery ||
+      (entry.customer?.cus_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (entry.details || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (entry.bill_no || '').toString().toLowerCase().includes(searchQuery.toLowerCase());
+
+    const isDebit = displayAmts.debit > 0;
+    const matchesType =
+      typeFilter === 'ALL' ||
+      (typeFilter === 'DEBIT' && isDebit) ||
+      (typeFilter === 'CREDIT' && !isDebit);
+
+    return matchesSearch && matchesType;
+  });
+
+  const displayedEntries = sortOrder === 'desc' ? [...filteredEntries].reverse() : filteredEntries;
 
   return (
     <DashboardLayout>
-      <div className="h-full flex flex-col bg-white print:bg-white overflow-hidden">
+      <div className="h-full flex flex-col bg-slate-100 print:bg-white overflow-hidden">
         {/* Screen Header */}
-        <div className="flex-shrink-0 bg-gradient-to-r from-emerald-700 to-emerald-900 text-white px-6 py-4 print:hidden">
-          <div className="flex items-center justify-between">
+        <div className="flex-shrink-0 bg-gradient-to-r from-emerald-800 via-emerald-700 to-teal-800 text-white px-6 py-4 shadow-md print:hidden">
+          <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center space-x-4">
-              <button onClick={() => router.push('/dashboard/reports')} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
-                <ArrowLeft className="w-5 h-5" />
+              <button
+                onClick={() => router.push('/dashboard/reports')}
+                className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl transition-all duration-200 border border-white/10"
+              >
+                <ArrowLeft className="w-5 h-5 text-white" />
               </button>
               <div className="flex items-center space-x-3">
-                <div className="p-2 bg-white/10 rounded-lg">
-                  <Banknote className="w-6 h-6" />
+                <div className="p-3 bg-white/15 rounded-2xl backdrop-blur-md border border-white/10 shadow-inner">
+                  <Banknote className="w-6 h-6 text-emerald-200" />
                 </div>
                 <div>
-                  <h1 className="text-xl font-bold tracking-wide">Cash Book</h1>
-                  <p className="text-emerald-200 text-sm">Cash receipts and payments ledger</p>
+                  <h1 className="text-2xl font-extrabold tracking-tight">Cash Book Report</h1>
+                  <p className="text-emerald-100/80 text-xs font-medium mt-0.5">Comprehensive cash inflows, outflows and running ledger</p>
                 </div>
               </div>
             </div>
             {reportData && (
               <div className="flex items-center space-x-2">
-                <button onClick={handleExport} className="flex items-center px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-colors">
+                <button
+                  onClick={handleExport}
+                  className="flex items-center px-4 py-2.5 bg-emerald-600/80 hover:bg-emerald-600 rounded-xl text-xs font-semibold tracking-wide transition-all shadow-sm border border-emerald-400/30"
+                >
                   <Download className="w-4 h-4 mr-2" /> Export CSV
                 </button>
-                <button onClick={handlePrint} className="flex items-center px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors">
-                  <Printer className="w-4 h-4 mr-2" /> Print
+                <button
+                  onClick={handlePrint}
+                  className="flex items-center px-4 py-2.5 bg-white/15 hover:bg-white/25 rounded-xl text-xs font-semibold tracking-wide transition-all shadow-sm border border-white/20"
+                >
+                  <Printer className="w-4 h-4 mr-2" /> Print Cash Book
                 </button>
               </div>
             )}
           </div>
         </div>
 
-        {/* Filters Bar (Only Date Range & Generate Button) */}
-        <div className="flex-shrink-0 bg-slate-50 border-b border-slate-200 px-6 py-3 print:hidden">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="flex-1 min-w-[160px] max-w-[220px]">
-              <label className="block text-xs font-semibold text-slate-600 mb-1">FROM DATE</label>
-              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" />
+        {/* Filters & Control Toolbar */}
+        <div className="flex-shrink-0 bg-white border-b border-slate-200 px-6 py-3.5 shadow-sm print:hidden">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            {/* Left: Date Selector & Quick Presets */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center bg-slate-50 border border-slate-300 rounded-xl p-1.5 shadow-inner">
+                <div className="flex items-center px-2">
+                  <Calendar className="w-4 h-4 text-slate-400 mr-2" />
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Dates:</span>
+                </div>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+                <span className="text-slate-400 text-xs px-1.5 font-medium">to</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              {/* Quick Presets */}
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                <button
+                  onClick={() => setDatePreset('today')}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${startDate === today && endDate === today ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200'}`}
+                >
+                  Today
+                </button>
+                <button
+                  onClick={() => setDatePreset('yesterday')}
+                  className="px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-lg transition-all"
+                >
+                  Yesterday
+                </button>
+                <button
+                  onClick={() => setDatePreset('thisWeek')}
+                  className="px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-lg transition-all"
+                >
+                  This Week
+                </button>
+                <button
+                  onClick={() => setDatePreset('thisMonth')}
+                  className="px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-lg transition-all"
+                >
+                  This Month
+                </button>
+              </div>
+
+              <button
+                onClick={fetchReport}
+                disabled={loading}
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-2"
+              >
+                {loading ? 'Fetching...' : 'Generate Report'}
+              </button>
             </div>
-            <div className="flex-1 min-w-[160px] max-w-[220px]">
-              <label className="block text-xs font-semibold text-slate-600 mb-1">TO DATE</label>
-              <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" />
-            </div>
-            <button onClick={fetchReport} disabled={loading}
-              className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white rounded-lg text-sm font-semibold transition-colors min-w-[150px]">
-              {loading ? 'Generating...' : 'Generate Report'}
-            </button>
+
+            {/* Right: Search & View Options */}
+            {reportData && (
+              <div className="flex items-center gap-2.5">
+                {/* Type Filter */}
+                <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+                  <button
+                    onClick={() => setTypeFilter('ALL')}
+                    className={`px-3 py-1 font-semibold rounded-lg transition-all ${typeFilter === 'ALL' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    All
+                  </button>
+                  <button
+                    onClick={() => setTypeFilter('DEBIT')}
+                    className={`px-3 py-1 font-semibold rounded-lg transition-all ${typeFilter === 'DEBIT' ? 'bg-emerald-600 text-white shadow-xs' : 'text-emerald-700 hover:bg-emerald-50'}`}
+                  >
+                    Cash In
+                  </button>
+                  <button
+                    onClick={() => setTypeFilter('CREDIT')}
+                    className={`px-3 py-1 font-semibold rounded-lg transition-all ${typeFilter === 'CREDIT' ? 'bg-rose-600 text-white shadow-xs' : 'text-rose-700 hover:bg-rose-50'}`}
+                  >
+                    Cash Out
+                  </button>
+                </div>
+
+                {/* Sort Order Toggle */}
+                <button
+                  onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+                  title={`Click to sort ${sortOrder === 'desc' ? 'Oldest First' : 'Newest First'}`}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 transition-all"
+                >
+                  <ArrowUpDown className="w-3.5 h-3.5 text-slate-500" />
+                  <span>{sortOrder === 'desc' ? 'Newest First' : 'Oldest First'}</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Report Content */}
+        {/* Report Body */}
         {reportData ? (
-          <div className="flex-1 overflow-auto p-4 print:p-0 print:overflow-visible">
-            <div className="max-w-[1200px] mx-auto">
-              {/* Print Header */}
-              <div className="hidden print:block border-b-2 border-black pb-4 mb-4">
+          <div className="flex-1 overflow-auto p-5 print:p-0 print:overflow-visible">
+            <div className="max-w-[1400px] mx-auto space-y-4">
+
+              {/* Print Only Header */}
+              <div className="hidden print:block border-b-2 border-slate-900 pb-4 mb-4">
                 <div className="text-center">
-                  <h1 className="text-2xl font-bold tracking-wider">ITTEFAQ IRON STORE</h1>
-                  <p className="text-sm text-gray-600">Parianwali, Pakistan | Tel: +92 346 7560306</p>
-                  <div className="mt-3 py-2 bg-black text-white">
-                    <h2 className="text-lg font-bold tracking-widest">CASH BOOK</h2>
+                  <h1 className="text-2xl font-black tracking-wider text-slate-900 uppercase">ITTEFAQ IRON STORE</h1>
+                  <p className="text-xs text-slate-600 font-medium">Parianwali, Pakistan | Tel: +92 346 7560306</p>
+                  <div className="mt-2 py-1.5 bg-slate-900 text-white">
+                    <h2 className="text-sm font-bold tracking-widest uppercase">CASH BOOK REPORT</h2>
                   </div>
-                  <p className="mt-2 text-sm">
-                    <span className="font-semibold">Period:</span> {formatDate(startDate)} to {formatDate(endDate)}
+                  <p className="mt-2 text-xs font-semibold text-slate-700">
+                    <span>Period:</span> {formatDate(startDate)} to {formatDate(endDate)}
                   </p>
                 </div>
               </div>
 
-              {/* Summary Cards - Screen (4 Cards Grid) */}
-              {(() => {
-                const totalDebit = parseFloat(reportData.summary.totalLedgerDebit || 0);
-                const totalCredit = parseFloat(reportData.summary.totalLedgerCredit || 0);
-                return (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-4 print:hidden">
-                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl p-4">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Opening Balance (b/f)</p>
-                        <Banknote className="w-4 h-4 text-blue-500" />
-                      </div>
-                      <p className={`text-2xl font-bold ${openingBalance >= 0 ? 'text-blue-800' : 'text-red-700'} mt-1`}>Rs. {formatCurrency(openingBalance)}</p>
-                      <p className="text-xs text-blue-600/70 mt-0.5">Starting Balance</p>
-                    </div>
-                    <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-xl p-4">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs font-semibold text-green-600 uppercase tracking-wide">Total Debit (Cash In)</p>
-                        <TrendingUp className="w-4 h-4 text-green-500" />
-                      </div>
-                      <p className="text-2xl font-bold text-green-800 mt-1">Rs. {formatCurrency(totalDebit)}</p>
-                      <p className="text-xs text-green-600/70 mt-0.5">Cash Receipts</p>
-                    </div>
-                    <div className="bg-gradient-to-br from-red-50 to-red-100 border border-red-200 rounded-xl p-4">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs font-semibold text-red-600 uppercase tracking-wide">Total Credit (Cash Out)</p>
-                        <TrendingDown className="w-4 h-4 text-red-500" />
-                      </div>
-                      <p className="text-2xl font-bold text-red-800 mt-1">Rs. {formatCurrency(totalCredit)}</p>
-                      <p className="text-xs text-red-600/70 mt-0.5">Cash Payments</p>
-                    </div>
-                    <div className={`bg-gradient-to-br ${closingBalance >= 0 ? 'from-emerald-50 to-emerald-100 border-emerald-200' : 'from-orange-50 to-orange-100 border-orange-200'} border rounded-xl p-4`}>
-                      <div className="flex items-center justify-between">
-                        <p className={`text-xs font-semibold ${closingBalance >= 0 ? 'text-emerald-600' : 'text-orange-600'} uppercase tracking-wide`}>Closing Balance</p>
-                        <Banknote className="w-4 h-4 text-emerald-500" />
-                      </div>
-                      <p className={`text-2xl font-bold ${closingBalance >= 0 ? 'text-emerald-800' : 'text-orange-800'} mt-1`}>Rs. {formatCurrency(closingBalance)}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">Opening + Debit − Credit</p>
+              {/* 5 Stats Summary Cards (Screen View) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 print:hidden">
+                {/* 1. Opening Balance */}
+                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-2xl p-4 shadow-sm border border-blue-400/20 relative overflow-hidden">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-blue-100">Opening Balance (b/f)</p>
+                    <div className="p-1.5 bg-white/20 rounded-lg">
+                      <Banknote className="w-4 h-4 text-white" />
                     </div>
                   </div>
-                );
-              })()}
+                  <p className="text-2xl font-black tracking-tight mt-2">Rs. {formatCurrency(openingBalance)}</p>
+                  <p className="text-[11px] text-blue-100/80 mt-1 font-medium">Starting Balance</p>
+                </div>
 
-              {/* Print Summary */}
-              <div className="hidden print:block mb-4 border border-black">
-                <table className="w-full text-sm">
+                {/* 2. Total Cash Receipts */}
+                <div className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-2xl p-4 shadow-sm border border-emerald-400/20 relative overflow-hidden">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-100">Total Cash In (Debit)</p>
+                    <div className="p-1.5 bg-white/20 rounded-lg">
+                      <TrendingUp className="w-4 h-4 text-white" />
+                    </div>
+                  </div>
+                  <p className="text-2xl font-black tracking-tight mt-2">Rs. {formatCurrency(totalDebit)}</p>
+                  <p className="text-[11px] text-emerald-100/80 mt-1 font-medium">Receipts & Inflows</p>
+                </div>
+
+                {/* 3. Total Cash Payments */}
+                <div className="bg-gradient-to-br from-rose-500 to-red-600 text-white rounded-2xl p-4 shadow-sm border border-rose-400/20 relative overflow-hidden">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-rose-100">Total Cash Out (Credit)</p>
+                    <div className="p-1.5 bg-white/20 rounded-lg">
+                      <TrendingDown className="w-4 h-4 text-white" />
+                    </div>
+                  </div>
+                  <p className="text-2xl font-black tracking-tight mt-2">Rs. {formatCurrency(totalCredit)}</p>
+                  <p className="text-[11px] text-rose-100/80 mt-1 font-medium">Payments & Outflows</p>
+                </div>
+
+                {/* 4. Net Cash Flow */}
+                <div className="bg-gradient-to-br from-purple-600 to-indigo-700 text-white rounded-2xl p-4 shadow-sm border border-purple-400/20 relative overflow-hidden">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-purple-100">Net Cash Flow</p>
+                    <div className="p-1.5 bg-white/20 rounded-lg">
+                      <DollarSign className="w-4 h-4 text-white" />
+                    </div>
+                  </div>
+                  <p className="text-2xl font-black tracking-tight mt-2">
+                    {netCashFlow >= 0 ? '+' : ''}Rs. {formatCurrency(netCashFlow)}
+                  </p>
+                  <p className="text-[11px] text-purple-100/80 mt-1 font-medium">Receipts − Payments</p>
+                </div>
+
+                {/* 5. Closing Balance */}
+                <div className={`bg-gradient-to-br ${closingBalance >= 0 ? 'from-slate-800 to-slate-900' : 'from-amber-600 to-red-700'} text-white rounded-2xl p-4 shadow-sm relative overflow-hidden`}>
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-300">Closing Balance</p>
+                    <div className="p-1.5 bg-white/20 rounded-lg">
+                      <Banknote className="w-4 h-4 text-white" />
+                    </div>
+                  </div>
+                  <p className="text-2xl font-black tracking-tight mt-2">Rs. {formatCurrency(closingBalance)}</p>
+                  <p className="text-[11px] text-slate-300/80 mt-1 font-medium">Net Running Balance</p>
+                </div>
+              </div>
+
+              {/* Print Summary Table */}
+              <div className="hidden print:block mb-4 border border-slate-900">
+                <table className="w-full text-xs">
                   <tbody>
-                    <tr className="border-b border-black">
-                      <td className="p-2 font-semibold border-r border-black w-1/4">Opening Balance (b/f):</td>
-                      <td className="p-2 text-right border-r border-black w-1/4 font-bold">{formatCurrency(openingBalance)}</td>
-                      <td className="p-2 font-semibold border-r border-black w-1/4">Total Debit (Cash In):</td>
-                      <td className="p-2 text-right w-1/4 font-bold">{formatCurrency(reportData.summary.totalLedgerDebit)}</td>
+                    <tr className="border-b border-slate-900">
+                      <td className="p-2 font-bold border-r border-slate-900 bg-slate-100 w-1/4">Opening Balance (b/f):</td>
+                      <td className="p-2 text-right border-r border-slate-900 w-1/4 font-black">{formatCurrency(openingBalance)}</td>
+                      <td className="p-2 font-bold border-r border-slate-900 bg-slate-100 w-1/4">Total Cash In (Debit):</td>
+                      <td className="p-2 text-right w-1/4 font-black text-emerald-800">{formatCurrency(totalDebit)}</td>
                     </tr>
                     <tr>
-                      <td className="p-2 font-semibold border-r border-black">Closing Balance:</td>
-                      <td className="p-2 text-right border-r border-black font-bold">{formatCurrency(closingBalance)}</td>
-                      <td className="p-2 font-semibold border-r border-black">Total Credit (Cash Out):</td>
-                      <td className="p-2 text-right font-bold">{formatCurrency(reportData.summary.totalLedgerCredit)}</td>
+                      <td className="p-2 font-bold border-r border-slate-900 bg-slate-100">Closing Balance:</td>
+                      <td className="p-2 text-right border-r border-slate-900 font-black">{formatCurrency(closingBalance)}</td>
+                      <td className="p-2 font-bold border-r border-slate-900 bg-slate-100">Total Cash Out (Credit):</td>
+                      <td className="p-2 text-right font-black text-rose-800">{formatCurrency(totalCredit)}</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
 
-              {/* SCREEN LEDGER TABLE */}
-              <div className="bg-white border border-slate-300 rounded-lg overflow-hidden print:hidden">
-                <div className="bg-slate-100 px-4 py-2 border-b border-slate-300 flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Cash Ledger Transactions</h3>
-                </div>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-slate-800 text-white">
-                      <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 w-12">S.No</th>
-                      <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600 w-24">Date</th>
-                      <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600">Account Title</th>
-                      <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600">Description</th>
-                      <th className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider border-r border-slate-600">Bill</th>
-                      <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 w-28">Debit (Dr)</th>
-                      <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider border-r border-slate-600 w-28">Credit (Cr)</th>
-                      <th className="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider w-28">Balance</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {screenEntries.map((entry, index) => {
-                      const displayAmts = getLedgerEntryDisplayAmounts(entry);
-                      const balance = parseFloat(entry.closing_balance || 0);
-                      const sno = reportData.ledgerEntries.length - index;
-                      return (
-                        <tr key={entry.l_id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} ledger-row-hover cursor-pointer`}>
-                          <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200">{sno}</td>
-                          <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200 whitespace-nowrap">{formatDate(entry.created_at)}</td>
-                          <td className="px-3 py-2.5 text-slate-900 font-medium border-r border-slate-200">{entry.customer?.cus_name || '-'}</td>
-                          <td className="px-3 py-2.5 text-slate-600 border-r border-slate-200">{entry.details || '-'}</td>
-                          <td className="px-3 py-2.5 text-slate-900 border-r border-slate-200">
-                            {entry.bill_no ? `Bill: ${entry.bill_no}` : '-'}
-                          </td>
-                          <td className="px-3 py-2.5 text-right border-r border-slate-200 tabular-nums">
-                            {displayAmts.debit > 0 ? <span className="text-green-600">{formatCurrency(displayAmts.debit)}</span> : '-'}
-                          </td>
-                          <td className="px-3 py-2.5 text-right border-r border-slate-200 tabular-nums">
-                            {displayAmts.credit > 0 ? <span className="text-red-600">{formatCurrency(displayAmts.credit)}</span> : '-'}
-                          </td>
-                          <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${balance >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatCurrency(balance)}</td>
-                        </tr>
-                      );
-                    })}
+              {/* SCREEN CASH LEDGER LIST TABLE */}
+              <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden print:hidden">
+                {/* Table Header Bar with Search & Counter */}
+                <div className="bg-slate-50 px-5 py-3.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center space-x-2">
+                    <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wide flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-emerald-600" />
+                      Cash Transactions List
+                    </h2>
+                    <span className="bg-emerald-100 text-emerald-800 text-xs px-2.5 py-0.5 rounded-full font-bold">
+                      {displayedEntries.length} {displayedEntries.length === 1 ? 'entry' : 'entries'}
+                    </span>
+                  </div>
 
-                    {/* Opening Balance Row at bottom for Descending view */}
-                    {reportData.ledgerEntries && (
-                      <tr className="bg-slate-100 font-semibold">
-                        <td className="px-3 py-2.5 text-slate-500 border-r border-slate-200 text-xs">—</td>
-                        <td className="px-3 py-2.5 text-slate-700 border-r border-slate-200 whitespace-nowrap text-xs">{formatDate(startDate)}</td>
-                        <td className="px-3 py-2.5 text-slate-700 border-r border-slate-200" colSpan={3}>
-                          <span className="text-xs font-bold uppercase tracking-wide text-slate-600">Balance b/f (Opening Balance)</span>
+                  {/* Table Search Input */}
+                  <div className="relative w-full sm:w-72">
+                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Search title, details, bill #..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Table Grid */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-900 text-slate-100 border-b border-slate-800 font-bold uppercase tracking-wider text-[11px]">
+                        <th className="px-4 py-3.5 w-14 text-center border-r border-slate-800">#</th>
+                        <th className="px-4 py-3.5 w-28 border-r border-slate-800">Date</th>
+                        <th className="px-4 py-3.5 w-28 border-r border-slate-800 text-center">Type</th>
+                        <th className="px-4 py-3.5 border-r border-slate-800">Account Title</th>
+                        <th className="px-4 py-3.5 border-r border-slate-800">Description</th>
+                        <th className="px-4 py-3.5 w-28 border-r border-slate-800">Bill / Ref</th>
+                        <th className="px-4 py-3.5 w-32 text-right border-r border-slate-800 text-emerald-400">Cash In (Dr)</th>
+                        <th className="px-4 py-3.5 w-32 text-right border-r border-slate-800 text-rose-400">Cash Out (Cr)</th>
+                        <th className="px-4 py-3.5 w-36 text-right">Balance</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+
+                      {/* Opening Balance Row at Top for Ascending View */}
+                      {sortOrder === 'asc' && reportData.ledgerEntries && (
+                        <tr className="bg-blue-50/60 font-semibold border-b-2 border-blue-200">
+                          <td className="px-4 py-3 text-center text-blue-400 font-bold border-r border-blue-100">—</td>
+                          <td className="px-4 py-3 text-blue-700 whitespace-nowrap border-r border-blue-100 font-bold">{formatDate(startDate)}</td>
+                          <td className="px-4 py-3 text-center border-r border-blue-100">
+                            <span className="bg-blue-100 text-blue-800 font-extrabold px-2 py-0.5 rounded-full text-[10px] uppercase">
+                              Opening
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-blue-900 font-bold border-r border-blue-100" colSpan={3}>
+                            Opening Balance Brought Forward (b/f)
+                          </td>
+                          <td className="px-4 py-3 text-right border-r border-blue-100 text-slate-400">—</td>
+                          <td className="px-4 py-3 text-right border-r border-blue-100 text-slate-400">—</td>
+                          <td className={`px-4 py-3 text-right font-black tabular-nums text-sm ${openingBalance >= 0 ? 'text-blue-900' : 'text-rose-700'}`}>
+                            Rs. {formatCurrency(openingBalance)}
+                          </td>
+                        </tr>
+                      )}
+
+                      {/* List Entries */}
+                      {displayedEntries.map((entry, index) => {
+                        const displayAmts = getLedgerEntryDisplayAmounts(entry);
+                        const balance = parseFloat(entry.closing_balance || 0);
+                        const isDebit = displayAmts.debit > 0;
+                        const sno = sortOrder === 'desc' ? reportData.ledgerEntries.length - index : index + 1;
+
+                        return (
+                          <tr
+                            key={entry.l_id}
+                            className={`hover:bg-slate-50/80 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}`}
+                          >
+                            <td className="px-4 py-3 text-center font-medium text-slate-500 border-r border-slate-100">{sno}</td>
+                            <td className="px-4 py-3 text-slate-800 font-semibold whitespace-nowrap border-r border-slate-100">{formatDate(entry.created_at)}</td>
+                            <td className="px-4 py-3 text-center border-r border-slate-100">
+                              {isDebit ? (
+                                <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide">
+                                  <PlusCircle className="w-3 h-3 text-emerald-600" /> Cash In
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 bg-rose-50 text-rose-700 border border-rose-200 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide">
+                                  <MinusCircle className="w-3 h-3 text-rose-600" /> Cash Out
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-slate-900 font-bold border-r border-slate-100">
+                              {entry.customer?.cus_name || 'General Cash'}
+                            </td>
+                            <td className="px-4 py-3 text-slate-600 border-r border-slate-100 max-w-xs truncate" title={entry.details || '-'}>
+                              {entry.details || '-'}
+                            </td>
+                            <td className="px-4 py-3 border-r border-slate-100 font-medium">
+                              {entry.bill_no ? (
+                                <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 font-mono text-[11px]">
+                                  #{entry.bill_no}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-right font-bold border-r border-slate-100 tabular-nums">
+                              {displayAmts.debit > 0 ? (
+                                <span className="text-emerald-700 font-black">Rs. {formatCurrency(displayAmts.debit)}</span>
+                              ) : (
+                                <span className="text-slate-300">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-right font-bold border-r border-slate-100 tabular-nums">
+                              {displayAmts.credit > 0 ? (
+                                <span className="text-rose-700 font-black">Rs. {formatCurrency(displayAmts.credit)}</span>
+                              ) : (
+                                <span className="text-slate-300">—</span>
+                              )}
+                            </td>
+                            <td className={`px-4 py-3 text-right font-black tabular-nums text-xs ${balance >= 0 ? 'text-slate-900' : 'text-rose-700'}`}>
+                              Rs. {formatCurrency(balance)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+
+                      {/* Opening Balance Row at Bottom for Descending View */}
+                      {sortOrder === 'desc' && reportData.ledgerEntries && (
+                        <tr className="bg-blue-50/60 font-semibold border-t-2 border-blue-200">
+                          <td className="px-4 py-3 text-center text-blue-400 font-bold border-r border-blue-100">—</td>
+                          <td className="px-4 py-3 text-blue-700 whitespace-nowrap border-r border-blue-100 font-bold">{formatDate(startDate)}</td>
+                          <td className="px-4 py-3 text-center border-r border-blue-100">
+                            <span className="bg-blue-100 text-blue-800 font-extrabold px-2 py-0.5 rounded-full text-[10px] uppercase">
+                              Opening
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-blue-900 font-bold border-r border-blue-100" colSpan={3}>
+                            Opening Balance Brought Forward (b/f)
+                          </td>
+                          <td className="px-4 py-3 text-right border-r border-blue-100 text-slate-400">—</td>
+                          <td className="px-4 py-3 text-right border-r border-blue-100 text-slate-400">—</td>
+                          <td className={`px-4 py-3 text-right font-black tabular-nums text-sm ${openingBalance >= 0 ? 'text-blue-900' : 'text-rose-700'}`}>
+                            Rs. {formatCurrency(openingBalance)}
+                          </td>
+                        </tr>
+                      )}
+
+                      {/* Empty State */}
+                      {displayedEntries.length === 0 && (
+                        <tr>
+                          <td colSpan="9" className="px-6 py-12 text-center">
+                            <div className="max-w-sm mx-auto">
+                              <Search className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                              <p className="text-slate-700 font-bold">No Cash Transactions Found</p>
+                              <p className="text-slate-400 text-xs mt-1">Try searching for a different term or change the date filter</p>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+
+                    {/* Table Footer Totals */}
+                    <tfoot>
+                      <tr className="bg-slate-900 text-white font-extrabold text-xs">
+                        <td colSpan="6" className="px-4 py-3.5 text-right uppercase tracking-wider border-r border-slate-800 text-slate-300">
+                          Total Period Summary ({reportData.ledgerEntries.length} Transactions)
                         </td>
-                        <td className="px-3 py-2.5 text-right border-r border-slate-200 text-slate-400">—</td>
-                        <td className="px-3 py-2.5 text-right border-r border-slate-200 text-slate-400">—</td>
-                        <td className={`px-3 py-2.5 text-right font-bold tabular-nums ${openingBalance >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
-                          {formatCurrency(openingBalance)}
+                        <td className="px-4 py-3.5 text-right border-r border-slate-800 tabular-nums text-emerald-400 font-black text-sm">
+                          Rs. {formatCurrency(totalDebit)}
+                        </td>
+                        <td className="px-4 py-3.5 text-right border-r border-slate-800 tabular-nums text-rose-400 font-black text-sm">
+                          Rs. {formatCurrency(totalCredit)}
+                        </td>
+                        <td className="px-4 py-3.5 text-right tabular-nums text-amber-300 font-black text-sm">
+                          Rs. {formatCurrency(closingBalance)}
                         </td>
                       </tr>
-                    )}
-
-                    {(!reportData.ledgerEntries || reportData.ledgerEntries.length === 0) && (
-                      <tr><td colSpan="8" className="px-6 py-12 text-center text-slate-500">No cash transactions found for the selected period</td></tr>
-                    )}
-                  </tbody>
-                  <tfoot>
-                    <tr className="bg-slate-800 text-white font-bold">
-                      <td colSpan="5" className="px-3 py-3 text-right uppercase text-xs tracking-wider border-r border-slate-600">Grand Total</td>
-                      <td className="px-3 py-3 text-right border-r border-slate-600 tabular-nums">{formatCurrency(reportData.summary.totalLedgerDebit)}</td>
-                      <td className="px-3 py-3 text-right border-r border-slate-600 tabular-nums">{formatCurrency(reportData.summary.totalLedgerCredit)}</td>
-                      <td className="px-3 py-3 text-right tabular-nums">{formatCurrency(closingBalance)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
+                    </tfoot>
+                  </table>
+                </div>
               </div>
 
               {/* PRINT LEDGER TABLE */}
-              <div className="hidden print:block bg-white border border-black">
-                <table className="w-full text-sm">
+              <div className="hidden print:block bg-white border border-slate-900">
+                <table className="w-full text-xs">
                   <thead>
-                    <tr className="bg-gray-200 text-black">
-                      <th className="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider border-r border-black w-12">S.No</th>
-                      <th className="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider border-r border-black w-24">Date</th>
-                      <th className="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider border-r border-black">Account Title</th>
-                      <th className="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider border-r border-black">Description</th>
-                      <th className="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider border-r border-black">Bill</th>
-                      <th className="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider border-r border-black w-28">Debit (Dr)</th>
-                      <th className="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider border-r border-black w-28">Credit (Cr)</th>
-                      <th className="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider w-28">Balance</th>
+                    <tr className="bg-slate-200 text-slate-900 font-bold border-b border-slate-900">
+                      <th className="px-2 py-2 text-center border-r border-slate-900 w-8">#</th>
+                      <th className="px-2 py-2 text-left border-r border-slate-900 w-20">Date</th>
+                      <th className="px-2 py-2 text-left border-r border-slate-900">Account Title</th>
+                      <th className="px-2 py-2 text-left border-r border-slate-900">Description</th>
+                      <th className="px-2 py-2 text-left border-r border-slate-900 w-16">Bill</th>
+                      <th className="px-2 py-2 text-right border-r border-slate-900 w-24">Debit (Dr)</th>
+                      <th className="px-2 py-2 text-right border-r border-slate-900 w-24">Credit (Cr)</th>
+                      <th className="px-2 py-2 text-right w-28">Balance</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-black">
+                  <tbody className="divide-y divide-slate-900">
                     {/* Opening Balance Row at Top for Print */}
-                    <tr className="bg-gray-100 font-semibold">
-                      <td className="px-3 py-2 text-gray-700 border-r border-black text-xs">—</td>
-                      <td className="px-3 py-2 text-gray-700 border-r border-black whitespace-nowrap text-xs">{formatDate(startDate)}</td>
-                      <td className="px-3 py-2 text-gray-700 border-r border-black" colSpan={3}>
-                        <span className="text-xs font-bold uppercase tracking-wide">Balance b/f (Opening Balance)</span>
+                    <tr className="bg-slate-100 font-bold">
+                      <td className="px-2 py-1.5 text-center border-r border-slate-900">—</td>
+                      <td className="px-2 py-1.5 border-r border-slate-900 whitespace-nowrap">{formatDate(startDate)}</td>
+                      <td className="px-2 py-1.5 border-r border-slate-900" colSpan={3}>
+                        <span className="font-extrabold uppercase text-[10px]">Opening Balance (b/f)</span>
                       </td>
-                      <td className="px-3 py-2 text-right border-r border-black text-gray-500">—</td>
-                      <td className="px-3 py-2 text-right border-r border-black text-gray-500">—</td>
-                      <td className="px-3 py-2 text-right font-bold tabular-nums">
-                        {formatCurrency(openingBalance)}
-                      </td>
+                      <td className="px-2 py-1.5 text-right border-r border-slate-900 text-slate-400">—</td>
+                      <td className="px-2 py-1.5 text-right border-r border-slate-900 text-slate-400">—</td>
+                      <td className="px-2 py-1.5 text-right font-black tabular-nums">{formatCurrency(openingBalance)}</td>
                     </tr>
 
                     {/* Always Ascending Chronological List for Print */}
@@ -383,49 +669,53 @@ export default function CashReport() {
                       const balance = parseFloat(entry.closing_balance || 0);
                       return (
                         <tr key={entry.l_id} className="bg-white">
-                          <td className="px-3 py-2 text-black border-r border-black">{index + 1}</td>
-                          <td className="px-3 py-2 text-black border-r border-black whitespace-nowrap">{formatDate(entry.created_at)}</td>
-                          <td className="px-3 py-2 text-black font-medium border-r border-black">{entry.customer?.cus_name || '-'}</td>
-                          <td className="px-3 py-2 text-black border-r border-black">{entry.details || '-'}</td>
-                          <td className="px-3 py-2 text-black border-r border-black">{entry.bill_no ? `Bill: ${entry.bill_no}` : '-'}</td>
-                          <td className="px-3 py-2 text-right border-r border-black tabular-nums">{displayAmts.debit > 0 ? formatCurrency(displayAmts.debit) : '-'}</td>
-                          <td className="px-3 py-2 text-right border-r border-black tabular-nums">{displayAmts.credit > 0 ? formatCurrency(displayAmts.credit) : '-'}</td>
-                          <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatCurrency(balance)}</td>
+                          <td className="px-2 py-1.5 text-center border-r border-slate-900">{index + 1}</td>
+                          <td className="px-2 py-1.5 border-r border-slate-900 whitespace-nowrap">{formatDate(entry.created_at)}</td>
+                          <td className="px-2 py-1.5 border-r border-slate-900 font-semibold">{entry.customer?.cus_name || 'General Cash'}</td>
+                          <td className="px-2 py-1.5 border-r border-slate-900 truncate max-w-xs">{entry.details || '-'}</td>
+                          <td className="px-2 py-1.5 border-r border-slate-900">{entry.bill_no ? `#${entry.bill_no}` : '-'}</td>
+                          <td className="px-2 py-1.5 text-right border-r border-slate-900 tabular-nums">{displayAmts.debit > 0 ? formatCurrency(displayAmts.debit) : '-'}</td>
+                          <td className="px-2 py-1.5 text-right border-r border-slate-900 tabular-nums">{displayAmts.credit > 0 ? formatCurrency(displayAmts.credit) : '-'}</td>
+                          <td className="px-2 py-1.5 text-right font-bold tabular-nums">{formatCurrency(balance)}</td>
                         </tr>
                       );
                     })}
 
                     {(!reportData.ledgerEntries || reportData.ledgerEntries.length === 0) && (
-                      <tr><td colSpan="8" className="px-6 py-12 text-center text-slate-500">No cash transactions found for the selected period</td></tr>
+                      <tr>
+                        <td colSpan="8" className="px-6 py-8 text-center text-slate-500 font-semibold">
+                          No cash transactions found for the selected period
+                        </td>
+                      </tr>
                     )}
                   </tbody>
                   <tfoot>
-                    <tr className="bg-gray-200 text-black font-bold">
-                      <td colSpan="5" className="px-3 py-2 text-right uppercase text-xs tracking-wider border-r border-black">Grand Total</td>
-                      <td className="px-3 py-2 text-right border-r border-black tabular-nums">{formatCurrency(reportData.summary.totalLedgerDebit)}</td>
-                      <td className="px-3 py-2 text-right border-r border-black tabular-nums">{formatCurrency(reportData.summary.totalLedgerCredit)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(closingBalance)}</td>
+                    <tr className="bg-slate-200 text-slate-900 font-black border-t-2 border-slate-900">
+                      <td colSpan="5" className="px-2 py-2 text-right uppercase tracking-wider border-r border-slate-900">Grand Total</td>
+                      <td className="px-2 py-2 text-right border-r border-slate-900 tabular-nums">{formatCurrency(totalDebit)}</td>
+                      <td className="px-2 py-2 text-right border-r border-slate-900 tabular-nums">{formatCurrency(totalCredit)}</td>
+                      <td className="px-2 py-2 text-right tabular-nums">{formatCurrency(closingBalance)}</td>
                     </tr>
                   </tfoot>
                 </table>
               </div>
 
               {/* Print Footer */}
-              <div className="hidden print:flex justify-between items-center mt-6 pt-4 border-t-2 border-black text-xs">
-                <span>Generated: {new Date().toLocaleString('en-GB')}</span>
-                <span className="font-semibold">Ittefaq Management System</span>
+              <div className="hidden print:flex justify-between items-center mt-6 pt-4 border-t border-slate-900 text-[10px] text-slate-600 font-medium">
+                <span>Printed: {new Date().toLocaleString('en-GB')}</span>
+                <span className="font-bold text-slate-900">Ittefaq Iron & Cement Store — Cash Book</span>
                 <span>Page 1 of 1</span>
               </div>
             </div>
           </div>
         ) : (
           <div className="flex-1 flex items-center justify-center print:hidden">
-            <div className="text-center">
-              <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Search className="w-10 h-10 text-slate-400" />
+            <div className="text-center p-8 bg-white border border-slate-200 rounded-3xl shadow-sm max-w-md">
+              <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-emerald-100">
+                <Search className="w-8 h-8 text-emerald-600" />
               </div>
-              <h3 className="text-lg font-semibold text-slate-800">No Report Generated</h3>
-              <p className="text-slate-500 mt-1">Select date range and click Generate Report to view data</p>
+              <h3 className="text-lg font-bold text-slate-800">No Cash Data Generated</h3>
+              <p className="text-slate-500 text-xs mt-1">Select date range and click Generate Report to display cash book transactions</p>
             </div>
           </div>
         )}
@@ -448,3 +738,4 @@ export default function CashReport() {
     </DashboardLayout>
   );
 }
+
