@@ -2539,28 +2539,26 @@ export default function FinancePage() {
                       const balance = parseFloat(option.cus_balance || 0);
                       return (
                         <Box component="li" key={key} {...optionProps}>
-                          <Box sx={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Box sx={{ flex: 1, minWidth: 0, mr: 1 }}>
-                              <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b' }}>
-                                {option.cus_name}
-                              </Typography>
-                              <Typography variant="caption" sx={{ color: '#64748b', display: 'block' }}>
-                                {option.cus_phone_no}
-                                {option.cus_email && ` • ${option.cus_email}`}
-                                {option.customer_type?.cus_type_title && ` • ${option.customer_type.cus_type_title}`}
-                              </Typography>
-                            </Box>
+                          <Box sx={{ width: '100%', py: 0.5 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 700, color: '#1e293b' }}>
+                              {option.cus_name}
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: '#64748b', display: 'block', mt: 0.25 }}>
+                              {option.cus_phone_no}
+                              {option.cus_email && ` • ${option.cus_email}`}
+                              {option.customer_type?.cus_type_title && ` • ${option.customer_type.cus_type_title}`}
+                            </Typography>
                             <Typography
                               variant="caption"
                               sx={{
                                 fontWeight: 700,
                                 px: 1,
                                 py: 0.25,
+                                mt: 0.5,
                                 borderRadius: 1,
                                 bgcolor: balance > 0 ? '#fef3c7' : balance < 0 ? '#dcfce7' : '#f1f5f9',
                                 color: balance > 0 ? '#b45309' : balance < 0 ? '#15803d' : '#475569',
-                                flexShrink: 0,
-                                whiteSpace: 'nowrap'
+                                display: 'inline-block'
                               }}
                             >
                               Bal: PKR {fmtAmt(balance)}
@@ -3604,36 +3602,34 @@ export default function FinancePage() {
                   const balance = parseFloat(option.cus_balance || 0);
                   return (
                     <Box component="li" key={key} {...optionProps}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', py: 0.5 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1, minWidth: 0, mr: 1 }}>
-                          <Box sx={{ width: 36, height: 36, borderRadius: '50%', bgcolor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            <Typography variant="caption" sx={{ fontWeight: 800, color: '#3b82f6' }}>
-                              {option.cus_name?.[0]?.toUpperCase()}
-                            </Typography>
-                          </Box>
-                          <Box>
-                            <Typography variant="body2" fontWeight={700}>{option.cus_name}</Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {option.cus_phone_no}
-                              {option.customer_type?.cus_type_title && ` • ${option.customer_type.cus_type_title}`}
-                            </Typography>
-                          </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, py: 0.5, width: '100%' }}>
+                        <Box sx={{ width: 36, height: 36, borderRadius: '50%', bgcolor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, mt: 0.5 }}>
+                          <Typography variant="caption" sx={{ fontWeight: 800, color: '#3b82f6' }}>
+                            {option.cus_name?.[0]?.toUpperCase()}
+                          </Typography>
                         </Box>
-                        <Typography
-                          variant="caption"
-                          sx={{
-                            fontWeight: 700,
-                            px: 1,
-                            py: 0.25,
-                            borderRadius: 1,
-                            bgcolor: balance > 0 ? '#fef3c7' : balance < 0 ? '#dcfce7' : '#f1f5f9',
-                            color: balance > 0 ? '#b45309' : balance < 0 ? '#15803d' : '#475569',
-                            flexShrink: 0,
-                            whiteSpace: 'nowrap'
-                          }}
-                        >
-                          Bal: PKR {fmtAmt(balance)}
-                        </Typography>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography variant="body2" fontWeight={700}>{option.cus_name}</Typography>
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            {option.cus_phone_no}
+                            {option.customer_type?.cus_type_title && ` • ${option.customer_type.cus_type_title}`}
+                          </Typography>
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              fontWeight: 700,
+                              px: 1,
+                              py: 0.25,
+                              mt: 0.5,
+                              borderRadius: 1,
+                              bgcolor: balance > 0 ? '#fef3c7' : balance < 0 ? '#dcfce7' : '#f1f5f9',
+                              color: balance > 0 ? '#b45309' : balance < 0 ? '#15803d' : '#475569',
+                              display: 'inline-block'
+                            }}
+                          >
+                            Bal: PKR {fmtAmt(balance)}
+                          </Typography>
+                        </Box>
                       </Box>
                     </Box>
                   );
