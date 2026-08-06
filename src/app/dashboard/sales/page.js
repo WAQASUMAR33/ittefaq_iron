@@ -256,9 +256,9 @@ function SalesPageContent() {
             selectedStore = stores[0];
           }
 
-          // Map Products if available
+          // Map Products if available (reversed order)
           if (fullQuotation.sale_details && Array.isArray(fullQuotation.sale_details) && fullQuotation.sale_details.length > 0) {
-            const mappedProducts = fullQuotation.sale_details.map((item, index) => ({
+            const mappedProducts = fullQuotation.sale_details.slice().reverse().map((item, index) => ({
               id: Date.now() + index,
               pro_id: item.pro_id,
               pro_title: item.product ? (item.product.pro_title || item.product.pro_name) : 'Unknown Product',
@@ -1214,9 +1214,9 @@ function SalesPageContent() {
         selectedStore = stores[0];
       }
 
-      // Map products
+      // Map products (reversed order)
       if (fullOrder.sale_details && Array.isArray(fullOrder.sale_details)) {
-        const mappedProducts = fullOrder.sale_details.map((item, index) => ({
+        const mappedProducts = fullOrder.sale_details.slice().reverse().map((item, index) => ({
           id: Date.now() + index,
           pro_id: item.pro_id,
           pro_title: item.product ? item.product.pro_title : 'Unknown Product',
@@ -1319,11 +1319,11 @@ function SalesPageContent() {
         selectedStore = stores[0];
       }
 
-      // Map products
+      // Map products (reversed order)
       if (fullQuotation.sale_details) {
-        const mappedProducts = fullQuotation.sale_details.map(detail => {
+        const mappedProducts = fullQuotation.sale_details.slice().reverse().map((detail, index) => {
           return {
-            id: Date.now() + Math.random(),
+            id: Date.now() + index + Math.random(),
             pro_id: detail.pro_id,
             pro_title: detail.product?.pro_title || detail.pro_title || 'Unknown Product',
             storeid: selectedStore?.storeid,
@@ -3148,10 +3148,10 @@ function SalesPageContent() {
         if (store) setFormSelectedStore(store);
       }
 
-      // 3. Set Products
+      // 3. Set Products (reversed order)
       if (orderData.sale_details && Array.isArray(orderData.sale_details)) {
-        const products = orderData.sale_details.map(detail => ({
-          id: Date.now() + Math.random(),
+        const products = orderData.sale_details.slice().reverse().map((detail, index) => ({
+          id: Date.now() + index + Math.random(),
           pro_id: detail.pro_id,
           pro_title: detail.product?.pro_title || detail.product?.pro_name || 'Unknown Product',
           storeid: orderData.store_id,
