@@ -38,11 +38,15 @@ import {
   Zoom,
   LinearProgress,
   Select,
-  MenuItem
+  MenuItem,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Avatar
 } from '@mui/material';
 
 import {
-
   Add as AddIcon,
   Search as SearchIcon,
   Edit as EditIcon,
@@ -65,7 +69,9 @@ import {
   ArrowForward as ArrowForwardIcon,
   CloudUpload as UploadIcon,
   Warning as WarningIcon,
-  Phone as PhoneIcon
+  Phone as PhoneIcon,
+  Business as BusinessIcon,
+  LocationOn as MapPinIcon
 } from '@mui/icons-material';
 
 const fmtAmt = (val) => {

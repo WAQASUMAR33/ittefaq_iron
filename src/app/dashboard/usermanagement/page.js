@@ -10,6 +10,7 @@ import DashboardLayout from '../components/dashboard-layout';
 import { 
   getStaffRoleName, 
   isAdminRole, 
+  canStaffAccessPath,
   SYSTEM_MODULES, 
   SYSTEM_ROLES, 
   getRoleDefaultModules 
@@ -85,7 +86,7 @@ export default function UserManagementPage() {
     }
     try {
       const u = JSON.parse(raw);
-      if (!isAdminRole(getStaffRoleName(u))) {
+      if (!canStaffAccessPath(u, '/dashboard/usermanagement')) {
         router.replace('/dashboard?access=denied');
         return;
       }
@@ -236,6 +237,22 @@ export default function UserManagementPage() {
         setUsers(prev => prev.map(user => 
           user.user_id === editingUser.user_id ? updatedUser : user
         ));
+
+        // Sync local storage if editing the logged-in user
+        if (typeof window !== 'undefined') {
+          const rawCurrent = localStorage.getItem('user');
+          if (rawCurrent) {
+            try {
+              const cur = JSON.parse(rawCurrent);
+              if (cur.user_id === updatedUser.user_id) {
+                localStorage.setItem('user', JSON.stringify(updatedUser));
+              }
+            } catch (e) {
+              console.error('Failed to sync current user session:', e);
+            }
+          }
+        }
+
         setShowUserForm(false);
         resetUserForm();
         alert('User updated successfully!');

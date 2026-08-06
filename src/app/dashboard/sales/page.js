@@ -8578,16 +8578,18 @@ function SalesPageContent() {
               <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
+                  disabled
                   label="Initial Balance"
                   name="cus_balance"
                   type="number"
-                  inputProps={{}}
+                  inputProps={{ readOnly: true }}
                   value={newCustomer.cus_balance}
                   onChange={(e) => setNewCustomer(prev => ({ ...prev, cus_balance: e.target.value }))}
                   onFocus={(e) => e.target.select()}
                   sx={{ minWidth: 250 }}
-                  placeholder="Enter customer balance"
+                  placeholder="Balance is non-editable"
                   InputProps={{
+                    readOnly: true,
                     startAdornment: (
                       <InputAdornment position="start">
                         <AttachMoneyIcon />

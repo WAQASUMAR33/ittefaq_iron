@@ -1920,15 +1920,17 @@ export default function CustomersPage() {
                 <Grid item xs={12} md={4}>
                   <TextField
                     fullWidth
+                    disabled
                     label="Initial Balance"
                     name="cus_balance"
                     type="number"
-                    inputProps={{ step: "0.01" }}
+                    inputProps={{ step: "0.01", readOnly: true }}
                     value={formData.cus_balance}
                     onChange={handleFormChange}
                     sx={{ minWidth: 250 }}
-                    placeholder="Enter customer balance"
+                    placeholder="Balance is non-editable"
                     InputProps={{
+                      readOnly: true,
                       startAdornment: (
                         <InputAdornment position="start">
                           <AttachMoneyIcon />

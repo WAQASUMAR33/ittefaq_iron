@@ -5170,16 +5170,18 @@ function PurchasesPageContent() {
               <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
+                  disabled
                   label="Opening Balance"
                   name="cus_balance"
                   type="number"
-                  inputProps={{}}
+                  inputProps={{ readOnly: true }}
                   value={customerFormData.cus_balance}
                   onChange={handleCustomerFormChange}
-                  placeholder="Enter opening balance"
+                  placeholder="Balance is non-editable"
                   size="medium"
                   sx={{ minHeight: 56, minWidth: 200 }}
                   InputProps={{
+                    readOnly: true,
                     startAdornment: (
                       <InputAdornment position="start">
                         <AttachMoneyIcon />

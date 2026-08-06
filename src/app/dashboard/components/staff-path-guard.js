@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { canStaffAccessPath, getStaffRoleName } from '@/lib/staff-access';
+import { canStaffAccessPath, getFirstAllowedPathForStaff } from '@/lib/staff-access';
 
 /**
  * Must be rendered inside <Suspense> (Next.js App Router) because usePathname
@@ -15,6 +15,15 @@ export default function StaffPathGuard({ user, isClient }) {
   useEffect(() => {
     if (!isClient || !user || pathname == null) return;
     if (canStaffAccessPath(user, pathname)) return;
+
+    if (pathname === '/dashboard' || pathname === '/dashboard/') {
+      const firstPath = getFirstAllowedPathForStaff(user);
+      if (firstPath && firstPath !== '/dashboard') {
+        router.replace(firstPath);
+        return;
+      }
+    }
+
     router.replace('/dashboard?access=denied');
   }, [isClient, user, pathname, router]);
 

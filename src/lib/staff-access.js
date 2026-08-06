@@ -136,7 +136,6 @@ export function canStaffAccessPath(userOrRole, pathname) {
   if (roleName === 'SUPER_ADMIN') return true;
 
   const p = normalizePath(pathname);
-  if (p === '/dashboard' || p === '/dashboard/') return true;
 
   // Check allowed modules if user object is available
   let allowed = [];
@@ -155,6 +154,11 @@ export function canStaffAccessPath(userOrRole, pathname) {
   // If user object has no explicit allowed_modules array, use role defaults
   if (!Array.isArray(allowed) || allowed.length === 0) {
     allowed = getRoleDefaultModules(roleName);
+  }
+
+  // Dashboard homepage permission check
+  if (p === '/dashboard' || p === '/dashboard/') {
+    return Array.isArray(allowed) && allowed.includes('dashboard');
   }
 
   if (Array.isArray(allowed) && allowed.length > 0) {
@@ -209,6 +213,7 @@ export function canStaffAccessPath(userOrRole, pathname) {
       '/dashboard/employees': 'hr',
       '/dashboard/attendance': 'hr',
       '/dashboard/payroll': 'hr',
+      '/dashboard/salary-management': 'hr',
     };
 
     const sortedPrefixes = Object.keys(modulePrefixMap).sort((a, b) => b.length - a.length);
@@ -236,5 +241,55 @@ export function canStaffAccessPath(userOrRole, pathname) {
   if (roleName === 'SUPER_ADMIN' || roleName === 'ADMIN') return true;
   if (roleName === 'SALESMAN') return isPathAllowedForSalesman(pathname);
   return false;
+}
+
+export function getFirstAllowedPathForStaff(userOrRole) {
+  const user = typeof userOrRole === 'object' ? userOrRole : null;
+  const roleName = user ? getStaffRoleName(user) : userOrRole;
+  if (roleName === 'SUPER_ADMIN') return '/dashboard';
+
+  let allowed = [];
+  if (user) {
+    try {
+      if (user.allowed_modules) {
+        allowed = typeof user.allowed_modules === 'string'
+          ? JSON.parse(user.allowed_modules)
+          : user.allowed_modules;
+      }
+    } catch (e) {
+      console.error('Failed to parse allowed_modules:', e);
+    }
+  }
+
+  if (!Array.isArray(allowed) || allowed.length === 0) {
+    allowed = getRoleDefaultModules(roleName);
+  }
+
+  const moduleToPathOrder = [
+    { module: 'dashboard', path: '/dashboard' },
+    { module: 'sales', path: '/dashboard/sales' },
+    { module: 'sale_returns', path: '/dashboard/sale-returns' },
+    { module: 'customers', path: '/dashboard/customers' },
+    { module: 'products', path: '/dashboard/products' },
+    { module: 'purchases', path: '/dashboard/purchases' },
+    { module: 'store_stock', path: '/dashboard/store-stock' },
+    { module: 'stock_transfer', path: '/dashboard/stock-transfer' },
+    { module: 'cargo', path: '/dashboard/cargo' },
+    { module: 'finance', path: '/dashboard/finance' },
+    { module: 'cash_bank_day_end', path: '/dashboard/day-end' },
+    { module: 'hr', path: '/dashboard/employees' },
+    { module: 'reports', path: '/dashboard/reports' },
+    { module: 'profit_report', path: '/dashboard/reports/profit-report' },
+    { module: 'user_management', path: '/dashboard/usermanagement' },
+    { module: 'store_management', path: '/dashboard/stores' },
+    { module: 'biometrics', path: '/dashboard/settings' },
+    { module: 'import', path: '/dashboard/import' }
+  ];
+
+  for (const item of moduleToPathOrder) {
+    if (allowed.includes(item.module)) return item.path;
+  }
+
+  return '/dashboard';
 }
 
