@@ -6439,7 +6439,7 @@ export default function FinancePage() {
             {/* Items List */}
             <Box sx={{ borderBottom: '1px dashed #000', pb: 0.75, mb: 0.75 }}>
               {items && items.length > 0 ? (
-                items.slice().reverse().map((d, i) => (
+                items.map((d, i) => (
                   <Box key={d.sale_detail_id || d.purchase_detail_id || i} sx={{ mb: 0.75 }}>
                     <Typography sx={{ fontSize: '11px', fontWeight: 'bold', color: '#000', wordBreak: 'break-word' }}>
                       {d.product?.pro_title || 'Item'}

@@ -6177,7 +6177,7 @@ function SalesPageContent() {
                       </TableHead>
                       <TableBody>
                         {currentBillData.sale_details && currentBillData.sale_details.length > 0 ? (
-                          currentBillData.sale_details.slice().reverse().map((detail, index) => (
+                          currentBillData.sale_details.map((detail, index) => (
                             <TableRow key={detail.sale_detail_id || index}>
                               <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }}>{index + 1}</TableCell>
                               <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }}>{detail.product?.pro_title || 'N/A'}</TableCell>
@@ -6568,7 +6568,7 @@ function SalesPageContent() {
                       </TableHead>
                       <TableBody>
                         {currentBillData.sale_details && currentBillData.sale_details.length > 0 ? (
-                          currentBillData.sale_details.slice().reverse().map((detail, index) => (
+                          currentBillData.sale_details.map((detail, index) => (
                             <TableRow key={detail.sale_detail_id || index}>
                               <TableCell sx={{ px: 1, border: '1px solid #ddd' }}>{index + 1}</TableCell>
                               <TableCell sx={{ px: 1, border: '1px solid #ddd' }}>{detail.product?.pro_title || 'N/A'}</TableCell>
@@ -8802,7 +8802,7 @@ function SalesPageContent() {
                     </TableHead>
                     <TableBody>
                       {selectedBill.sale_details && selectedBill.sale_details.length > 0 ? (
-                        selectedBill.sale_details.slice().reverse().map((detail, index) => (
+                        selectedBill.sale_details.map((detail, index) => (
                           <TableRow key={detail.sale_detail_id || index}>
                             <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }}>{index + 1}</TableCell>
                             <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }}>{detail.product?.pro_title || detail.product?.pro_name || detail.product?.prod_name || 'N/A'}</TableCell>
@@ -10348,7 +10348,7 @@ function SalesPageContent() {
             {/* Items List */}
             <Box sx={{ borderBottom: '1px dashed #000', pb: 0.75, mb: 0.75 }}>
               {activeBillData.sale_details && activeBillData.sale_details.length > 0 ? (
-                activeBillData.sale_details.slice().reverse().map((d, i) => (
+                activeBillData.sale_details.map((d, i) => (
                   <Box key={d.sale_detail_id || i} sx={{ mb: 0.75 }}>
                     <Typography sx={{ fontSize: '11px', fontWeight: 'bold', color: '#000', wordBreak: 'break-word' }}>
                       {d.product?.pro_title || 'Item'}
