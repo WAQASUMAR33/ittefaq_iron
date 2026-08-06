@@ -4319,63 +4319,66 @@ export default function FinancePage() {
               </Box>
             </Box>
 
-            <Box>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
-                Bank Amount
-              </Typography>
-              <TextField
-                fullWidth
-                type="number"
-                value={receivePaymentData.bank_amount}
-                onChange={(e) => setReceivePaymentData((prev) => {
-                  const updated = { ...prev, bank_amount: e.target.value };
-                  const accName = customers.find((c) => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || '';
-                  updated.description = buildFinancePaymentDescription(
-                    'RECEIVE',
-                    accName,
-                    updated.cash_amount,
-                    updated.bank_amount,
-                    updated.bank_account,
-                    bankAccounts,
-                    updated.discount
-                  );
-                  return updated;
-                })}
-                disabled={!receivePaymentData.bank_account}
-                placeholder="0.00"
-                InputProps={{
-                  startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
-                }}
-              />
-            </Box>
+            {/* Bank Amount & Discount Row */}
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
+                  Bank Amount
+                </Typography>
+                <TextField
+                  fullWidth
+                  type="number"
+                  value={receivePaymentData.bank_amount}
+                  onChange={(e) => setReceivePaymentData((prev) => {
+                    const updated = { ...prev, bank_amount: e.target.value };
+                    const accName = customers.find((c) => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || '';
+                    updated.description = buildFinancePaymentDescription(
+                      'RECEIVE',
+                      accName,
+                      updated.cash_amount,
+                      updated.bank_amount,
+                      updated.bank_account,
+                      bankAccounts,
+                      updated.discount
+                    );
+                    return updated;
+                  })}
+                  disabled={!receivePaymentData.bank_account}
+                  placeholder="0.00"
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
+                  }}
+                />
+              </Box>
 
-            <Box sx={{ width: '50%' }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
-                Discount
-              </Typography>
-              <TextField
-                fullWidth
-                placeholder="0.00"
-                type="number"
-                value={receivePaymentData.discount}
-                onChange={(e) => setReceivePaymentData((prev) => {
-                  const updated = { ...prev, discount: e.target.value };
-                  const accName = customers.find((c) => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || '';
-                  updated.description = buildFinancePaymentDescription(
-                    'RECEIVE',
-                    accName,
-                    updated.cash_amount,
-                    updated.bank_amount,
-                    updated.bank_account,
-                    bankAccounts,
-                    updated.discount
-                  );
-                  return updated;
-                })}
-                InputProps={{
-                  startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
-                }}
-              />
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
+                  Discount
+                </Typography>
+                <TextField
+                  fullWidth
+                  placeholder="0.00"
+                  type="number"
+                  value={receivePaymentData.discount}
+                  onChange={(e) => setReceivePaymentData((prev) => {
+                    const updated = { ...prev, discount: e.target.value };
+                    const accName = customers.find((c) => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || '';
+                    updated.description = buildFinancePaymentDescription(
+                      'RECEIVE',
+                      accName,
+                      updated.cash_amount,
+                      updated.bank_amount,
+                      updated.bank_account,
+                      bankAccounts,
+                      updated.discount
+                    );
+                    return updated;
+                  })}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
+                  }}
+                />
+              </Box>
             </Box>
 
             <Divider sx={{ borderStyle: 'dotted', my: 1 }} />
@@ -4557,63 +4560,66 @@ export default function FinancePage() {
               </Box>
             </Box>
 
-            <Box>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
-                Bank Amount
-              </Typography>
-              <TextField
-                fullWidth
-                type="number"
-                value={payPaymentData.bank_amount}
-                onChange={(e) => setPayPaymentData((prev) => {
-                  const updated = { ...prev, bank_amount: e.target.value };
-                  const accName = customers.find((c) => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || '';
-                  updated.description = buildFinancePaymentDescription(
-                    'PAY',
-                    accName,
-                    updated.cash_amount,
-                    updated.bank_amount,
-                    updated.bank_account,
-                    bankAccounts,
-                    updated.discount
-                  );
-                  return updated;
-                })}
-                disabled={!payPaymentData.bank_account}
-                placeholder="0.00"
-                InputProps={{
-                  startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
-                }}
-              />
-            </Box>
+            {/* Bank Amount & Discount Row */}
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
+                  Bank Amount
+                </Typography>
+                <TextField
+                  fullWidth
+                  type="number"
+                  value={payPaymentData.bank_amount}
+                  onChange={(e) => setPayPaymentData((prev) => {
+                    const updated = { ...prev, bank_amount: e.target.value };
+                    const accName = customers.find((c) => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || '';
+                    updated.description = buildFinancePaymentDescription(
+                      'PAY',
+                      accName,
+                      updated.cash_amount,
+                      updated.bank_amount,
+                      updated.bank_account,
+                      bankAccounts,
+                      updated.discount
+                    );
+                    return updated;
+                  })}
+                  disabled={!payPaymentData.bank_account}
+                  placeholder="0.00"
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
+                  }}
+                />
+              </Box>
 
-            <Box sx={{ width: '50%' }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
-                Discount
-              </Typography>
-              <TextField
-                fullWidth
-                placeholder="0.00"
-                type="number"
-                value={payPaymentData.discount}
-                onChange={(e) => setPayPaymentData((prev) => {
-                  const updated = { ...prev, discount: e.target.value };
-                  const accName = customers.find((c) => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || '';
-                  updated.description = buildFinancePaymentDescription(
-                    'PAY',
-                    accName,
-                    updated.cash_amount,
-                    updated.bank_amount,
-                    updated.bank_account,
-                    bankAccounts,
-                    updated.discount
-                  );
-                  return updated;
-                })}
-                InputProps={{
-                  startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
-                }}
-              />
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#334155', mb: 0.5 }}>
+                  Discount
+                </Typography>
+                <TextField
+                  fullWidth
+                  placeholder="0.00"
+                  type="number"
+                  value={payPaymentData.discount}
+                  onChange={(e) => setPayPaymentData((prev) => {
+                    const updated = { ...prev, discount: e.target.value };
+                    const accName = customers.find((c) => Number(c.cus_id) === Number(selectedCustomer))?.cus_name || '';
+                    updated.description = buildFinancePaymentDescription(
+                      'PAY',
+                      accName,
+                      updated.cash_amount,
+                      updated.bank_amount,
+                      updated.bank_account,
+                      bankAccounts,
+                      updated.discount
+                    );
+                    return updated;
+                  })}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start">PKR</InputAdornment>,
+                  }}
+                />
+              </Box>
             </Box>
 
             <Divider sx={{ borderStyle: 'dotted', my: 1 }} />
