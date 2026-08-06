@@ -4739,9 +4739,9 @@ export default function FinancePage() {
                   </Typography>
                 </Box>
                 {/* Remaining Balance */}
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1.5, bgcolor: '#1e293b' }}>
-                  <Typography variant="body2" sx={{ fontWeight: 700, color: '#ffffff' }}>Remaining Balance (کل بقایا)</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700, color: paymentReceiptData.remainingBalance == null ? '#ffffff' : (paymentReceiptData.remainingBalance > 0 ? '#facc15' : '#4ade80') }}>
+                <Box className="remaining-balance-bar" sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1.5, bgcolor: '#1e293b', color: '#ffffff !important' }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: '#ffffff !important' }}>Remaining Balance (کل بقایا)</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: paymentReceiptData.remainingBalance == null ? '#ffffff !important' : (paymentReceiptData.remainingBalance > 0 ? '#facc15 !important' : '#4ade80 !important') }}>
                     {paymentReceiptData.remainingBalance == null ? '—' : `PKR ${fmtAmt(paymentReceiptData.remainingBalance)}`}
                   </Typography>
                 </Box>
