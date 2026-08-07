@@ -3182,7 +3182,8 @@ export default function FinancePage() {
                                 cursor: 'pointer',
                                 '& .MuiTypography-root, & .MuiTableCell-root': {
                                   color: '#000000 !important',
-                                  fontWeight: '700 !important'
+                                  fontWeight: '700 !important',
+                                  fontSize: '1.05em !important'
                                 },
                                 '& .edit-icon': {
                                   opacity: 1
