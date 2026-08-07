@@ -117,8 +117,8 @@ export default function RebateReport() {
             const billNo = `REB-${Date.now()}`;
             const ledgerEntry = {
                 cus_id: parseInt(selectedSupplierId),
-                debit_amount: 0,
-                credit_amount: totalAmount,
+                debit_amount: totalAmount,
+                credit_amount: 0,
                 bill_no: billNo,
                 trnx_type: 'REBATE',
                 details: `Rebate | ${reportData.summary.supplierName} | From: ${startDate} To: ${endDate} | Qty: ${fmtAmt(totalQty)} | Rate: ${fmtAmt(rate)} | Amt: ${fmtAmt(totalAmount)}`,
