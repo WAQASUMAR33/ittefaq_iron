@@ -3180,6 +3180,10 @@ export default function FinancePage() {
                               '&:hover': {
                                 bgcolor: '#ffffff !important',
                                 cursor: 'pointer',
+                                '& .MuiTypography-root, & .MuiTableCell-root': {
+                                  color: '#000000 !important',
+                                  fontWeight: '700 !important'
+                                },
                                 '& .edit-icon': {
                                   opacity: 1
                                 }
