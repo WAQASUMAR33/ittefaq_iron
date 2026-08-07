@@ -3178,7 +3178,7 @@ export default function FinancePage() {
                             sx={{
                               bgcolor: rowBgColor,
                               '&:hover': {
-                                bgcolor: isPositive ? '#bbf7d0 !important' : '#fecaca !important',
+                                bgcolor: '#ffffff !important',
                                 cursor: 'pointer',
                                 '& .edit-icon': {
                                   opacity: 1
