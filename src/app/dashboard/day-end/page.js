@@ -485,15 +485,15 @@ export default function DayEndPage() {
                 <span className="font-bold text-slate-900">Rs. {formatCurrency(summary?.openingCash)}</span>
               </div>
               <div className="flex justify-between items-center text-xs py-1 border-b border-slate-100">
-                <span className="font-semibold text-slate-600">Total Cash Receipts</span>
-                <span className="font-bold text-slate-900">Rs. {formatCurrency(summary?.cashReceipts)}</span>
+                <span className="font-semibold text-slate-600">Total Cash Inflow (Sales + Receipts)</span>
+                <span className="font-bold text-emerald-600">Rs. {formatCurrency(summary?.totalCashInflow)}</span>
               </div>
               <div className="flex justify-between items-center text-xs py-1 border-b border-slate-100">
-                <span className="font-semibold text-slate-600">Total Cash Payments</span>
-                <span className="font-bold text-slate-900">Rs. {formatCurrency(summary?.cashPayments + summary?.cashExpenses + summary?.cashPurchases)}</span>
+                <span className="font-semibold text-slate-600">Total Cash Outflow (Purchases + Payments + Expenses)</span>
+                <span className="font-bold text-rose-600">Rs. {formatCurrency(summary?.totalCashOutflow)}</span>
               </div>
               <div className="flex justify-between items-center text-xs py-2 bg-blue-50/80 px-3 rounded-xl border border-blue-200/60 mt-2">
-                <span className="font-extrabold text-blue-900">Closing Cash</span>
+                <span className="font-extrabold text-blue-900">Expected Cash In Hand</span>
                 <span className="font-black text-sm text-blue-700">Rs. {formatCurrency(summary?.expectedCashInHand)}</span>
               </div>
             </div>

@@ -46,38 +46,6 @@ export async function GET(request) {
       }
     });
 
-    // Determine default opening cash from previous day end records if not created yet
-    let defaultOpeningCash = 0;
-    if (!dayEnd) {
-      const prevDayEnd = await prisma.dayEnd.findFirst({
-        where: {
-          business_date: { lt: businessDate }
-        },
-        orderBy: { business_date: 'desc' }
-      });
-
-      if (prevDayEnd) {
-        defaultOpeningCash = prevDayEnd.closing_cash !== null ? parseFloat(prevDayEnd.closing_cash) : parseFloat(prevDayEnd.cash_in_hand || 0);
-      }
-
-      dayEnd = await prisma.dayEnd.create({
-        data: {
-          business_date: businessDate,
-          opening_cash: defaultOpeningCash,
-          status: 'OPEN'
-        },
-        include: {
-          day_end_details: true,
-          closed_by_user: {
-            select: {
-              full_name: true,
-              role: true
-            }
-          }
-        }
-      });
-    }
-
     // Fetch all Cash and Bank Accounts for total account closing balances
     const cashAndBankAccounts = await prisma.customer.findMany({
       where: {
@@ -98,17 +66,19 @@ export async function GET(request) {
     let totalBankAccountsBalance = 0;
     const cashAccounts = [];
     const bankAccounts = [];
+    const cashBankCusIds = new Set();
 
     cashAndBankAccounts.forEach(acc => {
+      cashBankCusIds.add(acc.cus_id);
       const typeTitle = (acc.customer_type?.cus_type_title || '').toLowerCase();
       const catTitle = (acc.customer_category?.cus_cat_title || '').toLowerCase();
       const name = (acc.cus_name || '').toLowerCase();
       const bal = parseFloat(acc.cus_balance || 0);
 
-      const isBank = catTitle.includes('bank') || typeTitle.includes('bank');
+      const isBank = catTitle.includes('bank') || typeTitle.includes('bank') || name.includes('bank');
 
       const isCash = !isBank &&
-        (catTitle.includes('cash account') || catTitle === 'cash' || typeTitle === 'cash') &&
+        (catTitle.includes('cash account') || catTitle === 'cash' || typeTitle === 'cash' || name.includes('cash')) &&
         catTitle !== 'customer' && catTitle !== 'supplier';
 
       if (isBank) {
@@ -120,10 +90,45 @@ export async function GET(request) {
       }
     });
 
-    // Get sales for the day
+    // Determine default opening cash from previous day end records if not created yet
+    let defaultOpeningCash = 0;
+    if (!dayEnd) {
+      const prevDayEnd = await prisma.dayEnd.findFirst({
+        where: {
+          business_date: { lt: businessDate }
+        },
+        orderBy: { business_date: 'desc' }
+      });
+
+      if (prevDayEnd) {
+        defaultOpeningCash = prevDayEnd.closing_cash !== null ? parseFloat(prevDayEnd.closing_cash) : parseFloat(prevDayEnd.cash_in_hand || 0);
+      } else {
+        defaultOpeningCash = totalCashAccountsBalance;
+      }
+
+      dayEnd = await prisma.dayEnd.create({
+        data: {
+          business_date: businessDate,
+          opening_cash: defaultOpeningCash,
+          status: 'OPEN'
+        },
+        include: {
+          day_end_details: true,
+          closed_by_user: {
+            select: {
+              full_name: true,
+              role: true
+            }
+          }
+        }
+      });
+    }
+
+    // Get sales for the day (posted sales with bill_type BILL)
     const sales = await prisma.sale.findMany({
       where: {
-        created_at: { gte: startOfDay, lte: endOfDay }
+        created_at: { gte: startOfDay, lte: endOfDay },
+        bill_type: 'BILL'
       },
       include: {
         customer: { select: { cus_name: true } }
@@ -153,7 +158,7 @@ export async function GET(request) {
       orderBy: { created_at: 'desc' }
     });
 
-    // Get ledger entries for the day (receipts and payments)
+    // Get ledger entries for the day
     const ledgerEntries = await prisma.ledger.findMany({
       where: {
         created_at: { gte: startOfDay, lte: endOfDay }
@@ -162,14 +167,15 @@ export async function GET(request) {
         customer: {
           select: {
             cus_name: true,
-            customer_type: { select: { cus_type_title: true } }
+            customer_type: { select: { cus_type_title: true } },
+            customer_category: { select: { cus_cat_title: true } }
           }
         }
       },
       orderBy: { created_at: 'desc' }
     });
 
-    // Detailed calculations
+    // Sales Calculations
     let totalSales = 0;
     let cashSales = 0;
     let bankSales = 0;
@@ -189,17 +195,27 @@ export async function GET(request) {
         if (netTotal > paidSoFar) {
           creditSales += (netTotal - paidSoFar);
         }
-      } else if (sale.payment_type === 'CASH') {
-        const fullPay = parseFloat(sale.payment || 0) || netTotal;
-        cashSales += fullPay;
-      } else if (sale.payment_type === 'BANK_TRANSFER' || sale.payment_type === 'CHEQUE') {
-        const fullPay = parseFloat(sale.payment || 0) || netTotal;
-        bankSales += fullPay;
+      } else if (sale.payment !== undefined && sale.payment !== null) {
+        const pVal = parseFloat(sale.payment || 0);
+        if (pVal > 0) {
+          if (sale.payment_type === 'CASH') {
+            cashSales += pVal;
+            if (netTotal > pVal) creditSales += (netTotal - pVal);
+          } else if (sale.payment_type === 'BANK_TRANSFER' || sale.payment_type === 'CHEQUE') {
+            bankSales += pVal;
+            if (netTotal > pVal) creditSales += (netTotal - pVal);
+          } else {
+            creditSales += netTotal;
+          }
+        } else {
+          creditSales += netTotal;
+        }
       } else {
         creditSales += netTotal;
       }
     });
 
+    // Purchases Calculations
     let totalPurchases = 0;
     let cashPurchases = 0;
     let bankPurchases = 0;
@@ -219,17 +235,27 @@ export async function GET(request) {
         if (netTotal > paidSoFar) {
           creditPurchases += (netTotal - paidSoFar);
         }
-      } else if (pur.payment_type === 'CASH') {
-        const fullPay = parseFloat(pur.payment || 0) || netTotal;
-        cashPurchases += fullPay;
-      } else if (pur.payment_type === 'BANK_TRANSFER' || pur.payment_type === 'CHEQUE') {
-        const fullPay = parseFloat(pur.payment || 0) || netTotal;
-        bankPurchases += fullPay;
+      } else if (pur.payment !== undefined && pur.payment !== null) {
+        const pVal = parseFloat(pur.payment || 0);
+        if (pVal > 0) {
+          if (pur.payment_type === 'CASH') {
+            cashPurchases += pVal;
+            if (netTotal > pVal) creditPurchases += (netTotal - pVal);
+          } else if (pur.payment_type === 'BANK_TRANSFER' || pur.payment_type === 'CHEQUE') {
+            bankPurchases += pVal;
+            if (netTotal > pVal) creditPurchases += (netTotal - pVal);
+          } else {
+            creditPurchases += netTotal;
+          }
+        } else {
+          creditPurchases += netTotal;
+        }
       } else {
         creditPurchases += netTotal;
       }
     });
 
+    // Expenses Calculations
     let totalExpenses = 0;
     let cashExpenses = 0;
     let bankExpenses = 0;
@@ -237,9 +263,15 @@ export async function GET(request) {
     expenses.forEach(exp => {
       const amt = parseFloat(exp.exp_amount || 0);
       totalExpenses += amt;
-      cashExpenses += amt;
+      const pType = (exp.payment_type || '').toUpperCase();
+      if (pType === 'BANK_TRANSFER' || pType === 'CHEQUE' || pType === 'BANK') {
+        bankExpenses += amt;
+      } else {
+        cashExpenses += amt;
+      }
     });
 
+    // Standalone Receipts and Payments Calculations (Customer & Supplier settlements)
     let totalReceipts = 0;
     let cashReceipts = 0;
     let bankReceipts = 0;
@@ -249,26 +281,48 @@ export async function GET(request) {
     let bankPayments = 0;
 
     ledgerEntries.forEach(entry => {
-      const isBankType = entry.trnx_type === 'BANK_TRANSFER' || entry.trnx_type === 'CHEQUE' ||
-        entry.customer?.customer_type?.cus_type_title?.toLowerCase().includes('bank') ||
-        entry.customer?.customer_category?.cus_cat_title?.toLowerCase().includes('bank');
+      const trnxType = (entry.trnx_type || '').toUpperCase();
+      const details = (entry.details || '').toLowerCase();
+      const billNo = String(entry.bill_no || '');
 
-      if (entry.credit_amount > 0) {
-        const amt = parseFloat(entry.credit_amount);
-        totalReceipts += amt;
+      // Exclude sales, purchases, returns, expenses, stock adjustments, and order memos
+      if (['SALE', 'PURCHASE', 'SALE_RETURN', 'PURCHASE_RETURN'].includes(trnxType)) return;
+      if (billNo.startsWith('SALE-') || billNo.startsWith('PUR-') || billNo.startsWith('EXP-') || billNo.startsWith('SR-') || billNo.startsWith('PR-')) return;
+      if (details.includes('no receivable change') || details.includes('expense:') || details.includes('stock adjustment')) return;
+
+      const d = parseFloat(entry.debit_amount || 0);
+      const c = parseFloat(entry.credit_amount || 0);
+      if (d > 0 && c > 0 && Math.abs(d - c) < 0.01) return;
+
+      // Evaluate entries on Customer/Supplier main accounts (skip Cash/Bank account side to prevent double counting double-entry pairs)
+      if (cashBankCusIds.has(entry.cus_id)) return;
+
+      const isBankType = trnxType === 'BANK_TRANSFER' || trnxType === 'CHEQUE' ||
+        entry.customer?.customer_type?.cus_type_title?.toLowerCase().includes('bank') ||
+        entry.customer?.customer_category?.cus_cat_title?.toLowerCase().includes('bank') ||
+        parseFloat(entry.bank_payment || 0) > 0 ||
+        details.includes('bank');
+
+      const entryAmt = d > 0 ? d : c;
+      if (entryAmt <= 0) return;
+
+      const ledgerType = (entry.ledger_type || '').toLowerCase();
+      const isReceipt = c > 0 || ledgerType === 'receiving' || ledgerType === 'receipt' || details.includes('received') || details.includes('receipt');
+      const isPayment = d > 0 || ledgerType === 'payment' || ledgerType === 'pay' || details.includes('paid');
+
+      if (isReceipt) {
+        totalReceipts += entryAmt;
         if (isBankType) {
-          bankReceipts += amt;
+          bankReceipts += entryAmt;
         } else {
-          cashReceipts += amt;
+          cashReceipts += entryAmt;
         }
-      }
-      if (entry.debit_amount > 0) {
-        const amt = parseFloat(entry.debit_amount);
-        totalPayments += amt;
+      } else if (isPayment) {
+        totalPayments += entryAmt;
         if (isBankType) {
-          bankPayments += amt;
+          bankPayments += entryAmt;
         } else {
-          cashPayments += amt;
+          cashPayments += entryAmt;
         }
       }
     });
@@ -287,7 +341,10 @@ export async function GET(request) {
 
     // Fetch sale details for COGS and top selling items
     const saleDetails = await prisma.saleDetail.findMany({
-      where: { created_at: { gte: startOfDay, lte: endOfDay } },
+      where: {
+        created_at: { gte: startOfDay, lte: endOfDay },
+        sale: { bill_type: 'BILL' }
+      },
       include: { product: { select: { pro_title: true, pro_cost_price: true } } }
     });
 
@@ -316,9 +373,17 @@ export async function GET(request) {
     const closingBalance = expectedCashInHand + totalBankAccountsBalance;
 
     const invoicesCount = sales.length;
-    const receiptsCount = ledgerEntries.filter(e => e.credit_amount > 0).length;
+    const receiptsCount = ledgerEntries.filter(e => {
+      const trnx = (e.trnx_type || '').toUpperCase();
+      const det = (e.details || '').toLowerCase();
+      return !['SALE', 'PURCHASE'].includes(trnx) && !cashBankCusIds.has(e.cus_id) && (e.credit_amount > 0 || det.includes('received'));
+    }).length;
     const billsCount = purchases.length;
-    const paymentsCount = ledgerEntries.filter(e => e.debit_amount > 0).length;
+    const paymentsCount = ledgerEntries.filter(e => {
+      const trnx = (e.trnx_type || '').toUpperCase();
+      const det = (e.details || '').toLowerCase();
+      return !['SALE', 'PURCHASE'].includes(trnx) && !cashBankCusIds.has(e.cus_id) && (e.debit_amount > 0 || det.includes('paid'));
+    }).length;
 
     // Fetch last 7 days trend for chart
     const sevenDaysAgo = new Date(startOfDay);
@@ -326,7 +391,7 @@ export async function GET(request) {
 
     const [trendSales, trendPurchases] = await Promise.all([
       prisma.sale.findMany({
-        where: { created_at: { gte: sevenDaysAgo, lte: endOfDay } },
+        where: { created_at: { gte: sevenDaysAgo, lte: endOfDay }, bill_type: 'BILL' },
         select: { created_at: true, total_amount: true, discount: true, shipping_amount: true }
       }),
       prisma.purchase.findMany({
@@ -503,9 +568,21 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Day is already closed. Please reopen first if changes are needed.' }, { status: 400 });
     }
 
+    const cashAndBankAccounts = await prisma.customer.findMany({
+      where: {
+        OR: [
+          { customer_type: { cus_type_title: { contains: 'cash' } } },
+          { customer_type: { cus_type_title: { contains: 'bank' } } },
+          { customer_category: { cus_cat_title: { contains: 'cash' } } },
+          { customer_category: { cus_cat_title: { contains: 'bank' } } }
+        ]
+      }
+    });
+    const cashBankCusIds = new Set(cashAndBankAccounts.map(a => a.cus_id));
+
     // Calculate totals for transaction details
     const [sales, purchases, expenses, ledgerEntries] = await Promise.all([
-      prisma.sale.findMany({ where: { created_at: { gte: startOfDay, lte: endOfDay } } }),
+      prisma.sale.findMany({ where: { created_at: { gte: startOfDay, lte: endOfDay }, bill_type: 'BILL' } }),
       prisma.purchase.findMany({ where: { created_at: { gte: startOfDay, lte: endOfDay } } }),
       prisma.expense.findMany({ where: { created_at: { gte: startOfDay, lte: endOfDay } } }),
       prisma.ledger.findMany({
@@ -524,32 +601,74 @@ export async function POST(request) {
     const totalSales = sales.reduce((sum, s) => sum + (parseFloat(s.total_amount || 0) - parseFloat(s.discount || 0) + parseFloat(s.shipping_amount || 0)), 0);
     const totalPurchases = purchases.reduce((sum, p) => sum + parseFloat(p.net_total || p.total_amount || 0), 0);
     const totalExpenses = expenses.reduce((sum, e) => sum + parseFloat(e.exp_amount || 0), 0);
-    const totalReceipts = ledgerEntries.filter(l => l.credit_amount > 0).reduce((sum, l) => sum + parseFloat(l.credit_amount), 0);
-    const totalPayments = ledgerEntries.filter(l => l.debit_amount > 0).reduce((sum, l) => sum + parseFloat(l.debit_amount), 0);
 
     let cashSales = 0;
     sales.forEach(s => {
+      const netTotal = parseFloat(s.total_amount || 0) - parseFloat(s.discount || 0) + parseFloat(s.shipping_amount || 0);
       const cPay = parseFloat(s.cash_payment || 0);
-      if (cPay > 0) cashSales += cPay;
-      else if (s.payment_type === 'CASH') cashSales += (parseFloat(s.payment || 0) || (parseFloat(s.total_amount || 0) - parseFloat(s.discount || 0)));
+      const bPay = parseFloat(s.bank_payment || 0);
+      if (cPay > 0 || bPay > 0) {
+        cashSales += cPay;
+      } else if (s.payment !== undefined && s.payment !== null) {
+        const pVal = parseFloat(s.payment || 0);
+        if (pVal > 0 && s.payment_type === 'CASH') {
+          cashSales += pVal;
+        }
+      }
     });
 
     let cashPurchases = 0;
     purchases.forEach(p => {
       const cPay = parseFloat(p.cash_payment || 0);
-      if (cPay > 0) cashPurchases += cPay;
-      else if (p.payment_type === 'CASH') cashPurchases += (parseFloat(p.payment || 0) || parseFloat(p.net_total || 0));
+      const bPay = parseFloat(p.bank_payment || 0);
+      if (cPay > 0 || bPay > 0) {
+        cashPurchases += cPay;
+      } else if (p.payment !== undefined && p.payment !== null) {
+        const pVal = parseFloat(p.payment || 0);
+        if (pVal > 0 && p.payment_type === 'CASH') {
+          cashPurchases += pVal;
+        }
+      }
     });
 
     let cashReceipts = 0;
     let cashPayments = 0;
+    let totalReceipts = 0;
+    let totalPayments = 0;
+
     ledgerEntries.forEach(l => {
-      const isBank = l.trnx_type === 'BANK_TRANSFER' || l.trnx_type === 'CHEQUE' ||
+      const trnxType = (l.trnx_type || '').toUpperCase();
+      const details = (l.details || '').toLowerCase();
+      const billNo = String(l.bill_no || '');
+
+      if (['SALE', 'PURCHASE', 'SALE_RETURN', 'PURCHASE_RETURN'].includes(trnxType)) return;
+      if (billNo.startsWith('SALE-') || billNo.startsWith('PUR-') || billNo.startsWith('EXP-') || billNo.startsWith('SR-') || billNo.startsWith('PR-')) return;
+      if (details.includes('no receivable change') || details.includes('expense:') || details.includes('stock adjustment')) return;
+      if (cashBankCusIds.has(l.cus_id)) return;
+
+      const d = parseFloat(l.debit_amount || 0);
+      const c = parseFloat(l.credit_amount || 0);
+      if (d > 0 && c > 0 && Math.abs(d - c) < 0.01) return;
+
+      const isBank = trnxType === 'BANK_TRANSFER' || trnxType === 'CHEQUE' ||
         l.customer?.customer_type?.cus_type_title?.toLowerCase().includes('bank') ||
-        l.customer?.customer_category?.cus_cat_title?.toLowerCase().includes('bank');
-      if (!isBank) {
-        if (l.credit_amount > 0) cashReceipts += parseFloat(l.credit_amount);
-        if (l.debit_amount > 0) cashPayments += parseFloat(l.debit_amount);
+        l.customer?.customer_category?.cus_cat_title?.toLowerCase().includes('bank') ||
+        parseFloat(l.bank_payment || 0) > 0 ||
+        details.includes('bank');
+
+      const entryAmt = d > 0 ? d : c;
+      if (entryAmt <= 0) return;
+
+      const ledgerType = (l.ledger_type || '').toLowerCase();
+      const isReceipt = c > 0 || ledgerType === 'receiving' || ledgerType === 'receipt' || details.includes('received') || details.includes('receipt');
+      const isPayment = d > 0 || ledgerType === 'payment' || ledgerType === 'pay' || details.includes('paid');
+
+      if (isReceipt) {
+        totalReceipts += entryAmt;
+        if (!isBank) cashReceipts += entryAmt;
+      } else if (isPayment) {
+        totalPayments += entryAmt;
+        if (!isBank) cashPayments += entryAmt;
       }
     });
 
@@ -644,6 +763,15 @@ export async function POST(request) {
       });
 
       ledgerEntries.forEach(l => {
+        const trnxType = (l.trnx_type || '').toUpperCase();
+        const details = (l.details || '').toLowerCase();
+        const billNo = String(l.bill_no || '');
+
+        if (['SALE', 'PURCHASE', 'SALE_RETURN', 'PURCHASE_RETURN'].includes(trnxType)) return;
+        if (billNo.startsWith('SALE-') || billNo.startsWith('PUR-') || billNo.startsWith('EXP-') || billNo.startsWith('SR-') || billNo.startsWith('PR-')) return;
+        if (details.includes('no receivable change') || details.includes('expense:') || details.includes('stock adjustment')) return;
+        if (cashBankCusIds.has(l.cus_id)) return;
+
         const paymentType = mapTransactionTypeToPaymentType(l.trnx_type);
         if (l.credit_amount > 0) {
           dayEndDetails.push({
