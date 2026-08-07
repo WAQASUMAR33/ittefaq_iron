@@ -15,7 +15,10 @@ import {
   PlusCircle,
   MinusCircle,
   FileText,
-  DollarSign
+  DollarSign,
+  Star,
+  Highlighter,
+  X
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../components/dashboard-layout';
@@ -55,6 +58,8 @@ export default function CashReport() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState('desc'); // 'desc' (newest first) or 'asc' (oldest first)
   const [typeFilter, setTypeFilter] = useState('ALL'); // 'ALL', 'DEBIT', 'CREDIT'
+  const [highlightedRowIds, setHighlightedRowIds] = useState(new Set());
+  const [onlyHighlighted, setOnlyHighlighted] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
@@ -169,6 +174,41 @@ export default function CashReport() {
   const totalCredit = parseFloat(reportData?.summary?.totalLedgerCredit || 0);
   const netCashFlow = totalDebit - totalCredit;
 
+  const toggleHighlightRow = (l_id, e) => {
+    if (e) e.stopPropagation();
+    setHighlightedRowIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(l_id)) {
+        next.delete(l_id);
+      } else {
+        next.add(l_id);
+      }
+      return next;
+    });
+  };
+
+  const clearHighlights = () => {
+    setHighlightedRowIds(new Set());
+    setOnlyHighlighted(false);
+  };
+
+  const renderHighlightedText = (text, query) => {
+    if (text === null || text === undefined || text === '') return '-';
+    const str = String(text);
+    if (!query) return str;
+    const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const parts = str.split(new RegExp(`(${escapedQuery})`, 'gi'));
+    return parts.map((part, i) =>
+      part.toLowerCase() === query.toLowerCase() ? (
+        <mark key={i} className="bg-amber-200 text-amber-950 font-bold px-1 py-0.5 rounded shadow-2xs">
+          {part}
+        </mark>
+      ) : (
+        part
+      )
+    );
+  };
+
   // Screen entries ordering & filtering
   const allEntries = reportData?.ledgerEntries || [];
 
@@ -186,7 +226,9 @@ export default function CashReport() {
       (typeFilter === 'DEBIT' && isDebit) ||
       (typeFilter === 'CREDIT' && !isDebit);
 
-    return matchesSearch && matchesType;
+    const matchesHighlight = !onlyHighlighted || highlightedRowIds.has(entry.l_id);
+
+    return matchesSearch && matchesType && matchesHighlight;
   });
 
   const displayedEntries = sortOrder === 'desc' ? [...filteredEntries].reverse() : filteredEntries;
@@ -298,27 +340,51 @@ export default function CashReport() {
             {/* Right: Search & View Options */}
             {reportData && (
               <div className="flex items-center gap-2.5">
-                {/* Type Filter */}
-                <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+                {/* Type & Highlight Filters */}
+                <div className="flex flex-wrap items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs gap-0.5">
                   <button
-                    onClick={() => setTypeFilter('ALL')}
-                    className={`px-3 py-1 font-semibold rounded-lg transition-all ${typeFilter === 'ALL' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                    onClick={() => { setTypeFilter('ALL'); setOnlyHighlighted(false); }}
+                    className={`px-3 py-1 font-semibold rounded-lg transition-all ${typeFilter === 'ALL' && !onlyHighlighted ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                   >
                     All
                   </button>
                   <button
-                    onClick={() => setTypeFilter('DEBIT')}
-                    className={`px-3 py-1 font-semibold rounded-lg transition-all ${typeFilter === 'DEBIT' ? 'bg-emerald-600 text-white shadow-xs' : 'text-emerald-700 hover:bg-emerald-50'}`}
+                    onClick={() => { setTypeFilter('DEBIT'); setOnlyHighlighted(false); }}
+                    className={`px-3 py-1 font-semibold rounded-lg transition-all ${typeFilter === 'DEBIT' && !onlyHighlighted ? 'bg-emerald-600 text-white shadow-xs' : 'text-emerald-700 hover:bg-emerald-50'}`}
                   >
                     Cash In
                   </button>
                   <button
-                    onClick={() => setTypeFilter('CREDIT')}
-                    className={`px-3 py-1 font-semibold rounded-lg transition-all ${typeFilter === 'CREDIT' ? 'bg-rose-600 text-white shadow-xs' : 'text-rose-700 hover:bg-rose-50'}`}
+                    onClick={() => { setTypeFilter('CREDIT'); setOnlyHighlighted(false); }}
+                    className={`px-3 py-1 font-semibold rounded-lg transition-all ${typeFilter === 'CREDIT' && !onlyHighlighted ? 'bg-rose-600 text-white shadow-xs' : 'text-rose-700 hover:bg-rose-50'}`}
                   >
                     Cash Out
                   </button>
+                  <button
+                    onClick={() => setOnlyHighlighted(prev => !prev)}
+                    className={`px-3 py-1 font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
+                      onlyHighlighted
+                        ? 'bg-amber-500 text-white shadow-xs'
+                        : highlightedRowIds.size > 0
+                        ? 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    <Star className={`w-3.5 h-3.5 ${onlyHighlighted ? 'fill-white text-white' : highlightedRowIds.size > 0 ? 'fill-amber-500 text-amber-500' : 'text-slate-400'}`} />
+                    <span>Starred ({highlightedRowIds.size})</span>
+                  </button>
                 </div>
+
+                {highlightedRowIds.size > 0 && (
+                  <button
+                    onClick={clearHighlights}
+                    title="Clear all highlighted rows"
+                    className="px-2.5 py-1 text-xs font-semibold text-amber-700 hover:text-amber-900 hover:bg-amber-50 rounded-lg border border-amber-200 transition-all flex items-center gap-1"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>Clear Highlights</span>
+                  </button>
+                )}
 
                 {/* Sort Order Toggle */}
                 <button
@@ -334,10 +400,10 @@ export default function CashReport() {
           </div>
         </div>
 
-        {/* Report Body */}
+        {/* Report Body (Full Width Container) */}
         {reportData ? (
-          <div className="flex-1 overflow-auto p-5 print:p-0 print:overflow-visible">
-            <div className="max-w-[1400px] mx-auto space-y-4">
+          <div className="flex-1 overflow-auto p-4 sm:p-6 print:p-0 print:overflow-visible">
+            <div className="w-full space-y-4">
 
               {/* Print Only Header */}
               <div className="hidden print:block border-b-2 border-slate-900 pb-4 mb-4">
@@ -356,65 +422,65 @@ export default function CashReport() {
               {/* 5 Stats Summary Cards (Screen View) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 print:hidden">
                 {/* 1. Opening Balance */}
-                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-2xl p-4 shadow-sm border border-blue-400/20 relative overflow-hidden">
+                <div className="bg-gradient-to-br from-blue-100 to-indigo-200 text-indigo-900 rounded-2xl p-4 shadow-sm border border-blue-200/60 relative overflow-hidden">
                   <div className="flex items-center justify-between">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-blue-100">Opening Balance (b/f)</p>
-                    <div className="p-1.5 bg-white/20 rounded-lg">
-                      <Banknote className="w-4 h-4 text-white" />
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-indigo-500">Opening Balance (b/f)</p>
+                    <div className="p-1.5 bg-indigo-200/60 rounded-lg">
+                      <Banknote className="w-4 h-4 text-indigo-600" />
                     </div>
                   </div>
                   <p className="text-2xl font-black tracking-tight mt-2">Rs. {formatCurrency(openingBalance)}</p>
-                  <p className="text-[11px] text-blue-100/80 mt-1 font-medium">Starting Balance</p>
+                  <p className="text-[11px] text-indigo-400 mt-1 font-medium">Starting Balance</p>
                 </div>
 
                 {/* 2. Total Cash Receipts */}
-                <div className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-2xl p-4 shadow-sm border border-emerald-400/20 relative overflow-hidden">
+                <div className="bg-gradient-to-br from-emerald-100 to-teal-200 text-teal-900 rounded-2xl p-4 shadow-sm border border-emerald-200/60 relative overflow-hidden">
                   <div className="flex items-center justify-between">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-100">Total Cash In (Debit)</p>
-                    <div className="p-1.5 bg-white/20 rounded-lg">
-                      <TrendingUp className="w-4 h-4 text-white" />
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-teal-500">Total Cash In (Debit)</p>
+                    <div className="p-1.5 bg-teal-200/60 rounded-lg">
+                      <TrendingUp className="w-4 h-4 text-teal-600" />
                     </div>
                   </div>
                   <p className="text-2xl font-black tracking-tight mt-2">Rs. {formatCurrency(totalDebit)}</p>
-                  <p className="text-[11px] text-emerald-100/80 mt-1 font-medium">Receipts & Inflows</p>
+                  <p className="text-[11px] text-teal-400 mt-1 font-medium">Receipts & Inflows</p>
                 </div>
 
                 {/* 3. Total Cash Payments */}
-                <div className="bg-gradient-to-br from-rose-500 to-red-600 text-white rounded-2xl p-4 shadow-sm border border-rose-400/20 relative overflow-hidden">
+                <div className="bg-gradient-to-br from-rose-100 to-red-200 text-red-900 rounded-2xl p-4 shadow-sm border border-rose-200/60 relative overflow-hidden">
                   <div className="flex items-center justify-between">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-rose-100">Total Cash Out (Credit)</p>
-                    <div className="p-1.5 bg-white/20 rounded-lg">
-                      <TrendingDown className="w-4 h-4 text-white" />
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-rose-500">Total Cash Out (Credit)</p>
+                    <div className="p-1.5 bg-rose-200/60 rounded-lg">
+                      <TrendingDown className="w-4 h-4 text-rose-600" />
                     </div>
                   </div>
                   <p className="text-2xl font-black tracking-tight mt-2">Rs. {formatCurrency(totalCredit)}</p>
-                  <p className="text-[11px] text-rose-100/80 mt-1 font-medium">Payments & Outflows</p>
+                  <p className="text-[11px] text-rose-400 mt-1 font-medium">Payments & Outflows</p>
                 </div>
 
                 {/* 4. Net Cash Flow */}
-                <div className="bg-gradient-to-br from-purple-600 to-indigo-700 text-white rounded-2xl p-4 shadow-sm border border-purple-400/20 relative overflow-hidden">
+                <div className="bg-gradient-to-br from-purple-100 to-violet-200 text-violet-900 rounded-2xl p-4 shadow-sm border border-purple-200/60 relative overflow-hidden">
                   <div className="flex items-center justify-between">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-purple-100">Net Cash Flow</p>
-                    <div className="p-1.5 bg-white/20 rounded-lg">
-                      <DollarSign className="w-4 h-4 text-white" />
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-violet-500">Net Cash Flow</p>
+                    <div className="p-1.5 bg-violet-200/60 rounded-lg">
+                      <DollarSign className="w-4 h-4 text-violet-600" />
                     </div>
                   </div>
                   <p className="text-2xl font-black tracking-tight mt-2">
                     {netCashFlow >= 0 ? '+' : ''}Rs. {formatCurrency(netCashFlow)}
                   </p>
-                  <p className="text-[11px] text-purple-100/80 mt-1 font-medium">Receipts − Payments</p>
+                  <p className="text-[11px] text-violet-400 mt-1 font-medium">Receipts − Payments</p>
                 </div>
 
                 {/* 5. Closing Balance */}
-                <div className={`bg-gradient-to-br ${closingBalance >= 0 ? 'from-slate-800 to-slate-900' : 'from-amber-600 to-red-700'} text-white rounded-2xl p-4 shadow-sm relative overflow-hidden`}>
+                <div className={`bg-gradient-to-br ${closingBalance >= 0 ? 'from-slate-100 to-slate-200' : 'from-amber-100 to-red-200'} ${closingBalance >= 0 ? 'text-slate-800' : 'text-red-900'} rounded-2xl p-4 shadow-sm border border-slate-200/60 relative overflow-hidden`}>
                   <div className="flex items-center justify-between">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-300">Closing Balance</p>
-                    <div className="p-1.5 bg-white/20 rounded-lg">
-                      <Banknote className="w-4 h-4 text-white" />
+                    <p className={`text-[11px] font-bold uppercase tracking-wider ${closingBalance >= 0 ? 'text-slate-500' : 'text-red-500'}`}>Closing Balance</p>
+                    <div className={`p-1.5 ${closingBalance >= 0 ? 'bg-slate-300/60' : 'bg-red-200/60'} rounded-lg`}>
+                      <Banknote className={`w-4 h-4 ${closingBalance >= 0 ? 'text-slate-600' : 'text-red-600'}`} />
                     </div>
                   </div>
                   <p className="text-2xl font-black tracking-tight mt-2">Rs. {formatCurrency(closingBalance)}</p>
-                  <p className="text-[11px] text-slate-300/80 mt-1 font-medium">Net Running Balance</p>
+                  <p className={`text-[11px] ${closingBalance >= 0 ? 'text-slate-400' : 'text-red-400'} mt-1 font-medium`}>Net Running Balance</p>
                 </div>
               </div>
 
@@ -470,14 +536,17 @@ export default function CashReport() {
                   <table className="w-full text-xs text-left border-collapse">
                     <thead>
                       <tr className="bg-slate-900 text-slate-100 border-b border-slate-800 font-bold uppercase tracking-wider text-[11px]">
+                        <th className="px-3 py-3.5 w-10 text-center border-r border-slate-800" title="Click star to highlight entry">
+                          <Highlighter className="w-3.5 h-3.5 mx-auto text-amber-400" />
+                        </th>
                         <th className="px-4 py-3.5 w-14 text-center border-r border-slate-800">#</th>
                         <th className="px-4 py-3.5 w-28 border-r border-slate-800">Date</th>
                         <th className="px-4 py-3.5 w-28 border-r border-slate-800 text-center">Type</th>
                         <th className="px-4 py-3.5 border-r border-slate-800">Account Title</th>
                         <th className="px-4 py-3.5 border-r border-slate-800">Description</th>
                         <th className="px-4 py-3.5 w-28 border-r border-slate-800">Bill / Ref</th>
-                        <th className="px-4 py-3.5 w-32 text-right border-r border-slate-800 text-emerald-400">Cash In (Dr)</th>
-                        <th className="px-4 py-3.5 w-32 text-right border-r border-slate-800 text-rose-400">Cash Out (Cr)</th>
+                        <th className="px-4 py-3.5 w-36 text-right border-r border-slate-800 text-emerald-400">Cash In (Dr)</th>
+                        <th className="px-4 py-3.5 w-36 text-right border-r border-slate-800 text-rose-400">Cash Out (Cr)</th>
                         <th className="px-4 py-3.5 w-36 text-right">Balance</th>
                       </tr>
                     </thead>
@@ -486,6 +555,7 @@ export default function CashReport() {
                       {/* Opening Balance Row at Top for Ascending View */}
                       {sortOrder === 'asc' && reportData.ledgerEntries && (
                         <tr className="bg-blue-50/60 font-semibold border-b-2 border-blue-200">
+                          <td className="px-3 py-3 text-center border-r border-blue-100">—</td>
                           <td className="px-4 py-3 text-center text-blue-400 font-bold border-r border-blue-100">—</td>
                           <td className="px-4 py-3 text-blue-700 whitespace-nowrap border-r border-blue-100 font-bold">{formatDate(startDate)}</td>
                           <td className="px-4 py-3 text-center border-r border-blue-100">
@@ -510,50 +580,71 @@ export default function CashReport() {
                         const balance = parseFloat(entry.closing_balance || 0);
                         const isDebit = displayAmts.debit > 0;
                         const sno = sortOrder === 'desc' ? reportData.ledgerEntries.length - index : index + 1;
+                        const isHighlighted = highlightedRowIds.has(entry.l_id);
 
                         return (
                           <tr
                             key={entry.l_id}
-                            className={`hover:bg-slate-50/80 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}`}
+                            onClick={() => toggleHighlightRow(entry.l_id)}
+                            className={`cursor-pointer transition-colors ${
+                              isHighlighted
+                                ? 'bg-amber-100/90 hover:bg-amber-200/90 border-l-4 border-l-amber-500 font-medium'
+                                : index % 2 === 0
+                                ? 'bg-white hover:bg-slate-100/80'
+                                : 'bg-slate-50/50 hover:bg-slate-100/80'
+                            }`}
                           >
-                            <td className="px-4 py-3 text-center font-medium text-slate-500 border-r border-slate-100">{sno}</td>
-                            <td className="px-4 py-3 text-slate-800 font-semibold whitespace-nowrap border-r border-slate-100">{formatDate(entry.created_at)}</td>
-                            <td className="px-4 py-3 text-center border-r border-slate-100">
+                            <td className="px-3 py-3 text-center border-r border-slate-100/80">
+                              <button
+                                onClick={(e) => toggleHighlightRow(entry.l_id, e)}
+                                title={isHighlighted ? 'Remove highlight' : 'Highlight row'}
+                                className="p-1 rounded-md hover:bg-amber-200/60 text-slate-400 hover:text-amber-600 transition-colors"
+                              >
+                                <Star
+                                  className={`w-4 h-4 ${
+                                    isHighlighted ? 'fill-amber-500 text-amber-500' : 'text-slate-300'
+                                  }`}
+                                />
+                              </button>
+                            </td>
+                            <td className="px-4 py-3 text-center font-medium text-slate-500 border-r border-slate-100/80">{sno}</td>
+                            <td className="px-4 py-3 text-slate-800 font-semibold whitespace-nowrap border-r border-slate-100/80">{formatDate(entry.created_at)}</td>
+                            <td className="px-4 py-3 text-center border-r border-slate-100/80">
                               {isDebit ? (
-                                <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide">
+                                <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide shadow-2xs">
                                   <PlusCircle className="w-3 h-3 text-emerald-600" /> Cash In
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1 bg-rose-50 text-rose-700 border border-rose-200 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide">
+                                <span className="inline-flex items-center gap-1 bg-rose-50 text-rose-700 border border-rose-200 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide shadow-2xs">
                                   <MinusCircle className="w-3 h-3 text-rose-600" /> Cash Out
                                 </span>
                               )}
                             </td>
-                            <td className="px-4 py-3 text-slate-900 font-bold border-r border-slate-100">
-                              {entry.customer?.cus_name || 'General Cash'}
+                            <td className="px-4 py-3 text-slate-900 font-bold border-r border-slate-100/80">
+                              {renderHighlightedText(entry.customer?.cus_name || 'General Cash', searchQuery)}
                             </td>
-                            <td className="px-4 py-3 text-slate-600 border-r border-slate-100 max-w-xs truncate" title={entry.details || '-'}>
-                              {entry.details || '-'}
+                            <td className="px-4 py-3 text-slate-600 border-r border-slate-100/80 max-w-sm" title={entry.details || '-'}>
+                              {renderHighlightedText(entry.details, searchQuery)}
                             </td>
-                            <td className="px-4 py-3 border-r border-slate-100 font-medium">
+                            <td className="px-4 py-3 border-r border-slate-100/80 font-medium">
                               {entry.bill_no ? (
                                 <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 font-mono text-[11px]">
-                                  #{entry.bill_no}
+                                  #{renderHighlightedText(entry.bill_no, searchQuery)}
                                 </span>
                               ) : (
                                 <span className="text-slate-400">—</span>
                               )}
                             </td>
-                            <td className="px-4 py-3 text-right font-bold border-r border-slate-100 tabular-nums">
+                            <td className="px-4 py-3 text-right font-bold border-r border-slate-100/80 tabular-nums">
                               {displayAmts.debit > 0 ? (
-                                <span className="text-emerald-700 font-black">Rs. {formatCurrency(displayAmts.debit)}</span>
+                                <span className="text-emerald-700 font-black text-sm">Rs. {formatCurrency(displayAmts.debit)}</span>
                               ) : (
                                 <span className="text-slate-300">—</span>
                               )}
                             </td>
-                            <td className="px-4 py-3 text-right font-bold border-r border-slate-100 tabular-nums">
+                            <td className="px-4 py-3 text-right font-bold border-r border-slate-100/80 tabular-nums">
                               {displayAmts.credit > 0 ? (
-                                <span className="text-rose-700 font-black">Rs. {formatCurrency(displayAmts.credit)}</span>
+                                <span className="text-rose-700 font-black text-sm">Rs. {formatCurrency(displayAmts.credit)}</span>
                               ) : (
                                 <span className="text-slate-300">—</span>
                               )}
@@ -568,6 +659,7 @@ export default function CashReport() {
                       {/* Opening Balance Row at Bottom for Descending View */}
                       {sortOrder === 'desc' && reportData.ledgerEntries && (
                         <tr className="bg-blue-50/60 font-semibold border-t-2 border-blue-200">
+                          <td className="px-3 py-3 text-center border-r border-blue-100">—</td>
                           <td className="px-4 py-3 text-center text-blue-400 font-bold border-r border-blue-100">—</td>
                           <td className="px-4 py-3 text-blue-700 whitespace-nowrap border-r border-blue-100 font-bold">{formatDate(startDate)}</td>
                           <td className="px-4 py-3 text-center border-r border-blue-100">
@@ -589,11 +681,11 @@ export default function CashReport() {
                       {/* Empty State */}
                       {displayedEntries.length === 0 && (
                         <tr>
-                          <td colSpan="9" className="px-6 py-12 text-center">
+                          <td colSpan="10" className="px-6 py-12 text-center">
                             <div className="max-w-sm mx-auto">
                               <Search className="w-10 h-10 text-slate-300 mx-auto mb-2" />
                               <p className="text-slate-700 font-bold">No Cash Transactions Found</p>
-                              <p className="text-slate-400 text-xs mt-1">Try searching for a different term or change the date filter</p>
+                              <p className="text-slate-400 text-xs mt-1">Try searching for a different term or change the date/highlight filter</p>
                             </div>
                           </td>
                         </tr>
@@ -603,14 +695,14 @@ export default function CashReport() {
                     {/* Table Footer Totals */}
                     <tfoot>
                       <tr className="bg-slate-900 text-white font-extrabold text-xs">
-                        <td colSpan="6" className="px-4 py-3.5 text-right uppercase tracking-wider border-r border-slate-800 text-slate-300">
-                          Total Period Summary ({reportData.ledgerEntries.length} Transactions)
+                        <td colSpan="7" className="px-4 py-3.5 text-right uppercase tracking-wider border-r border-slate-800 text-slate-300">
+                          Total Period Summary ({displayedEntries.length} Visible / {reportData.ledgerEntries.length} Total)
                         </td>
                         <td className="px-4 py-3.5 text-right border-r border-slate-800 tabular-nums text-emerald-400 font-black text-sm">
-                          Rs. {formatCurrency(totalDebit)}
+                          Rs. {formatCurrency(displayedEntries.reduce((acc, e) => acc + getLedgerEntryDisplayAmounts(e).debit, 0))}
                         </td>
                         <td className="px-4 py-3.5 text-right border-r border-slate-800 tabular-nums text-rose-400 font-black text-sm">
-                          Rs. {formatCurrency(totalCredit)}
+                          Rs. {formatCurrency(displayedEntries.reduce((acc, e) => acc + getLedgerEntryDisplayAmounts(e).credit, 0))}
                         </td>
                         <td className="px-4 py-3.5 text-right tabular-nums text-amber-300 font-black text-sm">
                           Rs. {formatCurrency(closingBalance)}
