@@ -26,19 +26,12 @@ const fmtAmt = (val) => {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
-// Map ledger amounts to correct debit/credit columns based on trnx_type
+// Map ledger amounts to correct debit/credit columns based on entry values
 const getLedgerEntryDisplayAmounts = (entry) => {
-  const debitAmt = parseFloat(entry.debit_amount || 0);
-  const creditAmt = parseFloat(entry.credit_amount || 0);
-  const entryAmount = debitAmt > 0 ? debitAmt : creditAmt;
-
-  if (entry.trnx_type === 'DEBIT') {
-    return { debit: entryAmount, credit: 0 };
-  } else if (entry.trnx_type === 'CREDIT') {
-    return { debit: 0, credit: entryAmount };
-  } else {
-    return { debit: debitAmt, credit: creditAmt };
-  }
+  return {
+    debit: parseFloat(entry.debit_amount || 0),
+    credit: parseFloat(entry.credit_amount || 0)
+  };
 };
 
 function excludeMemoFromBankCashSummary(entries) {
@@ -88,33 +81,16 @@ export default function CashReport() {
       const data = await response.json();
       if (response.ok) {
         let filteredData = { ...data };
-        // Sort ledger entries chronologically (ascending) for core running balance & totals calculation
         if (filteredData.ledgerEntries && Array.isArray(filteredData.ledgerEntries)) {
           filteredData.ledgerEntries = [...filteredData.ledgerEntries].sort((a, b) => {
-            const timeA = new Date(a.created_at).getTime();
-            const timeB = new Date(b.created_at).getTime();
-            if (timeA !== timeB) return timeA - timeB;
+            const timeDiff = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+            if (timeDiff !== 0) return timeDiff;
+            const billA = parseInt(String(a.bill_no || '').replace(/\D/g, '')) || 0;
+            const billB = parseInt(String(b.bill_no || '').replace(/\D/g, '')) || 0;
+            if (billA !== billB) return billA - billB;
             return a.l_id - b.l_id;
           });
         }
-        const forSum = excludeMemoFromBankCashSummary(filteredData.ledgerEntries || []);
-        filteredData.summary = {
-          ...data.summary,
-          totalLedgerDebit: forSum.reduce((sum, l) => {
-            const { debit } = getLedgerEntryDisplayAmounts(l);
-            return sum + debit;
-          }, 0),
-          totalLedgerCredit: forSum.reduce((sum, l) => {
-            const { credit } = getLedgerEntryDisplayAmounts(l);
-            return sum + credit;
-          }, 0),
-          totalCashSales: (filteredData.cashSales || []).reduce((sum, s) => sum + parseFloat(s.payment || 0), 0),
-          totalCashPurchases: (filteredData.cashPurchases || []).reduce((sum, p) => {
-            const cashSupplier = parseFloat(p.cash_payment || (p.payment_type === 'CASH' ? p.payment : 0) || 0);
-            const incity = parseFloat(p.incity_charges_total || 0) || (parseFloat(p.incity_own_labour || 0) + parseFloat(p.incity_own_delivery || 0));
-            return sum + cashSupplier + incity;
-          }, 0),
-        };
         setReportData(filteredData);
       }
     } catch (error) {

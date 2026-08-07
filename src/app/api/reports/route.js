@@ -525,14 +525,16 @@ async function getCashReport(startDate, endDate) {
   });
   const cashCategoryIds = cashCategories.map(c => c.cus_cat_id);
 
+  const dateFilter = (startDate && endDate) ? parseLocalDateRange(startDate, endDate) : null;
+
   const whereClause = {
     customer: {
       cus_category: { in: cashCategoryIds }
     }
   };
 
-  if (startDate && endDate) {
-    whereClause.created_at = parseLocalDateRange(startDate, endDate);
+  if (dateFilter) {
+    whereClause.created_at = dateFilter;
   }
 
   const ledgerEntries = await prisma.ledger.findMany({
@@ -553,33 +555,69 @@ async function getCashReport(startDate, endDate) {
     ]
   });
 
-  // Also get cash sales (exclude ORDER type)
-  const salesWhere = {
-    payment_type: 'CASH',
-    bill_type: 'BILL'
-  };
-
-  if (startDate && endDate) {
-    salesWhere.created_at = parseLocalDateRange(startDate, endDate);
-  }
-
-  const cashSales = await prisma.sale.findMany({
-    where: salesWhere,
-    include: {
-      customer: {
-        select: {
-          cus_id: true,
-          cus_name: true,
-          customer_category: true
-        }
-      }
-    },
-    orderBy: {
-      created_at: 'asc'
-    }
+  // Re-sort chronologically: created_at ASC → bill_no (numeric) ASC → l_id ASC
+  ledgerEntries.sort((a, b) => {
+    const timeDiff = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    if (timeDiff !== 0) return timeDiff;
+    const billA = parseInt(String(a.bill_no || '').replace(/\D/g, '')) || 0;
+    const billB = parseInt(String(b.bill_no || '').replace(/\D/g, '')) || 0;
+    if (billA !== billB) return billA - billB;
+    return a.l_id - b.l_id;
   });
 
-  // Get cash purchases (including purchases with cash payments or incity charges)
+  // Determine exact Opening Balance at start of date range
+  let openingBalance = 0;
+  if (dateFilter && dateFilter.gte) {
+    const lastPriorEntry = await prisma.ledger.findFirst({
+      where: {
+        customer: { cus_category: { in: cashCategoryIds } },
+        created_at: { lt: dateFilter.gte }
+      },
+      orderBy: [
+        { created_at: 'desc' },
+        { l_id: 'desc' }
+      ]
+    });
+
+    if (lastPriorEntry) {
+      openingBalance = parseFloat(lastPriorEntry.closing_balance || 0);
+    } else if (ledgerEntries.length > 0) {
+      openingBalance = parseFloat(ledgerEntries[0].opening_balance || 0);
+    }
+  } else {
+    const firstEntry = await prisma.ledger.findFirst({
+      where: { customer: { cus_category: { in: cashCategoryIds } } },
+      orderBy: [
+        { created_at: 'asc' },
+        { l_id: 'asc' }
+      ]
+    });
+    openingBalance = firstEntry ? parseFloat(firstEntry.opening_balance || 0) : 0;
+  }
+
+  // Re-calculate running balances for entries in period
+  let runningBal = openingBalance;
+  if (ledgerEntries.length > 0) {
+    for (let i = 0; i < ledgerEntries.length; i++) {
+      const e = ledgerEntries[i];
+      const debit = parseFloat(e.debit_amount || 0);
+      const credit = parseFloat(e.credit_amount || 0);
+      e.opening_balance = runningBal;
+      runningBal = runningBal + debit - credit;
+      e.closing_balance = runningBal;
+    }
+  }
+
+  // Also get cash sales (exclude ORDER type) for reference
+  const salesWhere = { payment_type: 'CASH', bill_type: 'BILL' };
+  if (dateFilter) salesWhere.created_at = dateFilter;
+  const cashSales = await prisma.sale.findMany({
+    where: salesWhere,
+    include: { customer: { select: { cus_id: true, cus_name: true, customer_category: true } } },
+    orderBy: { created_at: 'asc' }
+  });
+
+  // Get cash purchases
   const purchasesWhere = {
     OR: [
       { payment_type: 'CASH' },
@@ -589,135 +627,23 @@ async function getCashReport(startDate, endDate) {
       { incity_own_delivery: { gt: 0 } }
     ]
   };
-
-  if (startDate && endDate) {
-    purchasesWhere.created_at = parseLocalDateRange(startDate, endDate);
-  }
-
+  if (dateFilter) purchasesWhere.created_at = dateFilter;
   const cashPurchases = await prisma.purchase.findMany({
     where: purchasesWhere,
-    include: {
-      customer: {
-        select: {
-          cus_id: true,
-          cus_name: true,
-          customer_category: true
-        }
-      }
-    },
-    orderBy: {
-      created_at: 'asc'
-    }
+    include: { customer: { select: { cus_id: true, cus_name: true, customer_category: true } } },
+    orderBy: { created_at: 'asc' }
   });
 
-  // Get cash expenses (all expenses are considered cash)
+  // Get expenses
   const expensesWhere = {};
-  if (startDate && endDate) {
-    expensesWhere.created_at = parseLocalDateRange(startDate, endDate);
-  }
-
+  if (dateFilter) expensesWhere.created_at = dateFilter;
   const expenses = await prisma.expense.findMany({
     where: expensesWhere,
-    include: {
-      expense_title: true
-    },
-    orderBy: {
-      created_at: 'asc'
-    }
+    include: { expense_title: true },
+    orderBy: { created_at: 'asc' }
   });
 
-  // Default Cash Account for synthetic/missing incity cash entries
-  const defaultCashAccount = await prisma.customer.findFirst({
-    where: {
-      customer_category: { cus_cat_title: { contains: 'cash' } }
-    },
-    select: {
-      cus_id: true,
-      cus_name: true,
-      cus_phone_no: true,
-      customer_category: true
-    }
-  });
-
-  const finalLedgerEntries = [...ledgerEntries];
-
-  // Ensure every purchase with incity charges has an incity cash ledger entry in finalLedgerEntries
-  for (const p of cashPurchases) {
-    const incityTotal = parseFloat(p.incity_charges_total || 0) || (parseFloat(p.incity_own_labour || 0) + parseFloat(p.incity_own_delivery || 0));
-    if (incityTotal > 0) {
-      const purIdStr = String(p.pur_id);
-      const existingIncityEntry = finalLedgerEntries.find(
-        (e) => String(e.bill_no) === purIdStr && (e.details || '').toLowerCase().includes('incity')
-      );
-      if (!existingIncityEntry) {
-        const supplierName = p.customer?.cus_name || 'Supplier';
-        finalLedgerEntries.push({
-          l_id: `incity-${p.pur_id}`,
-          cus_id: defaultCashAccount?.cus_id || p.cus_id,
-          created_at: p.created_at,
-          debit_amount: 0,
-          credit_amount: incityTotal,
-          opening_balance: 0,
-          closing_balance: 0,
-          bill_no: purIdStr,
-          trnx_type: 'CREDIT',
-          details: `Incity Charges Payment - Purchase #${p.pur_id} (${supplierName})`,
-          customer: defaultCashAccount || {
-            cus_id: p.cus_id,
-            cus_name: 'Cash Account',
-            customer_category: { cus_cat_title: 'Cash Account' }
-          }
-        });
-      }
-    }
-  }
-
-  // Sort finalLedgerEntries chronologically
-  finalLedgerEntries.sort((a, b) => {
-    const timeA = new Date(a.created_at).getTime();
-    const timeB = new Date(b.created_at).getTime();
-    if (timeA !== timeB) return timeA - timeB;
-    return String(a.l_id).localeCompare(String(b.l_id));
-  });
-
-  // Calculate exact Opening Balance before startDate for all Cash accounts
-  let openingBalance = 0;
-  if (startDate && cashCategoryIds.length > 0) {
-    const [year, month, day] = startDate.split('-').map(Number);
-    const startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0);
-
-    const priorLedger = await prisma.ledger.aggregate({
-      where: {
-        customer: {
-          cus_category: { in: cashCategoryIds }
-        },
-        created_at: { lt: startOfDay }
-      },
-      _sum: {
-        debit_amount: true,
-        credit_amount: true
-      }
-    });
-
-    const priorDebit = parseFloat(priorLedger._sum.debit_amount || 0);
-    const priorCredit = parseFloat(priorLedger._sum.credit_amount || 0);
-    openingBalance = priorDebit - priorCredit;
-  }
-
-  // Re-calculate running balances for finalLedgerEntries
-  let runningBal = openingBalance;
-  if (finalLedgerEntries.length > 0) {
-    for (let i = 0; i < finalLedgerEntries.length; i++) {
-      const e = finalLedgerEntries[i];
-      const debit = parseFloat(e.debit_amount || 0);
-      const credit = parseFloat(e.credit_amount || 0);
-      e.opening_balance = runningBal;
-      runningBal = runningBal + debit - credit;
-      e.closing_balance = runningBal;
-    }
-  }
-
-  // Exclude ORDER customer memo lines (equal D/C, no receivable) — not real cash movement for the cash book
+  // Exclude memo lines
   const isCashBankMemo = (l) => {
     const det = l.details || '';
     if (!det.includes('no receivable change')) return false;
@@ -725,33 +651,26 @@ async function getCashReport(startDate, endDate) {
     const c = parseFloat(l.credit_amount || 0);
     return d > 0 && c > 0 && Math.abs(d - c) < 0.02;
   };
-  const ledgerEntriesForSummary = finalLedgerEntries.filter((l) => !isCashBankMemo(l));
+  const ledgerEntriesForSummary = ledgerEntries.filter((l) => !isCashBankMemo(l));
 
-  // Helper to calculate total cash spent on a purchase (supplier cash payment + incity charges)
-  const getPurchaseCashOutflow = (p) => {
-    const cashSupplier = parseFloat(p.cash_payment || (p.payment_type === 'CASH' ? p.payment : 0) || 0);
-    const incity = parseFloat(p.incity_charges_total || 0) || (parseFloat(p.incity_own_labour || 0) + parseFloat(p.incity_own_delivery || 0));
-    return cashSupplier + incity;
-  };
+  const totalLedgerDebit = ledgerEntriesForSummary.reduce((sum, l) => sum + parseFloat(l.debit_amount || 0), 0);
+  const totalLedgerCredit = ledgerEntriesForSummary.reduce((sum, l) => sum + parseFloat(l.credit_amount || 0), 0);
 
-  const totalCashPurchases = cashPurchases.reduce((sum, p) => sum + getPurchaseCashOutflow(p), 0);
-
-  // Cash account (asset): debit = money IN, credit = money OUT
   const summary = {
     openingBalance,
     closingBalance: runningBal,
     totalLedgerEntries: ledgerEntriesForSummary.length,
-    totalLedgerDebit: ledgerEntriesForSummary.reduce((sum, l) => sum + parseFloat(l.debit_amount || 0), 0),
-    totalLedgerCredit: ledgerEntriesForSummary.reduce((sum, l) => sum + parseFloat(l.credit_amount || 0), 0),
+    totalLedgerDebit,
+    totalLedgerCredit,
     totalCashSales: cashSales.reduce((sum, s) => sum + parseFloat(s.payment || 0), 0),
-    totalCashPurchases: totalCashPurchases,
+    totalCashPurchases: cashPurchases.reduce((sum, p) => sum + parseFloat(p.cash_payment || (p.payment_type === 'CASH' ? p.payment : 0) || 0), 0),
     totalExpenses: expenses.reduce((sum, e) => sum + parseFloat(e.exp_amount || 0), 0),
-    cashIn: ledgerEntriesForSummary.reduce((sum, l) => sum + parseFloat(l.debit_amount || 0), 0) + cashSales.reduce((sum, s) => sum + parseFloat(s.payment || 0), 0),
-    cashOut: ledgerEntriesForSummary.reduce((sum, l) => sum + parseFloat(l.credit_amount || 0), 0) + totalCashPurchases + expenses.reduce((sum, e) => sum + parseFloat(e.exp_amount || 0), 0)
+    cashIn: totalLedgerDebit,
+    cashOut: totalLedgerCredit
   };
 
   return NextResponse.json({
-    ledgerEntries: finalLedgerEntries,
+    ledgerEntries,
     cashSales,
     cashPurchases,
     expenses,
