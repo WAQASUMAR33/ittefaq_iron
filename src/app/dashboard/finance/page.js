@@ -3155,49 +3155,20 @@ export default function FinancePage() {
                           }
                         }
 
-                        // Color coding: Green for incoming/positive cash/owing decrease, Red for outgoing/negative cash/owing increase
-                        const rowCustomer = customers.find(c => Number(c.cus_id) === Number(entry.cus_id));
-                        const rowCategoryTitle = (rowCustomer?.customer_category?.cus_cat_title || '').toLowerCase();
-                        const isRowCashBank = rowCategoryTitle.includes('cash') || rowCategoryTitle.includes('bank');
-                        const isRowSupplier = rowCategoryTitle.includes('supplier') || rowCategoryTitle.includes('labour') || rowCategoryTitle.includes('transport') || rowCategoryTitle.includes('delivery');
-
-                        const ledgerTypeLower = (entry.ledger_type || '').toLowerCase();
-                        const detailsLower = (entry.details || '').toLowerCase();
-                        const trnxTypeLower = (entry.trnx_type || '').toLowerCase();
-                        const billTypeLower = (entry.bill_type || '').toLowerCase();
-
-                        const isReceiving = ledgerTypeLower === 'receiving' || 
-                                            ledgerTypeLower === 'receipt' || 
-                                            trnxTypeLower === 'receiving' || 
-                                            trnxTypeLower === 'receipt' || 
-                                            billTypeLower === 'finance_in' || 
-                                            detailsLower.includes('receiving') || 
-                                            detailsLower.includes('cash receipt') || 
-                                            detailsLower.includes('received');
-
-                        const isPayment = ledgerTypeLower === 'payment' || 
-                                          ledgerTypeLower === 'pay' || 
-                                          trnxTypeLower === 'payment' || 
-                                          trnxTypeLower === 'pay' || 
-                                          billTypeLower === 'finance_out' || 
-                                          detailsLower.includes('payment') || 
-                                          detailsLower.includes('cash payment') || 
-                                          detailsLower.includes('paid to');
-
+                        // Color coding: Green for Debit entries, Red for Credit entries
                         let isPositive;
-                        if (isReceiving) {
-                          isPositive = true; // Receiving entries are GREEN
-                        } else if (isPayment) {
-                          isPositive = false; // Payment entries are RED
+                        if (isDebit) {
+                          isPositive = true; // Debit entries are GREEN
+                        } else if (isCredit) {
+                          isPositive = false; // Credit entries are RED
                         } else {
-                          // Default fallback: Credit entries represent incoming/receiving (GREEN), Debit entries represent outgoing/payment (RED)
-                          isPositive = isCredit || !isDebit;
+                          isPositive = true;
                         }
 
                         const rowBgColor = isPositive ? '#dcfce7' : '#fee2e2';
                         const entryTypeColor = isPositive ? '#16a34a' : '#dc2626';
 
-                        // Column text colors match entry type color (Green for receiving, Red for payment)
+                        // Column text colors (Green for debit, Red for credit)
                         const debitColor = entryTypeColor;
                         const creditColor = entryTypeColor;
 
