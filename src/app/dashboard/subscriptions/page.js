@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { formatDatePK } from '@/lib/date-helper';
 import DashboardLayout from '../components/dashboard-layout';
 import {
   Box,
@@ -290,10 +291,10 @@ export default function SubscriptionsPage() {
                             Amount: PKR {parseFloat(subscription.amount).toFixed(2)}
                           </Typography>
                           <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                            Start: {new Date(subscription.start_date).toLocaleDateString()}
+                            Start: {formatDatePK(subscription.start_date)}
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
-                            End: {new Date(subscription.end_date).toLocaleDateString()}
+                            End: {formatDatePK(subscription.end_date)}
                           </Typography>
                         </CardContent>
                       </Card>

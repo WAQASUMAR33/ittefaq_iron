@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, Suspense, useRef, useCallback } from 'react';
+import { formatDatePK, formatDateTimePK } from '@/lib/date-helper';
 import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '../components/dashboard-layout';
 import { usePinAuth } from '../../hooks/usePinAuth';
@@ -7091,7 +7092,7 @@ function SalesPageContent() {
                             {draft.customer?.cus_name || 'No customer'}
                           </TableCell>
                           <TableCell>
-                            {new Date(draft.updated_at).toLocaleDateString()} {new Date(draft.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {formatDateTimePK(draft.updated_at)}
                           </TableCell>
                           <TableCell align="center">
                             <Tooltip title="Load this draft">

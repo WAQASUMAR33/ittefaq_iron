@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { formatDatePK } from '@/lib/date-helper';
 import { 
   Calendar,
   Download,
@@ -339,14 +340,14 @@ export default function SalesByDateReport() {
     csv += 'Phone: +92 346 7560306\n';
     csv += '\n';
     csv += 'Sales Report (By Date)\n';
-    csv += `From: ${new Date(startDate).toLocaleDateString()} To: ${new Date(endDate).toLocaleDateString()}\n`;
+    csv += `From: ${formatDatePK(startDate)} To: ${formatDatePK(endDate)}\n`;
     csv += `Generated on: ${new Date().toLocaleString()}\n`;
     csv += '\n';
     csv += 'Sale ID,Date,Customer,Items,Total Amount,Discount,Shipping,Net Total,Payment,Bill Type\n';
     
     salesData.sales.forEach(sale => {
       const netTotal = parseFloat(sale.total_amount) - parseFloat(sale.discount) + parseFloat(sale.shipping_amount || 0);
-      csv += `${sale.sale_id},${new Date(sale.created_at).toLocaleDateString()},${sale.customer?.cus_name || 'N/A'},${sale.sale_details?.length || 0},${fmtAmt(sale.total_amount)},${fmtAmt(sale.discount)},${fmtAmt(sale.shipping_amount)},${fmtAmt(netTotal)},${fmtAmt(sale.payment)},${sale.bill_type}\n`;
+      csv += `${sale.sale_id},${formatDatePK(sale.created_at)},${sale.customer?.cus_name || 'N/A'},${sale.sale_details?.length || 0},${fmtAmt(sale.total_amount)},${fmtAmt(sale.discount)},${fmtAmt(sale.shipping_amount)},${fmtAmt(netTotal)},${fmtAmt(sale.payment)},${sale.bill_type}\n`;
     });
 
     // Add totals
@@ -575,7 +576,7 @@ export default function SalesByDateReport() {
                 <div className="mt-4 pt-4 border-t border-gray-300">
                   <h2 className="text-2xl font-semibold text-gray-800">Sales Report (By Date)</h2>
                   <p className="text-gray-600 mt-2">
-                    From {new Date(startDate).toLocaleDateString()} to {new Date(endDate).toLocaleDateString()}
+                    From {formatDatePK(startDate)} to {formatDatePK(endDate)}
                   </p>
                   <p className="text-sm text-gray-500 mt-1">
                     Generated on: {new Date().toLocaleString()}
@@ -946,7 +947,7 @@ export default function SalesByDateReport() {
                             className={`hover:bg-gray-50 print:hover:bg-white cursor-pointer transition-colors duration-150 ${selectedIndex === i || (selectedSale && selectedSale.sale_id === sale.sale_id) ? 'ring-2 ring-blue-300 bg-blue-50' : ''}`}
                           >
                             <td className="px-6 py-5 align-middle text-sm text-gray-900">
-                              {new Date(sale.created_at).toLocaleDateString()}
+                              {formatDatePK(sale.created_at)}
                             </td>
                             <td className="px-6 py-5 align-middle text-sm text-gray-900">
                               {sale.sale_id.toString().slice(-8)}

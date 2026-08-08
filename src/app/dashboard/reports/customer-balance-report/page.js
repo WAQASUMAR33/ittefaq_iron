@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, Fragment } from 'react';
+import { formatDatePK } from '@/lib/date-helper';
 import {
     Download,
     Printer,
@@ -191,7 +192,7 @@ export default function CustomerBalanceReport() {
         filteredCustomers.forEach(c => {
             const balance = parseBalance(c.cus_balance);
             const status = balance >= 0 ? 'Receivable' : 'Payable';
-            csv += `${c.cus_id},"${c.cus_name}","${c.cus_phone_no || ''}","${c.customer_type?.cus_type_title || ''}","${c.last_activity ? new Date(c.last_activity).toLocaleDateString() : 'Never'}",${Math.abs(balance)},${status}\n`;
+            csv += `${c.cus_id},"${c.cus_name}","${c.cus_phone_no || ''}","${c.customer_type?.cus_type_title || ''}","${c.last_activity ? formatDatePK(c.last_activity) : 'Never'}",${Math.abs(balance)},${status}\n`;
         });
 
         const blob = new Blob([csv], { type: 'text/csv' });
@@ -453,7 +454,7 @@ export default function CustomerBalanceReport() {
                     <Box className="hidden print:block" sx={{ textAlign: 'center', p: 4, borderBottom: '2px solid #000' }}>
                         <Typography variant="h4" sx={{ fontWeight: 800 }}>ITTEFAQ BUILDERS</Typography>
                         <Typography variant="h6">Customer Balance Report</Typography>
-                        <Typography variant="body2">Date: {new Date().toLocaleDateString()}</Typography>
+                        <Typography variant="body2">Date: {formatDatePK(new Date())}</Typography>
                         <Divider sx={{ my: 2 }} />
                     </Box>
 
@@ -504,7 +505,7 @@ export default function CustomerBalanceReport() {
                                                 </TableCell>
                                                 <TableCell sx={{ textAlign: 'center' }}>
                                                     <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
-                                                        {customer.last_activity ? new Date(customer.last_activity).toLocaleDateString() : '—'}
+                                                        {customer.last_activity ? formatDatePK(customer.last_activity) : '—'}
                                                     </Typography>
                                                     {customer.last_activity && (
                                                         <Typography variant="caption" color="text.secondary">

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { formatDatePKWithMonthName } from '@/lib/date-helper';
 import DashboardLayout from '../components/dashboard-layout';
 import { usePinAuth } from '../../hooks/usePinAuth';
 import BiometricAuthDialog from '../components/BiometricAuthDialog';
@@ -1235,7 +1236,7 @@ export default function SaleReturnsPage() {
                                 <Stack direction="row" spacing={1} alignItems="center">
                                   <CalendarIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
                                   <Typography variant="body2">
-                                    {new Date(returnItem.return_date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                     {formatDatePKWithMonthName(returnItem.return_date)}
                                   </Typography>
                                 </Stack>
                               </TableCell>

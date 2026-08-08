@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { formatDatePK } from '@/lib/date-helper';
 import { 
   Download,
   Printer,
@@ -72,7 +73,7 @@ export default function PurchasesBySupplierReport() {
     csv += 'Address: Parianwali\n';
     csv += 'Phone: +92 346 7560306\n\n';
     csv += 'Purchase Report (Supplier Wise)\n';
-    csv += `From: ${new Date(startDate).toLocaleDateString()} To: ${new Date(endDate).toLocaleDateString()}\n`;
+    csv += `From: ${formatDatePK(startDate)} To: ${formatDatePK(endDate)}\n`;
     csv += `Generated on: ${new Date().toLocaleString()}\n\n`;
     csv += 'Supplier,Purchases Count,Total Amount,Unloading,Fare,Discount,Net Total,Payments\n';
     
@@ -161,7 +162,7 @@ export default function PurchasesBySupplierReport() {
                 <div className="mt-4 pt-4 border-t border-gray-300">
                   <h2 className="text-2xl font-semibold text-gray-800">Purchase Report (Supplier Wise)</h2>
                   <p className="text-gray-600 mt-2">
-                    From {new Date(startDate).toLocaleDateString()} to {new Date(endDate).toLocaleDateString()}
+                    From {formatDatePK(startDate)} to {formatDatePK(endDate)}
                   </p>
                   <p className="text-sm text-gray-500 mt-1">
                     Generated on: {new Date().toLocaleString()}

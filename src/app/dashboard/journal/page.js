@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { formatDatePK } from '@/lib/date-helper';
 import { 
   Plus, 
   Edit, 
@@ -630,7 +631,7 @@ export default function JournalPage() {
                               Journal #{journal.sequentialId}
                             </div>
                             <div className="text-sm text-gray-500">
-                              ID: {journal.journal_id} • {new Date(journal.journal_date).toLocaleDateString()}
+                              ID: {journal.journal_id} • {formatDatePK(journal.journal_date)}
                             </div>
                           </div>
                           <div className="flex items-center space-x-2">

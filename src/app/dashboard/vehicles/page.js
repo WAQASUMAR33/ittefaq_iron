@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Check, X, Truck, User, Phone, Calendar, Loader2 } from 'lucide-react';
 import DashboardLayout from '../components/dashboard-layout';
+import { formatDatePK } from '@/lib/date-helper';
 
 export default function VehiclesPage() {
   const [vehicles, setVehicles] = useState([]);
@@ -326,7 +327,7 @@ export default function VehiclesPage() {
                       <div className="text-sm text-gray-900">{vehicle.v_driver_no || 'N/A'}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(vehicle.created_at).toLocaleDateString()}
+                      {formatDatePK(vehicle.created_at)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {vehicle.updated_by_user?.full_name ? (

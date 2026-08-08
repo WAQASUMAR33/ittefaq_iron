@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
+import { formatDatePK } from '@/lib/date-helper';
 import { useRouter } from 'next/navigation';
 import {
   DollarSign,
@@ -137,7 +138,7 @@ export default function DashboardContent({ activeTab }) {
             action: `Sale #${sale.sale_id}`,
             customer: sale.customer?.cus_name || 'Customer',
             amount: fmtAmt(sale.total_amount),
-            time: new Date(sale.created_at).toLocaleDateString(),
+            time: formatDatePK(sale.created_at),
             status: 'success'
           });
         });
@@ -149,7 +150,7 @@ export default function DashboardContent({ activeTab }) {
             action: `Purchase #${purchase.pur_id}`,
             customer: purchase.customer?.cus_name || 'Supplier',
             amount: fmtAmt(purchase.total_amount),
-            time: new Date(purchase.created_at).toLocaleDateString(),
+            time: formatDatePK(purchase.created_at),
             status: 'info'
           });
         });

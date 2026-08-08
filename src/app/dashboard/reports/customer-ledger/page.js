@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { formatDatePK } from '@/lib/date-helper';
 import {
   Download,
   Printer,
@@ -108,12 +109,12 @@ export default function CustomerLedgerReport() {
     csv += 'Phone: +92 346 7560306\n\n';
     csv += 'Customer Ledger Report\n';
     csv += `Customer: ${reportData.customer?.cus_name}\n`;
-    csv += `From: ${new Date(startDate).toLocaleDateString()} To: ${new Date(endDate).toLocaleDateString()}\n`;
+    csv += `From: ${formatDatePK(startDate)} To: ${formatDatePK(endDate)}\n`;
     csv += `Generated on: ${new Date().toLocaleString()}\n\n`;
     csv += 'Date,Type,Bill No,Details,Debit,Credit,Balance,Payments\n';
 
     reportData.ledgerEntries.forEach(entry => {
-      csv += `${new Date(entry.created_at).toLocaleDateString()},${entry.trnx_type},${entry.bill_no || ''},${entry.details || ''},${fmtAmt(entry.debit_amount)},${fmtAmt(entry.credit_amount)},${fmtAmt(entry.closing_balance)},${fmtAmt(entry.payments)}\n`;
+      csv += `${formatDatePK(entry.created_at)},${entry.trnx_type},${entry.bill_no || ''},${entry.details || ''},${fmtAmt(entry.debit_amount)},${fmtAmt(entry.credit_amount)},${fmtAmt(entry.closing_balance)},${fmtAmt(entry.payments)}\n`;
     });
 
     csv += '\n';
@@ -266,7 +267,7 @@ export default function CustomerLedgerReport() {
                   <h2 className="text-2xl font-semibold text-gray-800">Customer Ledger Report</h2>
                   <p className="text-gray-600 mt-2">Customer: {reportData.customer?.cus_name}</p>
                   <p className="text-gray-600">
-                    From {new Date(startDate).toLocaleDateString()} to {new Date(endDate).toLocaleDateString()}
+                    From {formatDatePK(startDate)} to {formatDatePK(endDate)}
                   </p>
                   <p className="text-sm text-gray-500 mt-1">
                     Generated on: {new Date().toLocaleString()}
@@ -329,7 +330,7 @@ export default function CustomerLedgerReport() {
                         return (
                         <tr key={entry.l_id} className={`${rowBg} cursor-pointer`}>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {new Date(entry.created_at).toLocaleDateString()}
+                            {formatDatePK(entry.created_at)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {entry.trnx_type}

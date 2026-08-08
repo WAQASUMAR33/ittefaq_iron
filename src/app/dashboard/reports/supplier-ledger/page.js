@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { formatDatePK } from '@/lib/date-helper';
 import {
   Download,
   Printer,
@@ -109,12 +110,12 @@ export default function SupplierLedgerReport() {
     csv += 'Phone: +92 346 7560306\n\n';
     csv += 'Supplier Ledger Report\n';
     csv += `Supplier: ${reportData.supplier?.cus_name}\n`;
-    csv += `From: ${new Date(startDate).toLocaleDateString()} To: ${new Date(endDate).toLocaleDateString()}\n`;
+    csv += `From: ${formatDatePK(startDate)} To: ${formatDatePK(endDate)}\n`;
     csv += `Generated on: ${new Date().toLocaleString()}\n\n`;
     csv += 'Date,Type,Bill No,Details,Debit,Credit,Balance,Payments,Cash,Bank\n';
 
     reportData.ledgerEntries.forEach(entry => {
-      csv += `${new Date(entry.created_at).toLocaleDateString()},${entry.trnx_type},${entry.bill_no || ''},${entry.details || ''},${fmtAmt(entry.debit_amount)},${fmtAmt(entry.credit_amount)},${fmtAmt(entry.closing_balance)},${fmtAmt(entry.payments)},${fmtAmt(entry.cash_payment)},${fmtAmt(entry.bank_payment)}\n`;
+      csv += `${formatDatePK(entry.created_at)},${entry.trnx_type},${entry.bill_no || ''},${entry.details || ''},${fmtAmt(entry.debit_amount)},${fmtAmt(entry.credit_amount)},${fmtAmt(entry.closing_balance)},${fmtAmt(entry.payments)},${fmtAmt(entry.cash_payment)},${fmtAmt(entry.bank_payment)}\n`;
     });
 
     csv += '\n';
@@ -258,7 +259,7 @@ export default function SupplierLedgerReport() {
                   {reportData.supplier?.cus_reference && ` | Reference: ${reportData.supplier.cus_reference}`}
                 </p>
                 <p className="text-gray-600 mt-1">
-                  Period: {new Date(startDate).toLocaleDateString()} to {new Date(endDate).toLocaleDateString()}
+                  Period: {formatDatePK(startDate)} to {formatDatePK(endDate)}
                 </p>
               </div>
 
@@ -313,7 +314,7 @@ export default function SupplierLedgerReport() {
                             : 'border-b border-gray-200 ledger-row-hover';
                         return (
                         <tr key={index} className={`${rowBg} cursor-pointer`}>
-                          <td className="px-6 py-3 text-gray-700">{new Date(entry.created_at).toLocaleDateString()}</td>
+                          <td className="px-6 py-3 text-gray-700">{formatDatePK(entry.created_at)}</td>
                           <td className="px-6 py-3">
                             <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
                               entry.trnx_type === 'CASH' ? 'bg-blue-100 text-blue-800' :

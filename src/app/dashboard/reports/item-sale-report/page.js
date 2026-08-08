@@ -89,7 +89,7 @@ export default function ItemSaleReport() {
 
   const fmtDate = (d) => {
     if (!d) return '-';
-    try { return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-'); }
+    try { return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Karachi' }).replace(/ /g, '-'); }
     catch { return '-'; }
   };
 

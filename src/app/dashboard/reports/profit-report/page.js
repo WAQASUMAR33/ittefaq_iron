@@ -67,7 +67,7 @@ export default function ProfitReport() {
   };
 
   const fmt = (n) => (parseFloat(n) || 0).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Karachi' }) : '-';
   const pct = (p, s) => s > 0 ? ((p / s) * 100).toFixed(1) + '%' : '0.0%';
 
   // ── filtered sales ────────────────────────────────────────────────────────

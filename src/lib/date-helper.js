@@ -33,3 +33,29 @@ export const formatDateTimePK = (dateInput) => {
   });
   return `${dateStr} ${timeStr}`;
 };
+
+export const formatTimePK = (dateInput) => {
+  if (!dateInput) return '';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'Asia/Karachi'
+  });
+};
+
+export const formatDatePKWithMonthName = (dateInput) => {
+  if (!dateInput) return '';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'Asia/Karachi'
+  });
+};
+
+

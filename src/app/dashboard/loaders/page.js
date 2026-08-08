@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Check, X, Truck, User, Phone, Calendar, Loader2, CreditCard, Hash } from 'lucide-react';
 import DashboardLayout from '../components/dashboard-layout';
+import { formatDatePK } from '@/lib/date-helper';
 
 const fmtAmt = (val) => {
   const n = parseFloat(val || 0);
@@ -400,7 +401,7 @@ export default function LoadersPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(loader.created_at).toLocaleDateString()}
+                      {formatDatePK(loader.created_at)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {loader.updated_by_user?.full_name ? (

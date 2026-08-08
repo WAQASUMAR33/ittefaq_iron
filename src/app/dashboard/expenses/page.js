@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { formatDatePK } from '@/lib/date-helper';
 import {
   Plus,
   Edit,
@@ -689,7 +690,7 @@ export default function ExpensesPage() {
                                         {expense.paid_from_account.cus_name}
                                       </div>
                                       <div className="text-[10px] text-gray-400 font-mono">
-                                        {expense.payment_date ? new Date(expense.payment_date).toLocaleDateString() : ''}
+                                        {expense.payment_date ? formatDatePK(expense.payment_date) : ''}
                                       </div>
                                     </div>
                                   </div>
@@ -708,7 +709,7 @@ export default function ExpensesPage() {
                                         {bankAcc.cus_name}
                                       </div>
                                       <div className="text-[10px] text-gray-400 font-mono">
-                                        {expense.payment_date ? new Date(expense.payment_date).toLocaleDateString() : ''}
+                                        {expense.payment_date ? formatDatePK(expense.payment_date) : ''}
                                       </div>
                                     </div>
                                   </div>
@@ -737,7 +738,7 @@ export default function ExpensesPage() {
                           {/* Created */}
                           <div className="col-span-1 flex items-center justify-center">
                             <div className="text-xs text-gray-500 whitespace-nowrap">
-                              {new Date(expense.created_at).toLocaleDateString()}
+                              {formatDatePK(expense.created_at)}
                             </div>
                           </div>
 

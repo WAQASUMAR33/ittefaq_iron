@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { formatDatePK } from '@/lib/date-helper';
 import {
   Box,
   Container,
@@ -823,7 +824,7 @@ export default function CustomersPage() {
         body: JSON.stringify({
           imageBase64: pdfBase64,
           phone: whatsappPhone.trim(),
-          caption: `📋 Accounts List — Itefaq Iron & Cement Store\nTotal: ${fullList.length} accounts\nDate: ${new Date().toLocaleDateString()}`,
+          caption: `📋 Accounts List — Itefaq Iron & Cement Store\nTotal: ${fullList.length} accounts\nDate: ${formatDatePK(new Date())}`,
           bill: { sale_id: `customers-${Date.now()}` },
           templateKey: 'customer_list',
           templateVariables: {
@@ -1437,7 +1438,7 @@ export default function CustomersPage() {
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" color="text.secondary">
-                          {new Date(customer.created_at).toLocaleDateString()}
+                          {formatDatePK(customer.created_at)}
                         </Typography>
                       </TableCell>
                       <TableCell>

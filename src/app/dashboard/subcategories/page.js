@@ -3,6 +3,7 @@
 import { useState, useEffect, Fragment } from 'react';
 import { Package, Search, Filter, ArrowUp, Plus, Edit, Trash2, X, Tag, Folder, Boxes, Calendar } from 'lucide-react';
 import DashboardLayout from '../components/dashboard-layout';
+import { formatDatePK } from '@/lib/date-helper';
 
 // Material-UI imports
 import {
@@ -688,7 +689,7 @@ export default function SubCategoriesPage() {
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" color="text.secondary">
-                          {new Date(subCategory.created_at).toLocaleDateString()}
+                          {formatDatePK(subCategory.created_at)}
                         </Typography>
                       </TableCell>
                       <TableCell align="center">

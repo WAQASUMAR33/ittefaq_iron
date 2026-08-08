@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { formatDatePK } from '@/lib/date-helper';
 import { 
   Plus, 
   Edit, 
@@ -368,7 +369,7 @@ export default function ExpenseTitlesPage() {
                             <div>
                               <div className="text-sm font-medium text-gray-900">{title.title}</div>
                               <div className="text-xs text-gray-500">
-                                Created: {new Date(title.created_at).toLocaleDateString()}
+                                Created: {formatDatePK(title.created_at)}
                               </div>
                             </div>
                           </div>
@@ -386,7 +387,7 @@ export default function ExpenseTitlesPage() {
                           {/* Created */}
                           <div className="col-span-2 flex items-center">
                             <div className="text-sm text-gray-900">
-                              {new Date(title.created_at).toLocaleDateString()}
+                              {formatDatePK(title.created_at)}
                             </div>
                           </div>
 

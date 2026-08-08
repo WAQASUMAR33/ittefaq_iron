@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Tag, Edit, Trash2, Check, Calendar, Users, X, Search, Filter, ArrowUp, LayoutGrid, Clock, ListChecks } from 'lucide-react';
 import { Fragment } from 'react';
 import DashboardLayout from '../components/dashboard-layout';
+import { formatDatePK } from '@/lib/date-helper';
 
 // Material-UI imports
 import {
@@ -613,12 +614,12 @@ export default function CustomerCategoryPage() {
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" color="text.secondary">
-                          {new Date(category.created_at).toLocaleDateString()}
+                          {formatDatePK(category.created_at)}
                         </Typography>
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" color="text.secondary">
-                          {new Date(category.updated_at).toLocaleDateString()}
+                          {formatDatePK(category.updated_at)}
                         </Typography>
                       </TableCell>
                       <TableCell align="center">

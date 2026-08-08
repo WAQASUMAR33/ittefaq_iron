@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { formatDatePK, formatTimePK } from '@/lib/date-helper';
 import { 
   Download,
   Printer,
@@ -73,12 +74,12 @@ export default function PurchasesByDateReport() {
     csv += 'Address: Parianwali\n';
     csv += 'Phone: +92 346 7560306\n\n';
     csv += 'Purchase Report (By Date)\n';
-    csv += `From: ${new Date(startDate).toLocaleDateString()} To: ${new Date(endDate).toLocaleDateString()}\n`;
+    csv += `From: ${formatDatePK(startDate)} To: ${formatDatePK(endDate)}\n`;
     csv += `Generated on: ${new Date().toLocaleString()}\n\n`;
     csv += 'Purchase ID,Date,Supplier,Items,Amount,Discount,Net Total,Payment,Type\n';
     
     reportData.purchases.forEach(purchase => {
-      csv += `${purchase.pur_id},${new Date(purchase.created_at).toLocaleDateString()},${purchase.customer?.cus_name || 'N/A'},${purchase.purchase_details?.length || 0},${fmtAmt(purchase.total_amount)},${fmtAmt(purchase.discount)},${fmtAmt(purchase.net_total)},${fmtAmt(purchase.payment)},${purchase.bill_type || purchase.type || 'PURCHASE'}\n`;
+      csv += `${purchase.pur_id},${formatDatePK(purchase.created_at)},${purchase.customer?.cus_name || 'N/A'},${purchase.purchase_details?.length || 0},${fmtAmt(purchase.total_amount)},${fmtAmt(purchase.discount)},${fmtAmt(purchase.net_total)},${fmtAmt(purchase.payment)},${purchase.bill_type || purchase.type || 'PURCHASE'}\n`;
     });
 
     csv += '\n';
@@ -520,7 +521,7 @@ export default function PurchasesByDateReport() {
                 <div className="mt-4 pt-4 border-t border-gray-300">
                   <h2 className="text-2xl font-semibold text-gray-800">Purchase Report (By Date)</h2>
                   <p className="text-gray-600 mt-2">
-                    From {new Date(startDate).toLocaleDateString()} to {new Date(endDate).toLocaleDateString()}
+                    From {formatDatePK(startDate)} to {formatDatePK(endDate)}
                   </p>
                   <p className="text-sm text-gray-500 mt-1">
                     Generated on: {new Date().toLocaleString()}
@@ -575,8 +576,8 @@ export default function PurchasesByDateReport() {
                       </Box>
                       <Box sx={{ textAlign: 'right' }}>
                         <Typography variant="body2">Invoice No: <strong>#{selectedPurchase.pur_id}</strong></Typography>
-                        <Typography variant="body2">Time: <strong>{new Date(selectedPurchase.created_at).toLocaleTimeString()}</strong></Typography>
-                        <Typography variant="body2">Date: <strong>{new Date(selectedPurchase.created_at).toLocaleDateString()}</strong></Typography>
+                        <Typography variant="body2">Time: <strong>{formatTimePK(selectedPurchase.created_at)}</strong></Typography>
+                        <Typography variant="body2">Date: <strong>{formatDatePK(selectedPurchase.created_at)}</strong></Typography>
                       </Box>
                     </Box>
 
@@ -849,7 +850,7 @@ export default function PurchasesByDateReport() {
                           className={`hover:bg-gray-50 print:hover:bg-white cursor-pointer transition-colors duration-150 ${selectedIndex === i || (selectedPurchase && selectedPurchase.pur_id === purchase.pur_id) ? 'ring-2 ring-blue-300 bg-blue-50' : ''}`}
                         >
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {new Date(purchase.created_at).toLocaleDateString()}
+                            {formatDatePK(purchase.created_at)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {purchase.pur_id.toString().slice(-8)}
