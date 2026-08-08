@@ -113,7 +113,14 @@ export async function GET(request) {
           purchase: {
             include: {
               customer: true,
-              store: true
+              store: true,
+              updated_by_user: {
+                select: {
+                  user_id: true,
+                  full_name: true,
+                  role: true
+                }
+              }
             }
           },
           return_details: {

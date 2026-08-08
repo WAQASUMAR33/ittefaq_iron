@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { formatDatePKWithMonthName } from '@/lib/date-helper';
+import { formatDatePKWithMonthName, getCreatedByName } from '@/lib/date-helper';
 import DashboardLayout from '../components/dashboard-layout';
 import { usePinAuth } from '../../hooks/usePinAuth';
 import BiometricAuthDialog from '../components/BiometricAuthDialog';
@@ -860,6 +860,7 @@ export default function SaleReturnsPage() {
             <p style="margin:3px 0;">Time: <strong>${returnTime}</strong></p>
             <p style="margin:3px 0;">Date: <strong>${returnDate}</strong></p>
             <p style="margin:3px 0;">Bill Type: <strong>SALE_RETURN</strong></p>
+            <p style="margin:3px 0;">Created By: <strong>${getCreatedByName(returnItem, currentUser)}</strong></p>
           </div>
         </div>
         <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">

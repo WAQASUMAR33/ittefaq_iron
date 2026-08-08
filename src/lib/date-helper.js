@@ -58,4 +58,18 @@ export const formatDatePKWithMonthName = (dateInput) => {
   });
 };
 
+export const getCreatedByName = (item, currentUser = null) => {
+  if (!item) return currentUser?.full_name || currentUser?.name || 'Admin';
+  return (
+    item.updated_by_user?.full_name ||
+    item.created_by_user?.full_name ||
+    item.user?.full_name ||
+    item.updated_by_user?.name ||
+    currentUser?.full_name ||
+    currentUser?.name ||
+    'Admin'
+  );
+};
+
+
 

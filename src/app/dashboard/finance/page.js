@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, Fragment, useMemo, useRef } from 'react';
+import { getCreatedByName } from '@/lib/date-helper';
 import {
   Plus,
   Edit,
@@ -1647,6 +1648,7 @@ export default function FinancePage() {
             <p style="margin:4px 0;"><strong>Ref #:</strong> PAY-${d.paymentId}</p>
             <p style="margin:4px 0;"><strong>Date:</strong> ${d.date || '—'}</p>
             <p style="margin:4px 0;"><strong>Time:</strong> ${d.time || '—'}</p>
+            <p style="margin:4px 0;"><strong>Created By:</strong> ${getCreatedByName(d, currentUser)}</p>
           </div>
         </div>
         <div style="border:1px solid #000;border-radius:4px;overflow:hidden;margin-bottom:20px;">
@@ -4712,6 +4714,7 @@ export default function FinancePage() {
                   <Typography variant="body2"><strong>Ref #:</strong> PAY-{paymentReceiptData.paymentId}</Typography>
                   <Typography variant="body2"><strong>Date:</strong> {paymentReceiptData.date}</Typography>
                   <Typography variant="body2"><strong>Time:</strong> {paymentReceiptData.time}</Typography>
+                  <Typography variant="body2"><strong>Created By:</strong> {getCreatedByName(paymentReceiptData, currentUser)}</Typography>
                 </Box>
               </Box>
 
@@ -4846,6 +4849,7 @@ export default function FinancePage() {
       <p><strong>Ref #:</strong> PAY-${d.paymentId}</p>
       <p><strong>Date:</strong> ${d.date}</p>
       <p><strong>Time:</strong> ${d.time}</p>
+      <p><strong>Created By:</strong> ${getCreatedByName(d, currentUser)}</p>
     </div>
   </div>
   <table>
@@ -4973,6 +4977,12 @@ export default function FinancePage() {
                     <Typography variant="body2" sx={{ width: '100px', flexShrink: 0 }}>Time:</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                       {viewingPurchase.created_at ? new Date(viewingPurchase.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : '—'}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', mb: 0.5 }}>
+                    <Typography variant="body2" sx={{ width: '100px', flexShrink: 0 }}>Created By:</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                      {getCreatedByName(viewingPurchase, currentUser)}
                     </Typography>
                   </Box>
                 </Box>
@@ -5332,6 +5342,12 @@ export default function FinancePage() {
                       {viewingPurchaseReturn.created_at ? new Date(viewingPurchaseReturn.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : '—'}
                     </Typography>
                   </Box>
+                  <Box sx={{ display: 'flex', mb: 0.5 }}>
+                    <Typography variant="body2" sx={{ width: '100px', flexShrink: 0 }}>Created By:</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                      {getCreatedByName(viewingPurchaseReturn, currentUser)}
+                    </Typography>
+                  </Box>
                 </Box>
               </Box>
 
@@ -5628,6 +5644,12 @@ export default function FinancePage() {
                     <Typography variant="body2" sx={{ width: '100px', flexShrink: 0 }}>Time:</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                       {viewingSaleReturn.created_at ? new Date(viewingSaleReturn.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : '—'}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', mb: 0.5 }}>
+                    <Typography variant="body2" sx={{ width: '100px', flexShrink: 0 }}>Created By:</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                      {getCreatedByName(viewingSaleReturn, currentUser)}
                     </Typography>
                   </Box>
                 </Box>
@@ -5944,6 +5966,12 @@ export default function FinancePage() {
                     <Typography variant="body2" sx={{ width: '100px', flexShrink: 0 }}>Time:</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
                       {viewingSale.created_at ? new Date(viewingSale.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : '—'}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', mb: 0.5 }}>
+                    <Typography variant="body2" sx={{ width: '100px', flexShrink: 0 }}>Created By:</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                      {getCreatedByName(viewingSale, currentUser)}
                     </Typography>
                   </Box>
                 </Box>
@@ -6424,6 +6452,9 @@ export default function FinancePage() {
               </Box>
               <Box sx={{ mt: 0.25 }}>
                 <span>Party: <strong>{customerObj?.cus_name || 'N/A'}</strong></span>
+              </Box>
+              <Box sx={{ mt: 0.25 }}>
+                <span>Created By: <strong>{getCreatedByName(activeBillData, currentUser)}</strong></span>
               </Box>
               {customerObj?.cus_phone_no && (
                 <Box sx={{ mt: 0.25 }}>

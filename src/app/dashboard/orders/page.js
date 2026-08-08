@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, Suspense, useRef } from 'react';
+import { getCreatedByName } from '@/lib/date-helper';
 import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '../components/dashboard-layout';
 import { usePinAuth } from '../../hooks/usePinAuth';
@@ -3792,8 +3793,11 @@ function OrdersPageContent() {
                   <Typography variant="body2" sx={{ mb: 0.5 }}>
                     Date: <strong>{new Date(currentBillData.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
                   </Typography>
-                  <Typography variant="body2">
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
                     Bill Type: <strong>{currentBillData.bill_type || 'BILL'}</strong>
+                  </Typography>
+                  <Typography variant="body2">
+                    Created By: <strong>{getCreatedByName(currentBillData, currentUser)}</strong>
                   </Typography>
                 </Box>
               </Box>
@@ -4041,8 +4045,11 @@ function OrdersPageContent() {
                     <Typography sx={{ mb: 0.25, fontSize: '0.85rem', color: '#000' }}>
                       Date: &nbsp;<strong>{new Date(currentBillData.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
                     </Typography>
-                    <Typography sx={{ fontSize: '0.85rem', color: '#000' }}>
+                    <Typography sx={{ mb: 0.25, fontSize: '0.85rem', color: '#000' }}>
                       Time: &nbsp;<strong>{new Date(currentBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.85rem', color: '#000' }}>
+                      Created By: &nbsp;<strong>{getCreatedByName(currentBillData, currentUser)}</strong>
                     </Typography>
                   </Box>
                 </Box>
@@ -5554,8 +5561,11 @@ function OrdersPageContent() {
                   <Typography sx={{ mb: 0.25, fontSize: '0.85rem', color: '#000' }}>
                     Date: &nbsp;<strong>{new Date(selectedBill.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
                   </Typography>
-                  <Typography sx={{ fontSize: '0.85rem', color: '#000' }}>
+                  <Typography sx={{ mb: 0.25, fontSize: '0.85rem', color: '#000' }}>
                     Time: &nbsp;<strong>{new Date(selectedBill.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.85rem', color: '#000' }}>
+                    Created By: &nbsp;<strong>{getCreatedByName(selectedBill, currentUser)}</strong>
                   </Typography>
                 </Box>
               </Box>
@@ -6589,8 +6599,11 @@ function OrdersPageContent() {
                 <Typography sx={{ mb: 0.25, fontSize: '0.85rem', color: '#000' }}>
                   Date: &nbsp;<strong>{new Date(activeBillData.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
                 </Typography>
-                <Typography sx={{ fontSize: '0.85rem', color: '#000' }}>
+                <Typography sx={{ mb: 0.25, fontSize: '0.85rem', color: '#000' }}>
                   Time: &nbsp;<strong>{new Date(activeBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
+                </Typography>
+                <Typography sx={{ fontSize: '0.85rem', color: '#000' }}>
+                  Created By: &nbsp;<strong>{getCreatedByName(activeBillData, currentUser)}</strong>
                 </Typography>
               </Box>
             </Box>
