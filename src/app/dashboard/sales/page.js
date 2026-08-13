@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, Suspense, useRef, useCallback } from 'react';
-import { formatDatePK, formatDateTimePK, getCreatedByName } from '@/lib/date-helper';
+import { formatDatePK, formatDateTimePK, formatTimePK, getCreatedByName } from '@/lib/date-helper';
 import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '../components/dashboard-layout';
 import { usePinAuth } from '../../hooks/usePinAuth';
@@ -6159,7 +6159,7 @@ function SalesPageContent() {
                     <Box sx={{ display: 'flex', mb: 0.5 }}>
                       <Typography variant="body2" sx={{ width: '100px', flexShrink: 0 }}>Time:</Typography>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                        {new Date(currentBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                        {formatTimePK(currentBillData?.created_at) || '—'}
                       </Typography>
                     </Box>
                     <Box sx={{ display: 'flex', mb: 0.5 }}>
@@ -6400,11 +6400,7 @@ function SalesPageContent() {
                     </Typography>
                     <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>
                       Time:{' '}
-                      {new Date(currentBillData.created_at).toLocaleTimeString('en-US', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        hour12: true,
-                      })}
+                      {formatTimePK(currentBillData?.created_at) || '—'}
                     </Typography>
                     <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>Cust: {currentBillData.customer?.cus_name || 'N/A'}</Typography>
                     <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>
@@ -6567,7 +6563,7 @@ function SalesPageContent() {
                     <Box sx={{ display: 'flex', mb: 0.5 }}>
                       <Typography variant="body2" sx={{ width: '100px', flexShrink: 0 }}>Time:</Typography>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                        {new Date(currentBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                        {formatTimePK(currentBillData?.created_at) || '—'}
                       </Typography>
                     </Box>
                     <Box sx={{ display: 'flex', mb: 0.5 }}>
@@ -8806,7 +8802,7 @@ function SalesPageContent() {
                   <Box sx={{ display: 'flex', mb: 0.5 }}>
                     <Typography variant="body2" sx={{ width: '100px', flexShrink: 0 }}>Time:</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                      {new Date(selectedBill.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                      {formatTimePK(selectedBill?.created_at) || '—'}
                     </Typography>
                   </Box>
                   <Box sx={{ display: 'flex', mb: 0.5 }}>
@@ -10351,10 +10347,10 @@ function SalesPageContent() {
             <Box sx={{ py: 0.75, fontSize: '11px', borderBottom: '1px dashed #000', color: '#000' }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Inv #: <strong>{getBillDisplayNo(activeBillData)}</strong></span>
-                <span>Date: <strong>{new Date(activeBillData.created_at).toLocaleDateString('en-GB')}</strong></span>
+                <span>Date: <strong>{formatDatePK(activeBillData?.created_at) || '—'}</strong></span>
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.25 }}>
-                <span>Time: <strong>{new Date(activeBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong></span>
+                <span>Time: <strong>{formatTimePK(activeBillData?.created_at) || '—'}</strong></span>
                 <span>Type: <strong>{activeBillData.bill_type || 'BILL'}</strong></span>
               </Box>
               <Box sx={{ mt: 0.25 }}>

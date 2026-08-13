@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, Suspense, useRef } from 'react';
-import { getCreatedByName } from '@/lib/date-helper';
+import { getCreatedByName, formatTimePK, formatDatePK } from '@/lib/date-helper';
 import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '../components/dashboard-layout';
 import { usePinAuth } from '../../hooks/usePinAuth';
@@ -5277,8 +5277,8 @@ function PurchasesPageContent() {
                 </Box>
                 <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right', flex: '0 0 50%' }}>
                   <Typography variant="body2" sx={{ mb: 0.5 }}>Invoice No: <strong>#{viewingPurchase.pur_id}</strong></Typography>
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>Time: <strong>{new Date(viewingPurchase.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong></Typography>
-                  <Typography variant="body2" sx={{ mb: 0.5 }}>Date: <strong>{new Date(viewingPurchase.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong></Typography>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>Time: <strong>{formatTimePK(viewingPurchase?.created_at) || '—'}</strong></Typography>
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>Date: <strong>{formatDatePK(viewingPurchase?.created_at) || '—'}</strong></Typography>
                   <Typography variant="body2" sx={{ mb: 0.5 }}>Bill Type: <strong>{viewingPurchase.bill_type || 'PURCHASE'}</strong></Typography>
                   <Typography variant="body2">Created By: <strong>{getCreatedByName(viewingPurchase, currentUser)}</strong></Typography>
                 </Box>
@@ -6073,10 +6073,10 @@ function PurchasesPageContent() {
                     Invoice No: <strong>#{currentBillData.pur_id}</strong>
                   </Typography>
                   <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    Time: <strong>{new Date(currentBillData.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong>
+                    Time: <strong>{formatTimePK(currentBillData?.created_at) || '—'}</strong>
                   </Typography>
                   <Typography variant="body2" sx={{ mb: 0.5 }}>
-                    Date: <strong>{new Date(currentBillData.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong>
+                    Date: <strong>{formatDatePK(currentBillData?.created_at) || '—'}</strong>
                   </Typography>
                   <Typography variant="body2" sx={{ mb: 0.5 }}>
                     Bill Type: <strong>{currentBillData.bill_type || 'PURCHASE'}</strong>
