@@ -3824,8 +3824,8 @@ function SalesPageContent() {
           bValue = parseFloat(b.total_amount || 0);
           break;
         default:
-          aValue = new Date(a.created_at);
-          bValue = new Date(b.created_at);
+          aValue = a.created_at ? new Date(a.created_at).getTime() : 0;
+          bValue = b.created_at ? new Date(b.created_at).getTime() : 0;
       }
 
       const modifier = sortOrder === 'asc' ? 1 : -1;
@@ -6153,7 +6153,7 @@ function SalesPageContent() {
                     <Box sx={{ display: 'flex', mb: 0.5 }}>
                       <Typography variant="body2" sx={{ width: '100px', flexShrink: 0 }}>Date:</Typography>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                        {new Date(currentBillData.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                        {formatDatePK(currentBillData?.created_at) || '—'}
                       </Typography>
                     </Box>
                     <Box sx={{ display: 'flex', mb: 0.5 }}>
@@ -6396,7 +6396,7 @@ function SalesPageContent() {
                     )}
                     <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>Type: {currentBillData.bill_type || 'BILL'}</Typography>
                     <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>
-                      Date: {new Date(currentBillData.created_at).toLocaleDateString('en-GB')}
+                      Date: {formatDatePK(currentBillData?.created_at) || '—'}
                     </Typography>
                     <Typography sx={{ fontSize: '10px', fontWeight: 'bold' }}>
                       Time:{' '}
@@ -6557,7 +6557,7 @@ function SalesPageContent() {
                     <Box sx={{ display: 'flex', mb: 0.5 }}>
                       <Typography variant="body2" sx={{ width: '100px', flexShrink: 0 }}>Date:</Typography>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                        {new Date(currentBillData.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                        {formatDatePK(currentBillData?.created_at) || '—'}
                       </Typography>
                     </Box>
                     <Box sx={{ display: 'flex', mb: 0.5 }}>
@@ -6961,7 +6961,7 @@ function SalesPageContent() {
                       <TableRow key={sale.sale_id} hover>
                         <TableCell>{getBillDisplayNo(sale)}</TableCell>
                         <TableCell>{sale.customer?.cus_name || 'N/A'}</TableCell>
-                        <TableCell>{new Date(sale.created_at).toLocaleDateString('en-GB')}</TableCell>
+                        <TableCell>{formatDatePK(sale?.created_at) || '—'}</TableCell>
                         <TableCell align="right">{parseFloat(sale.total_amount || 0).toFixed(0)}</TableCell>
                         <TableCell align="center">
                           <Button
@@ -7910,7 +7910,7 @@ function SalesPageContent() {
                               variant="outlined"
                             />
                           </TableCell>
-                          <TableCell>{new Date(sale.created_at).toLocaleDateString('en-GB')}</TableCell>
+                          <TableCell>{formatDatePK(sale?.created_at) || '—'}</TableCell>
                           <TableCell align="center">
                             <IconButton
                               size="small"
@@ -8088,7 +8088,7 @@ function SalesPageContent() {
                     <TableRow key={sale.sale_id} hover>
                       <TableCell>{sale.sale_id}</TableCell>
                       <TableCell>{sale.customer?.cus_name || 'N/A'}</TableCell>
-                      <TableCell>{new Date(sale.created_at).toLocaleDateString('en-GB')}</TableCell>
+                      <TableCell>{formatDatePK(sale?.created_at) || '—'}</TableCell>
                       <TableCell align="right">{parseFloat(sale.total_amount || 0).toFixed(0)}</TableCell>
                       <TableCell align="center">
                         <Button
@@ -8796,7 +8796,7 @@ function SalesPageContent() {
                   <Box sx={{ display: 'flex', mb: 0.5 }}>
                     <Typography variant="body2" sx={{ width: '100px', flexShrink: 0 }}>Date:</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                      {new Date(selectedBill.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                      {formatDatePK(selectedBill?.created_at) || '—'}
                     </Typography>
                   </Box>
                   <Box sx={{ display: 'flex', mb: 0.5 }}>
@@ -9306,7 +9306,7 @@ function SalesPageContent() {
                     <Typography variant="body2"><strong>Total Amount:</strong> {parseFloat(selectedSaleForReturn.total_amount || 0).toFixed(0)}</Typography>
                   </Grid>
                   <Grid item xs={6}>
-                    <Typography variant="body2"><strong>Date:</strong> {new Date(selectedSaleForReturn.created_at).toLocaleDateString('en-GB')}</Typography>
+                    <Typography variant="body2"><strong>Date:</strong> {formatDatePK(selectedSaleForReturn?.created_at) || '—'}</Typography>
                   </Grid>
                   <Grid item xs={6}>
                     <Typography variant="body2"><strong>Bill Type:</strong> {selectedSaleForReturn.bill_type || 'BILL'}</Typography>
@@ -9631,7 +9631,7 @@ function SalesPageContent() {
                           }
                         }}
                       >
-                        <TableCell>{new Date(entry.created_at).toLocaleDateString('en-GB')}</TableCell>
+                        <TableCell>{formatDatePK(entry?.created_at) || '—'}</TableCell>
                         <TableCell>
                           <Chip
                             label={entry.trnx_type}

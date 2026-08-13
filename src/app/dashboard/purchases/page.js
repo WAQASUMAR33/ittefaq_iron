@@ -1100,8 +1100,8 @@ function PurchasesPageContent() {
     let aValue, bValue;
 
     if (sortBy === 'created_at') {
-      aValue = new Date(a.created_at);
-      bValue = new Date(b.created_at);
+      aValue = a.created_at ? new Date(a.created_at).getTime() : 0;
+      bValue = b.created_at ? new Date(b.created_at).getTime() : 0;
     } else if (sortBy === 'net_total') {
       aValue = parseFloat(a.net_total);
       bValue = parseFloat(b.net_total);
@@ -2856,7 +2856,7 @@ function PurchasesPageContent() {
                           {/* Created */}
                           <div className="col-span-1 flex items-center">
                             <div className="text-sm text-gray-900">
-                              {new Date(purchase.created_at).toLocaleDateString('en-GB')}
+                              {formatDatePK(purchase?.created_at) || 'N/A'}
                             </div>
                           </div>
 
@@ -3379,7 +3379,7 @@ function PurchasesPageContent() {
                                       {option.invoice_number || 'N/A'}
                                     </Typography>
                                     <Typography variant="caption" color="text.secondary">
-                                      {Number(option.total_amount)} • {new Date(option.created_at).toLocaleDateString('en-GB')}
+                                      {Number(option.total_amount)} • {formatDatePK(option?.created_at) || 'N/A'}
                                     </Typography>
                                   </Box>
                                 </Box>
