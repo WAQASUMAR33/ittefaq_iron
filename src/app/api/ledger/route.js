@@ -251,10 +251,7 @@ export async function POST(request) {
     const openingBalance = parseFloat(customerData.cus_balance || 0);
     const debitNum = parseFloat(debit_amount || 0);
     const creditNum = parseFloat(credit_amount || 0);
-    const catTitle = (customer?.customer_category?.cus_cat_title || '').toLowerCase();
-    const isSupplier = catTitle.includes('supplier') || catTitle.includes('creditor');
-    const accountNature = isSupplier ? ACCOUNT_NATURE.PAYABLE : ACCOUNT_NATURE.RECEIVABLE;
-    const closingBalance = calculateClosingBalance(openingBalance, debitNum, creditNum, accountNature);
+    const closingBalance = calculateClosingBalance(openingBalance, debitNum, creditNum);
 
     const l_id = body.l_id || await getNextId('ledger', 'l_id');
 
@@ -532,15 +529,7 @@ export async function PUT(request) {
       const newDebit  = Number(parseFloat(debit_amount  || 0).toFixed(2));
       const newCredit = Number(parseFloat(credit_amount || 0).toFixed(2));
       
-      const catTitle = (customer?.customer_category?.cus_cat_title || '').toLowerCase();
-      const isSupplier = catTitle.includes('supplier') || catTitle.includes('creditor');
-      
-      let netChange;
-      if (isSupplier) {
-        netChange = Number(((newCredit - newDebit) - (oldCredit - oldDebit)).toFixed(2));
-      } else {
-        netChange = Number(((newDebit - newCredit) - (oldDebit - oldCredit)).toFixed(2));
-      }
+      const netChange = Number(((newDebit - newCredit) - (oldDebit - oldCredit)).toFixed(2));
 
       // ── Update only the metadata on the original entry (amounts unchanged) ──
       const updatedLedger = await tx.ledger.update({
@@ -562,19 +551,9 @@ export async function PUT(request) {
         const entryBillNo    = bill_no ? String(bill_no) : existingLedger.bill_no;
         const entryDesc      = details || existingLedger.details || '';
         
-        let debitAmt = 0;
-        let creditAmt = 0;
-        let typeLabel = '';
-        
-        if (isSupplier) {
-          debitAmt = isIncrease ? 0 : adjustmentAmt;
-          creditAmt = isIncrease ? adjustmentAmt : 0;
-          typeLabel = isIncrease ? 'Credit' : 'Debit';
-        } else {
-          debitAmt = isIncrease ? adjustmentAmt : 0;
-          creditAmt = isIncrease ? 0 : adjustmentAmt;
-          typeLabel = isIncrease ? 'Debit' : 'Credit';
-        }
+        const debitAmt = isIncrease ? adjustmentAmt : 0;
+        const creditAmt = isIncrease ? 0 : adjustmentAmt;
+        const typeLabel = isIncrease ? 'Debit' : 'Credit';
 
         const l_id_adj = await getNextId('ledger', 'l_id', tx);
 

@@ -17,14 +17,11 @@ export const ACCOUNT_NATURE = {
  * - PAYABLE (suppliers): bill/purchase = debit, payment = credit; balance negative when we owe
  *   closing = opening - debit + credit (e.g. bill 2500 → -2500, pay 1000 credit → -1500)
  */
-export function calculateClosingBalance(openingBalance, debitAmount = 0, creditAmount = 0, accountNature = ACCOUNT_NATURE.RECEIVABLE) {
+export function calculateClosingBalance(openingBalance, debitAmount = 0, creditAmount = 0) {
   const opening = parseFloat(openingBalance || 0);
   const debit = parseFloat(debitAmount || 0);
   const credit = parseFloat(creditAmount || 0);
 
-  if (accountNature === ACCOUNT_NATURE.PAYABLE) {
-    return opening - debit + credit;
-  }
   return opening + debit - credit;
 }
 
