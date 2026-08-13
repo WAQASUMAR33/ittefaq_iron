@@ -101,6 +101,16 @@ function PurchasesPageContent() {
   const [stores, setStores] = useState([]);
   const [customerCategories, setCustomerCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const u = JSON.parse(localStorage.getItem('user') || '{}');
+        setCurrentUser(u);
+      } catch (e) {}
+    }
+  }, []);
 
   // Screen Stack State
   const [screenStack, setScreenStack] = useState([{
