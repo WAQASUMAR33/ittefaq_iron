@@ -23,9 +23,12 @@ import {
   Banknote,
   Printer as Print
 } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import { SaleReceipt, OrderReceipt, PurchaseReceipt, ReceivingReceipt, PaymentReceipt } from '@/components/receipts';
 import DashboardLayout from '../components/dashboard-layout';
 import { usePinAuth } from '../../hooks/usePinAuth';
-import BiometricAuthDialog from '../components/BiometricAuthDialog';
+
+const BiometricAuthDialog = dynamic(() => import('../components/BiometricAuthDialog'), { ssr: false });
 
 // Material-UI imports
 import {
@@ -4690,92 +4693,11 @@ export default function FinancePage() {
 
         <DialogContent sx={{ p: 0 }}>
           {paymentReceiptData && (
-            <Box id="payment-receipt-preview" sx={{ bgcolor: 'white', p: 3 }}>
-              {/* Header */}
-              <Box sx={{ textAlign: 'center', pb: 2, borderBottom: '2px solid #000', mb: 2 }}>
-                <Typography variant="h5" sx={{ fontWeight: 'bold', direction: 'rtl', fontFamily: 'Arial' }}>اتفاق آئرن اینڈ سیمنٹ سٹور</Typography>
-                <Typography variant="body2" sx={{ direction: 'rtl' }}>گجرات سرگودھا روڈ، پاہڑیانوالی</Typography>
-                <Typography variant="body2">Ph:- 0346-7560306, 0300-7560306</Typography>
-                <Typography variant="h6" sx={{ fontWeight: 'bold', mt: 1, letterSpacing: 1 }}>
-                  {paymentReceiptData.type === 'PAY' ? 'PAYMENT VOUCHER' : 'RECEIPT VOUCHER'}
-                </Typography>
-              </Box>
-
-              {/* Meta info */}
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, px: 1 }}>
-                <Box>
-                  <Typography variant="body2"><strong>Account:</strong> {paymentReceiptData.customer?.cus_name}</Typography>
-                  <Typography variant="body2"><strong>Phone:</strong> {paymentReceiptData.customer?.cus_phone_no || '—'}</Typography>
-                  {paymentReceiptData.description && (
-                    <Typography variant="body2"><strong>Note:</strong> {paymentReceiptData.description}</Typography>
-                  )}
-                </Box>
-                <Box sx={{ textAlign: 'right' }}>
-                  <Typography variant="body2"><strong>Ref #:</strong> PAY-{paymentReceiptData.paymentId}</Typography>
-                  <Typography variant="body2"><strong>Date:</strong> {paymentReceiptData.date}</Typography>
-                  <Typography variant="body2"><strong>Time:</strong> {paymentReceiptData.time}</Typography>
-                  <Typography variant="body2"><strong>Created By:</strong> {getCreatedByName(paymentReceiptData, currentUser)}</Typography>
-                </Box>
-              </Box>
-
-              {/* Payment breakdown table */}
-              <Box sx={{ border: '1px solid #000', borderRadius: 1, overflow: 'hidden', mb: 2 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1, borderBottom: '1px solid #ddd', bgcolor: '#f5f5f5' }}>
-                  <Typography variant="body2" sx={{ fontWeight: 700 }}>Description</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700 }}>Amount (PKR)</Typography>
-                </Box>
-                {/* Previous Balance */}
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1, borderBottom: '1px solid #eee', bgcolor: '#fafafa' }}>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>Previous Balance (سابقہ بقایا)</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{paymentReceiptData.previousBalance == null ? '—' : fmtAmt(paymentReceiptData.previousBalance)}</Typography>
-                </Box>
-                {paymentReceiptData.cashAmount > 0 && (
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1, borderBottom: '1px solid #eee' }}>
-                    <Typography variant="body2">Cash {paymentReceiptData.cashAcc ? `(${paymentReceiptData.cashAcc.cus_name})` : ''}</Typography>
-                    <Typography variant="body2">{fmtAmt(paymentReceiptData.cashAmount)}</Typography>
-                  </Box>
-                )}
-                {paymentReceiptData.bankAmount > 0 && (
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1, borderBottom: '1px solid #eee' }}>
-                    <Typography variant="body2">Bank {paymentReceiptData.bankAcc ? `(${paymentReceiptData.bankAcc.cus_name})` : ''}</Typography>
-                    <Typography variant="body2">{fmtAmt(paymentReceiptData.bankAmount)}</Typography>
-                  </Box>
-                )}
-                {paymentReceiptData.discountAmount > 0 && (
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1, borderBottom: '1px solid #eee' }}>
-                    <Typography variant="body2">Discount</Typography>
-                    <Typography variant="body2">{fmtAmt(paymentReceiptData.discountAmount)}</Typography>
-                  </Box>
-                )}
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1, borderBottom: '1px solid #ddd', bgcolor: '#f1f5f9' }}>
-                  <Typography variant="body2" sx={{ fontWeight: 700, color: '#0f172a' }}>Total Paid</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700, color: '#0f172a' }}>
-                    {fmtAmt(paymentReceiptData.totalAmount)}
-                  </Typography>
-                </Box>
-                {/* Remaining Balance */}
-                <Box className="remaining-balance-bar" sx={{ display: 'flex', justifyContent: 'space-between', px: 2, py: 1.5, bgcolor: '#1e293b', color: '#ffffff !important' }}>
-                  <Typography variant="body2" sx={{ fontWeight: 700, color: '#ffffff !important' }}>Remaining Balance (کل بقایا)</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700, color: paymentReceiptData.remainingBalance == null ? '#ffffff !important' : (paymentReceiptData.remainingBalance > 0 ? '#facc15 !important' : '#4ade80 !important') }}>
-                    {paymentReceiptData.remainingBalance == null ? '—' : `PKR ${fmtAmt(paymentReceiptData.remainingBalance)}`}
-                  </Typography>
-                </Box>
-              </Box>
-
-              {/* Signature line */}
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4, pt: 2 }}>
-                <Box sx={{ textAlign: 'center', flex: 1 }}>
-                  <Box sx={{ borderTop: '1px solid #000', pt: 0.5, mx: 3 }}>
-                    <Typography variant="caption">Received By</Typography>
-                  </Box>
-                </Box>
-                <Box sx={{ textAlign: 'center', flex: 1 }}>
-                  <Box sx={{ borderTop: '1px solid #000', pt: 0.5, mx: 3 }}>
-                    <Typography variant="caption">Authorized Signature</Typography>
-                  </Box>
-                </Box>
-              </Box>
-            </Box>
+            paymentReceiptData.type === 'REC' ? (
+              <ReceivingReceipt voucherData={paymentReceiptData} currentUser={currentUser} />
+            ) : (
+              <PaymentReceipt voucherData={paymentReceiptData} currentUser={currentUser} />
+            )
           )}
         </DialogContent>
 
@@ -5890,259 +5812,13 @@ export default function FinancePage() {
 
         <DialogContent sx={{ p: 0, bgcolor: 'white', maxHeight: '80vh', overflow: 'auto' }}>
           {viewingSale && (
-            <Box id="sale-invoice-ledger" sx={{ width: '100%', bgcolor: 'white' }}>
-              {/* Company Header */}
-              <Box sx={{ textAlign: 'center', py: 3, borderBottom: '2px solid #000' }}>
-                <Typography variant="h4" sx={{
-                  fontWeight: 'bold',
-                  mb: 1,
-                  fontFamily: 'Arial, sans-serif',
-                  fontSize: { xs: '1.5rem', md: '2rem' },
-                  direction: 'rtl'
-                }}>
-                  اتفاق آئرن اینڈ سیمنٹ سٹور
-                </Typography>
-                <Typography variant="body2" sx={{
-                  mb: 1,
-                  fontSize: { xs: '0.75rem', md: '0.9rem' },
-                  direction: 'rtl'
-                }}>
-                  گجرات سرگودھا روڈ، پاہڑیانوالی
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 1 }}>
-                  <span style={{ fontSize: '1rem', color: '#25D366', marginRight: '4px' }}>📞</span>
-                  <Typography variant="body2">
-                    Ph:- 0346-7560306, 0300-7560306
-                  </Typography>
-                </Box>
-                <Typography variant="h6" sx={{
-                  fontWeight: 'bold',
-                  textTransform: 'uppercase',
-                  letterSpacing: 1,
-                  mt: 2
-                }}>
-                  {viewingSale.bill_type === 'ORDER' || viewingSale.bill_type === 'ORDER_TRASH' ? 'ORDER' : 'SALE INVOICE'}
-                </Typography>
-              </Box>
-
-              {/* Customer and Invoice Details */}
-              <Box sx={{ px: 3, py: 2, borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between' }}>
-                <Box sx={{ flex: '0 0 50%', display: 'flex', flexDirection: 'column' }}>
-                  <Box sx={{ display: 'flex', mb: 0.5 }}>
-                    <Typography variant="body2" sx={{ width: '130px', flexShrink: 0 }}>Customer Name:</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '1.05rem' }}>
-                      {viewingSale.customer ? `${viewingSale.customer.cus_name}${viewingSale.customer.name_urdu ? ' ' + viewingSale.customer.name_urdu : ''}` : 'N/A'}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', mb: 0.5 }}>
-                    <Typography variant="body2" sx={{ width: '130px', flexShrink: 0 }}>Phone No:</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                      {viewingSale.customer?.cus_phone_no || 'N/A'}
-                    </Typography>
-                  </Box>
-                  {viewingSale.customer?.cus_address && (
-                    <Box sx={{ display: 'flex' }}>
-                      <Typography variant="body2" sx={{ width: '130px', flexShrink: 0 }}>Address:</Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                        {viewingSale.customer.cus_address}
-                      </Typography>
-                    </Box>
-                  )}
-                </Box>
-                <Box sx={{ flex: '0 0 50%', display: 'flex', flexDirection: 'column', pl: 4 }}>
-                  <Box sx={{ display: 'flex', mb: 0.5 }}>
-                    <Typography variant="body2" sx={{ width: '100px', flexShrink: 0 }}>Invoice No:</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                      {getBillDisplayNo(viewingSale)}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', mb: 0.5 }}>
-                    <Typography variant="body2" sx={{ width: '100px', flexShrink: 0 }}>Date:</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                      {viewingSale.created_at ? new Date(viewingSale.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', mb: 0.5 }}>
-                    <Typography variant="body2" sx={{ width: '100px', flexShrink: 0 }}>Time:</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                      {viewingSale.created_at ? new Date(viewingSale.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : '—'}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', mb: 0.5 }}>
-                    <Typography variant="body2" sx={{ width: '100px', flexShrink: 0 }}>Created By:</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                      {getCreatedByName(viewingSale, currentUser)}
-                    </Typography>
-                  </Box>
-                </Box>
-              </Box>
-
-              {/* Product Table and Payment Summary - Full Width */}
-              <Box sx={{ px: 3, py: 2 }}>
-                {/* Product Details Table - Full Width */}
-                <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow sx={{ bgcolor: '#9e9e9e' }}>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1, border: '1px solid #bbb' }}>S#</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1, border: '1px solid #bbb' }}>Product Name</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1, border: '1px solid #bbb' }} align="right">Qty</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1, border: '1px solid #bbb' }} align="right">Rate</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'white', py: 1, px: 1, border: '1px solid #bbb' }} align="right">Amount</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {viewingSale.sale_details && viewingSale.sale_details.length > 0 ? (
-                        viewingSale.sale_details.map((detail, index) => (
-                          <TableRow key={detail.sale_detail_id || index}>
-                            <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }}>{index + 1}</TableCell>
-                            <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }}>{detail.product?.pro_title || detail.product?.pro_name || detail.product?.prod_name || 'N/A'}</TableCell>
-                            <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }} align="right">{fmtAmt(detail.qnty || 0)}</TableCell>
-                            <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }} align="right">{fmtAmt(detail.unit_rate)}</TableCell>
-                            <TableCell sx={{ px: 1, border: '1px solid #ddd', fontSize: '0.95rem', fontWeight: 600 }} align="right">{fmtAmt(detail.total_amount)}</TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
-                            No items found
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-
-                {/* Payment Summary - Below Product Details */}
-                <Box sx={{ mt: 2, width: '100%', display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-                  {/* Left Side - Balance Section */}
-                  <Box sx={{ flex: '0 0 48%' }}>
-                    <TableContainer component={Paper} variant="outlined" sx={{ mb: 2, border: '1px solid #000', width: '100%' }}>
-                      <Table size="small">
-                        <TableBody>
-                          <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>سابقہ بقایا</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                              {fmtAmt(viewingSale.previous_balance ?? viewingSale.customer?.cus_balance ?? 0)}
-                            </TableCell>
-                          </TableRow>
-                          <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>موجوده بقايا</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                              {fmtAmt(parseFloat(viewingSale.total_amount || 0) - parseFloat(viewingSale.payment || 0))}
-                            </TableCell>
-                          </TableRow>
-                          <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd' }}>كل بقایا</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd' }}>
-                              {fmtAmt(parseFloat(viewingSale.previous_balance ?? viewingSale.customer?.cus_balance ?? 0) + parseFloat(viewingSale.total_amount || 0) - parseFloat(viewingSale.payment || 0))}
-                            </TableCell>
-                          </TableRow>
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-
-                    {/* Notes Section */}
-                    {viewingSale.reference && (
-                      <Box sx={{ mt: 1 }}>
-                        <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
-                          <strong>Notes:</strong> {viewingSale.reference}
-                        </Typography>
-                      </Box>
-                    )}
-                  </Box>
-
-                  {/* Right Side - Payment Summary */}
-                  <Box sx={{ flex: '0 0 48%', display: 'flex', justifyContent: 'flex-end' }}>
-                    <TableContainer component={Paper} variant="outlined" sx={{ border: '1px solid #000', width: '100%', maxWidth: '100%' }}>
-                      <Table size="small">
-                        <TableBody>
-                          <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>رقم بل</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {fmtAmt(parseFloat(viewingSale.total_amount || 0) - parseFloat(viewingSale.labour_charges || viewingSale.labour || 0) - parseFloat(viewingSale.shipping_amount || 0) + parseFloat(viewingSale.discount || 0))}
-                            </TableCell>
-                          </TableRow>
-                          <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>مزدوری</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {fmtAmt(viewingSale.labour_charges || viewingSale.labour || 0)}
-                            </TableCell>
-                          </TableRow>
-                          <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>کرایہ</TableCell>
-                            <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {fmtAmt(viewingSale.shipping_amount || 0)}
-                            </TableCell>
-                          </TableRow>
-                          <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {fmtAmt(viewingSale.total_amount)}
-                            </TableCell>
-                          </TableRow>
-
-                          {/* Determine cash and bank amounts */}
-                          {(() => {
-                            let cashAmount = parseFloat(viewingSale.cash_payment || 0);
-                            let bankAmount = parseFloat(viewingSale.bank_payment || 0);
-                            let bankName = viewingSale.bank_title || viewingSale.debit_account?.cus_name || 'بینک';
-
-                            // Fallback if split properties are missing (e.g. for legacy sales)
-                            if (!viewingSale.hasOwnProperty('cash_payment') && !viewingSale.hasOwnProperty('bank_payment')) {
-                              if (viewingSale.payment_type === 'CASH' || !viewingSale.payment_type) {
-                                cashAmount = parseFloat(viewingSale.payment || 0);
-                                bankAmount = 0;
-                              } else {
-                                cashAmount = 0;
-                                bankAmount = parseFloat(viewingSale.payment || 0);
-                                bankName = viewingSale.debit_account?.cus_name || 'بینک';
-                              }
-                            }
-
-                            return (
-                              <>
-                                <TableRow>
-                                  <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                    نقد كيش
-                                  </TableCell>
-                                  <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                    {fmtAmt(cashAmount)}
-                                  </TableCell>
-                                </TableRow>
-
-                                {bankAmount > 0 && (
-                                  <TableRow>
-                                    <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                      {bankName}
-                                    </TableCell>
-                                    <TableCell align="right" sx={{ px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                                      {fmtAmt(bankAmount)}
-                                    </TableCell>
-                                  </TableRow>
-                                )}
-                              </>
-                            );
-                          })()}
-                          <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>كل رقم وصول</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #ddd', fontSize: '0.875rem' }}>
-                              {fmtAmt(viewingSale.payment || 0)}
-                            </TableCell>
-                          </TableRow>
-                          <TableRow sx={{ bgcolor: '#1e293b' }}>
-                            <TableCell sx={{ fontWeight: 'bold', direction: 'rtl', px: 1, py: 0.5, border: '1px solid #475569', fontSize: '0.875rem', color: '#ffffff' }}>بقايا رقم</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', px: 1, py: 0.5, border: '1px solid #475569', fontSize: '0.875rem', color: '#facc15' }}>
-                              {fmtAmt(parseFloat(viewingSale.total_amount || 0) - parseFloat(viewingSale.payment || 0))}
-                            </TableCell>
-                          </TableRow>
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  </Box>
-                </Box>
-              </Box>
-            </Box>
+            ['ORDER', 'ORDER_TRASH'].includes(viewingSale.bill_type) ? (
+              <OrderReceipt orderData={viewingSale} currentUser={currentUser} />
+            ) : ['PURCHASE', 'PURCHASE_RETURN', 'PURCHASE_TRASH'].includes(viewingSale.bill_type) ? (
+              <PurchaseReceipt purchaseData={viewingSale} currentUser={currentUser} />
+            ) : (
+              <SaleReceipt saleData={viewingSale} currentUser={currentUser} />
+            )
           )}
         </DialogContent>
 

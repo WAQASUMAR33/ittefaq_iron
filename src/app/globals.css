@@ -4,13 +4,39 @@
   --background: #ffffff;
   --foreground: #171717;
   --font-poppins: 'Poppins', sans-serif;
-}
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-poppins);
-  --font-mono: var(--font-poppins);
+  /* Global Theme Color Variables */
+  --color-primary: #1976d2;
+  --color-primary-light: #42a5f5;
+  --color-primary-dark: #1565c0;
+
+  --color-secondary: #7c3aed;
+  --color-secondary-light: #a78bfa;
+  --color-secondary-dark: #5b21b6;
+
+  --color-success: #10b981;
+  --color-success-bg: #d1fae5;
+  --color-success-text: #065f46;
+
+  --color-danger: #ef4444;
+  --color-danger-bg: #fee2e2;
+  --color-danger-text: #991b1b;
+
+  --color-warning: #f59e0b;
+  --color-warning-bg: #fef3c7;
+  --color-warning-text: #92400e;
+
+  --color-info: #3b82f6;
+  --color-info-bg: #dbeafe;
+  --color-info-text: #1e40af;
+
+  --color-credit-bg: #dcfce7;
+  --color-credit-text: #15803d;
+  --color-debit-bg: #fee2e2;
+  --color-debit-text: #b91c1c;
+
+  --color-surface: #ffffff;
+  --color-border: #e2e8f0;
 }
 
 /* Force white background for all pages */
