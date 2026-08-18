@@ -121,6 +121,7 @@ export default function RebateReport() {
                 credit_amount: 0,
                 bill_no: billNo,
                 trnx_type: 'REBATE',
+                ledger_type: 'Rebate',
                 details: `Rebate | ${reportData.summary.supplierName} | From: ${startDate} To: ${endDate} | Qty: ${fmtAmt(totalQty)} | Rate: ${fmtAmt(rate)} | Amt: ${fmtAmt(totalAmount)}`,
                 updated_by: user?.user_id ? parseInt(user.user_id) : (user?.id ? parseInt(user.id) : null)
             };
