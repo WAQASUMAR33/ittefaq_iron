@@ -6493,7 +6493,17 @@ function SalesPageContent() {
                   </Box>
                 </Box>
 
-                <SaleReceipt saleData={currentBillData} currentUser={currentUser} />
+                            )}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </Box>
+                  </Box>
+                </Box>
+              </Box>
+=======
+              <SaleReceipt saleData={currentBillData} currentUser={currentUser} />
+>>>>>>> 0949416 (refactor: modularize receipt components, extract UI library & apply global color theme system)
               </>
             )}
           </DialogContent>
