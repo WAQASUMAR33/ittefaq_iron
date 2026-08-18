@@ -4,18 +4,14 @@ import { useEffect } from 'react';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 
-import THEME_COLORS from '@/lib/theme-colors';
-
 const theme = createTheme({
   palette: {
-    primary: THEME_COLORS.primary,
-    secondary: THEME_COLORS.secondary,
-    success: THEME_COLORS.success,
-    error: THEME_COLORS.danger,
-    warning: THEME_COLORS.warning,
-    info: THEME_COLORS.info,
-    background: THEME_COLORS.background,
-    text: THEME_COLORS.text,
+    primary: {
+      main: '#1976d2',
+    },
+    secondary: {
+      main: '#dc004e',
+    },
   },
   typography: {
     fontFamily: 'Poppins, Arial, sans-serif',
@@ -25,15 +21,6 @@ const theme = createTheme({
       styleOverrides: {
         root: {
           textTransform: 'none',
-          borderRadius: '8px',
-          fontWeight: 600,
-        },
-      },
-    },
-    MuiPaper: {
-      styleOverrides: {
-        root: {
-          backgroundImage: 'none',
         },
       },
     },
