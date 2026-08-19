@@ -347,6 +347,7 @@ export default function FinancePage() {
   const { requireAuth, authDialogOpen, handleAuthSuccess, handleAuthCancel } = usePinAuth();
 
   // State management
+  const [currentUser, setCurrentUser] = useState(null);
   const [ledgerEntries, setLedgerEntries] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [customerCategories, setCustomerCategories] = useState([]);
@@ -354,6 +355,17 @@ export default function FinancePage() {
   const [loading, setLoading] = useState(true);
   const [initialLoading, setInitialLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    try {
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        setCurrentUser(JSON.parse(userStr));
+      }
+    } catch (e) {
+      console.error('Error loading user from localStorage:', e);
+    }
+  }, []);
   const [showLedgerForm, setShowLedgerForm] = useState(false);
   const [showJournalForm, setShowJournalForm] = useState(false);
   const [editingLedger, setEditingLedger] = useState(null);
@@ -696,46 +708,79 @@ export default function FinancePage() {
   };
 
   const openDocumentFromLedgerEntry = (entry) => {
-    const ref = String(entry.bill_no || '');
+    if (!entry || !entry.bill_no) return;
+    const ref = String(entry.bill_no).trim();
     if (!ref) return;
+    const details = String(entry.details || '').toLowerCase();
+    const ledgerType = String(entry.ledger_type || '').toLowerCase();
+    const trnxType = String(entry.trnx_type || '').toUpperCase();
+
+    // 1. Payment Voucher (PAY-...)
     const payMatch = ref.match(/^PAY-(\d+)$/i);
     if (payMatch) {
       handleViewPaymentVoucher(parseInt(payMatch[1], 10));
       return;
     }
 
+    // 2. Purchase Return (PR-...)
     const prMatch = ref.match(/^PR-(\d+)$/i);
     if (prMatch) {
       handleViewPurchaseReturn(prMatch[1]);
       return;
     }
-    
-    const isSaleReturn = String(entry.details || '').toLowerCase().includes('sale return') || String(entry.ledger_type || '').toLowerCase() === 'sale return';
-    if (isSaleReturn && /^\d+$/.test(ref)) {
-      handleViewSaleReturn(ref);
+
+    // 3. Sale Return (SR-...)
+    const srMatch = ref.match(/^SR-(\d+)$/i);
+    if (srMatch || details.includes('sale return') || ledgerType === 'sale return') {
+      const cleanId = srMatch ? srMatch[1] : ref.replace(/^[A-Za-z]+-/, '');
+      handleViewSaleReturn(cleanId);
       return;
     }
 
-    const isSupplier = (() => {
-      const categoryId = entry.customer?.cus_category;
-      const category = customerCategories.find(c => String(c.cus_cat_id) === String(categoryId));
-      const title = (category?.cus_cat_title || '').toLowerCase();
-      return title.includes('supplier') || title.includes('creditor');
-    })();
-
-    const isPurchase = (entry.trnx_type === 'PURCHASE' || 
-                       String(entry.ledger_type || '').toLowerCase() === 'purchase' || 
-                       String(entry.ledger_type || '').toLowerCase() === 'purchase return' ||
-                       String(entry.details || '').toLowerCase().includes('purchase'));
-
-    if ((isPurchase || isSupplier) && /^\d+$/.test(ref)) {
-      const isReturnVariant = String(entry.details || '').toLowerCase().includes('purchase return') || String(entry.ledger_type || '').toLowerCase() === 'purchase return';
-      handleViewPurchase(ref, isReturnVariant);
+    // 4. Journal Entry (JRN-...)
+    const jrnMatch = ref.match(/^JRN-(\d+)$/i);
+    if (jrnMatch || ledgerType === 'journal' || details.includes('journal')) {
+      const cleanId = jrnMatch ? jrnMatch[1] : ref.replace(/^[A-Za-z]+-/, '');
+      alert(`Journal Entry #${cleanId || ref}\nDetails: ${entry.details || 'Journal Voucher'}`);
       return;
     }
-    if (/^\d+$/.test(ref)) {
-      handleViewSale(ref);
+
+    // 5. Expense Entry (EXP-...)
+    const expMatch = ref.match(/^EXP-(\d+)$/i);
+    if (expMatch || ledgerType === 'expense' || details.includes('expense')) {
+      const cleanId = expMatch ? expMatch[1] : ref.replace(/^[A-Za-z]+-/, '');
+      alert(`Expense Voucher #${cleanId || ref}\nDetails: ${entry.details || 'Expense Voucher'}`);
+      return;
     }
+
+    // 6. Rebate Entry (REB-...)
+    const rebMatch = ref.match(/^REB-(\d+)$/i);
+    if (rebMatch || ledgerType === 'rebate' || details.includes('rebate')) {
+      alert(`Rebate Voucher #${ref}\nDetails: ${entry.details || 'Rebate Entry'}`);
+      return;
+    }
+
+    // 7. Check if Supplier / Purchase
+    const categoryId = entry.customer?.cus_category;
+    const category = customerCategories.find(c => String(c.cus_cat_id) === String(categoryId));
+    const title = (category?.cus_cat_title || '').toLowerCase();
+    const isSupplier = title.includes('supplier') || title.includes('creditor');
+
+    const isPurchase = (trnxType === 'PURCHASE' || 
+                        ledgerType === 'purchase' || 
+                        ledgerType === 'purchase return' ||
+                        details.includes('purchase'));
+
+    const cleanRef = ref.replace(/^[A-Za-z]+-/, '');
+
+    if (isPurchase || isSupplier) {
+      const isReturnVariant = details.includes('purchase return') || ledgerType === 'purchase return';
+      handleViewPurchase(cleanRef || ref, isReturnVariant);
+      return;
+    }
+
+    // 8. Default to Sale / Order / Quotation
+    handleViewSale(cleanRef || ref);
   };
 
   const handleViewPurchaseReturn = async (returnId) => {
@@ -3277,12 +3322,12 @@ export default function FinancePage() {
                                   {entry.details || 'General transaction'}
                                 </Typography>
 
-                                {(entry.bill_no && (/^PAY-\d+$/i.test(String(entry.bill_no)) || entry.trnx_type === 'PURCHASE' || /^\d+$/.test(String(entry.bill_no)))) && (
-                                  <Tooltip title="View bill / sale / payment voucher">
+                                {entry.bill_no && (
+                                  <Tooltip title="View bill / invoice details">
                                     <IconButton
                                       size="small"
                                       onClick={(e) => { e.stopPropagation(); openDocumentFromLedgerEntry(entry); }}
-                                      sx={{ p: 0.5 }}
+                                      sx={{ p: 0.5, color: entryTypeColor }}
                                     >
                                       <Eye size={14} />
                                     </IconButton>
@@ -3291,7 +3336,18 @@ export default function FinancePage() {
                               </Box>
 
                               {entry.bill_no && (
-                                <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mt: 0.5, color: entryTypeColor }}>
+                                <Typography
+                                  variant="caption"
+                                  onClick={(e) => { e.stopPropagation(); openDocumentFromLedgerEntry(entry); }}
+                                  sx={{
+                                    fontWeight: 600,
+                                    display: 'inline-block',
+                                    mt: 0.5,
+                                    color: entryTypeColor,
+                                    cursor: 'pointer',
+                                    '&:hover': { textDecoration: 'underline' }
+                                  }}
+                                >
                                   Bill: {entry.bill_no}
                                 </Typography>
                               )}

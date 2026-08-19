@@ -207,7 +207,7 @@ export async function GET(request) {
 
   try {
     if (id) {
-      const purchase = await prisma.purchase.findUnique({
+      let purchase = await prisma.purchase.findUnique({
         where: { pur_id: id },
         include: {
           customer: true,
@@ -233,6 +233,35 @@ export async function GET(request) {
           }
         }
       });
+
+      if (!purchase) {
+        purchase = await prisma.purchase.findFirst({
+          where: { invoice_number: String(id) },
+          include: {
+            customer: true,
+            cargo_account: true,
+            store: true,
+            updated_by_user: {
+              select: {
+                user_id: true,
+                full_name: true,
+                role: true
+              }
+            },
+            purchase_details: {
+              include: {
+                product: {
+                  select: {
+                    pro_id: true,
+                    pro_title: true,
+                    pro_unit: true
+                  }
+                }
+              }
+            }
+          }
+        });
+      }
 
       if (!purchase) {
         return errorResponse('Purchase not found', 404);

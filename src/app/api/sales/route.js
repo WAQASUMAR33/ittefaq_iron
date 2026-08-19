@@ -308,7 +308,7 @@ export async function GET(request) {
     if (id) {
       // Fetch single sale
       try {
-        const sale = await prisma.sale.findUnique({
+        let sale = await prisma.sale.findUnique({
           where: { sale_id: id },
           include: {
             customer: {
@@ -362,6 +362,63 @@ export async function GET(request) {
             }
           }
         });
+
+        if (!sale) {
+          sale = await prisma.sale.findFirst({
+            where: { bill_number: id },
+            include: {
+              customer: {
+                include: {
+                  customer_category: true
+                }
+              },
+              sale_details: {
+                include: {
+                  product: {
+                    include: {
+                      category: true,
+                      sub_category: true
+                    }
+                  }
+                }
+              },
+              debit_account: {
+                select: {
+                  cus_id: true,
+                  cus_name: true,
+                  cus_phone_no: true
+                }
+              },
+              credit_account: {
+                select: {
+                  cus_id: true,
+                  cus_name: true,
+                  cus_phone_no: true
+                }
+              },
+              loader: {
+                select: {
+                  loader_id: true,
+                  loader_name: true,
+                  loader_number: true,
+                  loader_phone: true
+                }
+              },
+              split_payments: {
+                include: {
+                  debit_account: true,
+                  credit_account: true
+                }
+              },
+              updated_by_user: {
+                select: {
+                  full_name: true,
+                  role: true
+                }
+              }
+            }
+          });
+        }
 
         if (!sale) {
           return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
