@@ -304,6 +304,7 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id') ? parseInt(searchParams.get('id')) : searchParams.get('sale_id') ? parseInt(searchParams.get('sale_id')) : null;
+    const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')) : null;
 
     if (id) {
       // Fetch single sale
@@ -364,8 +365,16 @@ export async function GET(request) {
         });
 
         if (!sale) {
+          const cleanId = String(id).replace(/^[A-Za-z]+-/, '');
           sale = await prisma.sale.findFirst({
-            where: { bill_number: id },
+            where: {
+              OR: [
+                { bill_number: String(id) },
+                { bill_number: `B-${id}` },
+                { bill_number: cleanId },
+                { bill_number: `B-${cleanId}` }
+              ]
+            },
             include: {
               customer: {
                 include: {
@@ -592,7 +601,7 @@ export async function GET(request) {
     } else {
       // Fetch all sales
       try {
-        const sales = await prisma.sale.findMany({
+        const findOptions = {
           include: {
             customer: {
               include: {
@@ -647,10 +656,19 @@ export async function GET(request) {
           orderBy: {
             created_at: 'desc'
           }
-        });
+        };
+
+        if (limit && limit > 0) {
+          findOptions.take = limit;
+        }
+
+        const sales = await prisma.sale.findMany(findOptions);
 
         // Merge bill_number from raw query (not yet in Prisma schema until regenerated)
-        const billNumbers = await prisma.$queryRaw`SELECT sale_id, bill_number FROM sales`;
+        const saleIds = sales.map(s => s.sale_id);
+        const billNumbers = saleIds.length > 0
+          ? await prisma.$queryRaw`SELECT sale_id, bill_number FROM sales WHERE sale_id IN (${Prisma.join(saleIds)})`
+          : [];
         const bnMap = Object.fromEntries(billNumbers.map(r => [r.sale_id, r.bill_number]));
         const salesWithBillNumber = sales.map(s => ({
           ...s,

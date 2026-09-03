@@ -32,6 +32,7 @@ export default function DashboardLayout({ children }) {
     const userData = localStorage.getItem('user');
     if (!userData) {
       router.push('/login');
+      if (typeof window !== 'undefined') window.location.href = '/login';
       return;
     }
 
@@ -40,7 +41,9 @@ export default function DashboardLayout({ children }) {
       setUser(parsedUser);
     } catch (error) {
       router.push('/login');
+      if (typeof window !== 'undefined') window.location.href = '/login';
     }
+
   }, [router]);
 
   const handleLogout = () => {

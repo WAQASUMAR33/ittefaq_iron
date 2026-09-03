@@ -203,6 +203,7 @@ async function recalculateLedgerBalances(tx, cus_id) {
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id') ? parseInt(searchParams.get('id')) : null; // optional: ?id=1
+  const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')) : null;
   const invoice = searchParams.get('invoice');
 
   try {
@@ -400,7 +401,7 @@ export async function GET(request) {
       return NextResponse.json(purchaseWithPrev);
     }
 
-    const purchases = await prisma.purchase.findMany({
+    const findOptions = {
       include: {
         customer: {
           select: {
@@ -439,7 +440,13 @@ export async function GET(request) {
         }
       },
       orderBy: { created_at: 'desc' }
-    });
+    };
+
+    if (limit && limit > 0) {
+      findOptions.take = limit;
+    }
+
+    const purchases = await prisma.purchase.findMany(findOptions);
 
     // Resolve bank account ID for each purchase in list
     const purchaseIds = purchases.map(p => String(p.pur_id));

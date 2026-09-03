@@ -44,7 +44,7 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
   const [lastSample, setLastSample] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
 
-  const showFingerprint = !!currentUser?.fingerprint_enrolled;
+  const showFingerprint = currentUser ? (currentUser.fingerprint_enrolled !== false) : true;
 
   useEffect(() => {
     if (!open) return;
@@ -74,14 +74,12 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
           : null;
         if (!serverUser) return;
 
-        const enrolled = !!serverUser.fingerprint_enrolled;
+        const enrolled = serverUser.fingerprint_enrolled !== false;
         const mergedUser = { ...user, fingerprint_enrolled: enrolled };
         setCurrentUser(mergedUser);
         localStorage.setItem('user', JSON.stringify(mergedUser));
         if (enrolled) {
           setAuthMode('fp');
-        } else {
-          setAuthMode('pin');
         }
       } catch {
         // keep local user fallback
@@ -368,7 +366,7 @@ export default function BiometricAuthDialog({ open, onSuccess, onClose }) {
           </>
         )}
 
-        {authMode === 'fp' && showFingerprint && (
+        {authMode === 'fp' && (
           <div style={{ width: '100%' }}>
             <p style={{ margin: '0 0 10px', fontSize: 12, color: '#64748b', lineHeight: 1.4 }}>
               Requires the HID <strong>DigitalPersona Lite Client / Agent</strong> on this machine (it exposes{' '}

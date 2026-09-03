@@ -701,6 +701,7 @@ function SalesPageContent() {
     console.log('🧹 Clearing form state');
     setEditingSale(null);
     setLoadedOrderId(null);
+    setSelectedSaleForReturnMain(null);
     setFormSelectedCustomer(null);
     setFormSelectedProduct(null);
     setFormSelectedStore(null);
@@ -1024,7 +1025,8 @@ function SalesPageContent() {
       rate: productFormData.rate,
       amount: productFormData.amount,
       stock: productFormData.stock,
-      cost_price: getProductCostPrice(formSelectedProduct) // hidden cost price for loss check
+      cost_price: getProductCostPrice(formSelectedProduct), // hidden cost price for loss check
+      is_manual: true
     };
 
     setProductTableData(prev => [newProduct, ...prev]);
@@ -1451,7 +1453,8 @@ function SalesPageContent() {
             qnty: item.quantity, // Quantity to return
             unit_rate: item.rate.toString(),
             total_amount: item.amount.toString(),
-            discount: '0'
+            discount: '0',
+            is_manual: item.is_manual ?? true
           })),
           updated_by: 6
         };
@@ -3334,7 +3337,8 @@ function SalesPageContent() {
           quantity: parseFloat(detail.qnty) || 0,
           rate: parseFloat(detail.unit_rate) || 0,
           amount: parseFloat(detail.total_amount) || 0,
-          stock: detail.product?.pro_stock_qnty || 0
+          stock: detail.product?.pro_stock_qnty || 0,
+          is_manual: false
         }));
         setProductTableData(products);
         console.log('📦 Products loaded:', products);
@@ -4582,7 +4586,11 @@ function SalesPageContent() {
                         }}
                         value={selectedSaleForReturnMain}
                         onChange={(event, newValue) => {
-                          if (newValue) handleLoadSaleForReturnMain(newValue);
+                          if (newValue) {
+                            handleLoadSaleForReturnMain(newValue);
+                          } else {
+                            setSelectedSaleForReturnMain(null);
+                          }
                         }}
                         autoSelect={true}
                         autoHighlight={true}

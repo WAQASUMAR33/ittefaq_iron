@@ -393,7 +393,7 @@ export async function POST(request) {
       let sale = null;
       if (sale_id) {
         sale = await tx.sale.findUnique({
-          where: { sale_id },
+          where: { sale_id: parseInt(sale_id) },
           include: { sale_details: true }
         });
 
@@ -410,16 +410,22 @@ export async function POST(request) {
       if (sale) {
         const qtyByProduct = new Map();
         for (const d of sale.sale_details) {
-          qtyByProduct.set(d.pro_id, (qtyByProduct.get(d.pro_id) || 0) + Number(d.qnty || 0));
+          const pid = Number(d.pro_id);
+          qtyByProduct.set(pid, (qtyByProduct.get(pid) || 0) + Number(d.qnty || 0));
         }
         for (const rd of return_details) {
-          const soldQty = qtyByProduct.get(rd.pro_id) || 0;
-          const returnQty = parseInt(rd.qnty) || 0;
+          const pid = Number(rd.pro_id);
+          const returnQty = parseFloat(rd.qnty) || 0;
           if (returnQty <= 0) {
             throw new Error(`Invalid return quantity for product ${rd.pro_id}`);
           }
-          if (returnQty > soldQty) {
-            throw new Error(`Return qty (${returnQty}) exceeds sold qty (${soldQty}) for product ${rd.pro_id}`);
+          // Only validate sold quantity ceiling if item was part of the original sale
+          // and not added as a manual/additional return item
+          if (!rd.is_manual && qtyByProduct.has(pid)) {
+            const soldQty = qtyByProduct.get(pid) || 0;
+            if (returnQty > soldQty) {
+              throw new Error(`Return qty (${returnQty}) exceeds sold qty (${soldQty}) for product ${rd.pro_id}`);
+            }
           }
         }
       }
@@ -436,7 +442,7 @@ export async function POST(request) {
       // Create sale return
       const saleReturn = await tx.saleReturn.create({
         data: {
-          sale_id: sale_id || null,
+          sale_id: sale_id ? parseInt(sale_id) : null,
           cus_id,
           total_amount: computedTotal,
           discount: parseFloat(discount || 0),
@@ -459,7 +465,7 @@ export async function POST(request) {
         // Get unit from original sale details or default
         let unit = 'PCS';
         if (sale) {
-          const originalDetail = sale.sale_details.find(sd => sd.pro_id === detail.pro_id);
+          const originalDetail = sale.sale_details.find(sd => Number(sd.pro_id) === Number(detail.pro_id));
           if (originalDetail) unit = originalDetail.unit;
         } else if (detail.unit) {
           unit = detail.unit;
@@ -471,8 +477,8 @@ export async function POST(request) {
         return tx.saleReturnDetail.create({
           data: {
             return_id: saleReturn.return_id,
-            pro_id: detail.pro_id,
-            qnty: parseInt(detail.qnty),
+            pro_id: parseInt(detail.pro_id),
+            qnty: parseFloat(detail.qnty),
             unit: unit,
             unit_rate: parseFloat(detail.unit_rate),
             total_amount: parseFloat(detail.total_amount),
@@ -496,7 +502,7 @@ export async function POST(request) {
           const rawStoreId = detail.store_id || detail.storeid || sale?.store_id;
           const targetStoreId = rawStoreId ? parseInt(rawStoreId) : null;
           if (targetStoreId && !isNaN(targetStoreId)) {
-            await updateStoreStock(targetStoreId, detail.pro_id, parseInt(detail.qnty), 'increment', updated_by, tx);
+            await updateStoreStock(targetStoreId, parseInt(detail.pro_id), parseFloat(detail.qnty), 'increment', updated_by, tx);
           }
         });
 
