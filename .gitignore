@@ -88,3 +88,13 @@ jspm_packages/
 
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test
+
+# Excluded projects & local builds
+[iI]ttefaqPOS/
+[iI]ttefaqPOS.sln
+[lL]aravel-pos/
+fingerprint-matcher/
+scratch/
+*.zip
+*.bat
+*.sql
